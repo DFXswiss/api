@@ -15,9 +15,10 @@ import {
   DeclineCategory,
   EventType,
   PaymentType,
+  SiftAmlDeclineMap,
   SiftAssetType,
-  SiftAuthenticationStatusMap,
   SiftBase,
+  SiftCheckoutDeclineMap,
   SiftPaymentMethodMap,
   SiftResponse,
   Transaction,
@@ -65,12 +66,14 @@ export class SiftService {
     return this.send(EventType.CREATE_ORDER, data);
   }
 
-  async buyCryptoTransaction(
-    buyCrypto: BuyCrypto,
-    status: TransactionStatus,
-    declineCategory: DeclineCategory,
-  ): Promise<SiftResponse> {
-    const data = this.getTxData(buyCrypto.user, buyCrypto, buyCrypto.outputAsset, status, declineCategory);
+  async buyCryptoTransaction(buyCrypto: BuyCrypto, status: TransactionStatus): Promise<SiftResponse> {
+    const data = this.getTxData(
+      buyCrypto.user,
+      buyCrypto,
+      buyCrypto.outputAsset,
+      status,
+      SiftAmlDeclineMap[buyCrypto.amlReason],
+    );
 
     return this.send(EventType.TRANSACTION, data);
   }
@@ -81,7 +84,7 @@ export class SiftService {
       checkoutTx,
       buy.asset,
       status,
-      SiftAuthenticationStatusMap[checkoutTx.authStatusReason],
+      SiftCheckoutDeclineMap[checkoutTx.authStatusReason],
     );
 
     return this.send(EventType.TRANSACTION, data);

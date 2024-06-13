@@ -1,4 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
@@ -919,7 +920,7 @@ export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = 
   [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
 };
 
-export const SiftAuthenticationStatusMap: { [method: string]: DeclineCategory } = {
+export const SiftCheckoutDeclineMap: { [method: string]: DeclineCategory } = {
   '01': DeclineCategory.INVALID_VERIFICATION,
   '02': DeclineCategory.OTHER,
   '03': DeclineCategory.OTHER,
@@ -957,6 +958,31 @@ export const SiftAuthenticationStatusMap: { [method: string]: DeclineCategory } 
   '88': DeclineCategory.OTHER,
   '89': DeclineCategory.OTHER,
   '90': DeclineCategory.OTHER,
+};
+
+export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
+  [AmlReason.ANNUAL_LIMIT]: DeclineCategory.OTHER,
+  [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: DeclineCategory.OTHER,
+  [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: DeclineCategory.INVALID,
+  [AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: DeclineCategory.INVALID,
+  [AmlReason.BANK_NOT_ALLOWED]: DeclineCategory.RISKY,
+  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: DeclineCategory.OTHER,
+  [AmlReason.COUNTRY_NOT_ALLOWED]: DeclineCategory.RISKY,
+  [AmlReason.DAILY_LIMIT]: DeclineCategory.OTHER,
+  [AmlReason.FEE_TOO_HIGH]: DeclineCategory.OTHER,
+  [AmlReason.HIGH_RISK_BLOCKED]: DeclineCategory.RISKY,
+  [AmlReason.HIGH_RISK_KYC_NEEDED]: DeclineCategory.RISKY,
+  [AmlReason.IBAN_CHECK]: DeclineCategory.OTHER,
+  [AmlReason.KYC_REJECTED]: DeclineCategory.OTHER,
+  [AmlReason.MANUAL_CHECK]: DeclineCategory.OTHER,
+  [AmlReason.MIN_DEPOSIT_NOT_REACHED]: DeclineCategory.OTHER,
+  [AmlReason.NA]: DeclineCategory.OTHER,
+  [AmlReason.NAME_CHECK_WITHOUT_KYC]: DeclineCategory.OTHER,
+  [AmlReason.NO_COMMUNICATION]: DeclineCategory.OTHER,
+  [AmlReason.OLKY_NO_KYC]: DeclineCategory.OTHER,
+  [AmlReason.RECEIVER_REJECTED_TX]: DeclineCategory.OTHER,
+  [AmlReason.STAKING_DISCONTINUED]: DeclineCategory.INVALID,
+  [AmlReason.USER_DATA_MISMATCH]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { DeclineCategory, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -262,7 +262,7 @@ export class BuyCryptoService {
 
     // create sift transaction
     if (forceUpdate.amlCheck === CheckStatus.FAIL)
-      await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE, DeclineCategory.OTHER);
+      await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
 
     // payment webhook
     if (
