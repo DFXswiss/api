@@ -13,6 +13,12 @@
     "incremental": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "swissqrbill/svg": ["node_modules/swissqrbill/lib/esm/svg/index.d.ts"],
+      "swissqrbill/pdf": ["node_modules/swissqrbill/lib/esm/pdf/index.d.ts"],
+      "swissqrbill/types": ["node_modules/swissqrbill/lib/esm/shared/types.d.ts"],
+      "swissqrbill/utils": ["node_modules/swissqrbill/lib/esm/shared/utils.d.ts"],
+    }
   }
 }
