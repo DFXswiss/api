@@ -15,7 +15,6 @@ import {
   TransactionType,
 } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -190,7 +189,7 @@ export class BuyCryptoService {
     },
   ) {
     entity.outputAsset = entity.target.asset;
-    entity.outputReferenceAsset = entity.outputAsset.type === AssetType.CUSTOM ? null : entity.outputAsset;
+    entity.outputReferenceAsset = entity.outputAsset;
 
     entity = await this.setTxRequest(entity);
 
