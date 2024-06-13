@@ -13,6 +13,7 @@ import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
+import { TransactionRequest } from './transaction-request.entity';
 
 export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',
@@ -43,6 +44,9 @@ export class Transaction extends IEntity {
 
   @Column({ length: 256, unique: true })
   uid: string;
+
+  @Column({ length: 256 })
+  externalId: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -81,6 +85,9 @@ export class Transaction extends IEntity {
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user: User;
+
+  @OneToOne(() => TransactionRequest, { nullable: true })
+  request: TransactionRequest;
 
   // --- ENTITY METHODS --- //
 

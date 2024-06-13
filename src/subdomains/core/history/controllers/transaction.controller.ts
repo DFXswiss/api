@@ -18,6 +18,7 @@ import {
   ApiExcludeEndpoint,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -87,20 +88,10 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getSingleTransaction(
     @Query('uid') uid?: string,
+    @Query('external-id') externalId?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
-      refReward: true,
-      bankTx: { transaction: true },
-      cryptoInput: true,
-      checkoutTx: true,
-    };
-
-    let transaction: Transaction;
-    if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
+    const transaction = await this.getTransaction({ uid, externalId, ckoId });
 
     const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -162,6 +153,31 @@ export class TransactionController {
     @Query() query: TransactionFilter,
   ): Promise<TransactionDetailDto[]> {
     return this.getAllTransactionsDetailed(jwt.account, query);
+  }
+
+  @Get('detail/single')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: TransactionDetailDto })
+  @ApiQuery({ name: 'id', description: 'Transaction ID' })
+  @ApiQuery({ name: 'uid', description: 'Transaction unique ID' })
+  @ApiQuery({ name: 'request-id', description: 'Transaction request ID' })
+  @ApiQuery({ name: 'external-id', description: 'External transaction ID' })
+  async getSingleTransactionDetails(
+    @GetJwt() jwt: JwtPayload,
+    @Query('id') id?: string,
+    @Query('uid') uid?: string,
+    @Query('request-id') requestId?: string,
+    @Query('external-id') externalId?: string,
+  ): Promise<TransactionDto | UnassignedTransactionDto> {
+    const transaction = await this.getTransaction({ id, uid, requestId, externalId });
+
+    if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
+
+    const dto = await this.txToTransactionDto(transaction, true);
+    if (!dto) throw new NotFoundException('Transaction not found');
+
+    return dto;
   }
 
   @Put('detail/csv')
@@ -270,6 +286,38 @@ export class TransactionController {
       if (!tx.targetEntity) return undefined;
       return this.txToTransactionDto(tx, true);
     }).then((list) => list.filter((dto) => dto));
+  }
+
+  private async getTransaction({
+    id,
+    uid,
+    requestId,
+    externalId,
+    ckoId,
+  }: {
+    id?: string;
+    uid?: string;
+    requestId?: string;
+    externalId?: string;
+    ckoId?: string;
+  }): Promise<Transaction | undefined> {
+    const relations: FindOptionsRelations<Transaction> = {
+      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
+      refReward: true,
+      bankTx: { transaction: true },
+      cryptoInput: true,
+      checkoutTx: true,
+    };
+
+    let transaction: Transaction;
+    if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
+    if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
+    if (id) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
+    if (externalId) transaction = await this.transactionService.getTransactionByExternalId(externalId, relations);
+    if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
+
+    return transaction;
   }
 
   private async txToTransactionDto(
