@@ -1,0 +1,24 @@
+{
+  "title": "Facture No. {invoiceId}",
+  "table": {
+    "headers": {
+      "quantity": "Quantité *",
+      "description": "Description",
+      "total": "Total"
+    },
+    "position_row": {
+      "description": "{assetDescription} ({assetName}) livré sur {assetBlockchain}"
+    },
+    "total_row": {
+      "total_label": "Total"
+    },
+    "vat_row": {
+      "vat_label": "TVA",
+      "vat_amount_label": "Montant de la TVA"
+    },
+    "invoice_total_row": {
+      "invoice_total_label": "Total de la Facture"
+    }
+  },
+  "info": "* Info : Le taux de change effectif et donc la quantité effectivement livrée sont déterminés lorsque l'argent est reçu et traité par DFX."
+}
