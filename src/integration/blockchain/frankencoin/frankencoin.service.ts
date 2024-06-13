@@ -1,16 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, GetConfig } from 'src/config/config';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmUtil } from '../shared/evm/evm.util';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
+  FrankencoinInfoDto,
   FrankencoinLogDto,
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
@@ -21,17 +26,29 @@ import {
 import { FrankencoinClient } from './frankencoin-client';
 
 @Injectable()
-export class FrankencoinService {
+export class FrankencoinService implements OnModuleInit {
   private readonly logger = new DfxLogger(FrankencoinService);
 
   private static readonly LOG_SYSTEM = 'EvmInformation';
+  private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
 
   private readonly client: FrankencoinClient;
 
-  constructor(private readonly logService: LogService) {
+  private pricingService: PricingService;
+
+  constructor(
+    http: HttpService,
+    private readonly moduleRef: ModuleRef,
+    private readonly logService: LogService,
+    private readonly fiatService: FiatService,
+  ) {
     const { zchfGatewayUrl, zchfApiKey } = GetConfig().blockchain.frankencoin;
 
-    this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
+    this.client = new FrankencoinClient(http, zchfGatewayUrl, zchfApiKey);
+  }
+
+  async onModuleInit() {
+    this.pricingService = this.moduleRef.get(PricingService, { strict: false });
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -44,11 +61,12 @@ export class FrankencoinService {
       positions: await this.getPositions(),
       poolShares: await this.getFPS(),
       totalSupply: await this.getTotalSupply(),
+      totalValueLocked: await this.getTvl(),
     };
 
     const log: CreateLogDto = {
       system: FrankencoinService.LOG_SYSTEM,
-      subsystem: 'FrankencoinSmartContract',
+      subsystem: FrankencoinService.LOG_SUBSYSTEM,
       severity: LogSeverity.INFO,
       message: JSON.stringify(logMessage),
     };
@@ -185,5 +203,38 @@ export class FrankencoinService {
 
   async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
     return this.client.getTrades();
+  }
+
+  async getTvl(): Promise<number> {
+    return this.client.getTvl();
+  }
+
+  async getFrankencoinInfo(): Promise<FrankencoinInfoDto> {
+    const maxFrankencoinLogEntity = await this.logService.maxEntity(
+      FrankencoinService.LOG_SYSTEM,
+      FrankencoinService.LOG_SUBSYSTEM,
+      LogSeverity.INFO,
+    );
+
+    if (!maxFrankencoinLogEntity) {
+      return {
+        totalSupplyZchf: 0,
+        totalValueLockedInChf: 0,
+        fpsMarketCapInChf: 0,
+      };
+    }
+
+    const frankencoinLog = <FrankencoinLogDto>JSON.parse(maxFrankencoinLogEntity.message);
+
+    const fiatUsd = await this.fiatService.getFiatByName('USD');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+
+    const priceUsdToChf = await this.pricingService.getPrice(fiatUsd, fiatChf, true);
+
+    return {
+      totalSupplyZchf: frankencoinLog.totalSupply,
+      totalValueLockedInChf: priceUsdToChf.convert(frankencoinLog.totalValueLocked),
+      fpsMarketCapInChf: frankencoinLog.poolShares.marketCap,
+    };
   }
 }

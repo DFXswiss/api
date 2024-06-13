@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { Price } from '../../domain/entities/price';
-import { PricingProvider } from '../../domain/interfaces';
+import { PricingProvider } from './pricing-provider';
 
 @Injectable()
-export class CurrencyService implements PricingProvider {
+export class CurrencyService extends PricingProvider {
   private readonly baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly http: HttpService) {
+    super();
+  }
 
   async getPrice(from: string, to: string): Promise<Price> {
     return this.fetchPrice(from, to);

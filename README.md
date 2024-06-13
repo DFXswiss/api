@@ -117,4 +117,4 @@ _Get payment infos_
 
 ### Integration Example
 
-- DFX.swiss is integrated in the [DFX.swiss exchange](https://github.com/DFXswiss/exchange)
+- DFX.swiss is integrated in the [DFX.swiss Services](https://github.com/DFXswiss/services)

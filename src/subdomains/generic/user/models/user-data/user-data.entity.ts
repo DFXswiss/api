@@ -395,6 +395,10 @@ export class UserData extends IEntity {
     return `${Config.frontend.services}/kyc?code=${this.kycHash}`;
   }
 
+  get kycVideoUrl(): string {
+    return `${this.kycUrl}&step=ident/video`;
+  }
+
   get dilisenseUrl(): string | undefined {
     return this.verifiedName ? `https://dilisense.com/en/search/${encodeURIComponent(this.verifiedName)}` : undefined;
   }
@@ -445,6 +449,10 @@ export class UserData extends IEntity {
 
   get kycLevelDisplay(): number {
     return Util.floor(this.kycLevel, -1);
+  }
+
+  get completeName(): string {
+    return [this.firstname, this.surname].filter((n) => n).join(' ');
   }
 
   // --- KYC PROCESS --- //

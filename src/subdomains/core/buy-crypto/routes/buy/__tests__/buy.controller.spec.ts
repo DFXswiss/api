@@ -131,6 +131,7 @@ describe('BuyController', () => {
       maxVolumeTarget: 0,
       error: undefined,
       exactPrice: false,
+      priceSteps: [],
     });
 
     const dto = createBuyPaymentInfoDto();

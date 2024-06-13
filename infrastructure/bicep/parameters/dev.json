@@ -230,6 +230,9 @@
     "zchfGraphUrl": {
       "value": "https://maindevponder.frankencoin.com"
     },
+    "zchfTvlUrl": {
+      "value": "https://api.llama.fi/tvl/frankencoin"
+    },
     "zchfContractAddress": {
       "value": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
     },
@@ -290,7 +293,7 @@
     "binanceBtcDepositAddress": {
       "value": "xxx"
     },
-    "binancePolygonDepositAddress": {
+    "binanceEvmDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {

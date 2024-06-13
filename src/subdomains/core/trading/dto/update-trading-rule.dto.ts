@@ -10,6 +10,14 @@ export class UpdateTradingRuleDto {
   upperLimit: number;
 
   @IsOptional()
+  @IsNumber()
+  lowerTarget: number;
+
+  @IsOptional()
+  @IsNumber()
+  upperTarget: number;
+
+  @IsOptional()
   @IsInt()
   reactivationTime: number;
 }

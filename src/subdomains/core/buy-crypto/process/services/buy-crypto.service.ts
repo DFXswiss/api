@@ -78,10 +78,11 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.user.userData, {
+        await this.bankDataService.createBankData(buy.userData, {
+          name: bankTx.bankDataName,
           iban: bankTx.senderAccount,
           type: BankDataType.BANK_IN,
         });
@@ -112,10 +113,11 @@ export class BuyCryptoService {
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.user.userData, {
+        await this.bankDataService.createBankData(buy.userData, {
+          name: checkoutTx.cardName ?? buy.userData.completeName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
