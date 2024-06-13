@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DeclineCategory, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -140,11 +140,7 @@ export class BuyCryptoOutService {
           await this.buyCryptoRepo.save(tx);
 
           // create sift transaction
-          const siftResponse = await this.siftService.buyCryptoTransaction(
-            tx,
-            TransactionStatus.SUCCESS,
-            DeclineCategory.OTHER,
-          );
+          const siftResponse = await this.siftService.buyCryptoTransaction(tx, TransactionStatus.SUCCESS);
 
           tx.siftResponse = JSON.stringify(siftResponse);
           await this.buyCryptoRepo.save(tx);
