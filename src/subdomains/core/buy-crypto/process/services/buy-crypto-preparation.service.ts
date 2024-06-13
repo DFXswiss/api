@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Transaction, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { isFiat } from 'src/shared/models/active';
+import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -193,17 +193,15 @@ export class BuyCryptoPreparationService {
 
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
-        const referenceOutputPrice =
-          entity.target.asset.type !== AssetType.CUSTOM &&
-          (await this.pricingService.getPrice(inputReferenceCurrency, entity.target.asset, false));
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
-        const networkFee =
-          entity.target.asset.type !== AssetType.CUSTOM
-            ? undefined
-            : !fee.network
-            ? referenceOutputPrice.convert(referenceChfPrice.invert().convert(Config.maxBlockchainFee))
-            : referenceOutputPrice.convert(fee.network);
+
+        const maxNetworkFee = fee.network ? fee.network : referenceChfPrice.invert().convert(Config.maxBlockchainFee);
+        const maxNetworkFeeInOutAsset = await this.convertNetworkFee(
+          inputReferenceCurrency,
+          entity.outputAsset,
+          maxNetworkFee,
+        );
 
         entity.setFeeAndFiatReference(
           referenceEurPrice.convert(entity.inputReferenceAmount, 2),
@@ -211,7 +209,7 @@ export class BuyCryptoPreparationService {
           fee,
           isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
           referenceChfPrice.convert(fee.total, 2),
-          networkFee,
+          maxNetworkFeeInOutAsset,
         );
 
         await this.buyCryptoRepo.save(entity);
@@ -238,5 +236,13 @@ export class BuyCryptoPreparationService {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
       }
     }
+  }
+
+  private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
+    if (isAsset(to) && to.type === AssetType.CUSTOM) return 0;
+
+    const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
+
+    return referenceOutputPrice.convert(fee);
   }
 }
