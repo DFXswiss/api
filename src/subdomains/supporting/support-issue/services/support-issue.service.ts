@@ -9,13 +9,13 @@ import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
-import { CustomerAuthor } from '../entities/support-message.entity';
+import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
@@ -95,6 +95,16 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+  }
+
+  async getUserSupportTickets(
+    userDataId: number,
+  ): Promise<{ supportIssues: SupportIssue[]; supportMessages: SupportMessage[] }> {
+    const supportIssues = await this.supportIssueRepo.findBy({ userData: { id: userDataId } });
+    return {
+      supportIssues,
+      supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
+    };
   }
 
   // --- HELPER METHODS --- //
