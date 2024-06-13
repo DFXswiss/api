@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { Transaction, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { isFiat } from 'src/shared/models/active';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -192,16 +193,17 @@ export class BuyCryptoPreparationService {
 
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
-        const referenceOutputPrice = await this.pricingService.getPrice(
-          inputReferenceCurrency,
-          entity.target.asset,
-          false,
-        );
+        const referenceOutputPrice =
+          entity.target.asset.type !== AssetType.CUSTOM &&
+          (await this.pricingService.getPrice(inputReferenceCurrency, entity.target.asset, false));
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
-        const networkFee = !fee.network
-          ? referenceOutputPrice.convert(referenceChfPrice.invert().convert(Config.maxBlockchainFee))
-          : referenceOutputPrice.convert(fee.network);
+        const networkFee =
+          entity.target.asset.type !== AssetType.CUSTOM
+            ? undefined
+            : !fee.network
+            ? referenceOutputPrice.convert(referenceChfPrice.invert().convert(Config.maxBlockchainFee))
+            : referenceOutputPrice.convert(fee.network);
 
         entity.setFeeAndFiatReference(
           referenceEurPrice.convert(entity.inputReferenceAmount, 2),
