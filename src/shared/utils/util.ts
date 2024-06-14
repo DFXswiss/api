@@ -395,6 +395,14 @@ export class Util {
     return hash.digest(encoding);
   }
 
+  static createObjectHash(
+    data: object,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    return this.createHash(JSON.stringify(data), algo, encoding);
+  }
+
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
     const sign = createSign(algo);
     sign.update(data);

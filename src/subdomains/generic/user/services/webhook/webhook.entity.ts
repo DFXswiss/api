@@ -14,6 +14,9 @@ export class Webhook extends IEntity {
   data: string;
 
   @Column({ length: 256, nullable: true })
+  hash: string;
+
+  @Column({ length: 256, nullable: true })
   reason: string;
 
   @Column({ type: 'datetime2', nullable: true })
