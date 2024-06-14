@@ -5,6 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
@@ -25,6 +26,7 @@ export class UserDataController {
     private readonly feeService: FeeService,
     private readonly storageService: DocumentStorageService,
     private readonly kycAdminService: KycAdminService,
+    private readonly kycLogService: KycLogService,
   ) {}
 
   @Get()
@@ -123,7 +125,7 @@ export class UserDataController {
       },
     );
 
-    if (dto.kycLogId != null) await this.kycAdminService.updateLogPdfUrl(dto.kycLogId, url);
+    if (dto.kycLogId != null) await this.kycLogService.updateLogPdfUrl(dto.kycLogId, url);
 
     return url;
   }

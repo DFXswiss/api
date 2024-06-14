@@ -23,7 +23,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
@@ -55,7 +55,7 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
-    private readonly kycAdminService: KycAdminService,
+    private readonly kycLogService: KycLogService,
     private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
@@ -576,7 +576,7 @@ export class UserDataService {
       }
     }
 
-    await this.kycAdminService.createMergeLog(master, log);
+    await this.kycLogService.createMergeLog(master, log);
 
     // Notify user about added address
     if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);

@@ -26,6 +26,7 @@ import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycAdminService } from './services/kyc-admin.service';
 import { KycClientService } from './services/kyc-client.service';
+import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { LimitRequestNotificationService } from './services/limit-request-notification.service';
@@ -46,6 +47,7 @@ import { TfaService } from './services/tfa.service';
   providers: [
     KycService,
     KycAdminService,
+    KycLogService,
     TfaService,
     DocumentStorageService,
     NameCheckService,
@@ -63,6 +65,13 @@ import { TfaService } from './services/tfa.service';
     LimitRequestService,
     LimitRequestNotificationService,
   ],
-  exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService, LimitRequestService],
+  exports: [
+    DocumentStorageService,
+    NameCheckService,
+    KycAdminService,
+    KycLogService,
+    KycNotificationService,
+    LimitRequestService,
+  ],
 })
 export class KycModule {}
