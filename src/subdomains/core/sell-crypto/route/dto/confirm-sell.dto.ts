@@ -40,8 +40,8 @@ export class PermitDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsInt()
-  deadline: number;
+  @IsString()
+  deadline: string;
 }
 
 export class ConfirmSellDto {
