@@ -82,19 +82,19 @@ export class WebhookService {
         .then((u) => u.wallet);
     }
 
-    const hash = Util.createObjectHash(this.removeDates(payload));
+    const identifier = Util.createObjectHash(this.removeDates(payload));
     const data = JSON.stringify(payload);
 
     // user webhooks
     const webhooks: CreateWebhookInput[] = users
       .filter((user) => user.wallet.isValidForWebhook(type, false))
-      .map((user) => ({ type, hash, data, reason, userData, user, wallet: user.wallet }));
+      .map((user) => ({ type, identifier, data, reason, userData, user, wallet: user.wallet }));
 
     // user data webhooks
     const additionalClients = userData.kycClientList.filter((w) => !webhooks.some(({ wallet }) => wallet.id === w));
     for (const walletId of additionalClients) {
       const wallet = await this.walletService.getByIdOrName(walletId);
-      if (wallet?.isValidForWebhook(type, true)) webhooks.push({ type, hash, data, reason, userData, wallet });
+      if (wallet?.isValidForWebhook(type, true)) webhooks.push({ type, identifier, data, reason, userData, wallet });
     }
 
     for (const client of webhooks) {
@@ -105,7 +105,7 @@ export class WebhookService {
   private async createAndSendWebhook(dto: CreateWebhookInput): Promise<Webhook | undefined> {
     const exists = await this.webhookRepo.exist({
       where: {
-        hash: dto.hash,
+        identifier: dto.identifier,
         type: dto.type,
         reason: dto.reason,
         userData: { id: dto.userData.id },

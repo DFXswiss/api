@@ -14,7 +14,7 @@ export class Webhook extends IEntity {
   data: string;
 
   @Column({ length: 256, nullable: true })
-  hash: string;
+  identifier: string;
 
   @Column({ length: 256, nullable: true })
   reason: string;
