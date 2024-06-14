@@ -195,7 +195,7 @@ export class BuyCryptoService {
 
     entity = await this.buyCryptoRepo.save(entity);
 
-    //create sift transaction
+    // create sift transaction
     await this.siftService.transaction({
       $transaction_id: entity.id.toString(),
       $transaction_type: TransactionType.BUY,

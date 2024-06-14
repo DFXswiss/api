@@ -139,7 +139,7 @@ export class BuyCryptoOutService {
           tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
 
-          //update sift transaction status
+          // update sift transaction status
           await this.siftService.transaction({
             $transaction_id: tx.id.toString(),
             $transaction_status: TransactionStatus.SUCCESS,
