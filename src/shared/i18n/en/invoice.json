@@ -20,5 +20,5 @@
       "invoice_total_label": "Invoice Total"
     }
   },
-  "info": "* Info: The effective exchange rate and thus the amount of the effectively delivered quantity is determined when the money is received and processed by DFX."
+  "info": "* Info: The effective exchange rate and thus the effectively delivered quantity is determined when the money is received and processed by DFX."
 }
