@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { DeclineCategory, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';

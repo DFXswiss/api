@@ -97,28 +97,8 @@ export class TransactionRequestService {
       await this.transactionRequestRepo.save(transactionRequest);
       response.id = transactionRequest.id;
 
-      // create order at sift
-      const siftResponse = await this.siftService.createOrder({
-        $order_id: transactionRequest.id.toString(),
-        $user_id: userId.toString(),
-        $time: transactionRequest.created.getTime(),
-        $amount: transactionRequest.amount * 10000,
-        $currency_code: sourceCurrencyName,
-        $site_country: 'CH',
-        $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
-        $digital_orders: [
-          {
-            $digital_asset: targetCurrencyName,
-            $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
-            $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
-            $volume: transactionRequest.estimatedAmount.toString(),
-          },
-        ],
-        blockchain,
-      } as CreateOrder);
-
-      transactionRequest.siftResponse = JSON.stringify(siftResponse);
-      await this.transactionRequestRepo.save(transactionRequest);
+      // create order at sift (without waiting)
+      void this.createSiftEvent(type, transactionRequest, userId, sourceCurrencyName, targetCurrencyName, blockchain);
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -165,5 +145,37 @@ export class TransactionRequestService {
 
   async complete(id: number): Promise<void> {
     await this.transactionRequestRepo.update(id, { isComplete: true });
+  }
+
+  // --- HELPER METHODS --- //
+
+  private async createSiftEvent(
+    type: TransactionRequestType,
+    transactionRequest: TransactionRequest,
+    userId: number,
+    sourceCurrencyName: string,
+    targetCurrencyName: string,
+    blockchain: Blockchain,
+  ) {
+    const siftResponse = await this.siftService.createOrder({
+      $order_id: transactionRequest.id.toString(),
+      $user_id: userId.toString(),
+      $time: transactionRequest.created.getTime(),
+      $amount: transactionRequest.amount * 10000,
+      $currency_code: sourceCurrencyName,
+      $site_country: 'CH',
+      $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
+      $digital_orders: [
+        {
+          $digital_asset: targetCurrencyName,
+          $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
+          $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
+          $volume: transactionRequest.estimatedAmount.toString(),
+        },
+      ],
+      blockchain,
+    } as CreateOrder);
+
+    await this.transactionRequestRepo.update(transactionRequest.id, { siftResponse: JSON.stringify(siftResponse) });
   }
 }
