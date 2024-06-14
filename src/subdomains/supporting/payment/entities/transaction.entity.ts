@@ -45,7 +45,7 @@ export class Transaction extends IEntity {
   @Column({ length: 256, unique: true })
   uid: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   externalId: string;
 
   // Mail
