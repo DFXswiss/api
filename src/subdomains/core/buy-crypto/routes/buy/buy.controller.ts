@@ -374,7 +374,7 @@ ${buy.bankUsage}
     return {
       amount,
       currency,
-      additionalInformation: reference,
+      message: reference,
       creditor: {
         account: bankInfo.iban,
         address: bankInfo.street,
