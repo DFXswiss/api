@@ -206,7 +206,7 @@ export class BankDataService {
       const userData = await this.userDataRepo.findOneBy({ id: userDataId });
       if (userData.id === existing.userData.id) return;
 
-      if (userData.verifiedName || userData.verifiedName !== existing.userData.verifiedName)
+      if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
         throw new ForbiddenException('IBAN already in use');
 
       await this.accountMergeService.sendMergeRequest(existing.userData, userData);
