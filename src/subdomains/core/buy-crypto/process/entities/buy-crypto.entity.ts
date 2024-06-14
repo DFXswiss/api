@@ -19,7 +19,6 @@ import {
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -192,16 +191,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
-  @OneToOne(() => TransactionRequest, { nullable: true })
-  @JoinColumn()
-  transactionRequest: TransactionRequest;
-
   @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
   transaction: Transaction;
-
-  @Column({ length: 256, nullable: true })
-  externalTransactionId: string;
 
   @Column({ length: 'MAX', nullable: true })
   siftResponse: string;
