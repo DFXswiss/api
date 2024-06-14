@@ -182,7 +182,7 @@ export class SellService {
     try {
       const route = await this.sellRepo.findOne({
         where: { id: request.routeId },
-        relations: { deposit: true, user: { wallet: true, userData: { bankDatas: true } } },
+        relations: { deposit: true, user: { wallet: true, userData: true } },
       });
       const asset = await this.assetService.getAssetById(request.sourceId);
 

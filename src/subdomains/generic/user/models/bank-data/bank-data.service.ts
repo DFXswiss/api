@@ -108,7 +108,7 @@ export class BankDataService {
     // update updated time in user data
     await this.userDataRepo.setNewUpdateTime(userData.id);
 
-    userData.bankDatas.push(bankData);
+    userData.bankDatas?.push(bankData);
     return userData;
   }
 
