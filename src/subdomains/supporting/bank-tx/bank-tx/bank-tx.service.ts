@@ -154,7 +154,14 @@ export class BankTxService {
   }
 
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
-    const bankTx = await this.bankTxRepo.findOne({ where: { id: bankTxId }, relations: { transaction: true } });
+    const bankTx = await this.bankTxRepo.findOne({
+      where: { id: bankTxId },
+      relations: {
+        transaction: true,
+        buyFiat: { sell: { user: true } },
+        buyCryptoChargeback: { buy: { user: true }, cryptoRoute: { user: true } },
+      },
+    });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
@@ -175,6 +182,7 @@ export class BankTxService {
           if (dto.type)
             await this.transactionService.update(bankTx.transaction.id, {
               type: TransactionBankTxTypeMapper[dto.type],
+              user: bankTx.user,
             });
           break;
       }
