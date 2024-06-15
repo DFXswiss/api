@@ -1,4 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
@@ -741,7 +742,7 @@ export enum DeclineCategory {
   FRAUD = '$fraud',
   LOST_OR_STOLEN = '$lost_or_stolen',
   RISKY = '$risky',
-  BANK_DEVLINE = '$bank_decline',
+  BANK_DECLINE = '$bank_decline',
   INVALID = '$invalid',
   EXPIRED = '$expired',
   INSUFFICIENT_FUNDS = '$insufficient_funds',
@@ -909,11 +910,132 @@ export interface Transaction extends SiftBase {
   ];
 
   // custom field
-  blockchain: Blockchain;
+  blockchain?: Blockchain;
 }
+
 export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
   [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
   [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,
   [FiatPaymentMethod.CARD]: PaymentType.CREDIT_CARD,
   [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
 };
+
+export const SiftCheckoutDeclineMap: { [method: string]: DeclineCategory } = {
+  '01': DeclineCategory.INVALID_VERIFICATION,
+  '02': DeclineCategory.OTHER,
+  '03': DeclineCategory.OTHER,
+  '04': DeclineCategory.LIMIT_EXCEEDED,
+  '05': DeclineCategory.EXPIRED,
+  '06': DeclineCategory.INVALID,
+  '07': DeclineCategory.INVALID,
+  '08': DeclineCategory.OTHER,
+  '09': DeclineCategory.OTHER,
+  '10': DeclineCategory.LOST_OR_STOLEN,
+  '11': DeclineCategory.FRAUD,
+  '12': DeclineCategory.OTHER,
+  '13': DeclineCategory.OTHER,
+  '14': DeclineCategory.OTHER,
+  '15': DeclineCategory.OTHER,
+  '16': DeclineCategory.OTHER,
+  '17': DeclineCategory.OTHER,
+  '18': DeclineCategory.OTHER,
+  '19': DeclineCategory.OTHER,
+  '20': DeclineCategory.OTHER,
+  '21': DeclineCategory.OTHER,
+  '22': DeclineCategory.OTHER,
+  '23': DeclineCategory.OTHER,
+  '24': DeclineCategory.OTHER,
+  '25': DeclineCategory.OTHER,
+  '26': DeclineCategory.OTHER,
+  '80': DeclineCategory.OTHER,
+  '81': DeclineCategory.OTHER,
+  '82': DeclineCategory.OTHER,
+  '83': DeclineCategory.OTHER,
+  '84': DeclineCategory.OTHER,
+  '85': DeclineCategory.OTHER,
+  '86': DeclineCategory.OTHER,
+  '87': DeclineCategory.OTHER,
+  '88': DeclineCategory.OTHER,
+  '89': DeclineCategory.OTHER,
+  '90': DeclineCategory.OTHER,
+};
+
+export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
+  [AmlReason.ANNUAL_LIMIT]: DeclineCategory.OTHER,
+  [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: DeclineCategory.OTHER,
+  [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: DeclineCategory.INVALID,
+  [AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: DeclineCategory.INVALID,
+  [AmlReason.BANK_NOT_ALLOWED]: DeclineCategory.RISKY,
+  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: DeclineCategory.OTHER,
+  [AmlReason.COUNTRY_NOT_ALLOWED]: DeclineCategory.RISKY,
+  [AmlReason.DAILY_LIMIT]: DeclineCategory.OTHER,
+  [AmlReason.FEE_TOO_HIGH]: DeclineCategory.OTHER,
+  [AmlReason.HIGH_RISK_BLOCKED]: DeclineCategory.RISKY,
+  [AmlReason.HIGH_RISK_KYC_NEEDED]: DeclineCategory.RISKY,
+  [AmlReason.IBAN_CHECK]: DeclineCategory.OTHER,
+  [AmlReason.KYC_REJECTED]: DeclineCategory.OTHER,
+  [AmlReason.MANUAL_CHECK]: DeclineCategory.OTHER,
+  [AmlReason.MIN_DEPOSIT_NOT_REACHED]: DeclineCategory.OTHER,
+  [AmlReason.NA]: DeclineCategory.OTHER,
+  [AmlReason.NAME_CHECK_WITHOUT_KYC]: DeclineCategory.OTHER,
+  [AmlReason.NO_COMMUNICATION]: DeclineCategory.OTHER,
+  [AmlReason.OLKY_NO_KYC]: DeclineCategory.OTHER,
+  [AmlReason.RECEIVER_REJECTED_TX]: DeclineCategory.OTHER,
+  [AmlReason.STAKING_DISCONTINUED]: DeclineCategory.INVALID,
+  [AmlReason.USER_DATA_MISMATCH]: DeclineCategory.OTHER,
+};
+
+export interface ScoreRsponse {
+  status: number;
+  error_message: string;
+  scores: {
+    score: number;
+    percentiles: {
+      last_1_day?: number;
+      last_5_days?: number;
+      last_7_days?: number;
+      last_10_days?: number;
+    };
+    reasons: [{ name: string; value: string; details: any }];
+  };
+  user_id: string;
+  latest_labels: {
+    payment_abuse: ScoreAbuse;
+    account_abuse: ScoreAbuse;
+    content_abuse: ScoreAbuse;
+    promotion_abuse: ScoreAbuse;
+  };
+  workflow_statuses: [SiftWorkflow];
+}
+
+export interface SiftResponse {
+  status: number;
+  error_message: string;
+  request: string;
+  time: number;
+  score_response: ScoreRsponse;
+}
+
+export interface ScoreAbuse {
+  is_fraud: boolean;
+  time: number;
+  description: string;
+}
+
+export interface SiftWorkflow {
+  id: string;
+  state: string;
+  config: { id: string; version: string };
+  config_display_name: string;
+  abuse_types: string;
+  entity: { type: string; id: string };
+  history: [
+    {
+      app: string;
+      name: string;
+      state: string;
+      config: { decision_id: string; buttions: [{ id: string; name: string }] };
+    },
+  ];
+  route: { name: string };
+}

@@ -2,9 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
@@ -20,6 +23,8 @@ export class FiatPayInSyncService {
     private readonly checkoutTxRepo: CheckoutTxRepository,
     private readonly checkoutTxService: CheckoutTxService,
     private readonly transactionService: TransactionService,
+    private readonly siftService: SiftService,
+    private readonly buyService: BuyService,
   ) {}
 
   // --- JOBS --- //
@@ -36,8 +41,12 @@ export class FiatPayInSyncService {
       try {
         const checkoutTx = await this.createCheckoutTx(payment);
 
-        if (checkoutTx.approved && !checkoutTx.buyCrypto)
+        if (checkoutTx.approved && !checkoutTx.buyCrypto) {
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
+        } else if (checkoutTx.authStatusReason) {
+          const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
+          if (buy) await this.siftService.checkoutTransaction(checkoutTx, TransactionStatus.FAILURE, buy);
+        }
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);
       }
@@ -84,6 +93,7 @@ export class FiatPayInSyncService {
       ip: payment.payment_ip,
       risk: payment.risk?.flagged,
       riskScore: payment.risk?.score,
+      authStatusReason: payment['3ds']?.authentication_status_reason,
       raw: JSON.stringify(payment),
     });
   }
