@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IntegrationModule } from 'src/integration/integration.module';
+import { SiftModule } from 'src/integration/sift/sift.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
@@ -63,6 +64,7 @@ import { SwapService } from './routes/swap/swap.service';
     TransactionModule,
     AmlModule,
     FiatPayInModule,
+    SiftModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [

@@ -7,6 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { BigNumber } from 'ethers/lib/ethers';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -181,11 +182,17 @@ export class SellService {
     try {
       const route = await this.sellRepo.findOne({
         where: { id: request.routeId },
-        relations: { user: { wallet: true, userData: true } },
+        relations: { deposit: true, user: { wallet: true, userData: true } },
       });
       const asset = await this.assetService.getAssetById(request.sourceId);
 
       const client = this.evmRegistry.getClient(asset.blockchain);
+
+      if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
+        throw new BadRequestException('Invalid executor address');
+
+      const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);
+      if (!contractValid) throw new BadRequestException('Invalid signature transfer contract');
 
       const txId = await client.permitTransfer(
         dto.permit.address,
@@ -195,7 +202,7 @@ export class SellService {
         request.amount,
         dto.permit.permittedAmount,
         dto.permit.nonce,
-        dto.permit.deadline,
+        BigNumber.from(dto.permit.deadline),
       );
 
       const blockHeight = await client.getCurrentBlock();

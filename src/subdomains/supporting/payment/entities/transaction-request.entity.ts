@@ -74,4 +74,7 @@ export class TransactionRequest extends IEntity {
 
   @ManyToOne(() => User, { nullable: false })
   user: User;
+
+  @Column({ length: 'MAX', nullable: true })
+  siftResponse: string;
 }
