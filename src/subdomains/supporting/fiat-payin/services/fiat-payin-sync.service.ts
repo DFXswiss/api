@@ -44,7 +44,7 @@ export class FiatPayInSyncService {
     }
 
     const refundedList = await this.checkoutTxService.getPendingRefundedList();
-    const refundedPayments = await this.checkoutService.getRefundedPayments(refundedList);
+    const refundedPayments = await this.checkoutService.getPaymentList(refundedList);
 
     for (const refundedPayment of refundedPayments) {
       try {

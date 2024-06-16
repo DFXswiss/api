@@ -7,7 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import {
   SiftAssetType,
@@ -357,10 +356,9 @@ export class BuyCryptoService {
     const chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
 
     buyCrypto.chargebackDate = new Date();
-    buyCrypto.chargebackRemittanceInfo = JSON.stringify(chargebackRemittanceInfo);
-    buyCrypto.checkoutTx.status = CheckoutPaymentStatus.REFUNDED_PENDING;
+    buyCrypto.chargebackRemittanceInfo = chargebackRemittanceInfo.reference;
 
-    await this.checkoutTxService.save(buyCrypto.checkoutTx);
+    await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx);
     await this.buyCryptoRepo.save(buyCrypto);
   }
 

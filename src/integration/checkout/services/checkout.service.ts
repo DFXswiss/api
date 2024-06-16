@@ -92,7 +92,7 @@ export class CheckoutService {
     return payments.filter((p) => !(new Date(p.requested_on) < since));
   }
 
-  async getRefundedPayments(chargebackList: CheckoutTx[]): Promise<CheckoutPayment[]> {
+  async getPaymentList(chargebackList: CheckoutTx[]): Promise<CheckoutPayment[]> {
     const payments: CheckoutPayment[] = [];
 
     for (const chargeback of chargebackList) {
