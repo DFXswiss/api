@@ -209,8 +209,8 @@ export class BankDataService {
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
         throw new ForbiddenException('IBAN already in use');
 
-      await this.accountMergeService.sendMergeRequest(existing.userData, userData);
-      throw new ConflictException('IBAN already exists');
+      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(existing.userData, userData);
+      throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
     }
 
     const bankData = this.bankDataRepo.create({
