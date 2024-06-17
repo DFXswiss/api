@@ -48,7 +48,7 @@ export class TransactionJobService {
   private getUser(entity: Transaction): number {
     switch (entity.sourceType) {
       case TransactionSourceType.BANK_TX:
-        if (entity.type === TransactionTypeInternal.BANK_TX_REPEAT) return entity.bankTx.bankTxRepeat.userId;
+        if (entity.type === TransactionTypeInternal.BANK_TX_REPEAT) return entity.bankTxRepeat.userId;
 
         return entity.bankTx.buyFiat?.user.id ?? entity.bankTx.buyCryptoChargeback?.user.id;
 
