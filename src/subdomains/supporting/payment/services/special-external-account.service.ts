@@ -1,11 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { In } from 'typeorm';
+import { CreateSpecialExternalAccountDto } from '../dto/input/create-special-external-account.dto';
 import { SpecialExternalAccount, SpecialExternalAccountType } from '../entities/special-external-account.entity';
 import { SpecialExternalAccountRepository } from '../repositories/special-external-account.repository';
 
 @Injectable()
 export class SpecialExternalAccountService {
   constructor(private readonly specialExternalAccountRepo: SpecialExternalAccountRepository) {}
+
+  async createSpecialExternalAccount(dto: CreateSpecialExternalAccountDto): Promise<SpecialExternalAccount> {
+    const existing = await this.specialExternalAccountRepo.findOneBy({
+      type: dto.type,
+      value: dto.value,
+    });
+    if (existing) throw new BadRequestException('Special external account already created');
+
+    const specialExternalAccount = this.specialExternalAccountRepo.create(dto);
+
+    return this.specialExternalAccountRepo.save(specialExternalAccount);
+  }
 
   async getMultiAccounts(): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findCachedBy(`MultiAccountIbans`, {
