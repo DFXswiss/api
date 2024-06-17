@@ -56,11 +56,6 @@ export class PaymentInfoService {
         throw new BadRequestException('Asset blockchain mismatch');
     }
 
-    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
-      throw new BadRequestException(
-        'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
-      );
-
     if ('blockchain' in dto) {
       if (jwt && !jwt.blockchains.includes(dto.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
     }
@@ -68,6 +63,11 @@ export class PaymentInfoService {
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.buyable) throw new BadRequestException('Currency not buyable');
+
+    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
+      throw new BadRequestException(
+        'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
+      );
 
     return dto;
   }

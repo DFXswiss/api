@@ -5,6 +5,7 @@ import { WebhookType } from './webhook.dto';
 
 export interface CreateWebhookInput {
   type: WebhookType;
+  identifier: string;
   data: string;
   reason?: string;
   user?: User;

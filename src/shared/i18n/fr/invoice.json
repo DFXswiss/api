@@ -20,5 +20,5 @@
       "invoice_total_label": "Total de la Facture"
     }
   },
-  "info": "* Info : Le taux de change effectif et donc la quantité effectivement livrée sont déterminés lorsque l'argent est reçu et traité par DFX."
+  "info": "* Info: Le taux de change effectif et donc la quantité effectivement livrée sont déterminés lorsque l’argent est reçu et traité par DFX."
 }
