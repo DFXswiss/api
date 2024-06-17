@@ -3,7 +3,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -87,6 +87,7 @@ export class Transaction extends IEntity {
   user: User;
 
   @OneToOne(() => TransactionRequest, { nullable: true })
+  @JoinColumn()
   request: TransactionRequest;
 
   // --- ENTITY METHODS --- //
