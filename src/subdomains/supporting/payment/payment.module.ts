@@ -23,6 +23,7 @@ import { SwissQRService } from './services/swiss-qr.service';
 import { TransactionHelper } from './services/transaction-helper';
 import { TransactionRequestService } from './services/transaction-request.service';
 import { TransactionModule } from './transaction.module';
+import { SpecialExternalAccountController } from './controllers/special-external-account.controller';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { TransactionModule } from './transaction.module';
     TransactionModule,
     SiftModule,
   ],
-  controllers: [FeeController],
+  controllers: [FeeController, SpecialExternalAccountController],
   providers: [
     TransactionHelper,
     TransactionSpecificationRepository,
