@@ -143,8 +143,8 @@ export class SiftService {
       : {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
-          $card_bin: tx.iban.slice(2, 8),
-          $card_last4: tx.iban.slice(-4),
+          $shortened_iban_first6: tx.iban.slice(0, 6),
+          $shortened_iban_last4: tx.iban.slice(-4),
           $bank_name: tx.bankName,
           $bank_country: tx.country,
           $routing_number: tx.aba,
