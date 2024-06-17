@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Data as QrBillData } from 'swissqrbill/types';
@@ -27,36 +27,37 @@ enum SupportedInvoiceLanguage {
 
 @Injectable()
 export class SwissQRService {
-  constructor(
-    private readonly assetService: AssetService,
-    private readonly fiatService: FiatService,
-    private readonly i18n: I18nService,
-  ) {}
+  constructor(private readonly assetService: AssetService, private readonly i18n: I18nService) {}
 
-  isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguage {
-    return Object.keys(SupportedInvoiceLanguage).includes(lang);
-  }
-
-  private translate(key: string, lang: string, args?: any): string {
-    return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
-  }
-
-  createSwissQrCode(data: QrBillData): string {
+  createQrCode(
+    amount: number,
+    currency: 'CHF',
+    reference: string,
+    bankInfo: BankInfoDto,
+    request?: TransactionRequest,
+  ): string {
+    const data = this.generateQrData(amount, currency, reference, bankInfo, request);
     return new SwissQRCode(data).toString();
   }
 
-  async createSwissQrInvoice(data: QrBillData, request: TransactionRequest): Promise<string> {
+  async createInvoice(
+    amount: number,
+    currency: 'CHF',
+    reference: string,
+    bankInfo: BankInfoDto,
+    request: TransactionRequest,
+  ): Promise<string> {
+    const data = this.generateQrData(amount, currency, reference, bankInfo, request);
+
     if (!data.debtor) {
       throw new Error('Debtor is required');
     }
 
     const userLanguage = request.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const invoiceId = request.id;
-    const currency = await this.fiatService.getFiat(request.sourceId).then((f) => f.name);
+
     const asset = await this.assetService.getAssetById(request.targetId);
     const assetAmount = request.estimatedAmount;
-    const cost = request.amount;
 
     return new Promise((resolve, reject) => {
       try {
@@ -123,7 +124,7 @@ export class SwissQRService {
         // Title
         pdf.fontSize(14);
         pdf.font('Helvetica-Bold');
-        pdf.text(this.translate('invoice.title', language, { invoiceId }), mm2pt(20), mm2pt(100), {
+        pdf.text(this.translate('invoice.title', language, { invoiceId: request.id }), mm2pt(20), mm2pt(100), {
           align: 'left',
           width: mm2pt(170),
         });
@@ -168,7 +169,6 @@ export class SwissQRService {
                   width: mm2pt(40),
                 },
                 {
-                  // text: `${asset.description} (${asset.name}) delivered on ${asset.blockchain}`,
                   text: this.translate('invoice.table.position_row.description', language, {
                     assetDescription: asset.description,
                     assetName: asset.name,
@@ -176,7 +176,7 @@ export class SwissQRService {
                   }),
                 },
                 {
-                  text: `${currency} ${cost.toFixed(2)}`,
+                  text: `${currency} ${amount.toFixed(2)}`,
                   width: mm2pt(30),
                 },
               ],
@@ -194,7 +194,7 @@ export class SwissQRService {
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: `${currency} ${cost.toFixed(2)}`,
+                  text: `${currency} ${amount.toFixed(2)}`,
                   width: mm2pt(30),
                 },
               ],
@@ -245,7 +245,7 @@ export class SwissQRService {
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: `${currency} ${cost.toFixed(2)}`,
+                  text: `${currency} ${amount.toFixed(2)}`,
                   width: mm2pt(30),
                 },
               ],
@@ -278,5 +278,50 @@ export class SwissQRService {
         reject(error);
       }
     });
+  }
+
+  // --- HELPER METHODS --- //
+  private isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguage {
+    return Object.keys(SupportedInvoiceLanguage).includes(lang);
+  }
+
+  private translate(key: string, lang: string, args?: any): string {
+    return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
+  }
+
+  private generateQrData(
+    amount: number,
+    currency: 'CHF',
+    reference: string,
+    bankInfo: BankInfoDto,
+    request?: TransactionRequest,
+  ): QrBillData {
+    const data: QrBillData = {
+      amount,
+      currency,
+      message: reference,
+      creditor: {
+        account: bankInfo.iban,
+        address: bankInfo.street,
+        buildingNumber: bankInfo.number,
+        city: bankInfo.city,
+        country: bankInfo.iban.substring(0, 2).toUpperCase(),
+        name: bankInfo.name,
+        zip: bankInfo.zip,
+      },
+      debtor:
+        request && request.user.userData.isDataComplete
+          ? {
+              address: request.user.userData.street,
+              buildingNumber: request.user.userData.houseNumber,
+              city: request.user.userData.location,
+              country: request.user.userData.country.symbol,
+              name: `${request.user.userData.firstname} ${request.user.userData.surname}`,
+              zip: request.user.userData.zip,
+            }
+          : undefined,
+    };
+
+    return data;
   }
 }

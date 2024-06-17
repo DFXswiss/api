@@ -27,14 +27,10 @@ import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/use
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import {
-  TransactionRequest,
-  TransactionRequestType,
-} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { Data as QrBillData } from 'swissqrbill/types';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -183,10 +179,16 @@ export class BuyController {
       userData: request.user.userData,
     });
 
-    const data = this.generateSwissQrBillData(request.amount, currency.name, buy.bankUsage, bankInfo, request);
+    if (currency.name !== 'CHF') throw new Error('PDF invoice is only available for CHF payments');
 
     return {
-      invoidePdf: await this.swissQrService.createSwissQrInvoice(data, request),
+      invoicePdf: await this.swissQrService.createInvoice(
+        request.amount,
+        currency.name,
+        buy.bankUsage,
+        bankInfo,
+        request,
+      ),
     };
   }
 
@@ -340,13 +342,11 @@ export class BuyController {
   }
 
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
-    // TODO: re-enable
-    // if (dto.currency.name === 'CHF') {
-    //   const data = this.generateSwissQrBillData(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
-    //   return this.swissQrService.createSwissQrCode(data);
-    // } else {
-    return this.generateGiroCode(buy, bankInfo, dto);
-    // }
+    if (dto.currency.name === 'CHF') {
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
+    } else {
+      return this.generateGiroCode(buy, bankInfo, dto);
+    }
   }
 
   private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
@@ -363,39 +363,5 @@ ${Config.giroCode.char}
 ${Config.giroCode.ref}
 ${buy.bankUsage}
 `.trim();
-  }
-
-  private generateSwissQrBillData(
-    amount: number,
-    currency: string,
-    reference: string,
-    bankInfo: BankInfoDto,
-    request?: TransactionRequest,
-  ): QrBillData {
-    return {
-      amount,
-      currency,
-      additionalInformation: reference,
-      creditor: {
-        account: bankInfo.iban,
-        address: bankInfo.street,
-        buildingNumber: bankInfo.number,
-        city: bankInfo.city,
-        country: bankInfo.iban.substring(0, 2).toUpperCase(),
-        name: bankInfo.name,
-        zip: bankInfo.zip,
-      },
-      debtor:
-        request && request.user.userData.isDataComplete
-          ? {
-              address: request.user.userData.street,
-              buildingNumber: request.user.userData.houseNumber,
-              city: request.user.userData.location,
-              country: request.user.userData.country.symbol,
-              name: `${request.user.userData.firstname} ${request.user.userData.surname}`,
-              zip: request.user.userData.zip,
-            }
-          : undefined,
-    } as QrBillData;
   }
 }
