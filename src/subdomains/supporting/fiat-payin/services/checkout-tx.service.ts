@@ -60,9 +60,10 @@ export class CheckoutTxService {
     return this.checkoutTxRepo.find({ where: { status: CheckoutPaymentStatus.REFUNDED_PENDING } });
   }
 
-  async paymentRefunded(entity: CheckoutTx): Promise<CheckoutTx> {
-    entity.status = CheckoutPaymentStatus.PARTIALLY_REFUNDED;
-    return this.checkoutTxRepo.save(entity);
+  async paymentRefunded(entityId: number): Promise<void> {
+    await this.checkoutTxRepo.update(entityId, {
+      status: CheckoutPaymentStatus.PARTIALLY_REFUNDED,
+    });
   }
 
   async getSyncDate(): Promise<Date> {

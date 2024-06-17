@@ -292,11 +292,11 @@ export class BuyCryptoService {
 
     const chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
 
-    buyCrypto.chargebackDate = new Date();
-    buyCrypto.chargebackRemittanceInfo = chargebackRemittanceInfo.reference;
-
-    await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx);
-    await this.buyCryptoRepo.save(buyCrypto);
+    await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
+    await this.buyCryptoRepo.update(buyCrypto.id, {
+      chargebackDate: new Date(),
+      chargebackRemittanceInfo: chargebackRemittanceInfo.reference,
+    });
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
