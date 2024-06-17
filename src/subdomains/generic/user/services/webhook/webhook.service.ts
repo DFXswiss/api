@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
-import { IsNull } from 'typeorm';
 import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
 import { UserRepository } from '../../models/user/user.repository';
@@ -19,31 +14,12 @@ import { WebhookRepository } from './webhook.repository';
 
 @Injectable()
 export class WebhookService {
-  private readonly logger = new DfxLogger(WebhookService);
-
   constructor(
     private readonly webhookRepo: WebhookRepository,
     private readonly userRepo: UserRepository,
     private readonly webhookNotificationService: WebhookNotificationService,
     private readonly walletService: WalletService,
   ) {}
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async syncWebhooks() {
-    if (DisabledProcess(Process.SYNCHRONIZE_WEBHOOK)) return;
-
-    const entities = await this.webhookRepo.find({ where: { identifier: IsNull() } });
-
-    for (const entity of entities) {
-      try {
-        const identifier = Util.createObjectHash(this.removeDates(JSON.parse(entity.data)));
-        await this.webhookRepo.update(entity.id, { identifier });
-      } catch (e) {
-        this.logger.error(`Failed to sync webhook ${entity.id}:`, e);
-      }
-    }
-  }
 
   // --- KYC WEBHOOKS --- //
   async kycChanged(userData: UserData): Promise<void> {
