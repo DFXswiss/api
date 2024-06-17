@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset } from 'src/shared/models/active';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -221,7 +221,7 @@ export class FeeService {
   }
 
   async getBlockchainFee(active: Active, allowCached: boolean): Promise<number> {
-    if (isAsset(active)) {
+    if (isAsset(active) && active.type !== AssetType.CUSTOM) {
       const where = {
         asset: { id: active.id },
         updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, NotImplementedException, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -20,6 +30,7 @@ import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transactio
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmSellDto } from './dto/confirm-sell.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
@@ -98,6 +109,7 @@ export class SellController {
       error,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -122,6 +134,7 @@ export class SellController {
       feesTarget: feeTarget,
       maxVolume,
       maxVolumeTarget,
+      priceSteps,
       isValid,
       error,
     };
@@ -150,11 +163,15 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
-    @GetJwt() _jwt: JwtPayload,
-    @Param('id') _id: string,
-    @Body() _dto: ConfirmSellDto,
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ConfirmSellDto,
   ): Promise<TransactionDto> {
-    throw new NotImplementedException();
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    return this.sellService.confirmSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
   }
 
   @Put(':id')
@@ -180,7 +197,7 @@ export class SellController {
 
   private async toDto(sell: Sell): Promise<SellDto> {
     const { minDeposit } = this.transactionHelper.getDefaultSpecs(
-      sell.deposit.blockchain,
+      sell.deposit.blockchainList[0],
       undefined,
       'Fiat',
       sell.fiat.name,
@@ -205,7 +222,7 @@ export class SellController {
       currency: FiatDtoMapper.toDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
-      blockchain: sell.deposit.blockchain,
+      blockchain: sell.deposit.blockchainList[0],
       minFee: { amount: fee.network, asset: 'CHF' },
       minDeposits: [minDeposit],
     };
@@ -228,6 +245,7 @@ export class SellController {
       exactPrice,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -244,7 +262,7 @@ export class SellController {
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
-      blockchain: sell.deposit.blockchain,
+      blockchain: dto.asset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
       minFee: feeSource.min,
@@ -254,6 +272,7 @@ export class SellController {
       exchangeRate,
       rate,
       exactPrice,
+      priceSteps,
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.toDto(dto.currency),
@@ -266,7 +285,7 @@ export class SellController {
       error,
     };
 
-    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto, user.id);
+    await this.transactionRequestService.create(TransactionRequestType.Sell, dto, sellDto, user.id);
 
     return sellDto;
   }

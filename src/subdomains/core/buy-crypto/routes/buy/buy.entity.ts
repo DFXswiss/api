@@ -1,5 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -38,4 +39,10 @@ export class Buy extends IEntity {
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
   buyCryptos: BuyCrypto[];
+
+  // --- ENTITY METHODS --- //
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
 }

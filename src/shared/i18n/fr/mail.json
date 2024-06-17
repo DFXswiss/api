@@ -64,8 +64,10 @@
                 "staking_discontinued": "Les nouveaux dépôts en staking ne sont plus possible",
                 "bank_not_allowed": "La banque expéditrice que vous avez utilisée n'est pas autorisée. Veuillez utiliser une autre banque pour votre dépôt.",
                 "country_not_allowed": "Malheureusement, votre dépôt ne peut pas être traité <br>car l'argent provient d'un pays que nous ne pouvons pas prendre en charge. Pour plus d'informations:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
-                "high_risk_kyc_needed": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
-                "high_risk_blocked": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
+                "high_risk_kyc_needed": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.",
+                "high_risk_kyc_needed_checkout": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
+                "high_risk_blocked": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.",
+                "high_risk_blocked_checkout": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
                 "fee_too_high": "Les frais de réseau sont actuellement trop élevés pour le montant que vous avez envoyé",
                 "receiver_rejected_tx": "Le noeud récepteur a rejeté la transaction",
                 "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné"
@@ -135,6 +137,15 @@
                 "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
                 "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "La rétrofacturation n'est pas possible",
+                "salutation": "Votre rétrofacturation n'est pas possible",
+                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
+                "line2": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.",
+                "line3": "Veuillez contacter notre équipe d'assistance.",
+                "line4": "Vous pouvez contacter l'assistance via [mail:support@dfx.swiss].",
+                "line5": ""
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
@@ -153,6 +164,12 @@
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
     "kyc": {
+        "identStarted": {
+            "title": "Identification en ligne",
+            "salutation": "Début de l'identification en ligne",
+            "line1": "Vous avez commencé le processus d'identification en ligne à DFX. En cas d'interruption, vous pouvez reprendre la procédure à tout moment en cliquant sur le lien suivant:<br>[url:{urlText}]",
+            "line2": "En cas de problème technique, vous pouvez également utiliser notre service d'identification vidéo. Un employé vérifiera manuellement votre carte d'identité. Veuillez noter que ce service n'est disponible que pendant les heures d'ouverture et qu'il entraîne des coûts nettement plus élevés pour DFX que le processus entièrement automatisé avec le bouton ci-dessus. Nous vous demandons donc de n'utiliser ce lien qu'en cas de problème technique avec le bouton ci-dessus:<br>[url:Video Id Link]"
+        },
         "success": {
             "title": "Vérification réussie",
             "salutation": "Vérification réussie",

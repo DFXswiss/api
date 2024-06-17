@@ -1,4 +1,5 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -28,4 +29,10 @@ export class Sell extends DepositRoute {
 
   @OneToMany(() => BuyFiat, (buyFiat) => buyFiat.sell)
   buyFiats: BuyFiat[];
+
+  // --- ENTITY METHODS --- //
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
 }

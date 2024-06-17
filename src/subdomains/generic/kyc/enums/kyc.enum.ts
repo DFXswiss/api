@@ -1,3 +1,5 @@
+import { KycIdentificationType } from '../../user/models/user-data/user-data.entity';
+
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
@@ -32,6 +34,23 @@ export enum KycLogType {
 
 export function getKycTypeIndex(stepType?: KycStepType): number {
   return Object.values(KycStepType).indexOf(stepType);
+}
+
+export function getIdentificationType(companyId: string): KycIdentificationType | undefined {
+  switch (companyId) {
+    case 'dfxautonew':
+    case 'dfxauto':
+    case 'kycspiderauto':
+      return KycIdentificationType.ONLINE_ID;
+
+    case 'dfxvidnew':
+    case 'dfxvideo':
+    case 'kycspider':
+      return KycIdentificationType.VIDEO_ID;
+
+    default:
+      return undefined;
+  }
 }
 
 export enum KycStepStatus {

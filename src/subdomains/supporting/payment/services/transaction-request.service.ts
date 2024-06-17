@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CreateOrder, SiftAssetType, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -24,7 +24,7 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
   ) {}
 
-  async createTransactionRequest(
+  async create(
     type: TransactionRequestType,
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
@@ -47,6 +47,7 @@ export class TransactionRequestService {
         dfxFee: response.fees.dfx,
         networkFee: response.fees.network,
         totalFee: response.fees.total,
+        user: { id: userId },
       });
 
       let sourceCurrencyName: string;
@@ -96,25 +97,8 @@ export class TransactionRequestService {
       await this.transactionRequestRepo.save(transactionRequest);
       response.id = transactionRequest.id;
 
-      // create order at sift
-      await this.siftService.createOrder({
-        $order_id: transactionRequest.id.toString(),
-        $user_id: userId.toString(),
-        $time: transactionRequest.created.getTime(),
-        $amount: transactionRequest.amount * 10000,
-        $currency_code: sourceCurrencyName,
-        $site_country: 'CH',
-        $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
-        $digital_orders: [
-          {
-            $digital_asset: targetCurrencyName,
-            $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
-            $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
-            $volume: transactionRequest.estimatedAmount.toString(),
-          },
-        ],
-        blockchain,
-      } as CreateOrder);
+      // create order at sift (without waiting)
+      void this.createSiftEvent(type, transactionRequest, userId, sourceCurrencyName, targetCurrencyName, blockchain);
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -125,7 +109,18 @@ export class TransactionRequestService {
     }
   }
 
-  async findAndCompleteRequest(
+  async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
+    const request = await this.transactionRequestRepo.findOne({
+      where: { id },
+      relations: { user: { userData: true } },
+    });
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
+
+    return request;
+  }
+
+  async findAndComplete(
     amount: number,
     routeId: number,
     sourceId: number,
@@ -144,7 +139,43 @@ export class TransactionRequestService {
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
 
-    if (transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    if (transactionRequest) await this.complete(transactionRequest.id);
     return transactionRequest;
+  }
+
+  async complete(id: number): Promise<void> {
+    await this.transactionRequestRepo.update(id, { isComplete: true });
+  }
+
+  // --- HELPER METHODS --- //
+
+  private async createSiftEvent(
+    type: TransactionRequestType,
+    transactionRequest: TransactionRequest,
+    userId: number,
+    sourceCurrencyName: string,
+    targetCurrencyName: string,
+    blockchain: Blockchain,
+  ) {
+    const siftResponse = await this.siftService.createOrder({
+      $order_id: transactionRequest.id.toString(),
+      $user_id: userId.toString(),
+      $time: transactionRequest.created.getTime(),
+      $amount: transactionRequest.amount * 10000,
+      $currency_code: sourceCurrencyName,
+      $site_country: 'CH',
+      $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
+      $digital_orders: [
+        {
+          $digital_asset: targetCurrencyName,
+          $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
+          $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
+          $volume: transactionRequest.estimatedAmount.toString(),
+        },
+      ],
+      blockchain,
+    } as CreateOrder);
+
+    await this.transactionRequestRepo.update(transactionRequest.id, { siftResponse: JSON.stringify(siftResponse) });
   }
 }

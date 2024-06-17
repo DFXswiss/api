@@ -118,6 +118,7 @@ param moneroRpcCertificate string
 
 param zchfGatewayUrl string
 param zchfGraphUrl string
+param zchfTvlUrl string
 param zchfContractAddress string
 param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
@@ -151,7 +152,7 @@ param binanceSecret string
 
 param binanceWithdrawKeys string
 param binanceBtcDepositAddress string
-param binancePolygonDepositAddress string
+param binanceEvmDepositAddress string
 
 param olkyClient string
 @secure()
@@ -831,6 +832,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: zchfGraphUrl
         }
         {
+          name: 'ZCHF_TVL_URL'
+          value: zchfTvlUrl
+        }
+        {
           name: 'ZCHF_CONTRACT_ADDRESS'
           value: zchfContractAddress
         }
@@ -907,8 +912,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: binanceBtcDepositAddress
         }
         {
-          name: 'BINANCE_POLYGON_DEPOSIT_ADDRESS'
-          value: binancePolygonDepositAddress
+          name: 'BINANCE_EVM_DEPOSIT_ADDRESS'
+          value: binanceEvmDepositAddress
         }
         {
           name: 'LETTER_URL'

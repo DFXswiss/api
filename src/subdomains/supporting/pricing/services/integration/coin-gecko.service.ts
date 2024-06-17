@@ -3,16 +3,18 @@ import { CoinGeckoClient } from 'coingecko-api-v3';
 import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Price } from '../../domain/entities/price';
-import { PricingProvider } from '../../domain/interfaces';
+import { PricingProvider } from './pricing-provider';
 
 @Injectable()
-export class CoinGeckoService implements OnModuleInit, PricingProvider {
+export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   private readonly logger = new DfxLogger(CoinGeckoService);
 
   private readonly client: CoinGeckoClient;
   private currencies: string[];
 
   constructor() {
+    super();
+
     this.client = new CoinGeckoClient({ autoRetry: false }, GetConfig().coinGecko.apiKey);
   }
 

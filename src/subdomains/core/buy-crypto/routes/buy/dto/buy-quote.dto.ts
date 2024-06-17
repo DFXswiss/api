@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class BuyQuoteDto {
   @ApiProperty({ description: 'Fee amount in source currency', deprecated: true })
@@ -35,6 +36,9 @@ export class BuyQuoteDto {
 
   @ApiProperty({ description: 'Maximum volume in target asset' })
   maxVolumeTarget: number;
+
+  @ApiProperty({ type: PriceStep, isArray: true })
+  priceSteps: PriceStep[];
 
   @ApiProperty()
   isValid: boolean;

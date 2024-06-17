@@ -45,11 +45,12 @@ export class TransactionDtoMapper {
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
-      outputAmount: Util.roundReadable(buyCrypto.outputAmount, false),
+      outputAmount: buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, false) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
       outputBlockchain: buyCrypto.target.asset.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
+      priceSteps: buyCrypto.priceStepsObject,
       feeAmount: buyCrypto.totalFeeAmount
         ? Util.roundReadable(
             buyCrypto.totalFeeAmount * (buyCrypto.inputAmount / buyCrypto.inputReferenceAmount),
@@ -95,11 +96,12 @@ export class TransactionDtoMapper {
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
-      outputAmount: Util.roundReadable(buyFiat.outputAmount, true),
+      outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, true) : null,
       outputAsset: buyFiat.outputAsset?.name,
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
+      priceSteps: buyFiat.priceStepsObject,
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
             buyFiat.totalFeeAmount * (buyFiat.inputAmount / buyFiat.inputReferenceAmount),
@@ -146,11 +148,15 @@ export class TransactionDtoMapper {
       inputPaymentMethod: null,
       exchangeRate: null,
       rate: null,
-      outputAmount: Util.roundReadable(refReward.outputAmount, isFiat(refReward.outputAssetEntity)),
+      outputAmount:
+        refReward.outputAmount != null
+          ? Util.roundReadable(refReward.outputAmount, isFiat(refReward.outputAssetEntity))
+          : null,
       outputAsset: refReward.outputAsset,
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
+      priceSteps: null,
       feeAmount: null,
       feeAsset: null,
       fees: null,

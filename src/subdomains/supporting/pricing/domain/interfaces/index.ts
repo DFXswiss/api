@@ -1,5 +1,4 @@
-import { Price } from '../entities/price';
+import { PricingProvider } from '../../services/integration/pricing-provider';
+import { PriceSource } from '../entities/price-rule.entity';
 
-export interface PricingProvider {
-  getPrice(from: string, to: string, param?: string): Promise<Price>;
-}
+export type PricingProviderMap = { [s in PriceSource]: PricingProvider };

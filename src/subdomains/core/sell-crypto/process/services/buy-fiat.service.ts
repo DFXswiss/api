@@ -10,6 +10,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -35,6 +36,7 @@ export class BuyFiatService {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly userService: UserService,
     private readonly sellRepo: SellRepository,
+    @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
@@ -46,7 +48,7 @@ export class BuyFiatService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
+  async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
     const transaction = await this.transactionService.update(cryptoInput.transaction.id, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
@@ -63,12 +65,13 @@ export class BuyFiatService {
     });
 
     // transaction request
-    entity = await this.setTxRequest(entity);
+    entity = await this.setTxRequest(entity, request);
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.userData.id);
       if (!bankData)
-        await this.bankDataService.createBankData(sell.user.userData, {
+        await this.bankDataService.createBankData(sell.userData, {
+          name: sell.userData.completeName,
           iban: sell.iban,
           type: BankDataType.BANK_OUT,
         });
@@ -77,18 +80,25 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save(entity);
 
     await this.triggerWebhook(entity);
+
+    return entity;
   }
 
-  private async setTxRequest(entity: BuyFiat): Promise<BuyFiat> {
-    const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
-      entity.inputAmount,
-      entity.sell.id,
-      entity.cryptoInput.asset.id,
-      entity.sell.fiat.id,
-    );
-    if (transactionRequest) {
-      entity.transactionRequest = transactionRequest;
-      entity.externalTransactionId = transactionRequest.externalTransactionId;
+  private async setTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<BuyFiat> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.sell.id,
+        entity.cryptoInput.asset.id,
+        entity.sell.fiat.id,
+      );
+    }
+
+    if (request) {
+      entity.transactionRequest = request;
+      entity.externalTransactionId = request.externalTransactionId;
     }
 
     return entity;
@@ -97,7 +107,12 @@ export class BuyFiatService {
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'fiatOutput', 'bankTx', 'cryptoInput'],
+      relations: {
+        sell: { user: { wallet: true, userData: true } },
+        fiatOutput: true,
+        bankTx: true,
+        cryptoInput: true,
+      },
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
 
@@ -180,7 +195,7 @@ export class BuyFiatService {
   async triggerWebhookManual(id: number): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'bankTx', 'cryptoInput'],
+      relations: { sell: { user: { wallet: true, userData: true } }, bankTx: true, cryptoInput: true },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
@@ -191,7 +206,7 @@ export class BuyFiatService {
     const extended = await this.extendBuyFiat(buyFiat);
 
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, extended) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
   }
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {

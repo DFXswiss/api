@@ -19,6 +19,7 @@ import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/_
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
@@ -67,6 +68,7 @@ describe('BuyController', () => {
   let checkoutService: CheckoutService;
   let transactionRequestService: TransactionRequestService;
   let fiatService: FiatService;
+  let swissQrService: SwissQRService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -80,6 +82,7 @@ describe('BuyController', () => {
     checkoutService = createMock<CheckoutService>();
     transactionRequestService = createMock<TransactionRequestService>();
     fiatService = createMock<FiatService>();
+    swissQrService = createMock<SwissQRService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -96,6 +99,7 @@ describe('BuyController', () => {
         { provide: CheckoutService, useValue: checkoutService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: FiatService, useValue: fiatService },
+        { provide: SwissQRService, useValue: swissQrService },
 
         TestUtil.provideConfig(),
       ],
@@ -131,6 +135,7 @@ describe('BuyController', () => {
       maxVolumeTarget: 0,
       error: undefined,
       exactPrice: false,
+      priceSteps: [],
     });
 
     const dto = createBuyPaymentInfoDto();

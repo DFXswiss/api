@@ -23,6 +23,10 @@ export class WalletService {
     return id || name ? this.repo.findOneCached(`${id}${name}`, { where: [{ id }, { name }], relations }) : undefined;
   }
 
+  async getKycClients(): Promise<Wallet[]> {
+    return this.repo.findCachedBy('kycClients', { isKycClient: true });
+  }
+
   async getDefault(): Promise<Wallet> {
     return this.repo.findOneCachedBy('default', { id: 1 });
   }

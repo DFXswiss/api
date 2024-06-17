@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -24,9 +25,11 @@ export class AmlHelperService {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
+    ibanCountry?: Country,
   ): AmlError[] {
     const errors = [];
 
@@ -36,12 +39,19 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (!entity.userData.verifiedCountry) errors.push(AmlError.NO_VERIFIED_COUNTRY);
+    if (!entity.userData.verifiedCountry) {
+      errors.push(AmlError.NO_VERIFIED_COUNTRY);
+    } else if (!entity.userData.verifiedCountry.fatfEnable) {
+      errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
+    }
+    if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
+    if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
+      errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -162,9 +172,11 @@ export class AmlHelperService {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
+    ibanCountry?: Country,
   ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string } {
     const amlErrors = this.getAmlErrors(
       entity,
@@ -173,9 +185,11 @@ export class AmlHelperService {
       last24hVolume,
       last7dVolume,
       last30dVolume,
+      last365dVolume,
       bankData,
       blacklist,
       instantBanks,
+      ibanCountry,
     );
 
     const comment = amlErrors.join(';');
@@ -186,11 +200,14 @@ export class AmlHelperService {
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
     // Crucial error aml
-    const crucialErrorResult = amlResults.find((r) => r.type === AmlErrorType.CRUCIAL);
-    if (crucialErrorResult)
+    const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
+    if (crucialErrorResults.length) {
+      const crucialErrorResult =
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment }
         : { comment };
+    }
 
     // Only error aml
     const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);

@@ -23,10 +23,11 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -54,11 +55,12 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
-    private readonly kycAdminService: KycAdminService,
+    private readonly kycLogService: KycLogService,
     private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -99,6 +101,10 @@ export class UserDataService {
     return user;
   }
 
+  async getUserDataByIdentDoc(identDocumentId: string): Promise<UserData> {
+    return this.userDataRepo.findOneBy({ identDocumentId });
+  }
+
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
     const masterUserId = +user.firstname.replace(MergedPrefix, '');
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
@@ -134,11 +140,6 @@ export class UserDataService {
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
     });
 
-    if (dto.kycFileId) {
-      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
-      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
-    }
-
     await this.loadRelationsAndVerify(userData, dto);
 
     return this.userDataRepo.save(userData);
@@ -151,39 +152,7 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    if (dto.countryId) {
-      userData.country = await this.countryService.getCountry(dto.countryId);
-      if (!userData.country) throw new BadRequestException('Country not found');
-    }
-
-    if (dto.nationality) {
-      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
-      if (!userData.nationality) throw new BadRequestException('Nationality not found');
-    }
-
-    if (dto.organizationCountryId) {
-      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
-      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
-    }
-
-    if (dto.nationality || dto.identDocumentId) {
-      const existing = await this.userDataRepo.findOneBy({
-        nationality: { id: userData.nationality.id },
-        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
-      });
-      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
-    }
-
-    if (dto.kycFileId) {
-      const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
-      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
-
-      await this.userDataRepo.save(Object.assign(userData, { kycFileId: dto.kycFileId }));
-    }
-
     await this.loadRelationsAndVerify(userData, dto);
-
-    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -197,7 +166,23 @@ export class UserDataService {
     if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
+    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
+
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
+
+    if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+
+    return userData;
+  }
+
+  async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
+    await this.loadRelationsAndVerify(dto, dto);
+
+    await this.userDataRepo.update(userData.id, dto);
+
+    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
+
+    Object.assign(userData, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -334,7 +319,10 @@ export class UserDataService {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
-  private async loadRelationsAndVerify(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
+  private async loadRelationsAndVerify(
+    userData: Partial<UserData> | UserData,
+    dto: UpdateUserDataDto | CreateUserDataDto,
+  ): Promise<void> {
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
       if (!userData.country) throw new BadRequestException('Country not found');
@@ -375,10 +363,40 @@ export class UserDataService {
       if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
         throw new BadRequestException('VerifiedName includes a multiAccountIban');
     }
+
+    if (dto.kycFileId) {
+      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
+      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+
+      Object.assign(userData, { kycFileId: dto.kycFileId });
+    }
+
+    if (dto.nationality || dto.identDocumentId) {
+      const existing = await this.userDataRepo.findOneBy({
+        nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
+      });
+      if (existing)
+        throw new ConflictException('A user with the same nationality and ident document ID already exists');
+    }
   }
 
   async save(userData: UserData): Promise<UserData> {
     return this.userDataRepo.save(userData);
+  }
+
+  // --- KYC CLIENTS --- //
+
+  async addKycClient(userData: UserData, walletId: number): Promise<void> {
+    if (userData.kycClientList.includes(walletId)) return;
+
+    await this.userDataRepo.update(...userData.addKycClient(walletId));
+  }
+
+  async removeKycClient(userData: UserData, walletId: number): Promise<void> {
+    if (!userData.kycClientList.includes(walletId)) return;
+
+    await this.userDataRepo.update(...userData.removeKycClient(walletId));
   }
 
   // --- FEES --- //
@@ -499,6 +517,7 @@ export class UserDataService {
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
+      slave.kycClients && `kycClients ${slave.kycClients}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -519,6 +538,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
+    slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
@@ -537,6 +557,9 @@ export class UserDataService {
 
     await this.userDataRepo.save(master);
 
+    // Merge Webhook
+    await this.webhookService.accountChanged(master, slave);
+
     // KYC change Webhook
     await this.kycNotificationService.kycChanged(master);
 
@@ -553,7 +576,7 @@ export class UserDataService {
       }
     }
 
-    await this.kycAdminService.createMergeLog(master, log);
+    await this.kycLogService.createMergeLog(master, log);
 
     // Notify user about added address
     if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);

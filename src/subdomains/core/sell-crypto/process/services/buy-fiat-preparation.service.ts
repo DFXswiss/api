@@ -70,7 +70,8 @@ export class BuyFiatPreparationService {
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          Util.daysBefore(1),
+          Util.daysBefore(1, entity.transaction.created),
+          Util.daysAfter(1, entity.transaction.created),
           entity.userData.users,
         );
 
@@ -78,7 +79,8 @@ export class BuyFiatPreparationService {
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          Util.daysBefore(7),
+          Util.daysBefore(7, entity.transaction.created),
+          Util.daysAfter(7, entity.transaction.created),
           entity.userData.users,
         );
 
@@ -86,7 +88,17 @@ export class BuyFiatPreparationService {
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          Util.daysBefore(30),
+          Util.daysBefore(30, entity.transaction.created),
+          Util.daysAfter(30, entity.transaction.created),
+          entity.userData.users,
+        );
+
+        const last365dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(365, entity.transaction.created),
+          Util.daysAfter(365, entity.transaction.created),
           entity.userData.users,
         );
 
@@ -99,6 +111,7 @@ export class BuyFiatPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
+            last365dVolume,
             bankData,
             blacklist,
           ),
@@ -188,7 +201,7 @@ export class BuyFiatPreparationService {
         const price = await this.pricingService.getPrice(asset, currency, false);
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency),
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency, price.steps),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);

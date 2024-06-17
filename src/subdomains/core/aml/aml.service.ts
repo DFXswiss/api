@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
@@ -12,6 +13,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
+import { CheckStatus } from './enums/check-status.enum';
 
 @Injectable()
 export class AmlService {
@@ -23,6 +25,7 @@ export class AmlService {
     private readonly bankService: BankService,
     private readonly nameCheckService: NameCheckService,
     private readonly userDataService: UserDataService,
+    private readonly countryService: CountryService,
   ) {}
 
   async getAmlCheckInput(
@@ -34,28 +37,32 @@ export class AmlService {
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
-      if (
-        bankData.active &&
-        bankData.userData.id !== entity.userData.id &&
-        entity instanceof BuyCrypto &&
-        !entity.isCryptoCryptoTransaction &&
-        entity.userData.verifiedName &&
-        (Util.isSameName(entity.bankTx.name, entity.userData.verifiedName) ||
-          Util.isSameName(entity.bankTx.ultimateName, entity.userData.verifiedName)) &&
-        IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid
-      ) {
-        try {
-          const [master, slave] =
-            bankData.userData.kycLevel < entity.userData.kycLevel
-              ? [entity.userData.id, bankData.userData.id]
-              : [bankData.userData.id, entity.userData.id];
+      if (bankData.active) {
+        if (
+          bankData.userData.id !== entity.userData.id &&
+          entity instanceof BuyCrypto &&
+          !entity.isCryptoCryptoTransaction &&
+          entity.userData.verifiedName &&
+          (Util.isSameName(entity.bankTx?.name ?? entity.checkoutTx?.cardName, entity.userData.verifiedName) ||
+            Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName)) &&
+          IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid
+        ) {
+          try {
+            const [master, slave] =
+              bankData.userData.kycLevel < entity.userData.kycLevel
+                ? [entity.userData.id, bankData.userData.id]
+                : [bankData.userData.id, entity.userData.id];
 
-          await this.userDataService.mergeUserData(master, slave, true);
+            await this.userDataService.mergeUserData(master, slave, true);
 
-          entity.userData = await this.userDataService.getUserData(master, { users: true });
-        } catch (e) {
-          this.logger.error(`Error during userData merge in amlCheck for ${entity.id}:`, e);
-        }
+            entity.userData = await this.userDataService.getUserData(master, { users: true });
+
+            if (!entity.userData.bankTransactionVerification) await this.checkBankTransactionVerification(entity);
+          } catch (e) {
+            this.logger.error(`Error during userData merge in amlCheck for ${entity.id}:`, e);
+          }
+        } else if (bankData.userData.id === entity.userData.id && !entity.userData.bankTransactionVerification)
+          await this.checkBankTransactionVerification(entity);
       }
     }
 
@@ -67,6 +74,22 @@ export class AmlService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async checkBankTransactionVerification(entity: BuyFiat | BuyCrypto): Promise<void> {
+    if (entity instanceof BuyCrypto && !entity.bankTx?.iban) return;
+
+    const ibanCountryCheck =
+      entity instanceof BuyFiat
+        ? entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH')
+        : await this.countryService
+            .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
+            .then((c) => c?.bankTransactionVerificationEnable);
+
+    if (ibanCountryCheck)
+      entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
+        bankTransactionVerification: CheckStatus.GSHEET,
+      });
+  }
 
   private async checkNameCheck(entity: BuyFiat | BuyCrypto, bankData: BankData): Promise<void> {
     const hasOpenNameChecks = await this.nameCheckService.hasOpenNameChecks(entity.userData);

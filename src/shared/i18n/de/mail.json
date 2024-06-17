@@ -64,8 +64,10 @@
                 "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich",
                 "bank_not_allowed": "Die von dir verwendete Absenderbank ist nicht erlaubt. Bitte nutze eine andere Bank für deine Einzahlung.",
                 "country_not_allowed": "Deine Einzahlung kann leider nicht bearbeitet werden,<br>weil das Geld aus einem Land stammt welches wir nicht unterstützen können. Mehr Informationen:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
-                "high_risk_kyc_needed": "Wir konnten ohne Verifizierung (KYC) nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
-                "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
+                "high_risk_kyc_needed": "Wir konnten ohne Verifizierung (KYC) nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.",
+                "high_risk_kyc_needed_checkout": "Wir konnten ohne Verifizierung (KYC) nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
+                "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.",
+                "high_risk_blocked_checkout": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
                 "fee_too_high": "Die Netzwerk Gebühren sind derzeit zu hoch für den Betrag, den du geschickt hast",
                 "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt",
                 "asset_not_available_with_chosen_bank": "Dieses Asset kann nicht über die gewählte Bankverbindung gekauft werden"
@@ -135,6 +137,15 @@
                 "line3": "Dies dauert in der Regel 24h, maximal aber 7 Tage.",
                 "line4": "Du wirst benachrichtigt sobald die Prüfung abgeschlossen ist und deine Zahlung verarbeitet wurde.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "Rückzahlung nicht möglich",
+                "salutation": "Die Rückzahlung ist nicht möglich",
+                "line1": "Vielen Dank für dein Vertrauen in DFX.",
+                "line2": "Leider ist deine Rückzahlung nicht möglich, da deine Bank keine IBAN übermittelt hat.",
+                "line3": "Bitte setze dich daher mit unserem Support in Verbindung.",
+                "line4": "Du kannst den Support über [mail:support@dfx.swiss] kontaktieren.",
+                "line5": ""
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
@@ -153,6 +164,12 @@
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {
+        "identStarted": {
+            "title": "Online-Identifikation gestartet",
+            "salutation": "Online-Identifikation gestartet",
+            "line1": "Du hast den Online Ident Prozess bei DFX gestartet. Sollte es zu Unterbechungen kommen, kannst du den Prozess jederzeit mit diesem Link fortführen:<br>[url:{urlText}]",
+            "line2": "Sollte es zu technischen Problemen kommen, so steht dir alternativ unser Video Ident Service zur Verfügung. Dabei prüft ein Mitarbeiter deinen Ausweis manuell. Bitte beachte, dass dieser Service nur während den Öffnungszeiten zur Verfügung steht und deutlich höhere Kosten für DFX beinhaltet als der vollautomatische Prozess mit dem Button oben. Wir bitten dich daher diesen Link nur zu verwenden, wenn es mit dem Button oben ein technisches Problem gibt:<br>[url:Video Id Link]"
+        },
         "success": {
             "title": "Verifikation erfolgreich",
             "salutation": "Verifikation erfolgreich",

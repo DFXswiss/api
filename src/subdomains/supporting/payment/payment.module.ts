@@ -19,6 +19,7 @@ import { TransactionRequestRepository } from './repositories/transaction-request
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
 import { FeeService } from './services/fee.service';
 import { SpecialExternalAccountService } from './services/special-external-account.service';
+import { SwissQRService } from './services/swiss-qr.service';
 import { TransactionHelper } from './services/transaction-helper';
 import { TransactionRequestService } from './services/transaction-request.service';
 import { TransactionModule } from './transaction.module';
@@ -40,6 +41,7 @@ import { TransactionModule } from './transaction.module';
     TransactionHelper,
     TransactionSpecificationRepository,
     FeeService,
+    SwissQRService,
     FeeRepository,
     TransactionRequestRepository,
     BlockchainFeeRepository,
@@ -47,6 +49,6 @@ import { TransactionModule } from './transaction.module';
     SpecialExternalAccountService,
     SpecialExternalAccountRepository,
   ],
-  exports: [TransactionHelper, FeeService, TransactionRequestService, SpecialExternalAccountService],
+  exports: [TransactionHelper, FeeService, SwissQRService, TransactionRequestService, SpecialExternalAccountService],
 })
 export class PaymentModule {}

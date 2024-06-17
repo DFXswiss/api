@@ -38,6 +38,10 @@ export enum PayInStatus {
   COMPLETED = 'Completed',
 }
 
+export enum PayInType {
+  PERMIT_TRANSFER = 'PermitTransfer',
+}
+
 @Entity()
 @Index((i: CryptoInput) => [i.inTxId, i.asset, i.address.address, i.address.blockchain], { unique: true })
 export class CryptoInput extends IEntity {
@@ -66,7 +70,7 @@ export class CryptoInput extends IEntity {
   prepareTxId: string;
 
   @Column({ length: 256, nullable: true })
-  txType: string;
+  txType: PayInType;
 
   @Column({ nullable: true })
   sendType: string;
@@ -116,7 +120,7 @@ export class CryptoInput extends IEntity {
   static create(
     address: BlockchainAddress,
     txId: string,
-    txType: string,
+    txType: PayInType,
     txSequence: number | null,
     blockHeight: number,
     amount: number,
@@ -159,8 +163,13 @@ export class CryptoInput extends IEntity {
     this.purpose = purpose;
     this.route = route;
     this.amlCheck = amlCheck;
-    this.status = PayInStatus.ACKNOWLEDGED;
     this.sendType = PayInSendType.FORWARD;
+
+    if (this.txType === PayInType.PERMIT_TRANSFER) {
+      this.status = PayInStatus.FORWARDED;
+    } else {
+      this.status = PayInStatus.ACKNOWLEDGED;
+    }
 
     return this;
   }

@@ -1,9 +1,11 @@
+import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import {
   BuyCryptoExtended,
   BuyFiatExtended,
   TransactionDtoMapper,
 } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { KycCompleted, KycStatus, KycType, UserData } from '../../../models/user-data/user-data.entity';
+import { AccountChangedWebhookData } from '../dto/account-changed-webhook.dto';
 import { KycWebhookData, KycWebhookStatus } from '../dto/kyc-webhook.dto';
 import { PaymentWebhookData } from '../dto/payment-webhook.dto';
 
@@ -17,6 +19,9 @@ export class WebhookDataMapper {
       houseNumber: userData.houseNumber,
       city: userData.location,
       zip: userData.zip,
+      country: userData.country && CountryDtoMapper.entityToDto(userData.country),
+      nationality: userData.nationality && CountryDtoMapper.entityToDto(userData.nationality),
+      birthday: userData.birthday,
       phone: userData.phone,
       kycStatus: getKycWebhookStatus(userData.kycStatus, userData.kycType),
       kycLevel: userData.kycLevelDisplay,
@@ -51,6 +56,10 @@ export class WebhookDataMapper {
       ...TransactionDtoMapper.mapBuyCryptoTransactionDetail(payment),
       dfxReference: payment.id,
     };
+  }
+
+  static mapAccountMergeData(master: UserData): AccountChangedWebhookData {
+    return { accountId: master.id };
   }
 }
 

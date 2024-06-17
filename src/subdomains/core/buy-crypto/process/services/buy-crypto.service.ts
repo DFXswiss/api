@@ -7,15 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import {
-  SiftAssetType,
-  SiftPaymentMethodMap,
-  Transaction,
-  TransactionStatus,
-  TransactionType,
-} from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -84,10 +77,11 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.user.userData, {
+        await this.bankDataService.createBankData(buy.userData, {
+          name: bankTx.bankDataName,
           iban: bankTx.senderAccount,
           type: BankDataType.BANK_IN,
         });
@@ -104,14 +98,7 @@ export class BuyCryptoService {
       transaction,
     });
 
-    await this.createEntity(entity, {
-      $account_holder_name: bankTx.name,
-      $shortened_iban_first6: bankTx.iban.slice(0, 6),
-      $shortened_iban_last4: bankTx.iban.slice(-4),
-      $bank_name: bankTx.bankName,
-      $bank_country: bankTx.country,
-      $routing_number: bankTx.aba,
-    });
+    await this.createEntity(entity);
   }
 
   async createFromCheckoutTx(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
@@ -125,10 +112,11 @@ export class BuyCryptoService {
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.user.userData, {
+        await this.bankDataService.createBankData(buy.userData, {
+          name: checkoutTx.cardName ?? buy.userData.completeName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
@@ -145,13 +133,7 @@ export class BuyCryptoService {
       transaction,
     });
 
-    await this.createEntity(entity, {
-      $account_holder_name: checkoutTx.cardName,
-      $card_bin: checkoutTx.cardBin,
-      $card_last4: checkoutTx.cardLast4,
-      $bank_name: checkoutTx.cardIssuer,
-      $bank_country: checkoutTx.cardIssuerCountry,
-    });
+    await this.createEntity(entity);
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap): Promise<void> {
@@ -171,56 +153,16 @@ export class BuyCryptoService {
       transaction,
     });
 
-    await this.createEntity(entity, {});
+    await this.createEntity(entity);
   }
 
-  private async createEntity(
-    entity: BuyCrypto,
-    paymentMethod: {
-      $account_holder_name?: string;
-      $card_bin?: string;
-      $card_last4?: string;
-      $shortened_iban_first6?: string;
-      $shortened_iban_last4?: string;
-      $bank_name?: string;
-      $bank_country?: string;
-      $routing_number?: string;
-    },
-  ) {
+  private async createEntity(entity: BuyCrypto) {
     entity.outputAsset = entity.target.asset;
-    entity.outputReferenceAsset = entity.outputAsset.type === AssetType.CUSTOM ? null : entity.outputAsset;
+    entity.outputReferenceAsset = entity.outputAsset;
 
     entity = await this.setTxRequest(entity);
 
     entity = await this.buyCryptoRepo.save(entity);
-
-    //create sift transaction
-    await this.siftService.transaction({
-      $transaction_id: entity.id.toString(),
-      $transaction_type: TransactionType.BUY,
-      $transaction_status: TransactionStatus.PENDING,
-      $order_id: entity.transactionRequest?.id.toString(),
-      $user_id: entity.user.id.toString(),
-      $time: entity.created.getTime(),
-      $amount: entity.inputAmount * 10000,
-      $currency_code: entity.inputAsset,
-      $site_country: 'CH',
-      $payment_methods: [
-        {
-          $payment_type: SiftPaymentMethodMap[entity.paymentMethodIn],
-          ...paymentMethod,
-        },
-      ],
-      $digital_orders: [
-        {
-          $digital_asset: entity.outputAsset.name,
-          $pair: `${entity.inputAsset}_${entity.outputAsset.name}`,
-          $asset_type: SiftAssetType.CRYPTO,
-          $volume: entity.outputAmount.toString(),
-        },
-      ],
-      blockchain: entity.outputAsset.blockchain,
-    } as Transaction);
 
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
@@ -228,7 +170,7 @@ export class BuyCryptoService {
   private async setTxRequest(entity: BuyCrypto): Promise<BuyCrypto> {
     const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-    const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
+    const transactionRequest = await this.transactionRequestService.findAndComplete(
       entity.inputAmount,
       entity.route.id,
       inputCurrency.id,
@@ -245,18 +187,13 @@ export class BuyCryptoService {
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne({
       where: { id },
-      relations: [
-        'buy',
-        'buy.user',
-        'buy.user.wallet',
-        'buy.user.userData',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.wallet',
-        'cryptoInput',
-        'bankTx',
-        'checkoutTx',
-      ],
+      relations: {
+        buy: { user: { userData: true, wallet: true } },
+        cryptoRoute: { user: { userData: true, wallet: true } },
+        cryptoInput: true,
+        bankTx: true,
+        checkoutTx: true,
+      },
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
 
@@ -324,13 +261,9 @@ export class BuyCryptoService {
       await this.userService.activateUser(entity.buy.user);
     }
 
-    // update sift transaction status
+    // create sift transaction
     if (forceUpdate.amlCheck === CheckStatus.FAIL)
-      await this.siftService.transaction({
-        $transaction_id: entity.id.toString(),
-        $transaction_status: TransactionStatus.FAILURE,
-        $time: entity.updated.getTime(),
-      } as Transaction);
+      await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
 
     // payment webhook
     if (
@@ -646,7 +579,6 @@ export class BuyCryptoService {
   }
 
   // Statistics
-
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },

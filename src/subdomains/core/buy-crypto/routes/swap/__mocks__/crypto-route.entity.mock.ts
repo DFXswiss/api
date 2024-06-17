@@ -9,7 +9,7 @@ import { Swap } from '../swap.entity';
 
 const defaultCryptoRoute: Partial<Swap> = {
   user: createDefaultUser(),
-  deposit: createCustomDeposit({ blockchain: Blockchain.BITCOIN }),
+  deposit: createCustomDeposit({ blockchains: `${Blockchain.BITCOIN}` }),
   targetDeposit: createDefaultDeposit(),
   asset: createDefaultAsset(),
   buyCryptos: [],

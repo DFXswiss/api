@@ -111,6 +111,7 @@ export class Util {
 
   static isSameName(input1: string, input2: string): boolean {
     if (!input1 || !input2) return false;
+
     const array1 = this.removeSpecialChars(input1).split(' ');
     const array2 = this.removeSpecialChars(input2).split(' ');
 
@@ -326,9 +327,10 @@ export class Util {
   }
 
   static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {
+    const listCopy = [...list];
     const results: U[] = [];
-    while (list.length > 0) {
-      const batch = list.splice(0, batchSize);
+    while (listCopy.length > 0) {
+      const batch = listCopy.splice(0, batchSize);
       results.push(await action(batch));
     }
 
@@ -392,6 +394,14 @@ export class Util {
     const hash = createHash(algo);
     hash.update(data);
     return hash.digest(encoding);
+  }
+
+  static createObjectHash(
+    data: object,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    return this.createHash(JSON.stringify(data), algo, encoding);
   }
 
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {

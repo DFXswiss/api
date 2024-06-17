@@ -13,10 +13,12 @@ import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-ou
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
+import { LimitRequestService } from '../kyc/services/limit-request.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -36,6 +38,7 @@ export enum SupportTable {
   BANK_ACCOUNT = 'bankAccount',
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
+  BANK_DATA = 'bankData',
 }
 
 @Injectable()
@@ -59,13 +62,15 @@ export class GsService {
     private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
     private readonly notificationService: NotificationService,
+    private readonly limitRequestService: LimitRequestService,
+    private readonly supportIssueService: SupportIssueService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
     const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
-      await this.setUserDataDocs(data, query.select);
+      await this.setUserDataDocs(data, query.select, query.sorting);
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -85,10 +90,15 @@ export class GsService {
     const userIds = userData.users.map((u) => u.id);
     const refCodes = userData.users.map((u) => u.ref);
 
+    const { supportIssues, supportMessages } = await this.supportIssueService.getUserSupportTickets(userData.id);
+
     return {
       userData,
+      supportIssues,
+      supportMessages,
+      limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
-      bankData: await this.bankDataService.getBankDatasForUser(userData.id),
+      bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
@@ -102,7 +112,7 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
-  private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
+  private async setUserDataDocs(data: UserData[], select: string[], sorting: 'ASC' | 'DESC'): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
     const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
 
@@ -110,9 +120,13 @@ export class GsService {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
       const commonPathPrefix = this.toDocPath(commonPrefix, userDataId);
 
-      const docs = commonPathPrefix
-        ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
-        : await this.getAllUserDocuments(userDataId, userData.accountType);
+      const docs = Util.sort(
+        commonPathPrefix
+          ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+          : await this.getAllUserDocuments(userDataId, userData.accountType),
+        'created',
+        sorting,
+      );
 
       for (const selectPath of selectPaths) {
         const docPath = this.toDocPath(selectPath, userDataId);
@@ -195,6 +209,8 @@ export class GsService {
         return this.transactionService
           .getTransactionByKey(query.key, query.value)
           .then((transaction) => transaction?.userData);
+      case SupportTable.BANK_DATA:
+        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD.userData);
     }
   }
 
