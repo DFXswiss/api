@@ -62,7 +62,7 @@ export class CheckoutTxService {
 
   async paymentRefunded(entityId: number): Promise<void> {
     await this.checkoutTxRepo.update(entityId, {
-      status: CheckoutPaymentStatus.PARTIALLY_REFUNDED,
+      status: CheckoutPaymentStatus.REFUNDED_PENDING,
     });
   }
 
