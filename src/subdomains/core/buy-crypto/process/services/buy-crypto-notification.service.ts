@@ -133,6 +133,7 @@ export class BuyCryptoNotificationService {
       where: [
         { ...search, chargebackBankTx: Not(IsNull()) },
         { ...search, chargebackCryptoTxId: Not(IsNull()) },
+        { ...search, checkoutTx: Not(IsNull()) },
       ],
       relations: {
         buy: { user: { userData: true } },
