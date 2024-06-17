@@ -51,6 +51,17 @@ export class FiatPayInSyncService {
         this.logger.error(`Failed to import checkout transaction:`, e);
       }
     }
+
+    const refundedList = await this.checkoutTxService.getPendingRefundedList();
+    const refundedPayments = await this.checkoutService.getPaymentList(refundedList);
+
+    for (const refundedPayment of refundedPayments) {
+      try {
+        await this.createCheckoutTx(refundedPayment);
+      } catch (e) {
+        this.logger.error(`Failed to import refunded transaction:`, e);
+      }
+    }
   }
 
   async createCheckoutTx(payment: CheckoutPayment): Promise<CheckoutTx> {

@@ -2,6 +2,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTxRepeat } from '../bank-tx-repeat/bank-tx-repeat.entity';
@@ -197,6 +198,9 @@ export class BankTx extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;
 
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.chargebackBankTx, { nullable: true })
+  buyCryptoChargeback?: BuyCrypto;
+
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
 
@@ -205,6 +209,10 @@ export class BankTx extends IEntity {
   transaction: Transaction;
 
   //*** GETTER METHODS ***//
+
+  get user(): User {
+    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiat?.user;
+  }
 
   get completeName(): string {
     return [this.name, this.ultimateName]

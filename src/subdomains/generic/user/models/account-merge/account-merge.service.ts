@@ -24,45 +24,46 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
-  async sendMergeRequest(master: UserData, slave: UserData): Promise<void> {
-    if (slave.mail) {
-      const request =
-        (await this.accountMergeRepo.findOne({
-          where: {
-            master: { id: master.id },
-            slave: { id: slave.id },
-            expiration: MoreThan(new Date()),
-          },
-          relations: { master: true, slave: true },
-        })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave)));
-
-      const url = this.buildConfirmationUrl(request.code);
-      await this.notificationService.sendMail({
-        type: MailType.USER,
-        context: MailContext.ACCOUNT_MERGE_REQUEST,
-        input: {
-          userData: request.slave,
-          title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
-          salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
-          prefix: [
-            { key: MailKey.SPACE, params: { value: '3' } },
-            {
-              key: `${MailTranslationKey.GENERAL}.welcome`,
-              params: { name: request.master.organizationName ?? request.master.firstname },
-            },
-            { key: MailKey.SPACE, params: { value: '2' } },
-            {
-              key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
-              params: { url, urlText: url },
-            },
-            { key: MailKey.SPACE, params: { value: '4' } },
-          ],
-          suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+  async sendMergeRequest(master: UserData, slave: UserData): Promise<boolean> {
+    if (!slave.mail) return false;
+    const request =
+      (await this.accountMergeRepo.findOne({
+        where: {
+          master: { id: master.id },
+          slave: { id: slave.id },
+          expiration: MoreThan(new Date()),
         },
-        options: { debounce: 60000 },
-        correlationId: `${request.id}`,
-      });
-    }
+        relations: { master: true, slave: true },
+      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave)));
+
+    const url = this.buildConfirmationUrl(request.code);
+    await this.notificationService.sendMail({
+      type: MailType.USER,
+      context: MailContext.ACCOUNT_MERGE_REQUEST,
+      input: {
+        userData: request.slave,
+        title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
+        salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
+        prefix: [
+          { key: MailKey.SPACE, params: { value: '3' } },
+          {
+            key: `${MailTranslationKey.GENERAL}.welcome`,
+            params: { name: request.master.organizationName ?? request.master.firstname },
+          },
+          { key: MailKey.SPACE, params: { value: '2' } },
+          {
+            key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
+            params: { url, urlText: url },
+          },
+          { key: MailKey.SPACE, params: { value: '4' } },
+        ],
+        suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+      },
+      options: { debounce: 60000 },
+      correlationId: `${request.id}`,
+    });
+
+    return true;
   }
 
   async executeMerge(code: string): Promise<AccountMerge> {
