@@ -11,7 +11,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
-import { LanguageService, ipCountryToLanguage } from 'src/shared/models/language/language.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -159,9 +159,8 @@ export class UserService {
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
 
-    const language = await this.languageService.getLanguageBySymbol(
-      ipCountryToLanguage[user.ipCountry.toLowerCase()] || 'EN',
-    );
+    const language = await this.languageService.getLanguageByIpCountry(user.ipCountry);
+
     user.userData = await this.userDataService.createUserData({
       kycType: user.wallet.customKyc ?? KycType.DFX,
       language,

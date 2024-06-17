@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { LanguageRepository } from 'src/shared/models/language/language.repository';
 import { Language } from './language.entity';
 
@@ -17,13 +18,18 @@ export class LanguageService {
   async getLanguageBySymbol(symbol: string): Promise<Language> {
     return this.languageRepo.findOneCachedBy(symbol, { symbol });
   }
-}
 
-export const ipCountryToLanguage: { [key: string]: string } = {
-  de: 'DE',
-  at: 'DE',
-  ch: 'DE',
-  li: 'DE',
-  it: 'IT',
-  fr: 'FR',
-};
+  async getLanguageByIpCountry(ipCountry: string): Promise<Language> {
+    const symbol = this.ipCountryToLanguage[ipCountry] ?? Config.defaultCountry;
+    return this.languageRepo.findOne({ where: { symbol } });
+  }
+
+  ipCountryToLanguage: { [key: string]: string } = {
+    de: 'DE',
+    at: 'DE',
+    ch: 'DE',
+    li: 'DE',
+    it: 'IT',
+    fr: 'FR',
+  };
+}
