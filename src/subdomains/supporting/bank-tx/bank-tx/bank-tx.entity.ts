@@ -226,9 +226,7 @@ export class BankTx extends IEntity {
     if (Util.isSameName(this.name, this.ultimateName)) return this.name.replace(/[,]/g, '').trim();
 
     const multiAccount = multiAccounts.find((m) => m.value === this.iban);
-    if (multiAccount) return this.completeName(multiAccount.name);
-
-    return this.completeName();
+    return this.completeName(multiAccount?.name);
   }
 
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
