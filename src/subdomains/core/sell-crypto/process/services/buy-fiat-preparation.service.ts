@@ -56,7 +56,7 @@ export class BuyFiatPreparationService {
 
     for (const entity of entities) {
       try {
-        if (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck) continue;
+        if (!entity.cryptoInput.isConfirmed) continue;
 
         const inputReferenceCurrency = entity.cryptoInput.asset;
 

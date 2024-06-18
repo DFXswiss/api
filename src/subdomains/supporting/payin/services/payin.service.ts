@@ -72,8 +72,7 @@ export class PayInService {
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
-    const amlCheck = route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PENDING;
-    payIn.acknowledge(purpose, route, amlCheck);
+    payIn.acknowledge(purpose, route);
 
     await this.payInRepository.save(payIn);
   }
