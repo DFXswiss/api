@@ -49,7 +49,7 @@ describe('BankTx', () => {
 
       const sender = entity.getSenderAccount([multiAccountIban]);
 
-      expect(sender).toBe('Schaltereinzahlung;John Doe');
+      expect(sender).toBe('Schaltereinzahlung;JohnDoe');
     });
 
     it('should use the name, if no IBAN', () => {
