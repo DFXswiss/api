@@ -30,6 +30,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
@@ -65,6 +66,7 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => CheckoutTxService))
     private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly checkoutService: CheckoutService,
   ) {}
 
@@ -80,12 +82,16 @@ export class BuyCryptoService {
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
-      if (!bankData)
-        await this.bankDataService.createBankData(buy.userData, {
-          name: bankTx.bankDataName,
-          iban: bankTx.senderAccount,
-          type: BankDataType.BANK_IN,
-        });
+      if (!bankData) {
+        const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
+        const bankDataName = bankTx.bankDataName(multiAccounts);
+        if (bankDataName)
+          await this.bankDataService.createBankData(buy.userData, {
+            name: bankDataName,
+            iban: bankTx.senderAccount,
+            type: BankDataType.BANK_IN,
+          });
+      }
     }
 
     // create entity
