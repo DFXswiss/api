@@ -9,11 +9,16 @@ import { Between, In, IsNull, Not } from 'typeorm';
 import { CryptoStaking } from '../entities/crypto-staking.entity';
 import { StakingRefReward } from '../entities/staking-ref-reward.entity';
 import { PayoutType, StakingReward } from '../entities/staking-reward.entity';
-import { Staking } from '../entities/staking.entity';
 import { CryptoStakingRepository } from '../repositories/crypto-staking.repository';
 import { StakingRefRewardRepository } from '../repositories/staking-ref-reward.repository';
 import { StakingRewardRepository } from '../repositories/staking-reward.repository';
 import { StakingRepository } from '../repositories/staking.repository';
+
+interface RouteIdentifier {
+  id: number;
+  address: string;
+  blockchains: string;
+}
 
 @Injectable()
 export class StakingService {
@@ -104,23 +109,24 @@ export class StakingService {
 
   //*** HELPER METHODS ***//
 
-  private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Staking][]> {
-    const stakings = await this.stakingRepository.find({
-      where: { deposit: Not(IsNull()) },
-      relations: { deposit: true, user: { userData: true } },
-    });
+  private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, RouteIdentifier][]> {
+    const routes = await this.stakingRepository
+      .createQueryBuilder('staking')
+      .innerJoin('staking.deposit', 'deposit')
+      .select('staking.id', 'id')
+      .addSelect('deposit.address', 'address')
+      .addSelect('deposit.blockchains', 'blockchains')
+      .getRawMany<RouteIdentifier>();
 
-    return this.pairRoutesWithPayIns(stakings, allPayIns);
+    return this.pairRoutesWithPayIns(routes, allPayIns);
   }
 
-  private pairRoutesWithPayIns(stakings: Staking[], allPayIns: CryptoInput[]): [CryptoInput, Staking][] {
+  private pairRoutesWithPayIns(routes: RouteIdentifier[], allPayIns: CryptoInput[]): [CryptoInput, RouteIdentifier][] {
     const result = [];
 
-    for (const staking of stakings) {
+    for (const staking of routes) {
       const relevantPayIn = allPayIns.find(
-        (p) =>
-          p.address.address === staking.deposit.address &&
-          staking.deposit.blockchainList.includes(p.address.blockchain),
+        (p) => p.address.address === staking.address && staking.blockchains.includes(p.address.blockchain),
       );
 
       relevantPayIn && result.push([relevantPayIn, staking]);
@@ -129,8 +135,13 @@ export class StakingService {
     return result;
   }
 
-  private async returnPayIns(payInsPairs: [CryptoInput, Staking][]): Promise<void> {
-    for (const [payIn, staking] of payInsPairs) {
+  private async returnPayIns(payInsPairs: [CryptoInput, RouteIdentifier][]): Promise<void> {
+    for (const [payIn, stakingIdentifier] of payInsPairs) {
+      const staking = await this.stakingRepository.findOne({
+        where: { id: stakingIdentifier.id },
+        relations: { user: { userData: true } },
+      });
+
       await this.payInService.returnPayIn(
         payIn,
         PayInPurpose.STAKING,
