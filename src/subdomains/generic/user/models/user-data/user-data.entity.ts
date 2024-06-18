@@ -455,6 +455,10 @@ export class UserData extends IEntity {
     return [this.firstname, this.surname].filter((n) => n).join(' ');
   }
 
+  get isBlocked(): boolean {
+    return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
+  }
+
   // --- KYC PROCESS --- //
 
   setKycLevel(level: KycLevel): this {

@@ -66,7 +66,7 @@ export class TransactionDtoMapper {
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
       date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
-      externalTransactionId: buyCrypto.externalTransactionId,
+      externalTransactionId: buyCrypto.transaction.externalId,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -117,7 +117,7 @@ export class TransactionDtoMapper {
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
       date: buyFiat.outputDate ?? buyFiat.cryptoReturnDate ?? buyFiat.updated,
-      externalTransactionId: buyFiat.externalTransactionId,
+      externalTransactionId: buyFiat.transaction.externalId,
     };
 
     return Object.assign(new TransactionDto(), dto);

@@ -24,6 +24,7 @@ export class TransactionService {
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
+    entity.externalId = dto.request?.externalTransactionId;
 
     if (dto.resetMailSendDate) entity.mailSendDate = null;
 
@@ -38,6 +39,20 @@ export class TransactionService {
 
   async getTransactionByUid(uid: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
     return this.repo.findOne({ where: { uid }, relations });
+  }
+
+  async getTransactionByRequestId(
+    requestId: number,
+    relations: FindOptionsRelations<Transaction>,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { request: { id: requestId } }, relations });
+  }
+
+  async getTransactionByExternalId(
+    externalId: string,
+    relations: FindOptionsRelations<Transaction> = {},
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { externalId }, relations });
   }
 
   async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {

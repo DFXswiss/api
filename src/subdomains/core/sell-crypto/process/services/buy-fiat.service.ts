@@ -49,11 +49,6 @@ export class BuyFiatService {
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
-    const transaction = await this.transactionService.update(cryptoInput.transaction.id, {
-      type: TransactionTypeInternal.BUY_FIAT,
-      user: sell.user,
-    });
-
     let entity = this.buyFiatRepo.create({
       cryptoInput,
       sell,
@@ -61,11 +56,16 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
-      transaction,
+      transaction: { id: cryptoInput.transaction.id },
     });
 
-    // transaction request
-    entity = await this.setTxRequest(entity, request);
+    // transaction
+    request = await this.getTxRequest(entity, request);
+    await this.transactionService.update(entity.transaction.id, {
+      type: TransactionTypeInternal.BUY_FIAT,
+      user: sell.user,
+      request,
+    });
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.userData.id);
@@ -84,7 +84,7 @@ export class BuyFiatService {
     return entity;
   }
 
-  private async setTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<BuyFiat> {
+  private async getTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
     if (request) {
       await this.transactionRequestService.complete(request.id);
     } else {
@@ -96,12 +96,7 @@ export class BuyFiatService {
       );
     }
 
-    if (request) {
-      entity.transactionRequest = request;
-      entity.externalTransactionId = request.externalTransactionId;
-    }
-
-    return entity;
+    return request;
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {

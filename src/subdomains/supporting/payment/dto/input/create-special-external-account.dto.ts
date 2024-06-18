@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { SpecialExternalAccountType } from '../../entities/special-external-account.entity';
 
 export class CreateSpecialExternalAccountDto {
@@ -6,7 +6,8 @@ export class CreateSpecialExternalAccountDto {
   @IsEnum(SpecialExternalAccountType)
   type: SpecialExternalAccountType;
 
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((dto: CreateSpecialExternalAccountDto) => dto.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN)
   @IsString()
   name: string;
 
