@@ -93,7 +93,10 @@ export class PayInService {
     payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
 
     if (payIn.transaction)
-      await this.transactionService.update(payIn.transaction.id, { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN });
+      await this.transactionService.update(payIn.transaction.id, {
+        type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
+        user: route.user,
+      });
 
     await this.payInRepository.save(payIn);
   }

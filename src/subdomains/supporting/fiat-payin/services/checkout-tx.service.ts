@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -16,6 +16,7 @@ export class CheckoutTxService {
 
   constructor(
     private readonly checkoutTxRepo: CheckoutTxRepository,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyService: BuyService,
     private readonly notificationService: NotificationService,
@@ -53,6 +54,16 @@ export class CheckoutTxService {
     if (!entity) throw new NotFoundException('Checkout TX not found');
 
     return entity;
+  }
+
+  async getPendingRefundedList(): Promise<CheckoutTx[]> {
+    return this.checkoutTxRepo.find({ where: { status: CheckoutPaymentStatus.REFUNDED_PENDING } });
+  }
+
+  async paymentRefunded(entityId: number): Promise<void> {
+    await this.checkoutTxRepo.update(entityId, {
+      status: CheckoutPaymentStatus.REFUNDED_PENDING,
+    });
   }
 
   async getSyncDate(): Promise<Date> {

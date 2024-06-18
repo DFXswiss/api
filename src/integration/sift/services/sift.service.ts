@@ -112,7 +112,7 @@ export class SiftService {
       $time: tx.updated.getTime(),
       $site_country: 'CH',
       $transaction_status: status,
-      $decline_category: declineCategory,
+      $decline_category: status == TransactionStatus.FAILURE ? declineCategory : undefined,
       $currency_code: currency,
       $amount: amount * 10000, // amount in micros in the base unit
       $payment_methods: [paymentMethod],
@@ -143,8 +143,8 @@ export class SiftService {
       : {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
-          $card_bin: tx.iban.slice(0, 6),
-          $card_last4: tx.iban.slice(-4),
+          $shortened_iban_first6: tx.iban.slice(0, 6),
+          $shortened_iban_last4: tx.iban.slice(-4),
           $bank_name: tx.bankName,
           $bank_country: tx.country,
           $routing_number: tx.aba,

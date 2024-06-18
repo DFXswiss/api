@@ -3,7 +3,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -13,6 +13,7 @@ import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
+import { TransactionRequest } from './transaction-request.entity';
 
 export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',
@@ -43,6 +44,9 @@ export class Transaction extends IEntity {
 
   @Column({ length: 256, unique: true })
   uid: string;
+
+  @Column({ length: 256, nullable: true })
+  externalId: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -81,6 +85,10 @@ export class Transaction extends IEntity {
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user: User;
+
+  @OneToOne(() => TransactionRequest, { nullable: true })
+  @JoinColumn()
+  request: TransactionRequest;
 
   // --- ENTITY METHODS --- //
 
