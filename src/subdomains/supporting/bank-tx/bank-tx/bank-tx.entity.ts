@@ -216,7 +216,7 @@ export class BankTx extends IEntity {
   }
 
   completeName(multiAccountName?: string): string {
-    const regex = multiAccountName ? new RegExp(`${multiAccountName || ''}|,`, 'g') : /[,]/g;
+    const regex = multiAccountName ? new RegExp(`${multiAccountName}|,`, 'g') : /[,]/g;
     return [this.name, this.ultimateName]
       .filter((n) => n && ![multiAccountName, 'Schaltereinzahlung'].includes(n))
       .map((n) => n.replace(regex, '').trim())
