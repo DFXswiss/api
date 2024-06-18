@@ -1,16 +1,17 @@
-import { KrakenService } from './services/kraken.service';
-import { BinanceService } from './services/binance.service';
-import { BitstampService } from './services/bitstamp.service';
-import { BitpandaService } from './services/bitpanda.service';
-import { ExchangeController } from './controllers/exchange.controller';
 import { Module } from '@nestjs/common';
-import { SharedModule } from 'src/shared/shared.module';
-import { KucoinService } from './services/kucoin.service';
-import { ExchangeRegistryService } from './services/exchange-registry.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
-import { ExchangeTxService } from './services/exchange-tx.service';
+import { SharedModule } from 'src/shared/shared.module';
+import { ExchangeController } from './controllers/exchange.controller';
 import { ExchangeTx } from './entities/exchange-tx.entity';
+import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
+import { BinanceService } from './services/binance.service';
+import { BitpandaService } from './services/bitpanda.service';
+import { BitstampService } from './services/bitstamp.service';
+import { ExchangeRegistryService } from './services/exchange-registry.service';
+import { ExchangeTxService } from './services/exchange-tx.service';
+import { KrakenService } from './services/kraken.service';
+import { KucoinService } from './services/kucoin.service';
+import { P2BService } from './services/p2b.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ExchangeTx]), SharedModule],
@@ -24,6 +25,7 @@ import { ExchangeTx } from './entities/exchange-tx.entity';
     BitpandaService,
     KucoinService,
     ExchangeTxService,
+    P2BService,
   ],
   exports: [ExchangeRegistryService, KrakenService, BinanceService, BitstampService, BitpandaService, KucoinService],
 })

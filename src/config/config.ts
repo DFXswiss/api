@@ -510,7 +510,6 @@ export class Configuration {
       ...this.exchange,
     };
   }
-  }
 
   // --- HELPERS --- //
   disabledProcesses = () =>
