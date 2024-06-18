@@ -3,6 +3,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { SpecialExternalAccount } from '../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTxRepeat } from '../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx-return/bank-tx-return.entity';
@@ -206,21 +207,25 @@ export class BankTx extends IEntity {
 
   //*** GETTER METHODS ***//
 
-  get completeName(): string {
+  completeName(multiAccountName?: string): string {
     return [this.name, this.ultimateName]
-      .filter((n) => n)
+      .filter((n) => n && (!multiAccountName || n !== multiAccountName))
       .map((n) => n.replace(/[,]/g, '').trim())
       .join(' ');
   }
 
-  get bankDataName(): string {
+  bankDataName(multiAccounts: SpecialExternalAccount[]): string | undefined {
     if (Util.isSameName(this.name, this.ultimateName)) return this.name.replace(/[,]/g, '').trim();
-    return this.completeName;
+
+    const multiAccount = multiAccounts.find((m) => m.value === this.iban);
+    if (multiAccount) return this.completeName(multiAccount.name);
+
+    return this.completeName();
   }
 
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
-      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().split(' ').join('')}`;
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
       return this.iban;
     }
@@ -231,7 +236,7 @@ export class BankTx extends IEntity {
     }
 
     if (this.completeName) {
-      return this.completeName.split(' ').join(':');
+      return this.completeName().split(' ').join(':');
     }
   }
 
