@@ -20,7 +20,7 @@ export class LanguageService {
   }
 
   async getLanguageByIpCountry(ipCountry: string): Promise<Language> {
-    const symbol = this.ipCountryToLanguage[ipCountry] ?? Config.defaultCountry;
+    const symbol = this.ipCountryToLanguage[ipCountry] ?? Config.defaultLanguage.toUpperCase();
     return this.languageRepo.findOne({ where: { symbol } });
   }
 
