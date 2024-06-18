@@ -11,6 +11,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -38,6 +39,7 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly siftService: SiftService,
     private readonly countryService: CountryService,
+    private readonly payInService: PayInService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -133,6 +135,8 @@ export class BuyCryptoPreparationService {
             ibanCountry,
           ),
         );
+
+        if (entity.cryptoInput) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
         await this.buyCryptoWebhookService.triggerWebhook(entity);
 

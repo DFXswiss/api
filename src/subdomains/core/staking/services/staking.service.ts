@@ -25,7 +25,7 @@ export class StakingService {
     private readonly payInService: PayInService,
   ) {}
 
-  //*** JOBS ***//
+  // --- JOBS --- //
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
@@ -34,7 +34,7 @@ export class StakingService {
     await this.returnStakingPayIn();
   }
 
-  //*** HISTORY METHODS ***/
+  // --- HISTORY METHODS --- //
 
   async getUserStakingRewards(
     userIds: number[],
@@ -91,7 +91,7 @@ export class StakingService {
     };
   }
 
-  //*** RETURN STAKING METHODS ***/
+  // --- RETURN STAKING METHODS --- //
 
   async returnStakingPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
@@ -102,12 +102,12 @@ export class StakingService {
     await this.returnPayIns(stakingPayIns);
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Staking][]> {
     const stakings = await this.stakingRepository.find({
       where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user', 'user.userData'],
+      relations: { deposit: true, user: { userData: true } },
     });
 
     return this.pairRoutesWithPayIns(stakings, allPayIns);
