@@ -308,12 +308,13 @@ export class TransactionController {
       bankTx: { transaction: true },
       cryptoInput: true,
       checkoutTx: true,
+      user: { userData: true },
     };
 
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (id) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
+    if (requestId) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
     if (externalId) transaction = await this.transactionService.getTransactionByExternalId(externalId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
