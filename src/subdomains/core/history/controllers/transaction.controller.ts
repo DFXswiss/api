@@ -159,10 +159,10 @@ export class TransactionController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto })
-  @ApiQuery({ name: 'id', description: 'Transaction ID' })
-  @ApiQuery({ name: 'uid', description: 'Transaction unique ID' })
-  @ApiQuery({ name: 'request-id', description: 'Transaction request ID' })
-  @ApiQuery({ name: 'external-id', description: 'External transaction ID' })
+  @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
+  @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
+  @ApiQuery({ name: 'request-id', description: 'Transaction request ID', required: false })
+  @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
   async getSingleTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id?: string,
