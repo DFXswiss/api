@@ -216,9 +216,10 @@ export class BankTx extends IEntity {
   }
 
   completeName(multiAccountName?: string): string {
+    const regex = multiAccountName ? new RegExp(`${multiAccountName || ''}|,`, 'g') : /[,]/g;
     return [this.name, this.ultimateName]
       .filter((n) => n && n !== multiAccountName)
-      .map((n) => n.replace(/[,]/g, '').trim())
+      .map((n) => n.replace(regex, '').trim())
       .join(' ');
   }
 
