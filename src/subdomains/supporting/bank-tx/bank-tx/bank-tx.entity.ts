@@ -217,7 +217,7 @@ export class BankTx extends IEntity {
 
   completeName(multiAccountName?: string): string {
     return [this.name, this.ultimateName]
-      .filter((n) => n && (!multiAccountName || n !== multiAccountName))
+      .filter((n) => n && n !== multiAccountName)
       .map((n) => n.replace(/[,]/g, '').trim())
       .join(' ');
   }
@@ -243,7 +243,7 @@ export class BankTx extends IEntity {
       if (this.name === 'Schaltereinzahlung') return this.name;
     }
 
-    if (this.completeName) {
+    if (this.completeName()) {
       return this.completeName().split(' ').join(':');
     }
   }

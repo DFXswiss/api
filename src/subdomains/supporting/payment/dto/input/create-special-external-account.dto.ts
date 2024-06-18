@@ -7,9 +7,7 @@ export class CreateSpecialExternalAccountDto {
   type: SpecialExternalAccountType;
 
   @IsNotEmpty()
-  @ValidateIf((dto: CreateSpecialExternalAccountDto) =>
-    Boolean(dto.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN),
-  )
+  @ValidateIf((dto: CreateSpecialExternalAccountDto) => dto.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN)
   @IsString()
   name: string;
 
