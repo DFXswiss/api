@@ -218,7 +218,7 @@ export class BankTx extends IEntity {
   completeName(multiAccountName?: string): string {
     const regex = multiAccountName ? new RegExp(`${multiAccountName || ''}|,`, 'g') : /[,]/g;
     return [this.name, this.ultimateName]
-      .filter((n) => n && n !== multiAccountName)
+      .filter((n) => n && ![multiAccountName, 'Schaltereinzahlung'].includes(n))
       .map((n) => n.replace(regex, '').trim())
       .join(' ');
   }
@@ -239,7 +239,7 @@ export class BankTx extends IEntity {
 
     if (this.name) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
-      if (this.name === 'Schaltereinzahlung') return this.name;
+      if (this.name === 'Schaltereinzahlung') return `${this.name};${this.ultimateName.split(' ').join('')}`;
     }
 
     if (this.completeName()) {
