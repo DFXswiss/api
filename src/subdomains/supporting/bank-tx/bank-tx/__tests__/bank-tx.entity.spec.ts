@@ -45,11 +45,11 @@ describe('BankTx', () => {
     });
 
     it('should use Schaltereinzahlung', () => {
-      const entity = Object.assign(new BankTx(), { name: 'Schaltereinzahlung' });
+      const entity = Object.assign(new BankTx(), { name: 'Schaltereinzahlung', ultimateName: 'John Doe' });
 
       const sender = entity.getSenderAccount([multiAccountIban]);
 
-      expect(sender).toBe('Schaltereinzahlung');
+      expect(sender).toBe('Schaltereinzahlung;John Doe');
     });
 
     it('should use the name, if no IBAN', () => {

@@ -239,7 +239,7 @@ export class BankTx extends IEntity {
 
     if (this.name) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
-      if (this.name === 'Schaltereinzahlung') return `${this.name};${this.ultimateName.split(' ').join('')}`;
+      if (this.name === 'Schaltereinzahlung') return `${this.name};${this.ultimateName?.split(' ')?.join('')}`;
     }
 
     if (this.completeName()) {

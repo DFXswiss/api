@@ -134,7 +134,7 @@ export class Util {
       .replace(/[úûùü]/g, 'u')
       .replace(/[áâåàä]/g, 'a')
       .replace(/[éèê]/g, 'e')
-      .replace(/[ö]/g, 'o')
+      .replace(/[ö,ó]/g, 'o')
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')

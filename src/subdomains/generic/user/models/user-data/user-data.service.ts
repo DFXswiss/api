@@ -504,6 +504,7 @@ export class UserDataService {
       throw new BadRequestException('Master or slave is already merged');
     if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
+    if (master.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
