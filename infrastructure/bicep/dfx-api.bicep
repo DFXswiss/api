@@ -923,6 +923,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: binanceEvmDepositAddress
         }
         {
+          name: 'P2B_KEY'
+          value: p2bKey
+        }
+        {
+          name: 'P2B_SECRET'
+          value: p2bSecret
+        }
+        {
+          name: 'P2B_WITHDRAW_KEYS'
+          value: p2bWithdrawKeys
+        }
+        {
           name: 'LETTER_URL'
           value: letterUrl
         }
