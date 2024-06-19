@@ -501,6 +501,15 @@ export class Configuration {
     };
   }
 
+  get p2b(): ExchangeConfig {
+    return {
+      apiKey: process.env.P2B_KEY,
+      secret: process.env.P2B_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
   // --- HELPERS --- //
   disabledProcesses = () =>
     process.env.DISABLED_PROCESSES === '*'
