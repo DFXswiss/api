@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { MoneroTransactionType, MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
@@ -19,10 +18,6 @@ export class DexMoneroService {
 
   async sendTransfer(address: string, amount: number): Promise<string> {
     return this.client.sendTransfer(address, amount).then((r) => r.txid);
-  }
-
-  async transferMinimal(address: string): Promise<string> {
-    return this.sendTransfer(address, Config.payIn.minDeposit.Monero.XMR / 2);
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

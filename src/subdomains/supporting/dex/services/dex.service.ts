@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { IsNull, Not } from 'typeorm';
@@ -235,28 +234,6 @@ export class DexService {
 
     this.logger.verbose(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
     return strategy.transferLiquidity(request);
-  }
-
-  async transferMinimalCoin(address: BlockchainAddress): Promise<string> {
-    const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByBlockchain(address.blockchain);
-
-    if (!strategy) {
-      throw new Error(
-        `No supplementary strategy found for blockchain ${address.blockchain} during #transferMinimalCoin(...)`,
-      );
-    }
-
-    try {
-      this.logger.verbose(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
-      return await strategy.transferMinimalCoin(address.address);
-    } catch (e) {
-      this.logger.error('Error while transferring liquidity:', e);
-
-      // default public exception
-      throw new Error(
-        `Error while transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`,
-      );
-    }
   }
 
   async checkTransferCompletion(transferTxId: string, blockchain: Blockchain): Promise<boolean> {

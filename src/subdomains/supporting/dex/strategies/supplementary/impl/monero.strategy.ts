@@ -23,10 +23,6 @@ export class MoneroStrategy extends SupplementaryStrategy {
     return this.dexMoneroService.sendTransfer(destinationAddress, amount);
   }
 
-  async transferMinimalCoin(address: string): Promise<string> {
-    return this.dexMoneroService.transferMinimal(address);
-  }
-
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
     return this.dexMoneroService.checkTransferCompletion(transferTxId);
   }
