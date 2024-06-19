@@ -161,6 +161,9 @@ export class BuyCrypto extends IEntity {
   chargebackCryptoTxId: string;
 
   // Pass
+  @Column({ type: 'datetime2', nullable: true })
+  exchangeRateApprovalDate: Date;
+
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 

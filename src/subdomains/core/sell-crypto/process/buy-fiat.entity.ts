@@ -131,6 +131,9 @@ export class BuyFiat extends IEntity {
   mailReturnSendDate: Date;
 
   // Pass
+  @Column({ type: 'datetime2', nullable: true })
+  exchangeRateApprovalDate: Date;
+
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 

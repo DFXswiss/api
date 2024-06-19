@@ -183,4 +183,9 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsString()
   comment: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  exchangeRateApprovalDate: Date;
 }

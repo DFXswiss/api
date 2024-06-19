@@ -47,6 +47,7 @@ export class BuyCryptoBatchService {
           outputReferenceAsset: Not(IsNull()),
           outputAsset: { type: Not(AssetType.CUSTOM) },
           outputReferenceAmount: IsNull(),
+          exchangeRateApprovalDate: Not(IsNull()),
           batch: IsNull(),
           percentFee: Not(IsNull()),
           status: In([
