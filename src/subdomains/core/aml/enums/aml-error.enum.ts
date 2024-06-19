@@ -36,7 +36,6 @@ export enum AmlError {
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
   CARD_BLACKLISTED = 'CardBlacklisted',
-  INPUT_AML_CHECK_FAILED = 'InputAmlFailed',
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
   SUSPICIOUS_MAIL = 'SuspiciousMail',
@@ -129,7 +128,6 @@ export const AmlErrorResult: {
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.CARD_BLACKLISTED]: null,
-  [AmlError.INPUT_AML_CHECK_FAILED]: null,
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,
