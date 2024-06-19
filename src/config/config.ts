@@ -33,7 +33,6 @@ export class Configuration {
   defaultVersionString = `v${this.defaultVersion}`;
 
   defaultLanguage = 'en';
-  defaultCountry = 'DE';
   defaultCurrency = 'EUR';
 
   defaultVolumeDecimal = 2;

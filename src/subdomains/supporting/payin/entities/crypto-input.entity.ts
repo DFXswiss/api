@@ -159,10 +159,9 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRouteType, amlCheck: CheckStatus): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;
-    this.amlCheck = amlCheck;
     this.sendType = PayInSendType.FORWARD;
 
     if (this.txType === PayInType.PERMIT_TRANSFER) {
