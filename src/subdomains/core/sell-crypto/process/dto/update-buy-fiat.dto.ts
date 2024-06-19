@@ -187,5 +187,5 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  exchangeRateApprovalDate: Date;
+  priceDefinitionAllowedDate: Date;
 }

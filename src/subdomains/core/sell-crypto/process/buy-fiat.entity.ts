@@ -132,7 +132,7 @@ export class BuyFiat extends IEntity {
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  exchangeRateApprovalDate: Date;
+  priceDefinitionAllowedDate: Date;
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;

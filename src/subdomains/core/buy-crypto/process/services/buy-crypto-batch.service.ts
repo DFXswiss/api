@@ -47,9 +47,10 @@ export class BuyCryptoBatchService {
           outputReferenceAsset: Not(IsNull()),
           outputAsset: { type: Not(AssetType.CUSTOM) },
           outputReferenceAmount: IsNull(),
-          exchangeRateApprovalDate: Not(IsNull()),
+          outputAmount: IsNull(),
+          priceDefinitionAllowedDate: Not(IsNull()),
           batch: IsNull(),
-          percentFee: Not(IsNull()),
+          inputReferenceAmountMinusFee: Not(IsNull()),
           status: In([
             BuyCryptoStatus.CREATED,
             BuyCryptoStatus.WAITING_FOR_LOWER_FEE,

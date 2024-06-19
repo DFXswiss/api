@@ -158,5 +158,5 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  exchangeRateApprovalDate: Date;
+  priceDefinitionAllowedDate: Date;
 }

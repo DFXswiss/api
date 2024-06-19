@@ -190,7 +190,7 @@ export class BuyFiatPreparationService {
         isComplete: false,
         inputReferenceAmountMinusFee: Not(IsNull()),
         outputAmount: IsNull(),
-        exchangeRateApprovalDate: Not(IsNull()),
+        priceDefinitionAllowedDate: Not(IsNull()),
       },
       relations: { sell: true, cryptoInput: true },
     });
