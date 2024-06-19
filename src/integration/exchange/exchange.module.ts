@@ -11,7 +11,7 @@ import { ExchangeRegistryService } from './services/exchange-registry.service';
 import { ExchangeTxService } from './services/exchange-tx.service';
 import { KrakenService } from './services/kraken.service';
 import { KucoinService } from './services/kucoin.service';
-import { P2BService } from './services/p2b.service';
+// import { P2BService } from './services/p2b.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ExchangeTx]), SharedModule],
@@ -25,7 +25,7 @@ import { P2BService } from './services/p2b.service';
     BitpandaService,
     KucoinService,
     ExchangeTxService,
-    P2BService,
+    // P2BService,
   ],
   exports: [ExchangeRegistryService, KrakenService, BinanceService, BitstampService, BitpandaService, KucoinService],
 })
