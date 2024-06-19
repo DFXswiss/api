@@ -154,6 +154,13 @@ param binanceWithdrawKeys string
 param binanceBtcDepositAddress string
 param binanceEvmDepositAddress string
 
+@secure()
+param p2bKey string
+@secure()
+param p2bSecret string
+
+param p2bWithdrawKeys string
+
 param olkyClient string
 @secure()
 param olkySecret string
