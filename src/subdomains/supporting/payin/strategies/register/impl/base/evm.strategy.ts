@@ -9,12 +9,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Like } from 'typeorm';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
@@ -35,10 +29,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   protected abstract getOwnAddresses(): string[];
-
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | Swap): CheckStatus {
-    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
-  }
 
   // --- WEBHOOKS --- //
 

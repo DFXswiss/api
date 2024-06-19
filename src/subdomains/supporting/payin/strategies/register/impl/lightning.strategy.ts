@@ -8,12 +8,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { RegisterStrategy } from './base/register.strategy';
 
@@ -27,10 +21,6 @@ export class LightningStrategy extends RegisterStrategy {
 
   get blockchain(): Blockchain {
     return Blockchain.LIGHTNING;
-  }
-
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | Swap): CheckStatus | Promise<CheckStatus> {
-    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   //*** JOBS ***//

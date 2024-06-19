@@ -33,7 +33,6 @@ export class Configuration {
   defaultVersionString = `v${this.defaultVersion}`;
 
   defaultLanguage = 'en';
-  defaultCountry = 'DE';
   defaultCurrency = 'EUR';
 
   defaultVolumeDecimal = 2;
@@ -498,6 +497,15 @@ export class Configuration {
       secret: process.env.BINANCE_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.BINANCE_WITHDRAW_KEYS),
       quoteJsonNumbers: false,
+      ...this.exchange,
+    };
+  }
+
+  get p2b(): ExchangeConfig {
+    return {
+      apiKey: process.env.P2B_KEY,
+      secret: process.env.P2B_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }

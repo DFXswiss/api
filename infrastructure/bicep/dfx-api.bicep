@@ -154,6 +154,13 @@ param binanceWithdrawKeys string
 param binanceBtcDepositAddress string
 param binanceEvmDepositAddress string
 
+@secure()
+param p2bKey string
+@secure()
+param p2bSecret string
+
+param p2bWithdrawKeys string
+
 param olkyClient string
 @secure()
 param olkySecret string
@@ -914,6 +921,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_EVM_DEPOSIT_ADDRESS'
           value: binanceEvmDepositAddress
+        }
+        {
+          name: 'P2B_KEY'
+          value: p2bKey
+        }
+        {
+          name: 'P2B_SECRET'
+          value: p2bSecret
+        }
+        {
+          name: 'P2B_WITHDRAW_KEYS'
+          value: p2bWithdrawKeys
         }
         {
           name: 'LETTER_URL'

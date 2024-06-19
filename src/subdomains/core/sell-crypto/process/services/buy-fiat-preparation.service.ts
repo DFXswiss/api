@@ -5,6 +5,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -27,6 +28,7 @@ export class BuyFiatPreparationService {
     private readonly buyFiatService: BuyFiatService,
     private readonly amlService: AmlService,
     private readonly userService: UserService,
+    private readonly payInService: PayInService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -54,7 +56,7 @@ export class BuyFiatPreparationService {
 
     for (const entity of entities) {
       try {
-        if (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck) continue;
+        if (!entity.cryptoInput.isConfirmed) continue;
 
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
@@ -116,6 +118,8 @@ export class BuyFiatPreparationService {
             blacklist,
           ),
         );
+
+        await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
