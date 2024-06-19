@@ -128,7 +128,6 @@ export const AmlErrorResult: {
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.CARD_BLACKLISTED]: null,
-  [AmlError.INPUT_AML_CHECK_FAILED]: null,
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,
