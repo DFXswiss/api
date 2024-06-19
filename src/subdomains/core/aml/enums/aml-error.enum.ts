@@ -36,7 +36,6 @@ export enum AmlError {
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
   CARD_BLACKLISTED = 'CardBlacklisted',
-  INPUT_AML_CHECK_FAILED = 'InputAmlFailed',
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
   SUSPICIOUS_MAIL = 'SuspiciousMail',
