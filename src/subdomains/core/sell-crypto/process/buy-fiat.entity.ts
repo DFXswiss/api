@@ -130,6 +130,9 @@ export class BuyFiat extends IEntity {
   mailReturnSendDate: Date;
 
   // Pass
+  @Column({ type: 'datetime2', nullable: true })
+  priceDefinitionAllowedDate: Date;
+
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
