@@ -148,7 +148,7 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     let userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: ['users', 'users.wallet'],
+      relations: { users: { wallet: true }, kycSteps: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
 

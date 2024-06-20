@@ -341,6 +341,7 @@ export class TransactionHelper implements OnModuleInit {
     };
 
     return {
+      timestamp: price.timestamp,
       exchangeRate: Util.roundReadable(price.price, isFiat(from)),
       rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
       sourceAmount: Util.roundReadable(sourceAmount, isFiat(from)),

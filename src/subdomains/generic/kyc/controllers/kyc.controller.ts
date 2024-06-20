@@ -47,7 +47,7 @@ import { TfaService } from '../services/tfa.service';
 
 const CodeHeaderName = 'x-kyc-code';
 const MergedResponse = {
-  description: 'User is merged, reload the user or switch to the KYC code provided in the response',
+  description: 'User is merged, switch to the KYC code provided in the response',
   type: MergedDto,
 };
 const TfaResponse = { description: '2FA is required' };

@@ -137,7 +137,7 @@ export class BuyFiatPreparationService {
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
+      relations: { sell: { user: { wallet: true, userData: true } }, cryptoInput: true },
     });
 
     // CHF/EUR Price
@@ -194,8 +194,9 @@ export class BuyFiatPreparationService {
         isComplete: false,
         inputReferenceAmountMinusFee: Not(IsNull()),
         outputAmount: IsNull(),
+        priceDefinitionAllowedDate: Not(IsNull()),
       },
-      relations: ['sell', 'cryptoInput'],
+      relations: { sell: true, cryptoInput: true },
     });
 
     for (const entity of entities) {

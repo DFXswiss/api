@@ -3,6 +3,7 @@ import { FeeDto } from '../fee.dto';
 import { QuoteError } from './quote-error.enum';
 
 export interface TargetEstimation {
+  timestamp: Date;
   exchangeRate: number;
   rate: number;
   sourceAmount: number;
