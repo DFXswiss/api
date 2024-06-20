@@ -11,7 +11,7 @@ export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
 
-  @ApiProperty({ description: 'Transaction timestamp' })
+  @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
 
   @ApiProperty()
