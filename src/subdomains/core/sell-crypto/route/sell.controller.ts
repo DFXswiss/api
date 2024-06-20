@@ -232,6 +232,7 @@ export class SellController {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
+      timestamp,
       minVolume,
       minVolumeTarget,
       maxVolume,
@@ -259,6 +260,7 @@ export class SellController {
 
     const sellDto: SellPaymentInfoDto = {
       id: 0, // set during request creation
+      timestamp,
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,

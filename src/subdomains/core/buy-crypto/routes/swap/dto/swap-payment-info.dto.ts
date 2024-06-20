@@ -10,6 +10,9 @@ export class SwapPaymentInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
 
+  @ApiProperty({ description: 'Transaction timestamp' })
+  timestamp: Date;
+
   @ApiProperty()
   routeId: number;
 

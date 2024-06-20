@@ -247,6 +247,7 @@ export class BuyController {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
+      timestamp,
       minVolume,
       minVolumeTarget,
       maxVolume,
@@ -281,6 +282,7 @@ export class BuyController {
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
+      timestamp,
       routeId: buy.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
