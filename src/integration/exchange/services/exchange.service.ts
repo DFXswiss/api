@@ -286,7 +286,15 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   // other
   protected async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
-    return this.queue.handle(() => action(this.exchange));
+    return this.queue.handle(() =>
+      action(this.exchange).catch((e) => {
+        if (e.message?.includes('throttle')) {
+          this.logger.verbose(`${this.name} throttler: ${JSON.stringify(this.exchange.throttler)}`);
+        }
+
+        throw e;
+      }),
+    );
   }
 
   mapNetwork(blockchain: Blockchain): string {
