@@ -136,6 +136,7 @@ describe('BuyController', () => {
       error: undefined,
       exactPrice: false,
       priceSteps: [],
+      timestamp: new Date(),
     });
 
     const dto = createBuyPaymentInfoDto();
