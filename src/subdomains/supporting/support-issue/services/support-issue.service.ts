@@ -14,7 +14,7 @@ import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -32,20 +32,18 @@ export class SupportIssueService {
   ) {}
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
-    let entity = await this.create(userDataId, SupportIssueType.GENERIC_ISSUE, dto);
+    let entity = await this.create(userDataId, dto);
 
-    entity = await this.supportIssueRepo.save(entity);
+    if (dto.transaction) {
+      entity.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
+        user: { userData: true },
+      });
+      if (!entity.transaction) throw new NotFoundException('Transaction not found');
+      if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
+        throw new ForbiddenException('You can only create support issue for your own transaction');
 
-    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
-  }
-
-  async createTransactionIssue(userDataId: number, transactionId: number, dto: CreateSupportIssueDto): Promise<void> {
-    let entity = await this.create(userDataId, SupportIssueType.TRANSACTION_ISSUE, dto, transactionId);
-
-    entity.transaction = await this.transactionService.getTransactionById(transactionId, { user: { userData: true } });
-    if (!entity.transaction) throw new NotFoundException('Transaction not found');
-    if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
-      throw new ForbiddenException('You can only create support issue for your own transaction');
+      entity.additionalInformation = dto.transaction;
+    }
 
     entity = await this.supportIssueRepo.save(entity);
 
@@ -108,26 +106,21 @@ export class SupportIssueService {
   }
 
   // --- HELPER METHODS --- //
-  private async create(
-    userDataId: number,
-    type: SupportIssueType,
-    dto: CreateSupportIssueDto,
-    transactionId?: number,
-  ): Promise<SupportIssue> {
+  private async create(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssue> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
     const existing = await this.supportIssueRepo.exist({
       where: {
         userData: { id: userDataId },
-        type: type,
-        transaction: { id: transactionId },
+        type: dto.type,
+        transaction: { id: dto.transaction.id },
         reason: dto.reason,
         state: Not(SupportIssueState.COMPLETED),
       },
     });
     if (existing) throw new ConflictException('There is already a pending support issue');
 
-    return this.supportIssueRepo.create({ type, userData, ...dto });
+    return this.supportIssueRepo.create({ userData, ...dto });
   }
 }

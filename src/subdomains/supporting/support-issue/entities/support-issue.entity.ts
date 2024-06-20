@@ -13,11 +13,16 @@ export enum SupportIssueState {
 export enum SupportIssueType {
   GENERIC_ISSUE = 'GenericIssue',
   TRANSACTION_ISSUE = 'TransactionIssue',
+  KYC_ISSUE = 'KycIssue',
+  LIMIT_REQUEST = 'LimitRequest',
+  PARTNERSHIP_REQUEST = 'PartnershipRequest',
 }
 
 export enum SupportIssueReason {
-  FUNDS_NOT_RECEIVED = 'FundsNotReceived',
   OTHER = 'Other',
+
+  // transaction
+  FUNDS_NOT_RECEIVED = 'FundsNotReceived',
 }
 
 @Entity()
@@ -34,6 +39,9 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, nullable: false })
   name: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  information: string;
+
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
   transaction: Transaction;
 
@@ -42,4 +50,12 @@ export class SupportIssue extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
+
+  set additionalInformation(info: object) {
+    this.information = JSON.stringify(info);
+  }
+
+  get additionalInformation(): object | undefined {
+    return this.information && JSON.parse(this.information);
+  }
 }
