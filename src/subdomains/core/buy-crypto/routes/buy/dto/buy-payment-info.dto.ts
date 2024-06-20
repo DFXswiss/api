@@ -42,6 +42,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
 
+  @ApiProperty({ description: 'Price timestamp' })
+  timestamp: Date;
+
   @ApiProperty()
   routeId: number;
 
