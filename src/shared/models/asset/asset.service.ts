@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, Not } from 'typeorm';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
+import { UpdateAssetDto } from './dto/update-asset.dto';
 
 export interface AssetQuery {
   dexName: string;
@@ -14,6 +15,15 @@ export interface AssetQuery {
 @Injectable()
 export class AssetService {
   constructor(private assetRepo: AssetRepository) {}
+
+  async updateAsset(id: number, dto: UpdateAssetDto): Promise<Asset> {
+    const entity = await this.assetRepo.findOneBy({ id });
+    if (!entity) throw new BadRequestException('Asset not found');
+
+    Object.assign(entity, dto);
+
+    return this.assetRepo.save(entity);
+  }
 
   async getAllAsset(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
