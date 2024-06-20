@@ -68,7 +68,7 @@ export class BuyFiatPreparationService {
           false,
         );
 
-        const last24hVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last24hVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
@@ -77,7 +77,7 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last7dVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
@@ -86,7 +86,7 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const last30dVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last30dVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
@@ -95,7 +95,7 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const last365dVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last365dVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,

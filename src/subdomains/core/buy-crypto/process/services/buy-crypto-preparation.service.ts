@@ -80,7 +80,7 @@ export class BuyCryptoPreparationService {
 
         const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, inputReferenceCurrency, false);
 
-        const last24hVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last24hVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
@@ -89,7 +89,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last7dVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
@@ -98,7 +98,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const last30dVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last30dVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
@@ -107,7 +107,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const last365dVolume = await this.transactionHelper.getVolumeChfSince(
+        const { total: last365dVolume } = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,

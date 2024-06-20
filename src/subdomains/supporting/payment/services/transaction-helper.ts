@@ -226,7 +226,7 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const txAmountChf = await this.getVolumeChfSince(
+    const { total: txAmount24hChf, inputAmount: txAmountChf } = await this.getVolumeChfSince(
       target.sourceAmount,
       from,
       allowExpiredPrice,
@@ -241,10 +241,12 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
       paymentMethodIn,
+      paymentMethodOut,
       target.sourceAmount,
       sourceSpecs.volume.min,
       extendedSpecs.volume.max,
       txAmountChf,
+      txAmount24hChf,
       user,
     );
 
@@ -271,8 +273,10 @@ export class TransactionHelper implements OnModuleInit {
     dateFrom: Date,
     dateTo: Date,
     users?: User[],
-  ): Promise<number> {
-    if (!users?.length) return inputAmount;
+  ): Promise<{ inputAmount: number; total: number }> {
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+
+    if (!users?.length) return { inputAmount: price.convert(inputAmount), total: price.convert(inputAmount) };
 
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
@@ -285,8 +289,10 @@ export class TransactionHelper implements OnModuleInit {
       dateTo,
     );
 
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
+    return {
+      inputAmount: price.convert(inputAmount),
+      total: price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume,
+    };
   }
 
   private async getTxFee(
@@ -427,15 +433,18 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     to: Active,
     paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
     sourceAmount: number,
     txSourceMinVolume: number,
     maxVolumeChf: number,
     txAmountChf: number,
+    tx24hAmountChf: number,
     user?: User,
   ): QuoteError | undefined {
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+    const isCardTx = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD);
 
     // KYC checks
     if (isBuy) {
@@ -459,18 +468,19 @@ export class TransactionHelper implements OnModuleInit {
 
     if (isSell && user && !user.userData.isDataComplete) return QuoteError.KYC_DATA_REQUIRED;
 
-    if (user && txAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
+    if (user && tx24hAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
 
     if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
-      txAmountChf > Config.tradingLimits.dailyDefault
+      tx24hAmountChf > Config.tradingLimits.dailyDefault
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
 
     // amount checks
     if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
+    if (tx24hAmountChf > maxVolumeChf || (isCardTx && txAmountChf > Config.tradingLimits.cardDefault))
+      return QuoteError.AMOUNT_TOO_HIGH;
   }
 }
