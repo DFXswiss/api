@@ -66,7 +66,7 @@ export class CheckoutService {
         description: remittanceInfo,
         success_url: `${Config.frontend.services}/buy/success`,
         cancel_url: `${Config.frontend.services}/buy`,
-        failure_url: `${Config.frontend.services}/buy`,
+        failure_url: `${Config.frontend.services}/buy/failure`,
       })
       .then((r: CheckoutHostedPayment) => r._links.redirect.href);
   }
