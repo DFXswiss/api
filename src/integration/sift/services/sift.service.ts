@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -143,8 +144,8 @@ export class SiftService {
       : {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
-          $shortened_iban_first6: tx.iban.slice(0, 6),
-          $shortened_iban_last4: tx.iban.slice(-4),
+          $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
+          $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
           $bank_name: tx.bankName,
           $bank_country: tx.country,
           $routing_number: tx.aba,
