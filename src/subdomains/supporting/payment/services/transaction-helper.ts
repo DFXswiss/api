@@ -195,11 +195,15 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
+    const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+      ? Config.tradingLimits.cardDefault
+      : Config.tradingLimits.yearlyDefault;
+
     const extendedSpecs: TxSpec = {
       fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
       volume: {
         min: specs.minVolume,
-        max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, Config.tradingLimits.yearlyDefault),
+        max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
       },
     };
 
@@ -222,13 +226,13 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const { total: txAmount24hChf, inputAmount: txAmountChf } = await this.getVolumeChfSince(
+    const txAmountChf = await this.getVolumeChfSince(
       target.sourceAmount,
       from,
       allowExpiredPrice,
       Util.daysBefore(1),
       new Date(),
-      user ? [user] : undefined,
+      user?.userData.kycLevel < KycLevel.LEVEL_50 ? [user] : undefined,
     );
 
     times.push(Date.now());
@@ -242,7 +246,6 @@ export class TransactionHelper implements OnModuleInit {
       sourceSpecs.volume.min,
       extendedSpecs.volume.max,
       txAmountChf,
-      txAmount24hChf,
       user,
     );
 
@@ -269,10 +272,10 @@ export class TransactionHelper implements OnModuleInit {
     dateFrom: Date,
     dateTo: Date,
     users?: User[],
-  ): Promise<{ inputAmount: number; total: number }> {
+  ): Promise<number> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
-    if (!users?.length) return { inputAmount: price.convert(inputAmount), total: price.convert(inputAmount) };
+    if (!users?.length) return price.convert(inputAmount);
 
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
@@ -285,10 +288,7 @@ export class TransactionHelper implements OnModuleInit {
       dateTo,
     );
 
-    return {
-      inputAmount: price.convert(inputAmount),
-      total: price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume,
-    };
+    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
   }
 
   private async getTxFee(
@@ -434,7 +434,6 @@ export class TransactionHelper implements OnModuleInit {
     txSourceMinVolume: number,
     maxVolumeChf: number,
     txAmountChf: number,
-    tx24hAmountChf: number,
     user?: User,
   ): QuoteError | undefined {
     const isBuy = isFiat(from) && isAsset(to);
@@ -464,19 +463,19 @@ export class TransactionHelper implements OnModuleInit {
 
     if (isSell && user && !user.userData.isDataComplete) return QuoteError.KYC_DATA_REQUIRED;
 
-    if (user && tx24hAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
+    if (user && txAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
 
     if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
-      tx24hAmountChf > Config.tradingLimits.dailyDefault
+      txAmountChf > Config.tradingLimits.dailyDefault
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
 
     // amount checks
     if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (tx24hAmountChf > maxVolumeChf || (isCardTx && txAmountChf > Config.tradingLimits.cardDefault))
+    if (txAmountChf > maxVolumeChf || (isCardTx && txAmountChf > Config.tradingLimits.cardDefault))
       return QuoteError.AMOUNT_TOO_HIGH;
   }
 }
