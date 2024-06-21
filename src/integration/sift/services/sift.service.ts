@@ -28,7 +28,7 @@ import {
 
 @Injectable()
 export class SiftService {
-  private readonly url = 'https://api.sift.com/v205/events?return_workflow_status=true&return_route_info';
+  private readonly url = 'https://api.sift.com/v205/';
   private readonly logger = new DfxLogger(SiftService);
 
   constructor(private readonly http: HttpService) {}
@@ -157,8 +157,10 @@ export class SiftService {
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
+    const scoreUrl = 'events?return_workflow_status=true&return_route_info';
+
     try {
-      return await this.http.post(this.url, data);
+      return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
     }
