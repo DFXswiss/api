@@ -296,12 +296,14 @@ export class TransactionHelper implements OnModuleInit {
   private async getGasStarterFee(to: Active, user?: User): Promise<number> {
     if (!isAsset(to) || !user) return 0;
 
-    const evmClient = this.evmRegistryService.getClient(to.blockchain);
-    if (!evmClient) return 0;
+    try {
+      const evmClient = this.evmRegistryService.getClient(to.blockchain);
+      const userBalance = await evmClient.getNativeCoinBalanceForAddress(user.address);
 
-    const userBalance = await evmClient.getNativeCoinBalanceForAddress(user.address);
-
-    return userBalance < Config.minEvmGasStarterBalance ? Config.gasStarterFee : 0;
+      return userBalance < Config.minEvmGasStarterBalance ? Config.gasStarterFee : 0;
+    } catch {
+      return 0;
+    }
   }
 
   private async getTxFee(
