@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Readable } from 'stream';
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
-import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
@@ -37,11 +37,11 @@ export enum ExportType {
 export class HistoryService {
   constructor(
     private readonly userService: UserService,
-    private readonly buyCryptoService: BuyCryptoService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
     private readonly stakingService: StakingService,
     private readonly refRewardService: RefRewardService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async getJsonHistory<T extends ExportType>(query: HistoryQueryUser, exportFormat: T): Promise<HistoryDto<T>[]> {
@@ -62,15 +62,14 @@ export class HistoryService {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const buyCryptos =
-      (all || query.buy) && (await this.buyCryptoService.getUserTransactions(user.id, query.from, query.to));
-    const buyFiats =
-      (all || query.sell) && (await this.buyFiatService.getUserTransactions(user.id, query.from, query.to));
+    const transaction = await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
+
+    const buyCryptos = (all || query.buy) && transaction.filter((t) => t.buyCrypto).map((t) => t.buyCrypto);
+    const buyFiats = (all || query.sell) && transaction.filter((t) => t.buyFiat).map((t) => t.buyFiat);
+    const refRewards = (all || query.ref) && transaction.filter((t) => t.refReward).map((t) => t.refReward);
     const stakingRewards =
       query.staking && (await this.stakingService.getUserStakingRewards([user.id], query.from, query.to));
     const stakingInvests = query.staking && (await this.stakingService.getUserInvests(user.id, query.from, query.to));
-    const refRewards =
-      (all || query.ref) && (await this.refRewardService.getUserRewards([user.id], query.from, query.to));
     const refStakingReward =
       query.staking && (await this.stakingService.getUserStakingRefRewards([user.id], query.from, query.to));
 

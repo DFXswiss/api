@@ -68,14 +68,31 @@ export class TransactionService {
       where: { user: { userData: { id: userDataId } }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
         buyCrypto: {
-          buy: { user: true },
-          cryptoRoute: { user: true },
+          buy: true,
+          cryptoRoute: true,
           bankTx: true,
           checkoutTx: true,
           cryptoInput: true,
         },
-        buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
-        refReward: { user: true },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true },
+        refReward: true,
+      },
+    });
+  }
+
+  async getTransactionsForUser(userId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { user: { id: userId }, type: Not(IsNull()), created: Between(from, to) },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+        },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
       },
     });
   }
