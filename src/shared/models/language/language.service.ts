@@ -25,11 +25,11 @@ export class LanguageService {
   }
 
   ipCountryToLanguage: { [key: string]: string } = {
-    de: 'DE',
-    at: 'DE',
-    ch: 'DE',
-    li: 'DE',
-    it: 'IT',
-    fr: 'FR',
+    DE: 'DE',
+    AT: 'DE',
+    CH: 'DE',
+    LI: 'DE',
+    IT: 'IT',
+    FR: 'FR',
   };
 }
