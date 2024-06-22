@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -27,6 +29,7 @@ export class BuyCryptoOutService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly siftService: SiftService,
+    private readonly assetService: AssetService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -107,6 +110,20 @@ export class BuyCryptoOutService {
     };
 
     await this.payoutService.doPayout(request);
+
+    if (transaction.gasStarterFeeAmount) {
+      const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
+
+      const gasFeeRequest: PayoutRequest = {
+        context: PayoutOrderContext.BUY_CRYPTO_GAS_STARTER,
+        correlationId: transaction.id.toString(),
+        asset: nativeAsset,
+        amount: Config.minEvmGasStarterBalance,
+        destinationAddress: transaction.target.address,
+      };
+
+      await this.payoutService.doPayout(gasFeeRequest);
+    }
 
     transaction.payingOut();
     await this.buyCryptoRepo.save(transaction);
