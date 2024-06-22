@@ -12,5 +12,6 @@ export interface TxSpec {
     min: number;
     fixed: number;
     network: number;
+    gasStarter: number;
   };
 }

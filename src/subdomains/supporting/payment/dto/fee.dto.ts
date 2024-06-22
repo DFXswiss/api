@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Fee } from '../entities/fee.entity';
 
 export class BaseFeeDto {
@@ -21,6 +21,9 @@ export class FeeDto extends BaseFeeDto {
 
   @ApiProperty({ description: 'Total fee amount (DFX + network fee)' })
   total: number;
+
+  @ApiPropertyOptional({ description: 'Gas starter fee' })
+  gasStarter: number;
 }
 
 export class InternalFeeDto extends BaseFeeDto {

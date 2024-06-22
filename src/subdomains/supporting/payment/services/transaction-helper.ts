@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -45,6 +46,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
+    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
   onModuleInit() {
@@ -145,9 +147,10 @@ export class TransactionHelper implements OnModuleInit {
       [],
       false,
     );
+    const gasStarterFee = await this.getGasStarterFee(to, user);
 
     const specs: TxSpec = {
-      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network },
+      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, gasStarter: gasStarterFee },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
@@ -192,6 +195,7 @@ export class TransactionHelper implements OnModuleInit {
       discountCodes,
       true,
     );
+    const gasStarterFee = await this.getGasStarterFee(to, user);
 
     times.push(Date.now());
 
@@ -200,7 +204,7 @@ export class TransactionHelper implements OnModuleInit {
       : Config.tradingLimits.yearlyDefault;
 
     const extendedSpecs: TxSpec = {
-      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
+      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee, gasStarter: gasStarterFee },
       volume: {
         min: specs.minVolume,
         max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
@@ -287,6 +291,17 @@ export class TransactionHelper implements OnModuleInit {
 
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
     return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
+  }
+
+  private async getGasStarterFee(to: Active, user?: User): Promise<number> {
+    if (!isAsset(to) || !user) return 0;
+
+    const evmClient = this.evmRegistryService.getClient(to.blockchain);
+    if (!evmClient) return 0;
+
+    const userBalance = await evmClient.getNativeCoinBalanceForAddress(user.address);
+
+    return userBalance < Config.minEvmGasStarterBalance ? Config.gasStarterFee : 0;
   }
 
   private async getTxFee(
@@ -377,6 +392,7 @@ export class TransactionHelper implements OnModuleInit {
         min: this.convert(fee.min, price, isFiat(from)),
         fixed: this.convert(fee.fixed, price, isFiat(from)),
         network: this.convert(fee.network, price, isFiat(from)),
+        gasStarter: this.convert(fee.gasStarter, price, isFiat(from)),
       },
       volume: {
         min: this.convert(volume.min, price, isFiat(from)),
@@ -393,6 +409,7 @@ export class TransactionHelper implements OnModuleInit {
         min: this.convert(fee.min, price, isFiat(to)),
         fixed: this.convert(fee.fixed, price, isFiat(to)),
         network: this.convert(fee.network, price, isFiat(to)),
+        gasStarter: this.convert(fee.gasStarter, price, isFiat(to)),
       },
       volume: {
         min: this.convert(volume.min, price, isFiat(to)),
@@ -405,10 +422,10 @@ export class TransactionHelper implements OnModuleInit {
     amount: number,
     active: Active,
     rate: number,
-    { fee: { fixed, min, network } }: TxSpec,
+    { fee: { fixed, min, network, gasStarter } }: TxSpec,
   ): { dfx: number; total: number } {
     const dfx = Math.max(amount * rate + fixed, min);
-    const total = dfx + network;
+    const total = dfx + network + gasStarter;
 
     return { dfx: Util.roundReadable(dfx, isFiat(active)), total: Util.roundReadable(total, isFiat(active)) };
   }
