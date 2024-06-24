@@ -159,4 +159,8 @@ export class UpdateBuyCryptoDto {
   @IsDate()
   @Type(() => Date)
   priceDefinitionAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  amlResponsible: string;
 }

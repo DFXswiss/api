@@ -108,6 +108,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
+  @Column({ length: 256, nullable: true })
+  amlResponsible: string;
+
   // Check
   @Column({ length: 256, nullable: true })
   amlCheck: CheckStatus;
