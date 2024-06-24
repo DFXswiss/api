@@ -116,7 +116,7 @@ export class SiftService {
       $decline_category: status === TransactionStatus.FAILURE ? declineCategory : undefined,
       $currency_code: currency,
       $amount: amount * 10000, // amount in micros in the base unit
-      $payment_methods: [paymentMethod],
+      $payment_method: paymentMethod,
       $digital_orders: [
         {
           $digital_asset: asset.name,
