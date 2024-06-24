@@ -229,9 +229,9 @@ export class TransactionDtoMapper {
         entity.totalFeeAmount != null
           ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : null,
-      gasStarter:
-        entity instanceof BuyCrypto && entity.gasStarterFeeAmount
-          ? Util.roundReadable(entity.gasStarterFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+      networkStart:
+        entity instanceof BuyCrypto && entity.networkStartFeeAmount
+          ? Util.roundReadable(entity.networkStartFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : 0,
     };
   }

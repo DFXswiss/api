@@ -111,12 +111,12 @@ export class BuyCryptoOutService {
 
     await this.payoutService.doPayout(request);
 
-    if (transaction.gasStarterFeeAmount) {
+    if (transaction.networkStartFeeAmount) {
       const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
 
       const gasFeeRequest: PayoutRequest = {
-        context: PayoutOrderContext.BUY_CRYPTO_GAS_STARTER,
-        correlationId: transaction.id.toString(),
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: `${transaction.id}-network-start-fee`,
         asset: nativeAsset,
         amount: Config.minEvmGasStarterBalance,
         destinationAddress: transaction.target.address,

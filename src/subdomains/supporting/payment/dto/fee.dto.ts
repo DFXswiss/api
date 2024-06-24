@@ -22,8 +22,8 @@ export class FeeDto extends BaseFeeDto {
   @ApiProperty({ description: 'Total fee amount (DFX + network fee)' })
   total: number;
 
-  @ApiPropertyOptional({ description: 'Gas starter fee' })
-  gasStarter: number;
+  @ApiPropertyOptional({ description: 'Network start fee' })
+  networkStart?: number;
 }
 
 export class InternalFeeDto extends BaseFeeDto {

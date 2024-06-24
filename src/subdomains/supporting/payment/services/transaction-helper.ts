@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -147,10 +148,10 @@ export class TransactionHelper implements OnModuleInit {
       [],
       false,
     );
-    const gasStarterFee = await this.getGasStarterFee(to, user);
+    const gasStarterFee = await this.getNetworkStartFee(to, user);
 
     const specs: TxSpec = {
-      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, gasStarter: gasStarterFee },
+      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, networkStart: gasStarterFee },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
@@ -195,7 +196,6 @@ export class TransactionHelper implements OnModuleInit {
       discountCodes,
       true,
     );
-    const gasStarterFee = await this.getGasStarterFee(to, user);
 
     times.push(Date.now());
 
@@ -204,7 +204,7 @@ export class TransactionHelper implements OnModuleInit {
       : Config.tradingLimits.yearlyDefault;
 
     const extendedSpecs: TxSpec = {
-      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee, gasStarter: gasStarterFee },
+      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
       volume: {
         min: specs.minVolume,
         max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
@@ -293,8 +293,8 @@ export class TransactionHelper implements OnModuleInit {
     return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
   }
 
-  private async getGasStarterFee(to: Active, user?: User): Promise<number> {
-    if (!isAsset(to) || !user) return 0;
+  private async getNetworkStartFee(to: Active, user?: User): Promise<number> {
+    if (!isAsset(to) || to.type === AssetType.COIN || !user) return 0;
 
     try {
       const evmClient = this.evmRegistryService.getClient(to.blockchain);
@@ -394,7 +394,7 @@ export class TransactionHelper implements OnModuleInit {
         min: this.convert(fee.min, price, isFiat(from)),
         fixed: this.convert(fee.fixed, price, isFiat(from)),
         network: this.convert(fee.network, price, isFiat(from)),
-        gasStarter: this.convert(fee.gasStarter, price, isFiat(from)),
+        networkStart: this.convert(fee.networkStart, price, isFiat(from)),
       },
       volume: {
         min: this.convert(volume.min, price, isFiat(from)),
@@ -411,7 +411,7 @@ export class TransactionHelper implements OnModuleInit {
         min: this.convert(fee.min, price, isFiat(to)),
         fixed: this.convert(fee.fixed, price, isFiat(to)),
         network: this.convert(fee.network, price, isFiat(to)),
-        gasStarter: this.convert(fee.gasStarter, price, isFiat(to)),
+        networkStart: this.convert(fee.networkStart, price, isFiat(to)),
       },
       volume: {
         min: this.convert(volume.min, price, isFiat(to)),
@@ -424,7 +424,7 @@ export class TransactionHelper implements OnModuleInit {
     amount: number,
     active: Active,
     rate: number,
-    { fee: { fixed, min, network, gasStarter } }: TxSpec,
+    { fee: { fixed, min, network, networkStart: gasStarter } }: TxSpec,
   ): { dfx: number; total: number } {
     const dfx = Math.max(amount * rate + fixed, min);
     const total = dfx + network + gasStarter;

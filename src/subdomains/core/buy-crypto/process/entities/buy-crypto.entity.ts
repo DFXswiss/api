@@ -144,7 +144,7 @@ export class BuyCrypto extends IEntity {
   absoluteFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  gasStarterFeeAmount: number; //inputReferenceAsset
+  networkStartFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
@@ -397,7 +397,7 @@ export class BuyCrypto extends IEntity {
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             fee: feeConstraints,
-            gasStarterFeeAmount: fee.gasStarter,
+            networkStartFeeAmount: fee.networkStart,
           };
 
     Object.assign(this, update);
