@@ -177,8 +177,6 @@ export class TransactionHelper implements OnModuleInit {
     user?: User,
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
-    const times = [Date.now()];
-
     // get fee
     const specs = this.getMinSpecs(from, to);
     const fee = await this.getTxFee(
@@ -192,8 +190,6 @@ export class TransactionHelper implements OnModuleInit {
       discountCodes,
       true,
     );
-
-    times.push(Date.now());
 
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
@@ -210,8 +206,6 @@ export class TransactionHelper implements OnModuleInit {
     const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, allowExpiredPrice);
     const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, allowExpiredPrice);
 
-    times.push(Date.now());
-
     // target estimation
     const target = await this.getTargetEstimation(
       sourceAmount,
@@ -224,8 +218,6 @@ export class TransactionHelper implements OnModuleInit {
       allowExpiredPrice,
     );
 
-    times.push(Date.now());
-
     const txAmountChf = await this.getVolumeChfSince(
       target.sourceAmount,
       from,
@@ -234,8 +226,6 @@ export class TransactionHelper implements OnModuleInit {
       new Date(),
       user ? [user] : undefined,
     );
-
-    times.push(Date.now());
 
     const error = this.getTxError(
       from,
@@ -247,11 +237,6 @@ export class TransactionHelper implements OnModuleInit {
       txAmountChf,
       user,
     );
-
-    if (Date.now() - times[0] > 300) {
-      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`${user ? 'Info' : 'Quote'} request times: ${timesString}`);
-    }
 
     return {
       ...target,
