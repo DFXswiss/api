@@ -885,20 +885,18 @@ export interface Transaction extends SiftBase {
   $status_3ds?: string;
   $brand_name?: string;
   $site_country?: string;
-  $payment_methods?: [
-    {
-      $payment_type?: PaymentType;
-      $payment_gateway?: PaymentGateway;
-      $account_holder_name?: string;
-      $card_bin?: string;
-      $card_last4?: string;
-      $shortened_iban_first6?: string;
-      $shortened_iban_last4?: string;
-      $bank_name?: string;
-      $bank_country?: string;
-      $routing_number?: string;
-    },
-  ];
+  $payment_method?: {
+    $payment_type?: PaymentType;
+    $payment_gateway?: PaymentGateway;
+    $account_holder_name?: string;
+    $card_bin?: string;
+    $card_last4?: string;
+    $shortened_iban_first6?: string;
+    $shortened_iban_last4?: string;
+    $bank_name?: string;
+    $bank_country?: string;
+    $routing_number?: string;
+  };
   $digital_orders?: [
     {
       $digital_asset?: string;
