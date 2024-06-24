@@ -377,6 +377,7 @@ export class Configuration {
 
   exchange: ExchangeConfig = {
     enableRateLimit: true,
+    rateLimit: 500,
     timeout: 30000,
   };
 

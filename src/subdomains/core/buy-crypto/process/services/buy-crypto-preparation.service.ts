@@ -117,6 +117,8 @@ export class BuyCryptoPreparationService {
         );
 
         const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
+        if (!bankData.comment) continue;
+
         const ibanCountry = entity.bankTx?.iban
           ? await this.countryService.getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
           : undefined;
@@ -158,7 +160,6 @@ export class BuyCryptoPreparationService {
         amlCheck: CheckStatus.PASS,
         status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
         isComplete: false,
-        percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
       relations: {
@@ -176,6 +177,8 @@ export class BuyCryptoPreparationService {
 
     for (const entity of entities) {
       try {
+        const isFirstRun = !entity.percentFee;
+
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
@@ -220,13 +223,15 @@ export class BuyCryptoPreparationService {
           return;
         }
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
-        }
+        if (isFirstRun) {
+          for (const feeId of fee.fees) {
+            await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
+          }
 
-        await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
-        await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
-        await this.buyCryptoService.updateRefVolume([entity.usedRef]);
+          await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
+          await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
+          await this.buyCryptoService.updateRefVolume([entity.usedRef]);
+        }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
       }

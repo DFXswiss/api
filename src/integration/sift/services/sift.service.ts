@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -28,7 +29,7 @@ import {
 
 @Injectable()
 export class SiftService {
-  private readonly url = 'https://api.sift.com/v205/events?return_workflow_status=true&return_route_info';
+  private readonly url = 'https://api.sift.com/v205/events';
   private readonly logger = new DfxLogger(SiftService);
 
   constructor(private readonly http: HttpService) {}
@@ -112,7 +113,7 @@ export class SiftService {
       $time: tx.updated.getTime(),
       $site_country: 'CH',
       $transaction_status: status,
-      $decline_category: status == TransactionStatus.FAILURE ? declineCategory : undefined,
+      $decline_category: status === TransactionStatus.FAILURE ? declineCategory : undefined,
       $currency_code: currency,
       $amount: amount * 10000, // amount in micros in the base unit
       $payment_methods: [paymentMethod],
@@ -143,8 +144,8 @@ export class SiftService {
       : {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
-          $shortened_iban_first6: tx.iban.slice(0, 6),
-          $shortened_iban_last4: tx.iban.slice(-4),
+          $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
+          $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
           $bank_name: tx.bankName,
           $bank_country: tx.country,
           $routing_number: tx.aba,
@@ -157,8 +158,10 @@ export class SiftService {
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
+    const scoreUrl = '?return_workflow_status=true&return_route_info';
+
     try {
-      return await this.http.post(this.url, data);
+      return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
     }

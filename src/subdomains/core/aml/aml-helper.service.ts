@@ -176,7 +176,7 @@ export class AmlHelperService {
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
     ibanCountry?: Country,
-  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string } {
+  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string; amlResponsible?: string } {
     const amlErrors = this.getAmlErrors(
       entity,
       minVolume,
@@ -194,7 +194,7 @@ export class AmlHelperService {
     const comment = amlErrors.join(';');
 
     // Pass
-    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA };
+    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
 
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
@@ -204,7 +204,12 @@ export class AmlHelperService {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
-        ? { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment }
+        ? {
+            amlCheck: crucialErrorResult.amlCheck,
+            amlReason: crucialErrorResult.amlReason,
+            comment,
+            amlResponsible: 'API',
+          }
         : { comment };
     }
 
@@ -219,7 +224,7 @@ export class AmlHelperService {
       (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
         amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
     )
-      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment };
+      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment, amlResponsible: 'API' };
 
     // GSheet
     if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };

@@ -23,7 +23,7 @@ export class ExchangeTxService {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
   async syncExchanges() {
     if (DisabledProcess(Process.EXCHANGE_TX_SYNC)) return;
