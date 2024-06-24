@@ -202,6 +202,7 @@ export class SwapController {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
+      timestamp,
       minVolume,
       minVolumeTarget,
       maxVolume,
@@ -229,6 +230,7 @@ export class SwapController {
 
     const swapDto: SwapPaymentInfoDto = {
       id: 0, // set during request creation
+      timestamp,
       routeId: swap.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: swap.deposit.address,

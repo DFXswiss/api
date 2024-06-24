@@ -86,7 +86,7 @@ export class KycService {
         status: KycStepStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
-      relations: { userData: true },
+      relations: { userData: { kycSteps: true } },
     });
 
     for (const identStep of expiredIdentSteps) {
@@ -108,7 +108,7 @@ export class KycService {
 
     const entities = await this.kycStepRepo.find({
       where: { name: KycStepName.IDENT, status: KycStepStatus.INTERNAL_REVIEW },
-      relations: { userData: true },
+      relations: { userData: { kycSteps: true } },
     });
 
     for (const entity of entities) {
@@ -591,7 +591,7 @@ export class KycService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
+    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true, kycSteps: true });
   }
 
   private async getUserByTransactionOrThrow(

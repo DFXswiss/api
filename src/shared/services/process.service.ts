@@ -45,6 +45,7 @@ export enum Process {
   SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
   BANK_DATA_VERIFICATION = 'BankDataVerification',
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
+  SYNCHRONIZE_TRANSACTION_USER = 'SynchronizeTransactionUser',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

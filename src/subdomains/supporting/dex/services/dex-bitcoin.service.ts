@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { BtcClient, TransactionHistory } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
@@ -23,10 +22,6 @@ export class DexBitcoinService {
   async sendUtxoToMany(payout: { addressTo: string; amount: number }[]): Promise<string> {
     const feeRate = await this.feeService.getRecommendedFeeRate();
     return this.#client.sendMany(payout, feeRate);
-  }
-
-  async transferMinimalUtxo(address: string): Promise<string> {
-    return this.sendUtxoToMany([{ addressTo: address, amount: Config.payIn.minDeposit.Bitcoin.BTC / 2 }]);
   }
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {

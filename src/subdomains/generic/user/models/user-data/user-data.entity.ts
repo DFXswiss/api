@@ -210,7 +210,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycType: KycType;
 
-  @OneToMany(() => KycStep, (step) => step.userData, { eager: true, cascade: true })
+  @OneToMany(() => KycStep, (step) => step.userData, { cascade: true })
   kycSteps: KycStep[];
 
   @Column({ type: 'float', nullable: true })
@@ -453,6 +453,10 @@ export class UserData extends IEntity {
 
   get completeName(): string {
     return [this.firstname, this.surname].filter((n) => n).join(' ');
+  }
+
+  get isBlocked(): boolean {
+    return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
   }
 
   // --- KYC PROCESS --- //

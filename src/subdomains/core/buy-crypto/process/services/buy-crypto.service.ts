@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -24,8 +25,13 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction.dto';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
@@ -58,7 +64,12 @@ export class BuyCryptoService {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => CheckoutTxService))
+    private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
+    private readonly checkoutService: CheckoutService,
+    private readonly payInService: PayInService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -67,24 +78,22 @@ export class BuyCryptoService {
 
     const buy = await this.getBuy(buyId);
 
-    const transaction = await this.transactionService.update(bankTx.transaction.id, {
-      type: TransactionTypeInternal.BUY_CRYPTO,
-      user: buy.user,
-      resetMailSendDate: true,
-    });
-
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
-      if (!bankData)
-        await this.bankDataService.createBankData(buy.userData, {
-          name: bankTx.bankDataName,
-          iban: bankTx.senderAccount,
-          type: BankDataType.BANK_IN,
-        });
+      if (!bankData) {
+        const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
+        const bankDataName = bankTx.bankDataName(multiAccounts);
+        if (bankDataName)
+          await this.bankDataService.createBankData(buy.userData, {
+            name: bankDataName,
+            iban: bankTx.senderAccount,
+            type: BankDataType.BANK_IN,
+          });
+      }
     }
 
     // create entity
@@ -95,20 +104,19 @@ export class BuyCryptoService {
       inputAsset: bankTx.txCurrency,
       inputReferenceAmount: (bankTx.amount + bankTx.chargeAmount) * (1 - forexFee),
       inputReferenceAsset: bankTx.currency,
-      transaction,
+      transaction: { id: bankTx.transaction.id },
     });
 
-    await this.createEntity(entity);
+    await this.createEntity(entity, {
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+      resetMailSendDate: true,
+    });
   }
 
   async createFromCheckoutTx(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
-
-    const transaction = await this.transactionService.update(checkoutTx.transaction.id, {
-      type: TransactionTypeInternal.BUY_CRYPTO,
-      user: buy.user,
-    });
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
@@ -130,18 +138,16 @@ export class BuyCryptoService {
       inputAsset: checkoutTx.currency,
       inputReferenceAmount: checkoutTx.amount,
       inputReferenceAsset: checkoutTx.currency,
-      transaction,
+      transaction: { id: checkoutTx.transaction.id },
     });
 
-    await this.createEntity(entity);
+    await this.createEntity(entity, {
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+    });
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap): Promise<void> {
-    const transaction = await this.transactionService.update(cryptoInput.transaction.id, {
-      type: TransactionTypeInternal.CRYPTO_CRYPTO,
-      user: swap.user,
-    });
-
     // create entity
     const entity = this.buyCryptoRepo.create({
       cryptoInput,
@@ -150,38 +156,37 @@ export class BuyCryptoService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
-      transaction,
+      transaction: { id: cryptoInput.transaction.id },
     });
 
-    await this.createEntity(entity);
+    await this.createEntity(entity, {
+      type: TransactionTypeInternal.CRYPTO_CRYPTO,
+      user: swap.user,
+    });
   }
 
-  private async createEntity(entity: BuyCrypto) {
+  private async createEntity(entity: BuyCrypto, dto: UpdateTransactionDto): Promise<void> {
     entity.outputAsset = entity.target.asset;
     entity.outputReferenceAsset = entity.outputAsset;
 
-    entity = await this.setTxRequest(entity);
+    // transaction
+    const request = await this.getTxRequest(entity);
+    await this.transactionService.update(entity.transaction.id, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
 
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
-  private async setTxRequest(entity: BuyCrypto): Promise<BuyCrypto> {
+  private async getTxRequest(entity: BuyCrypto): Promise<TransactionRequest> {
     const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-    const transactionRequest = await this.transactionRequestService.findAndComplete(
+    return this.transactionRequestService.findAndComplete(
       entity.inputAmount,
       entity.route.id,
       inputCurrency.id,
       entity.target.asset.id,
     );
-    if (transactionRequest) {
-      entity.transactionRequest = transactionRequest;
-      entity.externalTransactionId = transactionRequest.externalTransactionId;
-    }
-
-    return entity;
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -256,6 +261,9 @@ export class BuyCryptoService {
       }),
     );
 
+    if (entity.cryptoInput && dto.amlCheck)
+      await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.buy?.user) {
       await this.userService.activateUser(entity.buy.user);
@@ -279,6 +287,19 @@ export class BuyCryptoService {
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  async refundBuyCrypto(buyCryptoId: number): Promise<void> {
+    const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
+    if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
+
+    const chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
+
+    await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
+    await this.buyCryptoRepo.update(buyCrypto.id, {
+      chargebackDate: new Date(),
+      chargebackRemittanceInfo: chargebackRemittanceInfo.reference,
+    });
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {

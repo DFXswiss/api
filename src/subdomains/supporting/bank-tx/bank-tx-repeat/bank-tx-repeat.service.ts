@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { In } from 'typeorm';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -15,6 +16,7 @@ export class BankTxRepeatService {
     private readonly bankTxRepeatRepo: BankTxRepeatRepository,
     private readonly bankTxRepo: BankTxRepository,
     private readonly transactionService: TransactionService,
+    private readonly userService: UserService,
   ) {}
 
   async create(bankTx: BankTx): Promise<BankTxRepeat> {
@@ -61,6 +63,16 @@ export class BankTxRepeatService {
         sourceBankTx: { id: dto.sourceBankTxId },
       });
       if (existingRepeatForSource) throw new BadRequestException('SourceBankTx already used');
+    }
+
+    // user
+    if (dto.userId) {
+      const user = await this.userService.getUser(dto.userId);
+      if (!user) throw new NotFoundException('User not found');
+      await this.transactionService.update(entity.transaction.id, {
+        type: TransactionTypeInternal.BANK_TX_REPEAT,
+        user,
+      });
     }
 
     Util.removeNullFields(entity);

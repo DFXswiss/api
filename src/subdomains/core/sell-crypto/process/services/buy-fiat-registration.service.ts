@@ -4,11 +4,15 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { IsNull, Not } from 'typeorm';
-import { Sell } from '../../route/sell.entity';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
+
+interface RouteIdentifier {
+  id: number;
+  address: string;
+  blockchains: string;
+}
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -41,23 +45,26 @@ export class BuyFiatRegistrationService {
 
   //*** HELPER METHODS ***//
 
-  private async filterSellPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Sell][]> {
-    const routes = await this.sellRepository.find({
-      where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user', 'user.userData', 'user.userData.bankDatas'],
-    });
+  private async filterSellPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, RouteIdentifier][]> {
+    const routes = await this.sellRepository
+      .createQueryBuilder('sell')
+      .innerJoin('sell.deposit', 'deposit')
+      .select('sell.id', 'id')
+      .addSelect('deposit.address', 'address')
+      .addSelect('deposit.blockchains', 'blockchains')
+      .getRawMany<RouteIdentifier>();
 
     return this.pairRoutesWithPayIns(routes, allPayIns);
   }
 
-  private pairRoutesWithPayIns(routes: Sell[], allPayIns: CryptoInput[]): [CryptoInput, Sell][] {
+  private pairRoutesWithPayIns(routes: RouteIdentifier[], allPayIns: CryptoInput[]): [CryptoInput, RouteIdentifier][] {
     const result = [];
 
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
         (r) =>
-          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          r.deposit.blockchainList.includes(payIn.address.blockchain),
+          payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
+          r.blockchains.includes(payIn.address.blockchain),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -66,9 +73,14 @@ export class BuyFiatRegistrationService {
     return result;
   }
 
-  private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
-    for (const [payIn, sellRoute] of payInsPairs) {
+  private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, RouteIdentifier][]): Promise<void> {
+    for (const [payIn, sellIdentifier] of payInsPairs) {
       try {
+        const sellRoute = await this.sellRepository.findOne({
+          relations: { deposit: true, user: { userData: { bankDatas: true } } },
+          where: { id: sellIdentifier.id },
+        });
+
         const alreadyExists = await this.buyFiatRepo.exist({ where: { cryptoInput: { id: payIn.id } } });
 
         if (!alreadyExists) {

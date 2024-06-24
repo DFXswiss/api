@@ -1,7 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { LiquidityTransactionResult } from '../interfaces';
 
 export enum LiquidityOrderContext {
@@ -24,6 +24,7 @@ export type ChainSwapId = string;
 export type TargetAmount = number;
 
 @Entity()
+@Index((order: LiquidityOrder) => [order.context, order.correlationId])
 export class LiquidityOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   type: LiquidityOrderType;

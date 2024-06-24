@@ -203,16 +203,17 @@ export class KycStep extends IEntity {
       this.userData.status !== UserDataStatus.MERGED &&
       this.userData.kycLevel >= KycLevel.LEVEL_30 &&
       this.identDocumentId &&
+      this.userName &&
       this.userData.kycType === KycType.DFX
     );
   }
 
   get identDocumentId(): string | undefined {
     const result = this.getResult<IdentResultDto>();
-    return result?.identificationdocument.number.value;
+    return result?.identificationdocument?.number?.value;
   }
 
-  get userName(): string {
+  get userName(): string | undefined {
     const result = this.getResult<IdentResultDto>();
     if (!result) return undefined;
     return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]

@@ -23,10 +23,6 @@ export class BitcoinStrategy extends SupplementaryStrategy {
     return this.dexBitcoinService.sendUtxoToMany([{ addressTo: destinationAddress, amount }]);
   }
 
-  async transferMinimalCoin(address: string): Promise<string> {
-    return this.dexBitcoinService.transferMinimalUtxo(address);
-  }
-
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
     return this.dexBitcoinService.checkTransferCompletion(transferTxId);
   }

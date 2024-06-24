@@ -1,5 +1,4 @@
 import { FeeAmount } from '@uniswap/v3-sdk';
-import { Config } from 'src/config/config';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
@@ -18,10 +17,6 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
     return asset.type === AssetType.COIN
       ? this.dexEvmService.sendNativeCoin(destinationAddress, amount)
       : this.dexEvmService.sendToken(destinationAddress, asset, amount);
-  }
-
-  async transferMinimalCoin(address: string): Promise<string> {
-    return this.dexEvmService.sendNativeCoin(address, Config.blockchain.evm.minimalPreparationFee);
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

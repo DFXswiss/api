@@ -247,6 +247,7 @@ export class BuyController {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
+      timestamp,
       minVolume,
       minVolumeTarget,
       maxVolume,
@@ -281,6 +282,7 @@ export class BuyController {
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
+      timestamp,
       routeId: buy.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
@@ -338,7 +340,7 @@ export class BuyController {
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+    return { ...Config.bank.dfxBankInfo, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
   }
 
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {

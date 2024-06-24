@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -11,6 +12,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -23,6 +25,7 @@ import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -51,6 +54,9 @@ describe('BuyCryptoService', () => {
   let specialExternalBankAccountService: SpecialExternalAccountService;
   let transactionService: TransactionService;
   let siftService: SiftService;
+  let checkoutService: CheckoutService;
+  let checkoutTxService: CheckoutTxService;
+  let payInService: PayInService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -68,6 +74,9 @@ describe('BuyCryptoService', () => {
     specialExternalBankAccountService = createMock<SpecialExternalAccountService>();
     transactionService = createMock<TransactionService>();
     siftService = createMock<SiftService>();
+    checkoutService = createMock<CheckoutService>();
+    checkoutTxService = createMock<CheckoutTxService>();
+    payInService = createMock<PayInService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -88,6 +97,9 @@ describe('BuyCryptoService', () => {
         { provide: SpecialExternalAccountService, useValue: specialExternalBankAccountService },
         { provide: TransactionService, useValue: transactionService },
         { provide: SiftService, useValue: siftService },
+        { provide: CheckoutService, useValue: checkoutService },
+        { provide: CheckoutTxService, useValue: checkoutTxService },
+        { provide: PayInService, useValue: payInService },
       ],
     }).compile();
 

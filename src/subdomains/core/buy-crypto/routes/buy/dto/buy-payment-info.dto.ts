@@ -11,6 +11,9 @@ export class BankInfoDto {
   name: string;
 
   @ApiProperty()
+  bank: string;
+
+  @ApiProperty()
   street: string;
 
   @ApiProperty()
@@ -38,6 +41,9 @@ export class BankInfoDto {
 export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
+
+  @ApiProperty({ description: 'Price timestamp' })
+  timestamp: Date;
 
   @ApiProperty()
   routeId: number;

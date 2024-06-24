@@ -24,6 +24,14 @@ export class BuyCryptoController {
     return this.buyCryptoWebhookService.triggerWebhookManual(+id);
   }
 
+  @Post(':id/refund')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @ApiExcludeEndpoint()
+  async refundBuyCrypto(@Param('id') id: string): Promise<void> {
+    return this.buyCryptoService.refundBuyCrypto(+id);
+  }
+
   @Put('volumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
