@@ -16,7 +16,7 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
@@ -40,10 +40,15 @@ export class BankDataService {
   }
 
   async checkUnverifiedBankDatas(): Promise<void> {
+    const search: FindOptionsWhere<BankData> = {
+      type: Not(In([BankDataType.IDENT, BankDataType.USER])),
+      comment: IsNull(),
+      userData: { verifiedName: Not(IsNull()) },
+    };
     const entities = await this.bankDataRepo.find({
       where: [
-        { active: false, type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
-        { active: IsNull(), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+        { ...search, active: false },
+        { ...search, active: IsNull() },
       ],
       relations: { userData: true },
     });
