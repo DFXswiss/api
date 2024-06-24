@@ -138,17 +138,17 @@ export class SiftService {
           $account_holder_name: tx.cardName,
           $card_bin: tx.cardBin,
           $card_last4: tx.cardLast4,
-          $bank_name: tx.cardIssuer,
-          $bank_country: tx.cardIssuerCountry,
+          $bank_name: tx.cardIssuer ?? undefined,
+          $bank_country: tx.cardIssuerCountry ?? undefined,
         }
       : {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
           $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
           $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
-          $bank_name: tx.bankName,
-          $bank_country: tx.country,
-          $routing_number: tx.aba,
+          $bank_name: tx.bankName ?? undefined,
+          $bank_country: tx.country ?? undefined,
+          $routing_number: tx.aba ?? undefined,
         };
   }
 
@@ -158,7 +158,7 @@ export class SiftService {
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
-    const scoreUrl = '?return_workflow_status=true&return_route_info';
+    const scoreUrl = '?return_workflow_status=true&return_route_info&return_score=true';
 
     try {
       return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
