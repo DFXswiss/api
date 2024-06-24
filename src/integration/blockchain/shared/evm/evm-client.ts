@@ -217,6 +217,7 @@ export abstract class EvmClient {
     asset: Asset,
     amount: number,
     permittedAmount: number,
+    to: string,
     nonce: number,
     deadline: BigNumberish,
   ): Promise<string> {
@@ -236,7 +237,7 @@ export abstract class EvmClient {
       deadline,
     };
     const transferDetails = {
-      to: this.dfxAddress,
+      to: to,
       requestedAmount: amountWei,
     };
 
