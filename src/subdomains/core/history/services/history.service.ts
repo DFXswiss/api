@@ -62,11 +62,11 @@ export class HistoryService {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const transaction = await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
+    const transactions = await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
 
-    const buyCryptos = (all || query.buy) && transaction.filter((t) => t.buyCrypto).map((t) => t.buyCrypto);
-    const buyFiats = (all || query.sell) && transaction.filter((t) => t.buyFiat).map((t) => t.buyFiat);
-    const refRewards = (all || query.ref) && transaction.filter((t) => t.refReward).map((t) => t.refReward);
+    const buyCryptos = (all || query.buy) && transactions.filter((t) => t.buyCrypto).map((t) => t.buyCrypto);
+    const buyFiats = (all || query.sell) && transactions.filter((t) => t.buyFiat).map((t) => t.buyFiat);
+    const refRewards = (all || query.ref) && transactions.filter((t) => t.refReward).map((t) => t.refReward);
     const stakingRewards =
       query.staking && (await this.stakingService.getUserStakingRewards([user.id], query.from, query.to));
     const stakingInvests = query.staking && (await this.stakingService.getUserInvests(user.id, query.from, query.to));
