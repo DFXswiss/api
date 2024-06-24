@@ -12,7 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { RefRewardDexService } from './ref-reward-dex.service';
@@ -117,17 +117,6 @@ export class RefRewardService {
   async updateVolumes(): Promise<void> {
     const userIds = await this.userService.getAllUser().then((l) => l.map((b) => b.id));
     await this.updatePaidRefCredit(userIds);
-  }
-
-  async getUserRewards(
-    userIds: number[],
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<RefReward[]> {
-    return this.rewardRepo.find({
-      where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
-      relations: ['user'],
-    });
   }
 
   async getAllUserRewards(userIds: number[]): Promise<RefReward[]> {
