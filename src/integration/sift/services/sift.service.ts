@@ -158,7 +158,7 @@ export class SiftService {
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
-    const scoreUrl = '?return_workflow_status=true&return_route_info&return_score=true';
+    const scoreUrl = '?return_score=true';
 
     try {
       return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
