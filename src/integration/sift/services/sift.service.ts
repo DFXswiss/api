@@ -29,7 +29,7 @@ import {
 
 @Injectable()
 export class SiftService {
-  private readonly url = 'https://api.sift.com/v205/';
+  private readonly url = 'https://api.sift.com/v205/events';
   private readonly logger = new DfxLogger(SiftService);
 
   constructor(private readonly http: HttpService) {}
@@ -113,7 +113,7 @@ export class SiftService {
       $time: tx.updated.getTime(),
       $site_country: 'CH',
       $transaction_status: status,
-      $decline_category: status == TransactionStatus.FAILURE ? declineCategory : undefined,
+      $decline_category: status === TransactionStatus.FAILURE ? declineCategory : undefined,
       $currency_code: currency,
       $amount: amount * 10000, // amount in micros in the base unit
       $payment_methods: [paymentMethod],
@@ -158,7 +158,7 @@ export class SiftService {
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
-    const scoreUrl = 'events?return_workflow_status=true&return_route_info';
+    const scoreUrl = '?return_workflow_status=true&return_route_info';
 
     try {
       return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
