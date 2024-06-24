@@ -82,7 +82,7 @@ export class KycClientService {
   private async toPaymentDto(userId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
     const txList = await this.transactionService
       .getTransactionsForUser(userId, dateFrom, dateTo)
-      .then((txs) => txs?.filter((t) => t.buyCrypto || t.buyFiat)?.map((t) => t.buyCrypto || t.buyFiat));
+      .then((txs) => txs.filter((t) => t.buyCrypto || t.buyFiat).map((t) => t.buyCrypto || t.buyFiat));
 
     return Util.asyncMap(txList, async (tx) => {
       if (tx instanceof BuyCrypto) {
