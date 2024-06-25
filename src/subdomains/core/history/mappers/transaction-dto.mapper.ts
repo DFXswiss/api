@@ -48,7 +48,7 @@ export class TransactionDtoMapper {
       outputAmount: buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, false) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
-      outputBlockchain: buyCrypto.target.asset.blockchain,
+      outputBlockchain: buyCrypto.outputAsset?.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       priceSteps: buyCrypto.priceStepsObject,
       feeAmount: buyCrypto.totalFeeAmount
@@ -64,7 +64,7 @@ export class TransactionDtoMapper {
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
         : null,
       outputTxId: buyCrypto.txId,
-      outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
+      outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
       date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
       externalTransactionId: buyCrypto.transaction.externalId,
     };

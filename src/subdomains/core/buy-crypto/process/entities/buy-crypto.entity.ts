@@ -521,13 +521,13 @@ export class BuyCrypto extends IEntity {
   get target(): { address: string; asset: Asset; trimmedReturnAddress: string } {
     return this.buy
       ? {
-          address: this.buy.deposit?.address ?? this.buy.user.address,
+          address: this.buy.deposit?.address ?? this.buy.user?.address,
           asset: this.buy.asset,
           trimmedReturnAddress: this.buy?.iban ? Util.blankStart(this.buy.iban) : null,
         }
       : {
-          address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
-          asset: this.cryptoRoute.asset,
+          address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute?.user?.address,
+          asset: this.cryptoRoute?.asset,
           trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
         };
   }
