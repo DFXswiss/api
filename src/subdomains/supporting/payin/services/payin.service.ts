@@ -15,7 +15,7 @@ import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/d
 import { In, IsNull, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus, PayInType } from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
@@ -41,8 +41,8 @@ export class PayInService {
 
       const exists = await this.payInRepository.exists({
         where: {
-          inTxId: payIn.inTxId,
-          txSequence: payIn.txSequence,
+          inTxId: txId,
+          txSequence: txSequence,
           asset: { id: asset.id },
           address: {
             address: address.address,
@@ -65,7 +65,10 @@ export class PayInService {
 
   async getNewPayIns(): Promise<CryptoInput[]> {
     return this.payInRepository.find({
-      where: { status: PayInStatus.CREATED },
+      where: [
+        { status: PayInStatus.CREATED, txType: IsNull() },
+        { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
+      ],
       relations: { transaction: true },
     });
   }
