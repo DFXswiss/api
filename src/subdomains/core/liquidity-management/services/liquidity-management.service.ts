@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -24,6 +25,7 @@ export class LiquidityManagementService {
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly balanceService: LiquidityManagementBalanceService,
+    private readonly settingService: SettingService,
   ) {}
 
   //*** JOBS ***//
@@ -106,7 +108,8 @@ export class LiquidityManagementService {
         if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
 
         // execute rule 30 minutes after activation
-        const requiredActivationTime = Util.minutesBefore(30);
+        const delay = await this.settingService.get('lmActivationDelay', '30');
+        const requiredActivationTime = Util.minutesBefore(+delay);
 
         if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);

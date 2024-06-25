@@ -88,6 +88,9 @@ export class BuyFiat extends IEntity {
   @Column({ nullable: true })
   highRisk: boolean;
 
+  @Column({ length: 256, nullable: true })
+  amlResponsible: string;
+
   // Fee
   @Column({ length: 256, nullable: true })
   usedFees: string; // Semicolon separated id's

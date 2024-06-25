@@ -105,6 +105,7 @@ export class BuyFiatPreparationService {
         );
 
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(

@@ -11,11 +11,13 @@ import { randomUUID } from 'crypto';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
@@ -74,6 +76,8 @@ export class AuthService {
     private readonly notificationService: NotificationService,
     private readonly ipLogService: IpLogService,
     private readonly siftService: SiftService,
+    private readonly languageService: LanguageService,
+    private readonly geoLocationService: GeoLocationService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -163,7 +167,7 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signInByMail(dto: AuthMailDto, url: string): Promise<void> {
+  async signInByMail(dto: AuthMailDto, url: string, userIp: string): Promise<void> {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
@@ -174,6 +178,9 @@ export class AuthService {
       }
     }
 
+    const ipCountry = await this.geoLocationService.getCountry(userIp);
+    const language = await this.languageService.getLanguageByIpCountry(ipCountry);
+
     const userData =
       (await this.userDataService
         .getUsersByMail(dto.mail)
@@ -181,7 +188,7 @@ export class AuthService {
       (await this.userDataService.createUserData({
         kycType: KycType.DFX,
         mail: dto.mail,
-        language: dto.language,
+        language: dto.language ?? language,
         status: UserDataStatus.KYC_ONLY,
       }));
 

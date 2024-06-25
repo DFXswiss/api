@@ -85,7 +85,11 @@ export abstract class EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
+    return this.getNativeCoinBalanceForAddress(this.dfxAddress);
+  }
+
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, address);
 
     return EvmUtil.fromWeiAmount(balance);
   }
@@ -217,13 +221,14 @@ export abstract class EvmClient {
     asset: Asset,
     amount: number,
     permittedAmount: number,
+    to: string,
     nonce: number,
     deadline: BigNumberish,
   ): Promise<string> {
     const contract = new ethers.Contract(signatureTransferContract, SIGNATURE_TRANSFER_ABI, this.wallet);
 
     const token = await this.getToken(asset);
-    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
+    const requestedAmount = EvmUtil.toWeiAmount(amount, token.decimals);
     const permittedAmountWei = EvmUtil.toWeiAmount(permittedAmount, token.decimals);
 
     const values = {
@@ -235,10 +240,7 @@ export abstract class EvmClient {
       nonce,
       deadline,
     };
-    const transferDetails = {
-      to: this.dfxAddress,
-      requestedAmount: amountWei,
-    };
+    const transferDetails = { to, requestedAmount };
 
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(this.dfxAddress);

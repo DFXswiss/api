@@ -43,6 +43,8 @@ export class Configuration {
 
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
+  gasStarterFee = 1; //CHF
+  minEvmGasStarterBalance = 0.00001;
   blockchainFeeBuffer = 1.2;
 
   tradingLimits = {
@@ -377,6 +379,7 @@ export class Configuration {
 
   exchange: ExchangeConfig = {
     enableRateLimit: true,
+    rateLimit: 500,
     timeout: 30000,
   };
 

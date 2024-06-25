@@ -157,7 +157,7 @@ export class TransactionRequestService {
     targetCurrencyName: string,
     blockchain: Blockchain,
   ) {
-    const siftResponse = await this.siftService.createOrder({
+    await this.siftService.createOrder({
       $order_id: transactionRequest.id.toString(),
       $user_id: userId.toString(),
       $time: transactionRequest.created.getTime(),
@@ -175,7 +175,5 @@ export class TransactionRequestService {
       ],
       blockchain,
     } as CreateOrder);
-
-    await this.transactionRequestRepo.update(transactionRequest.id, { siftResponse: JSON.stringify(siftResponse) });
   }
 }

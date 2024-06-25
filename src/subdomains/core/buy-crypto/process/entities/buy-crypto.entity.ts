@@ -108,6 +108,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
+  @Column({ length: 256, nullable: true })
+  amlResponsible: string;
+
   // Check
   @Column({ length: 256, nullable: true })
   amlCheck: CheckStatus;
@@ -142,6 +145,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   absoluteFeeAmount: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  networkStartFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
@@ -397,6 +403,7 @@ export class BuyCrypto extends IEntity {
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             fee: feeConstraints,
+            networkStartFeeAmount: fee.networkStart,
           };
 
     Object.assign(this, update);
