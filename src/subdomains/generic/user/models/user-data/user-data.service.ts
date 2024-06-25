@@ -225,7 +225,7 @@ export class UserDataService {
           $address_1: `${data.street} ${data.houseNumber}`,
           $city: data.location,
           $phone: data.phone,
-          $country: country.name,
+          $country: country.symbol,
           $zipcode: data.zip,
         },
       });
