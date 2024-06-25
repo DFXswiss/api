@@ -3,12 +3,15 @@ import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -20,6 +23,7 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 @Injectable()
 export class BuyCryptoOutService {
   private readonly logger = new DfxLogger(BuyCryptoOutService);
+  private chf: Fiat;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -30,7 +34,13 @@ export class BuyCryptoOutService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+  }
 
   async payoutTransactions(): Promise<void> {
     try {
@@ -113,12 +123,13 @@ export class BuyCryptoOutService {
 
     if (transaction.networkStartFeeAmount) {
       const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
+      const startFeePrice = await this.pricingService.getPrice(this.chf, nativeAsset, true);
 
       const gasFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,
         correlationId: `${transaction.id}-network-start-fee`,
         asset: nativeAsset,
-        amount: Config.minEvmGasStarterBalance,
+        amount: startFeePrice.convert(Config.minEvmGasStarterBalance),
         destinationAddress: transaction.target.address,
       };
 
