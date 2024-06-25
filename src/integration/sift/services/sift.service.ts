@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -11,9 +13,14 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import {
+  TransactionRequest,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
   CreateAccount,
   CreateOrder,
   DeclineCategory,
+  DigitalOrder,
   EventType,
   PaymentType,
   SiftAmlDeclineMap,
@@ -34,6 +41,7 @@ export class SiftService {
 
   constructor(private readonly http: HttpService) {}
 
+  // --- ACCOUNT --- //
   async createAccount(user: User): Promise<SiftResponse> {
     const data: CreateAccount = {
       $user_id: user.id.toString(),
@@ -63,10 +71,37 @@ export class SiftService {
     return this.send(EventType.LOGIN, data);
   }
 
-  async createOrder(data: CreateOrder): Promise<SiftResponse> {
+  // --- ORDER --- //
+  async createOrder(
+    order: TransactionRequest,
+    userId: number,
+    sourceCurrency: string,
+    targetCurrency: string,
+    blockchain: Blockchain,
+  ): Promise<SiftResponse> {
+    const data: CreateOrder = {
+      $order_id: order.id.toString(),
+      $user_id: userId.toString(),
+      $time: order.created.getTime(),
+      $amount: this.transformAmount(order.amount),
+      $currency_code: sourceCurrency,
+      $site_country: 'CH',
+      $payment_methods: [{ $payment_type: SiftPaymentMethodMap[order.sourcePaymentMethod] }],
+      $digital_orders: [
+        this.createDigitalOrder(
+          order.type === TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
+          sourceCurrency,
+          targetCurrency,
+          order.estimatedAmount,
+        ),
+      ],
+      blockchain,
+    };
+
     return this.send(EventType.CREATE_ORDER, data);
   }
 
+  // --- TRANSACTION --- //
   async buyCryptoTransaction(buyCrypto: BuyCrypto, status: TransactionStatus): Promise<SiftResponse> {
     const data = this.getTxData(
       buyCrypto.user,
@@ -91,6 +126,7 @@ export class SiftService {
     return this.send(EventType.TRANSACTION, data);
   }
 
+  // --- HELPER METHODS --- //
   private getTxData(
     user: User,
     tx: BuyCrypto | CheckoutTx,
@@ -115,20 +151,19 @@ export class SiftService {
       $transaction_status: status,
       $decline_category: status === TransactionStatus.FAILURE ? declineCategory : undefined,
       $currency_code: currency,
-      $amount: amount * 10000, // amount in micros in the base unit
+      $amount: this.transformAmount(amount),
       $payment_method: paymentMethod,
       $digital_orders: [
-        {
-          $digital_asset: asset.name,
-          $pair: `${currency}_${asset.name}`,
-          $asset_type: SiftAssetType.CRYPTO,
-          $volume: isBuyCrypto ? tx.outputAmount?.toString() : undefined,
-        },
+        this.createDigitalOrder(SiftAssetType.CRYPTO, currency, asset.name, isBuyCrypto ? tx.outputAmount : undefined),
       ],
       blockchain: asset.blockchain,
     };
 
     return data;
+  }
+
+  private transformAmount(amount: number): number {
+    return Util.round(amount * 1000000, 0); // amount in micros in the base unit
   }
 
   private createPaymentMethod(paymentType: PaymentType, tx: BankTx | CheckoutTx): any {
@@ -141,7 +176,8 @@ export class SiftService {
           $bank_name: tx.cardIssuer ?? undefined,
           $bank_country: tx.cardIssuerCountry ?? undefined,
         }
-      : {
+      : tx instanceof BankTx
+      ? {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
           $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
@@ -149,7 +185,19 @@ export class SiftService {
           $bank_name: tx.bankName ?? undefined,
           $bank_country: tx.country ?? undefined,
           $routing_number: tx.aba ?? undefined,
+        }
+      : {
+          $payment_type: paymentType,
         };
+  }
+
+  private createDigitalOrder(type: SiftAssetType, from: string, to: string, amount?: number): DigitalOrder {
+    return {
+      $digital_asset: to,
+      $pair: `${from}_${to}`,
+      $asset_type: type,
+      $volume: amount?.toString(),
+    };
   }
 
   private async send(type: EventType, data: SiftBase): Promise<SiftResponse> {

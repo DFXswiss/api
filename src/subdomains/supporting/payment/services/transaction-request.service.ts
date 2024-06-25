@@ -1,6 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CreateOrder, SiftAssetType, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -98,7 +97,7 @@ export class TransactionRequestService {
       response.id = transactionRequest.id;
 
       // create order at sift (without waiting)
-      void this.createSiftEvent(type, transactionRequest, userId, sourceCurrencyName, targetCurrencyName, blockchain);
+      void this.siftService.createOrder(transactionRequest, userId, sourceCurrencyName, targetCurrencyName, blockchain);
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -148,32 +147,4 @@ export class TransactionRequestService {
   }
 
   // --- HELPER METHODS --- //
-
-  private async createSiftEvent(
-    type: TransactionRequestType,
-    transactionRequest: TransactionRequest,
-    userId: number,
-    sourceCurrencyName: string,
-    targetCurrencyName: string,
-    blockchain: Blockchain,
-  ) {
-    await this.siftService.createOrder({
-      $order_id: transactionRequest.id.toString(),
-      $user_id: userId.toString(),
-      $time: transactionRequest.created.getTime(),
-      $amount: transactionRequest.amount * 10000,
-      $currency_code: sourceCurrencyName,
-      $site_country: 'CH',
-      $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
-      $digital_orders: [
-        {
-          $digital_asset: targetCurrencyName,
-          $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
-          $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
-          $volume: transactionRequest.estimatedAmount.toString(),
-        },
-      ],
-      blockchain,
-    } as CreateOrder);
-  }
 }
