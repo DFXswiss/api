@@ -511,7 +511,9 @@ export class KycService {
       result.identificationdocument?.number?.value
     ) {
       const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
-      const existing = await this.userDataService.getUserDataByIdentDoc(result.identificationdocument.number.value);
+      const existing = await this.userDataService.getUserDataByIdentDoc(
+        `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
+      );
 
       if (existing) {
         await this.accountMergeService.sendMergeRequest(existing, userData);
