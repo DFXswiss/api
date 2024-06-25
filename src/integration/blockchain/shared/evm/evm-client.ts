@@ -224,7 +224,7 @@ export abstract class EvmClient {
     const contract = new ethers.Contract(signatureTransferContract, SIGNATURE_TRANSFER_ABI, this.wallet);
 
     const token = await this.getToken(asset);
-    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
+    const requestedAmount = EvmUtil.toWeiAmount(amount, token.decimals);
     const permittedAmountWei = EvmUtil.toWeiAmount(permittedAmount, token.decimals);
 
     const values = {
@@ -236,10 +236,7 @@ export abstract class EvmClient {
       nonce,
       deadline,
     };
-    const transferDetails = {
-      to: to,
-      requestedAmount: amountWei,
-    };
+    const transferDetails = { to, requestedAmount };
 
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(this.dfxAddress);
