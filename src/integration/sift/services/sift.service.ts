@@ -141,7 +141,8 @@ export class SiftService {
           $bank_name: tx.cardIssuer ?? undefined,
           $bank_country: tx.cardIssuerCountry ?? undefined,
         }
-      : {
+      : tx instanceof BankTx
+      ? {
           $payment_type: paymentType,
           $account_holder_name: tx.name,
           $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
@@ -149,6 +150,9 @@ export class SiftService {
           $bank_name: tx.bankName ?? undefined,
           $bank_country: tx.country ?? undefined,
           $routing_number: tx.aba ?? undefined,
+        }
+      : {
+          $payment_type: paymentType,
         };
   }
 
