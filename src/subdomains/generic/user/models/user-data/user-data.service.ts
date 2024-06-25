@@ -276,11 +276,12 @@ export class UserDataService {
     if (phoneChanged) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;
 
-    if (phoneChanged || mailChanged)
+    if (phoneChanged || mailChanged) {
       for (const user of userData.users) {
         updateSiftAccount.$user_id = user.id.toString();
         await this.siftService.updateAccount(updateSiftAccount);
       }
+    }
 
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
