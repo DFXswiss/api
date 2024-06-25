@@ -278,7 +278,7 @@ export class SellController {
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.toDto(dto.currency),
-      beneficiary: { name: user.userData.verifiedName, iban: sell.bankAccount.iban },
+      beneficiary: { name: user.userData.verifiedName, iban: sell.iban },
       asset: AssetDtoMapper.toDto(dto.asset),
       maxVolume,
       maxVolumeTarget,
