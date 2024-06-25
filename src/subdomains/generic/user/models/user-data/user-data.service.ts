@@ -269,16 +269,18 @@ export class UserDataService {
     }
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;
+    const phoneChanged = dto.phone && dto.phone !== userData.phone;
 
     const updateSiftAccount: CreateAccount = { $time: Date.now() };
 
-    if (dto.phone && dto.phone !== userData.phone) updateSiftAccount.$phone = dto.phone;
+    if (phoneChanged) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;
 
-    for (const user of userData.users) {
-      updateSiftAccount.$user_id = user.id.toString();
-      await this.siftService.updateAccount(updateSiftAccount);
-    }
+    if (phoneChanged || mailChanged)
+      for (const user of userData.users) {
+        updateSiftAccount.$user_id = user.id.toString();
+        await this.siftService.updateAccount(updateSiftAccount);
+      }
 
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
