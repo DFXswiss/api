@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -27,6 +30,9 @@ export class BuyCryptoOutService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly siftService: SiftService,
+    private readonly assetService: AssetService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -107,6 +113,23 @@ export class BuyCryptoOutService {
     };
 
     await this.payoutService.doPayout(request);
+
+    if (transaction.networkStartFeeAmount) {
+      const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
+      const inputReferenceCurrency =
+        transaction.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(transaction.inputReferenceAsset));
+      const startFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
+
+      const gasFeeRequest: PayoutRequest = {
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: `${transaction.id}-network-start-fee`,
+        asset: nativeAsset,
+        amount: startFeePrice.convert(transaction.networkStartFeeAmount),
+        destinationAddress: transaction.target.address,
+      };
+
+      await this.payoutService.doPayout(gasFeeRequest);
+    }
 
     transaction.payingOut();
     await this.buyCryptoRepo.save(transaction);

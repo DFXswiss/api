@@ -85,7 +85,11 @@ export abstract class EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
+    return this.getNativeCoinBalanceForAddress(this.dfxAddress);
+  }
+
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, address);
 
     return EvmUtil.fromWeiAmount(balance);
   }
