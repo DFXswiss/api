@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -115,7 +116,7 @@ export class SiftService {
       $transaction_status: status,
       $decline_category: status === TransactionStatus.FAILURE ? declineCategory : undefined,
       $currency_code: currency,
-      $amount: amount * 10000, // amount in micros in the base unit
+      $amount: Util.round(amount * 1000000, 0), // amount in micros in the base unit
       $payment_method: paymentMethod,
       $digital_orders: [
         {
