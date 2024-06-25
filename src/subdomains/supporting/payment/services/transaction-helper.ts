@@ -200,7 +200,7 @@ export class TransactionHelper implements OnModuleInit {
       : Config.tradingLimits.yearlyDefault;
 
     const extendedSpecs: TxSpec = {
-      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
+      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee, networkStart: undefined },
       volume: {
         min: specs.minVolume,
         max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
@@ -380,7 +380,7 @@ export class TransactionHelper implements OnModuleInit {
         min: this.convert(fee.min, price, isFiat(from)),
         fixed: this.convert(fee.fixed, price, isFiat(from)),
         network: this.convert(fee.network, price, isFiat(from)),
-        networkStart: this.convert(fee.networkStart, price, isFiat(from)),
+        networkStart: fee.networkStart ? this.convert(fee.networkStart, price, isFiat(from)) : undefined,
       },
       volume: {
         min: this.convert(volume.min, price, isFiat(from)),
@@ -397,7 +397,7 @@ export class TransactionHelper implements OnModuleInit {
         min: this.convert(fee.min, price, isFiat(to)),
         fixed: this.convert(fee.fixed, price, isFiat(to)),
         network: this.convert(fee.network, price, isFiat(to)),
-        networkStart: this.convert(fee.networkStart, price, isFiat(to)),
+        networkStart: fee.networkStart ? this.convert(fee.networkStart, price, isFiat(to)) : undefined,
       },
       volume: {
         min: this.convert(volume.min, price, isFiat(to)),

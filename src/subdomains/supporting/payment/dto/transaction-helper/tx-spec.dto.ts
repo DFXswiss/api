@@ -12,6 +12,6 @@ export interface TxSpec {
     min: number;
     fixed: number;
     network: number;
-    networkStart?: number;
+    networkStart: number;
   };
 }
