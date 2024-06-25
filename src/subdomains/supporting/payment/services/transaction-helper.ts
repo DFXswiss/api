@@ -413,7 +413,7 @@ export class TransactionHelper implements OnModuleInit {
     { fee: { fixed, min, network, networkStart } }: TxSpec,
   ): { dfx: number; total: number } {
     const dfx = Math.max(amount * rate + fixed, min);
-    const total = dfx + network + networkStart;
+    const total = dfx + network + (networkStart ?? 0);
 
     return { dfx: Util.roundReadable(dfx, isFiat(active)), total: Util.roundReadable(total, isFiat(active)) };
   }
