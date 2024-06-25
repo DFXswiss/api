@@ -117,7 +117,7 @@ export class BuyCryptoPreparationService {
         );
 
         const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
-        if (!bankData?.comment) continue;
+        if (bankData && !bankData.comment) continue;
 
         const ibanCountry = entity.bankTx?.iban
           ? await this.countryService.getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
