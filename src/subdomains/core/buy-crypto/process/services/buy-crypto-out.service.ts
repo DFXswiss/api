@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -23,7 +21,6 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 @Injectable()
 export class BuyCryptoOutService {
   private readonly logger = new DfxLogger(BuyCryptoOutService);
-  private chf: Fiat;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -37,10 +34,6 @@ export class BuyCryptoOutService {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   async payoutTransactions(): Promise<void> {
     try {
@@ -123,13 +116,15 @@ export class BuyCryptoOutService {
 
     if (transaction.networkStartFeeAmount) {
       const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
-      const startFeePrice = await this.pricingService.getPrice(this.chf, nativeAsset, true);
+      const inputReferenceCurrency =
+        transaction.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(transaction.inputReferenceAsset));
+      const startFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
 
       const gasFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,
         correlationId: `${transaction.id}-network-start-fee`,
         asset: nativeAsset,
-        amount: startFeePrice.convert(Config.minEvmGasStarterBalance),
+        amount: startFeePrice.convert(transaction.networkStartFeeAmount),
         destinationAddress: transaction.target.address,
       };
 

@@ -148,10 +148,10 @@ export class TransactionHelper implements OnModuleInit {
       [],
       false,
     );
-    const gasStarterFee = await this.getNetworkStartFee(to, user);
+    const networkStartFee = await this.getNetworkStartFee(to, user);
 
     const specs: TxSpec = {
-      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, networkStart: gasStarterFee },
+      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, networkStart: networkStartFee },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
@@ -424,10 +424,10 @@ export class TransactionHelper implements OnModuleInit {
     amount: number,
     active: Active,
     rate: number,
-    { fee: { fixed, min, network, networkStart: gasStarter } }: TxSpec,
+    { fee: { fixed, min, network, networkStart } }: TxSpec,
   ): { dfx: number; total: number } {
     const dfx = Math.max(amount * rate + fixed, min);
-    const total = dfx + network + gasStarter;
+    const total = dfx + network + networkStart;
 
     return { dfx: Util.roundReadable(dfx, isFiat(active)), total: Util.roundReadable(total, isFiat(active)) };
   }
