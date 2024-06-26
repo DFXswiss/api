@@ -279,13 +279,14 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getNetworkStartFee(to: Active, user?: User): Promise<number> {
-    if (!isAsset(to) || to.type === AssetType.COIN || !user) return 0;
+    if (!isAsset(to) || to.type === AssetType.COIN || !Config.networkStartBlockchains.includes(to.blockchain) || !user)
+      return 0;
 
     try {
       const evmClient = this.evmRegistryService.getClient(to.blockchain);
       const userBalance = await evmClient.getNativeCoinBalanceForAddress(user.address);
 
-      return userBalance < Config.minEvmGasStarterBalance ? Config.gasStarterFee : 0;
+      return userBalance < Config.networkStartBalanceLimit ? Config.networkStartFee : 0;
     } catch (e) {
       this.logger.error(`Failed to get network start fee for user ${user.id} on ${to.blockchain}:`, e);
       return 0;
