@@ -5,6 +5,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Process } from 'src/shared/services/process.service';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
@@ -44,6 +45,15 @@ export class Configuration {
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
+  networkStartFee = 1; //CHF
+  networkStartBalanceLimit = 0.00001;
+  networkStartBlockchains = [
+    Blockchain.BASE,
+    Blockchain.ARBITRUM,
+    Blockchain.OPTIMISM,
+    Blockchain.POLYGON,
+    Blockchain.BINANCE_SMART_CHAIN,
+  ];
 
   tradingLimits = {
     dailyDefault: 1000, // CHF

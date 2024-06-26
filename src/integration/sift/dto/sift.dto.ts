@@ -835,9 +835,17 @@ export interface CreateAccount extends SiftBase {
     $client_language?: string;
   };
 
-  //Custom fields
+  // custom fields
   blockchain_address?: string;
   kyc_level?: number;
+}
+
+export interface DigitalOrder {
+  $digital_asset?: string;
+  $pair?: string;
+  $asset_type?: string;
+  $order_type?: string;
+  $volume?: string;
 }
 
 export interface CreateOrder extends SiftBase {
@@ -861,16 +869,9 @@ export interface CreateOrder extends SiftBase {
   $account_number_last5?: string;
   $bank_name?: string;
   $bank_country?: string;
-  $digital_orders?: [
-    {
-      $digital_asset?: string;
-      $pair?: string;
-      $asset_type?: string;
-      $order_type?: string;
-      $volume?: string;
-    },
-  ];
-  // custom field
+  $digital_orders?: DigitalOrder[];
+
+  // custom fields
   blockchain: Blockchain;
 }
 
@@ -897,15 +898,7 @@ export interface Transaction extends SiftBase {
     $bank_country?: string;
     $routing_number?: string;
   };
-  $digital_orders?: [
-    {
-      $digital_asset?: string;
-      $pair?: string;
-      $asset_type?: string;
-      $order_type?: string;
-      $volume?: string;
-    },
-  ];
+  $digital_orders?: DigitalOrder[];
 
   // custom field
   blockchain?: Blockchain;

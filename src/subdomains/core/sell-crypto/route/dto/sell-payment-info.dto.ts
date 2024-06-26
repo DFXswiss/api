@@ -7,6 +7,14 @@ import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-hel
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
+export class BeneficiaryDto {
+  @ApiProperty()
+  iban: string;
+
+  @ApiPropertyOptional()
+  name?: string;
+}
+
 export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
@@ -76,6 +84,9 @@ export class SellPaymentInfoDto {
 
   @ApiProperty({ type: FiatDto, description: 'Target currency' })
   currency: FiatDto;
+
+  @ApiProperty({ type: BeneficiaryDto, description: 'Bank transaction beneficiary' })
+  beneficiary: BeneficiaryDto;
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
   paymentRequest?: string;

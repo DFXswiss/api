@@ -182,7 +182,7 @@ export class BuyFiat extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
-  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
   transaction: Transaction;
 
@@ -354,7 +354,7 @@ export class BuyFiat extends IEntity {
   }
 
   get user(): User {
-    return this.sell.user;
+    return this.transaction.user;
   }
 
   get userData(): UserData {

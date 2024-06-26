@@ -34,14 +34,30 @@ export class PayInService {
   //*** PUBLIC API ***//
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
-    const payIns = transactions.map(({ address, txId, txType, txSequence, blockHeight, amount, asset }) =>
-      CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset),
-    );
+    const payIns: CryptoInput[] = [];
 
-    for (const payIn of payIns) {
-      payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
+    for (const { address, txId, txType, txSequence, blockHeight, amount, asset } of transactions) {
+      const payIn = CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset);
 
-      await this.payInRepository.save(payIn);
+      const exists = await this.payInRepository.exists({
+        where: {
+          inTxId: txId,
+          txSequence: txSequence,
+          asset: { id: asset.id },
+          address: {
+            address: address.address,
+            blockchain: address.blockchain,
+          },
+        },
+      });
+
+      if (!exists) {
+        payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
+
+        await this.payInRepository.save(payIn);
+
+        payIns.push(payIn);
+      }
     }
 
     return payIns;

@@ -35,8 +35,8 @@ export class RefRewardExtended extends RefReward {
 export class TransactionDtoMapper {
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
-      id: buyCrypto.transaction?.id,
-      uid: buyCrypto.transaction?.uid,
+      id: buyCrypto.transaction.id,
+      uid: buyCrypto.transaction.uid,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, isFiat(buyCrypto.inputAssetEntity)),
@@ -48,7 +48,7 @@ export class TransactionDtoMapper {
       outputAmount: buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, false) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
-      outputBlockchain: buyCrypto.target.asset.blockchain,
+      outputBlockchain: buyCrypto.outputAsset?.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       priceSteps: buyCrypto.priceStepsObject,
       feeAmount: buyCrypto.totalFeeAmount
@@ -64,7 +64,7 @@ export class TransactionDtoMapper {
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
         : null,
       outputTxId: buyCrypto.txId,
-      outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
+      outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
       date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
       externalTransactionId: buyCrypto.transaction.externalId,
     };
@@ -86,8 +86,8 @@ export class TransactionDtoMapper {
 
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
     const dto: TransactionDto = {
-      id: buyFiat.transaction?.id,
-      uid: buyFiat.transaction?.uid,
+      id: buyFiat.transaction.id,
+      uid: buyFiat.transaction.uid,
       type: TransactionType.SELL,
       ...getTransactionStateDetails(buyFiat),
       inputAmount: Util.roundReadable(buyFiat.inputAmount, isFiat(buyFiat.inputAssetEntity)),
@@ -137,8 +137,8 @@ export class TransactionDtoMapper {
 
   static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
     const dto: TransactionDto = {
-      id: refReward.transaction?.id,
-      uid: refReward.transaction?.uid,
+      id: refReward.transaction.id,
+      uid: refReward.transaction.uid,
       type: TransactionType.REFERRAL,
       ...getTransactionStateDetails(refReward),
       inputAmount: null,
@@ -184,8 +184,8 @@ export class TransactionDtoMapper {
 
   static mapUnassignedTransaction(tx: BankTx, currency: Fiat): UnassignedTransactionDto {
     return {
-      id: tx.transaction?.id,
-      uid: tx.transaction?.uid,
+      id: tx.transaction.id,
+      uid: tx.transaction.uid,
       type: TransactionType.BUY,
       state: TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
@@ -229,6 +229,10 @@ export class TransactionDtoMapper {
         entity.totalFeeAmount != null
           ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : null,
+      networkStart:
+        entity instanceof BuyCrypto && entity.networkStartFeeAmount
+          ? Util.roundReadable(entity.networkStartFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : 0,
     };
   }
 }

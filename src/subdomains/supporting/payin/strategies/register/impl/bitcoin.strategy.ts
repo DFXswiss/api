@@ -46,28 +46,9 @@ export class BitcoinStrategy extends RegisterStrategy {
   private async getNewEntries(): Promise<PayInEntry[]> {
     await this.bitcoinService.checkHealthOrThrow();
 
-    const allUtxos = await this.bitcoinService.getUtxo();
-    const newUtxos = await this.filterOutExistingUtxos(allUtxos);
+    const utxos = await this.bitcoinService.getUtxo();
 
-    return this.mapUtxosToEntries(newUtxos);
-  }
-
-  private async filterOutExistingUtxos(allUtxos: UTXO[]): Promise<UTXO[]> {
-    const inputs = [];
-
-    for (const utxo of allUtxos) {
-      const existingInput = await this.payInRepository.findOneBy({
-        inTxId: utxo.txid,
-        txSequence: utxo.vout,
-        address: { address: utxo.address },
-      });
-
-      if (existingInput) continue;
-
-      inputs.push(utxo);
-    }
-
-    return inputs;
+    return this.mapUtxosToEntries(utxos);
   }
 
   private async mapUtxosToEntries(utxos: UTXO[]): Promise<PayInEntry[]> {

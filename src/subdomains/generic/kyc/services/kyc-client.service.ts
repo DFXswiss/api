@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto-webhook.service';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
@@ -18,9 +18,9 @@ export class KycClientService {
     private readonly storageService: DocumentStorageService,
     private readonly userService: UserService,
     private readonly walletService: WalletService,
-    private readonly buyCryptoService: BuyCryptoService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async getAllKycData(walletId: number): Promise<KycClientDataDto[]> {
@@ -80,10 +80,9 @@ export class KycClientService {
 
   // --- HELPER METHODS --- //
   private async toPaymentDto(userId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
-    const txList = [
-      ...(await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo)),
-      ...(await this.buyFiatService.getUserTransactions(userId, dateFrom, dateTo)),
-    ];
+    const txList = await this.transactionService
+      .getTransactionsForUser(userId, dateFrom, dateTo)
+      .then((txs) => txs.filter((t) => t.buyCrypto || t.buyFiat).map((t) => t.buyCrypto || t.buyFiat));
 
     return Util.asyncMap(txList, async (tx) => {
       if (tx instanceof BuyCrypto) {

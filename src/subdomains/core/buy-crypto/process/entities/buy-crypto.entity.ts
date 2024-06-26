@@ -147,6 +147,9 @@ export class BuyCrypto extends IEntity {
   absoluteFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
+  networkStartFeeAmount: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
   @Column({ type: 'float', nullable: true })
@@ -197,7 +200,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
-  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
   transaction: Transaction;
 
@@ -400,6 +403,7 @@ export class BuyCrypto extends IEntity {
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             fee: feeConstraints,
+            networkStartFeeAmount: fee.networkStart,
           };
 
     Object.assign(this, update);
@@ -495,7 +499,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get user(): User {
-    return this.buy ? this.buy.user : this.cryptoRoute.user;
+    return this.transaction.user;
   }
 
   get userData(): UserData {
@@ -514,17 +518,15 @@ export class BuyCrypto extends IEntity {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 
-  get target(): { address: string; asset: Asset; trimmedReturnAddress: string } {
+  get target(): { address: string; asset: Asset } {
     return this.buy
       ? {
-          address: this.buy.deposit?.address ?? this.buy.user.address,
+          address: this.buy.deposit?.address ?? this.buy.user?.address,
           asset: this.buy.asset,
-          trimmedReturnAddress: this.buy?.iban ? Util.blankStart(this.buy.iban) : null,
         }
       : {
-          address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
-          asset: this.cryptoRoute.asset,
-          trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
+          address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute?.user?.address,
+          asset: this.cryptoRoute?.asset,
         };
   }
 
