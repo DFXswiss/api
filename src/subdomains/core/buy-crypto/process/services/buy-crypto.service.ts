@@ -368,22 +368,6 @@ export class BuyCryptoService {
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
   }
 
-  async getUserTransactions(
-    userId: number,
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<BuyCrypto[]> {
-    return this.buyCryptoRepo.find({
-      where: [
-        { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-        { buy: { user: { id: userId } }, outputDate: IsNull() },
-        { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-        { cryptoRoute: { user: { id: userId } }, outputDate: IsNull() },
-      ],
-      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
-    });
-  }
-
   async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
     return this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
