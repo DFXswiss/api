@@ -167,8 +167,9 @@ export class BuyCryptoPreparationService {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: true,
-        buy: { user: { userData: true, wallet: true } },
-        cryptoRoute: { user: { userData: true, wallet: true } },
+        buy: true,
+        cryptoRoute: true,
+        transaction: { user: { userData: true, wallet: true } },
       },
     });
 

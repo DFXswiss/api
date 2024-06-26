@@ -92,7 +92,7 @@ export class BuyFiatNotificationService {
         amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
-      relations: { sell: { user: { userData: true } }, cryptoInput: true, transaction: true },
+      relations: { sell: true, cryptoInput: true, transaction: { user: { userData: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
@@ -100,15 +100,15 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (
-          entity.sell.user.userData.mail &&
-          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          entity.userData.mail &&
+          (entity.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: MailContext.BUY_FIAT_RETURN,
             input: {
-              userData: entity.sell.user.userData,
+              userData: entity.userData,
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
               suffix: [
@@ -126,8 +126,8 @@ export class BuyFiatNotificationService {
                       key: `${MailTranslationKey.RETURN}.introduction`,
                       params: {
                         reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
-                        url: entity.sell.user.userData.dilisenseUrl,
-                        urlText: entity.sell.user.userData.dilisenseUrl,
+                        url: entity.userData.dilisenseUrl,
+                        urlText: entity.userData.dilisenseUrl,
                       },
                     }
                   : null,
@@ -135,8 +135,8 @@ export class BuyFiatNotificationService {
                   ? {
                       key: `${MailTranslationKey.RETURN}.kyc_start`,
                       params: {
-                        url: entity.sell.user.userData.kycUrl,
-                        urlText: entity.sell.user.userData.kycUrl,
+                        url: entity.userData.kycUrl,
+                        urlText: entity.userData.kycUrl,
                       },
                     }
                   : null,
@@ -165,19 +165,19 @@ export class BuyFiatNotificationService {
         amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: { sell: { user: { userData: true } } },
+      relations: { sell: true, transaction: { user: { userData: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail) {
+        if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: MailContext.BUY_FIAT_PENDING,
             input: {
-              userData: entity.sell.user.userData,
+              userData: entity.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
@@ -187,22 +187,22 @@ export class BuyFiatNotificationService {
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
                   params: {
-                    url: entity.sell.user.userData.kycUrl,
-                    urlText: entity.sell.user.userData.kycUrl,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3`,
                   params: {
-                    url: entity.sell.user.userData.kycUrl,
-                    urlText: entity.sell.user.userData.kycUrl,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
                   params: {
-                    url: entity.sell.user.userData.kycUrl,
-                    urlText: entity.sell.user.userData.kycUrl,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },

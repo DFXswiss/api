@@ -192,11 +192,12 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOne({
       where: { id },
       relations: {
-        buy: { user: { userData: true, wallet: true } },
-        cryptoRoute: { user: { userData: true, wallet: true } },
+        buy: true,
+        cryptoRoute: true,
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
+        transaction: { user: { userData: true, wallet: true } },
       },
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');

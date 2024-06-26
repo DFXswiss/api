@@ -94,11 +94,12 @@ export class BuyCryptoOutService {
       },
       relations: {
         transactions: {
-          buy: { user: { userData: true, wallet: true } },
-          cryptoRoute: { user: { userData: true, wallet: true } },
+          buy: true,
+          cryptoRoute: true,
           cryptoInput: true,
           bankTx: true,
           checkoutTx: true,
+          transaction: { user: { userData: true, wallet: true } },
         },
       },
     });
