@@ -8,6 +8,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -279,7 +280,13 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getNetworkStartFee(to: Active, user?: User): Promise<number> {
-    if (!isAsset(to) || to.type === AssetType.COIN || !Config.networkStartBlockchains.includes(to.blockchain) || !user)
+    if (
+      DisabledProcess(Process.NETWORK_START_FEE) ||
+      !isAsset(to) ||
+      to.type === AssetType.COIN ||
+      !Config.networkStartBlockchains.includes(to.blockchain) ||
+      !user
+    )
       return 0;
 
     try {

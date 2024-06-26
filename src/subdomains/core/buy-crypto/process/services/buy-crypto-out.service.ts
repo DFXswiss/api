@@ -4,6 +4,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
@@ -114,21 +115,21 @@ export class BuyCryptoOutService {
 
     await this.payoutService.doPayout(request);
 
-    if (transaction.networkStartFeeAmount) {
+    if (transaction.networkStartFeeAmount && !DisabledProcess(Process.NETWORK_START_FEE)) {
       const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
       const inputReferenceCurrency =
         transaction.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(transaction.inputReferenceAsset));
-      const startFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
+      const networkStartFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
 
-      const gasFeeRequest: PayoutRequest = {
+      const networkStartFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,
         correlationId: `${transaction.id}-network-start-fee`,
         asset: nativeAsset,
-        amount: startFeePrice.convert(transaction.networkStartFeeAmount),
+        amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount),
         destinationAddress: transaction.target.address,
       };
 
-      await this.payoutService.doPayout(gasFeeRequest);
+      await this.payoutService.doPayout(networkStartFeeRequest);
     }
 
     transaction.payingOut();
