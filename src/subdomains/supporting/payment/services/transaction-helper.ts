@@ -293,6 +293,8 @@ export class TransactionHelper implements OnModuleInit {
       const evmClient = this.evmRegistryService.getClient(to.blockchain);
       const userBalance = await evmClient.getNativeCoinBalanceForAddress(user.address);
 
+      this.logger.info(`Balance for network start fee for ${user.address} on ${to.blockchain}: ${userBalance}`);
+
       return userBalance < Config.networkStartBalanceLimit ? Config.networkStartFee : 0;
     } catch (e) {
       this.logger.error(`Failed to get network start fee for user ${user.id} on ${to.blockchain}:`, e);
