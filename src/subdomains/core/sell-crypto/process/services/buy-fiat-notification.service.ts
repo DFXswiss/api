@@ -43,9 +43,7 @@ export class BuyFiatNotificationService {
         outputAmount: Not(IsNull()),
       },
       relations: {
-        sell: { user: { userData: true } },
-        cryptoInput: true,
-        transaction: true,
+        transaction: { user: { userData: true } },
       },
     });
 

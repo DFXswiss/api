@@ -247,7 +247,7 @@ export class BuyCryptoBatchService {
   private async getPayoutFee(tx: BuyCrypto): Promise<number> {
     const nativePayoutFee = await this.payoutService.estimateFee(
       tx.outputAsset,
-      tx.target.address,
+      tx.targetAddress,
       tx.outputReferenceAmount,
       tx.outputReferenceAsset,
     );

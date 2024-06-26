@@ -81,7 +81,7 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
-      if (!entity.target.asset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
+      if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
       switch (entity.user.wallet.amlRule) {
         case AmlRule.DEFAULT:
@@ -94,7 +94,7 @@ export class AmlHelperService {
           if (
             entity.user.status === UserStatus.NA &&
             entity.userData.kycLevel < KycLevel.LEVEL_30 &&
-            entity.target.asset.blockchain !== Blockchain.LIGHTNING
+            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
           )
             errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
@@ -102,7 +102,7 @@ export class AmlHelperService {
           if (
             entity.user.status === UserStatus.NA &&
             entity.userData.kycLevel < KycLevel.LEVEL_50 &&
-            entity.target.asset.blockchain !== Blockchain.LIGHTNING
+            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
           )
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
@@ -126,11 +126,11 @@ export class AmlHelperService {
           errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
-          if (!entity.target.asset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
+          if (!entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
         }
       } else if (entity.checkoutTx) {
         // checkout
-        if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
+        if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
           blacklist.some((b) =>
             b.matches(
@@ -149,7 +149,7 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
-      if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+      if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (
         blacklist.some((b) =>
           b.matches(
