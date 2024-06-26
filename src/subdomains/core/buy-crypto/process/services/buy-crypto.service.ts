@@ -166,12 +166,11 @@ export class BuyCryptoService {
   }
 
   private async createEntity(entity: BuyCrypto, dto: UpdateTransactionDto): Promise<void> {
-    entity.outputAsset = entity.target.asset;
-    entity.outputReferenceAsset = entity.outputAsset;
+    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
 
     // transaction
     const request = await this.getTxRequest(entity);
-    await this.transactionService.update(entity.transaction.id, { ...dto, request });
+    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
 
@@ -185,7 +184,7 @@ export class BuyCryptoService {
       entity.inputAmount,
       entity.route.id,
       inputCurrency.id,
-      entity.target.asset.id,
+      entity.outputAsset.id,
     );
   }
 

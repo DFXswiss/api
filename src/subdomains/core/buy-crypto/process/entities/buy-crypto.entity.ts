@@ -518,16 +518,8 @@ export class BuyCrypto extends IEntity {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 
-  get target(): { address: string; asset: Asset } {
-    return this.buy
-      ? {
-          address: this.buy.deposit?.address ?? this.buy.user?.address,
-          asset: this.buy.asset,
-        }
-      : {
-          address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute?.user?.address,
-          asset: this.cryptoRoute?.asset,
-        };
+  get targetAddress(): string {
+    return this.buy?.deposit?.address ?? this.cryptoRoute?.targetDeposit?.address ?? this.user.address;
   }
 
   get noCommunication(): boolean {

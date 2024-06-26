@@ -42,7 +42,8 @@ export class BuyFiatPreparationService {
       },
       relations: {
         cryptoInput: true,
-        sell: { user: { wallet: true, userData: { users: true } } },
+        sell: true,
+        transaction: { user: { wallet: true, userData: { users: true } } },
       },
     });
     if (entities.length === 0) return;
@@ -138,7 +139,7 @@ export class BuyFiatPreparationService {
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
-      relations: { sell: { user: { wallet: true, userData: true } }, cryptoInput: true },
+      relations: { sell: true, cryptoInput: true, transaction: { user: { wallet: true, userData: true } } },
     });
 
     // CHF/EUR Price
@@ -156,7 +157,7 @@ export class BuyFiatPreparationService {
           entity.sell.fiat,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
-          entity.sell.user,
+          entity.user,
         );
 
         const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
@@ -177,7 +178,7 @@ export class BuyFiatPreparationService {
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.sell.user.userData);
+          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
         }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);

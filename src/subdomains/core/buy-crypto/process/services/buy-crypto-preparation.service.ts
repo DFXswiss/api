@@ -55,8 +55,9 @@ export class BuyCryptoPreparationService {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: true,
-        buy: { user: { wallet: true, userData: { users: true } } },
-        cryptoRoute: { user: { wallet: true, userData: { users: true } } },
+        buy: true,
+        cryptoRoute: true,
+        transaction: { user: { wallet: true, userData: { users: true } } },
       },
     });
     if (entities.length === 0) return;
@@ -188,7 +189,7 @@ export class BuyCryptoPreparationService {
           entity.inputReferenceAmount,
           inputCurrency,
           inputReferenceCurrency,
-          entity.target.asset,
+          entity.outputAsset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
           entity.user,

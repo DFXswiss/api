@@ -365,14 +365,6 @@ export class BuyFiat extends IEntity {
     this.user.userData = userData;
   }
 
-  get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {
-    return {
-      address: this.sell.iban,
-      asset: this.sell.fiat,
-      trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
-    };
-  }
-
   get noCommunication(): boolean {
     return this.amlReason === AmlReason.NO_COMMUNICATION;
   }

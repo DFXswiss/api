@@ -63,7 +63,7 @@ export class BuyCryptoOutService {
       const transactionsToPayout = payingOutBatches
         .reduce((prev: BuyCrypto[], curr) => prev.concat(curr.transactions), [])
         .filter((r) => r.status === BuyCryptoStatus.READY_FOR_PAYOUT)
-        .sort((a, b) => (a.target.address > b.target.address ? 1 : -1));
+        .sort((a, b) => (a.targetAddress > b.targetAddress ? 1 : -1));
 
       const successfulRequests = [];
 
@@ -110,7 +110,7 @@ export class BuyCryptoOutService {
       correlationId: transaction.id.toString(),
       asset: transaction.outputAsset,
       amount: transaction.outputAmount,
-      destinationAddress: transaction.target.address,
+      destinationAddress: transaction.targetAddress,
     };
 
     await this.payoutService.doPayout(request);
@@ -126,7 +126,7 @@ export class BuyCryptoOutService {
         correlationId: `${transaction.id}-network-start-fee`,
         asset: nativeAsset,
         amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount),
-        destinationAddress: transaction.target.address,
+        destinationAddress: transaction.targetAddress,
       };
 
       await this.payoutService.doPayout(networkStartFeeRequest);
