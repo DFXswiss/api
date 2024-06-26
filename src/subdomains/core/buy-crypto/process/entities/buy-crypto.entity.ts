@@ -519,7 +519,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get targetAddress(): string {
-    return this.buy?.deposit?.address ?? this.user.address;
+    return this.buy?.deposit?.address ?? this.cryptoRoute?.targetDeposit?.address ?? this.user.address;
   }
 
   get noCommunication(): boolean {

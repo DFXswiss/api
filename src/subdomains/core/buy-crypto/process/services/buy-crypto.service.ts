@@ -170,7 +170,7 @@ export class BuyCryptoService {
 
     // transaction
     const request = await this.getTxRequest(entity);
-    await this.transactionService.update(entity.transaction.id, { ...dto, request });
+    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
 
