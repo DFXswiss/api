@@ -35,12 +35,14 @@ export class SupportIssueService {
     let entity = await this.create(userDataId, dto);
 
     if (dto.transaction) {
-      entity.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
-        user: { userData: true },
-      });
-      if (!entity.transaction) throw new NotFoundException('Transaction not found');
-      if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
-        throw new ForbiddenException('You can only create support issue for your own transaction');
+      if (dto.transaction.id) {
+        entity.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
+          user: { userData: true },
+        });
+        if (!entity.transaction) throw new NotFoundException('Transaction not found');
+        if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
+          throw new ForbiddenException('You can only create support issue for your own transaction');
+      }
 
       entity.additionalInformation = dto.transaction;
     }
@@ -110,11 +112,11 @@ export class SupportIssueService {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
-    const existing = await this.supportIssueRepo.exist({
+    const existing = await this.supportIssueRepo.exists({
       where: {
         userData: { id: userDataId },
         type: dto.type,
-        transaction: { id: dto.transaction.id },
+        transaction: { id: dto.transaction?.id },
         reason: dto.reason,
         state: Not(SupportIssueState.COMPLETED),
       },

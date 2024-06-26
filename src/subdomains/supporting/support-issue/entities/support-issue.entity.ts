@@ -23,6 +23,7 @@ export enum SupportIssueReason {
 
   // transaction
   FUNDS_NOT_RECEIVED = 'FundsNotReceived',
+  TRANSACTION_MISSING = 'TransactionMissing',
 }
 
 @Entity()

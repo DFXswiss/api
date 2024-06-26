@@ -5,10 +5,10 @@ import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.
 import { CreateSupportMessageDto } from './create-support-message.dto';
 
 export class TransactionIssueDto {
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
-  id: number;
+  id?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
