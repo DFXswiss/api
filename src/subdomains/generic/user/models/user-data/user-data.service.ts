@@ -500,14 +500,7 @@ export class UserDataService {
         ],
       }),
     ]);
-    if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
-    if (slave.amlListAddedDate && master.amlListAddedDate)
-      throw new BadRequestException('Slave and master are on AML list');
-    if ([master.status, slave.status].includes(UserDataStatus.MERGED))
-      throw new BadRequestException('Master or slave is already merged');
-    if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
-      throw new BadRequestException('Verified name mismatch');
-    if (master.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+    master.checkAndThrowMergeError(slave);
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),

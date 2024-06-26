@@ -26,6 +26,11 @@ export class AccountMergeService {
 
   async sendMergeRequest(master: UserData, slave: UserData): Promise<boolean> {
     if (!slave.mail) return false;
+    try {
+      master.checkAndThrowMergeError(slave);
+    } catch {
+      return false;
+    }
     const request =
       (await this.accountMergeRepo.findOne({
         where: {
