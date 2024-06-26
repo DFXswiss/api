@@ -105,10 +105,11 @@ export class BuyFiatService {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
       relations: {
-        sell: { user: { wallet: true, userData: true } },
+        sell: true,
         fiatOutput: true,
         bankTx: true,
         cryptoInput: true,
+        transaction: { user: { userData: true, wallet: true } },
       },
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
@@ -154,8 +155,8 @@ export class BuyFiatService {
     if (dto.amlCheck) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
     // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.sell?.user) {
-      await this.userService.activateUser(entity.sell.user);
+    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
+      await this.userService.activateUser(entity.user);
     }
 
     // payment webhook
@@ -194,7 +195,12 @@ export class BuyFiatService {
   async triggerWebhookManual(id: number): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: { sell: { user: { wallet: true, userData: true } }, bankTx: true, cryptoInput: true },
+      relations: {
+        sell: true,
+        bankTx: true,
+        cryptoInput: true,
+        transaction: { user: { wallet: true, userData: true } },
+      },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
