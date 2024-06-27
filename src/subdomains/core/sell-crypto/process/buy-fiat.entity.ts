@@ -190,7 +190,7 @@ export class BuyFiat extends IEntity {
 
   pendingMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mail2SendDate: new Date(),
     };
 
@@ -201,7 +201,7 @@ export class BuyFiat extends IEntity {
 
   returnMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
     };
 
@@ -212,7 +212,7 @@ export class BuyFiat extends IEntity {
 
   fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mail3SendDate: new Date(),
     };
 
