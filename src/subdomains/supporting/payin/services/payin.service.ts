@@ -43,7 +43,7 @@ export class PayInService {
         where: {
           inTxId: txId,
           txSequence: txSequence,
-          asset: { id: asset.id },
+          asset: { id: asset?.id },
           address: {
             address: address.address,
             blockchain: address.blockchain,
