@@ -45,7 +45,7 @@ export class Configuration {
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
-  networkStartFee = 1; //CHF
+  networkStartFee = 0.5; // CHF
   networkStartBalanceLimit = 0.00001;
   networkStartBlockchains = [
     Blockchain.BASE,
