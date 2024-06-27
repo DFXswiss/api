@@ -3,6 +3,7 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Data as QrBillData } from 'swissqrbill/types';
@@ -296,6 +297,9 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): QrBillData {
+    const userData = request && request.user.userData;
+    const isBusiness = userData?.accountType === AccountType.BUSINESS;
+
     const data: QrBillData = {
       amount,
       currency,
@@ -309,17 +313,16 @@ export class SwissQRService {
         name: bankInfo.name,
         zip: bankInfo.zip,
       },
-      debtor:
-        request && request.user.userData.isDataComplete
-          ? {
-              address: request.user.userData.street,
-              buildingNumber: request.user.userData.houseNumber,
-              city: request.user.userData.location,
-              country: request.user.userData.country.symbol,
-              name: `${request.user.userData.firstname} ${request.user.userData.surname}`,
-              zip: request.user.userData.zip,
-            }
-          : undefined,
+      debtor: userData?.isDataComplete
+        ? {
+            address: isBusiness ? userData.organizationStreet : userData.street,
+            buildingNumber: isBusiness ? userData.organizationHouseNumber : userData.houseNumber,
+            city: isBusiness ? userData.organizationLocation : userData.location,
+            country: isBusiness ? userData.organizationCountry.symbol : userData.country.symbol,
+            name: isBusiness ? userData.organizationName : `${userData.firstname} ${userData.surname}`,
+            zip: isBusiness ? userData.organizationZip : userData.zip,
+          }
+        : undefined,
     };
 
     return data;
