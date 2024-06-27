@@ -9,6 +9,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -37,6 +38,7 @@ export enum ValidationError {
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
+  private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
   private chf: Fiat;
   private transactionSpecifications: TransactionSpecification[];
@@ -195,13 +197,14 @@ export class TransactionHelper implements OnModuleInit {
       discountCodes,
       true,
     );
+    const networkStartFee = allowExpiredPrice ? undefined : await this.getNetworkStartFee(to, user);
 
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
       : Config.tradingLimits.yearlyDefault;
 
     const extendedSpecs: TxSpec = {
-      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee, networkStart: undefined },
+      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee, networkStart: networkStartFee },
       volume: {
         min: specs.minVolume,
         max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
@@ -291,7 +294,9 @@ export class TransactionHelper implements OnModuleInit {
 
     try {
       const evmClient = this.evmRegistryService.getClient(to.blockchain);
-      const userBalance = await evmClient.getNativeCoinBalanceForAddress(user.address);
+      const userBalance = await this.addressBalanceCache.get(user.address, () =>
+        evmClient.getNativeCoinBalanceForAddress(user.address),
+      );
 
       return userBalance < Config.networkStartBalanceLimit ? Config.networkStartFee : 0;
     } catch (e) {
