@@ -459,6 +459,28 @@ export class UserData extends IEntity {
     return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
   }
 
+  get address() {
+    if (!this.isDataComplete) return undefined;
+
+    return this.accountType === AccountType.BUSINESS
+      ? {
+          name: this.organizationName,
+          street: this.organizationStreet,
+          houseNumber: this.organizationHouseNumber,
+          city: this.organizationLocation,
+          zip: this.organizationZip,
+          country: this.organizationCountry,
+        }
+      : {
+          name: `${this.firstname} ${this.surname}`,
+          street: this.street,
+          houseNumber: this.houseNumber,
+          city: this.location,
+          zip: this.zip,
+          country: this.country,
+        };
+  }
+
   // --- KYC PROCESS --- //
 
   setKycLevel(level: KycLevel): this {
