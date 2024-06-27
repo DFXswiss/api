@@ -3,7 +3,6 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Data as QrBillData } from 'swissqrbill/types';
@@ -297,8 +296,8 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): QrBillData {
-    const userData = request && request.user.userData;
-    const isBusiness = userData?.accountType === AccountType.BUSINESS;
+    const isDataComplete = request && request.user.userData.isDataComplete;
+    const debtorAddress = isDataComplete && request.user.userData.address;
 
     const data: QrBillData = {
       amount,
@@ -313,14 +312,14 @@ export class SwissQRService {
         name: bankInfo.name,
         zip: bankInfo.zip,
       },
-      debtor: userData?.isDataComplete
+      debtor: isDataComplete
         ? {
-            address: isBusiness ? userData.organizationStreet : userData.street,
-            buildingNumber: isBusiness ? userData.organizationHouseNumber : userData.houseNumber,
-            city: isBusiness ? userData.organizationLocation : userData.location,
-            country: isBusiness ? userData.organizationCountry.symbol : userData.country.symbol,
-            name: isBusiness ? userData.organizationName : `${userData.firstname} ${userData.surname}`,
-            zip: isBusiness ? userData.organizationZip : userData.zip,
+            address: debtorAddress.street,
+            buildingNumber: debtorAddress.houseNumber,
+            city: debtorAddress.city,
+            country: debtorAddress.country.symbol,
+            name: debtorAddress.name,
+            zip: debtorAddress.zip,
           }
         : undefined,
     };
