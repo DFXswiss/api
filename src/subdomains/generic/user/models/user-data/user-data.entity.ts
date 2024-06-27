@@ -460,6 +460,8 @@ export class UserData extends IEntity {
   }
 
   get address() {
+    if (!this.isDataComplete) return undefined;
+
     return this.accountType === AccountType.BUSINESS
       ? {
           name: this.organizationName,
