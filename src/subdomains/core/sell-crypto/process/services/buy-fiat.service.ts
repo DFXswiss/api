@@ -63,7 +63,7 @@ export class BuyFiatService {
 
     // transaction
     request = await this.getTxRequest(entity, request);
-    await this.transactionService.update(entity.transaction.id, {
+    entity.transaction = await this.transactionService.update(entity.transaction.id, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
       request,
