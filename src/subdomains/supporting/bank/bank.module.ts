@@ -10,6 +10,7 @@ import { BankAccount } from './bank-account/bank-account.entity';
 import { BankAccountRepository } from './bank-account/bank-account.repository';
 import { BankAccountService } from './bank-account/bank-account.service';
 import { IsDfxIbanValidator } from './bank-account/is-dfx-iban.validator';
+import { BankController } from './bank/bank.controller';
 import { Bank } from './bank/bank.entity';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
@@ -23,7 +24,7 @@ import { BankService } from './bank/bank.service';
     TransactionModule,
   ],
 
-  controllers: [BankAccountController, BankAccountAdminController],
+  controllers: [BankController, BankAccountController, BankAccountAdminController],
   providers: [BankAccountRepository, BankRepository, BankAccountService, BankService, IsDfxIbanValidator],
   exports: [BankAccountService, BankService],
 })

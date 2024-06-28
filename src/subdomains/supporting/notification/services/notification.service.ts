@@ -59,6 +59,8 @@ export class NotificationService {
         }),
         userData: request.input.userData,
       };
+
+      request.input.userData = undefined;
     }
 
     return {
