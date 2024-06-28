@@ -140,18 +140,10 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TxFeeDetails> {
     // get fee
     const minSpecs = this.getMinSpecs(from, to);
-    const fee = await this.getTxFee(
-      user,
-      paymentMethodIn,
-      paymentMethodOut,
-      from,
-      to,
-      inputReferenceAmount,
-      fromReference,
-      [],
-      false,
-    );
-    const networkStartFee = await this.getNetworkStartFee(to, user);
+    const [fee, networkStartFee] = await Promise.all([
+      this.getTxFee(user, paymentMethodIn, paymentMethodOut, from, to, inputReferenceAmount, fromReference, [], false),
+      this.getNetworkStartFee(to, false, user),
+    ]);
 
     const specs: TxSpec = {
       fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, networkStart: networkStartFee },
@@ -186,18 +178,20 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TransactionDetails> {
     // get fee
     const specs = this.getMinSpecs(from, to);
-    const fee = await this.getTxFee(
-      user,
-      paymentMethodIn,
-      paymentMethodOut,
-      from,
-      to,
-      targetAmount ?? sourceAmount,
-      targetAmount ? to : from,
-      discountCodes,
-      true,
-    );
-    const networkStartFee = allowExpiredPrice ? undefined : await this.getNetworkStartFee(to, user);
+    const [fee, networkStartFee] = await Promise.all([
+      this.getTxFee(
+        user,
+        paymentMethodIn,
+        paymentMethodOut,
+        from,
+        to,
+        targetAmount ?? sourceAmount,
+        targetAmount ? to : from,
+        discountCodes,
+        true,
+      ),
+      this.getNetworkStartFee(to, allowExpiredPrice, user),
+    ]);
 
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
@@ -282,8 +276,9 @@ export class TransactionHelper implements OnModuleInit {
     return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
   }
 
-  private async getNetworkStartFee(to: Active, user?: User): Promise<number> {
+  private async getNetworkStartFee(to: Active, allowExpiredPrice: boolean, user?: User): Promise<number> {
     if (
+      allowExpiredPrice ||
       DisabledProcess(Process.NETWORK_START_FEE) ||
       !isAsset(to) ||
       to.type === AssetType.COIN ||
@@ -294,7 +289,7 @@ export class TransactionHelper implements OnModuleInit {
 
     try {
       const evmClient = this.evmRegistryService.getClient(to.blockchain);
-      const userBalance = await this.addressBalanceCache.get(user.address, () =>
+      const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
         evmClient.getNativeCoinBalanceForAddress(user.address),
       );
 
