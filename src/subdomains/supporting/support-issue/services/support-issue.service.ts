@@ -36,34 +36,31 @@ export class SupportIssueService {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
-    let entity = this.supportIssueRepo.create({ userData, ...dto });
+    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
     // transaction issues
     if (dto.transaction) {
       if (dto.transaction.id) {
-        entity.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
+        newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
           user: { userData: true },
         });
-        if (!entity.transaction) throw new NotFoundException('Transaction not found');
-        if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
+        if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
+        if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
           throw new ForbiddenException('You can only create support issue for your own transaction');
       }
 
-      entity.additionalInformation = dto.transaction;
+      newIssue.additionalInformation = dto.transaction;
     }
 
-    const existing = await this.supportIssueRepo.exists({
-      where: {
-        userData: { id: userDataId },
-        type: entity.type,
-        information: entity.information,
-        reason: entity.reason,
-        state: Not(SupportIssueState.COMPLETED),
-      },
+    const existingIssue = await this.supportIssueRepo.findOneBy({
+      userData: { id: userDataId },
+      type: newIssue.type,
+      information: newIssue.information,
+      reason: newIssue.reason,
+      state: Not(SupportIssueState.COMPLETED),
     });
-    if (existing) throw new ConflictException('There is already a pending support issue');
 
-    entity = await this.supportIssueRepo.save(entity);
+    const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
 
     await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
   }
