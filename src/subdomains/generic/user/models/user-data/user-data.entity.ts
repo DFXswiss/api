@@ -584,7 +584,7 @@ export class UserData extends IEntity {
     return this.getStepsWith(stepName).some((s) => s.isDone);
   }
 
-  checkAndThrowMergeError(slave: UserData): void {
+  checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Master ${this.id} not allowed to merge. Wrong KYC type`);
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');

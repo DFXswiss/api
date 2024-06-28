@@ -500,7 +500,7 @@ export class UserDataService {
         ],
       }),
     ]);
-    master.checkAndThrowMergeError(slave);
+    master.checkIfMergePossibleWith(slave);
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),

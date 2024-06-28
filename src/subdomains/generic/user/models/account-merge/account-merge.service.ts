@@ -27,7 +27,7 @@ export class AccountMergeService {
   async sendMergeRequest(master: UserData, slave: UserData): Promise<boolean> {
     if (!slave.mail) return false;
     try {
-      master.checkAndThrowMergeError(slave);
+      master.checkIfMergePossibleWith(slave);
     } catch {
       return false;
     }
