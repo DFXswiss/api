@@ -32,8 +32,13 @@ export class SupportIssueService {
   ) {}
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
-    let entity = await this.create(userDataId, dto);
+    // mail is required
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData.mail) throw new BadRequestException('Mail is missing');
 
+    let entity = this.supportIssueRepo.create({ userData, ...dto });
+
+    // transaction issues
     if (dto.transaction) {
       if (dto.transaction.id) {
         entity.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
@@ -46,6 +51,17 @@ export class SupportIssueService {
 
       entity.additionalInformation = dto.transaction;
     }
+
+    const existing = await this.supportIssueRepo.exists({
+      where: {
+        userData: { id: userDataId },
+        type: entity.type,
+        information: entity.information,
+        reason: entity.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
+    });
+    if (existing) throw new ConflictException('There is already a pending support issue');
 
     entity = await this.supportIssueRepo.save(entity);
 
@@ -105,24 +121,5 @@ export class SupportIssueService {
       supportIssues,
       supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
     };
-  }
-
-  // --- HELPER METHODS --- //
-  private async create(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssue> {
-    const userData = await this.userDataService.getUserData(userDataId);
-    if (!userData.mail) throw new BadRequestException('Mail is missing');
-
-    const existing = await this.supportIssueRepo.exists({
-      where: {
-        userData: { id: userDataId },
-        type: dto.type,
-        transaction: { id: dto.transaction?.id },
-        reason: dto.reason,
-        state: Not(SupportIssueState.COMPLETED),
-      },
-    });
-    if (existing) throw new ConflictException('There is already a pending support issue');
-
-    return this.supportIssueRepo.create({ userData, ...dto });
   }
 }
