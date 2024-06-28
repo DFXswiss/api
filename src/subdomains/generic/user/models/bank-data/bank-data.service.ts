@@ -18,6 +18,7 @@ import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
@@ -59,14 +60,18 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
+    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
+      if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+      return;
+    }
     try {
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, active: true },
         relations: { userData: true },
       });
 
-      if (!existing && !entity.userData.verifiedName)
+      if (!entity.userData.verifiedName)
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
