@@ -265,8 +265,8 @@ export class BuyCryptoService {
       await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
     // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.buy?.user) {
-      await this.userService.activateUser(entity.buy.user);
+    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
+      await this.userService.activateUser(entity.user);
     }
 
     // create sift transaction
