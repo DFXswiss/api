@@ -7,11 +7,17 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { LessThan } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
-import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import {
+  KycIdentificationType,
+  KycLevel,
+  UserData,
+  UserDataStatus,
+} from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -503,10 +509,11 @@ export class KycService {
   // --- HELPER METHODS --- //
 
   private async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
+    const identificationType = getIdentificationType(result.identificationprocess?.companyid);
     if (
       result.userdata?.birthday?.value &&
       result.userdata?.nationality?.value &&
-      getIdentificationType(result.identificationprocess?.companyid) &&
+      identificationType &&
       result.identificationdocument?.type?.value &&
       result.identificationdocument?.number?.value
     ) {
@@ -524,7 +531,9 @@ export class KycService {
           kycLevel: KycLevel.LEVEL_30,
           birthday: new Date(result.userdata.birthday.value),
           nationality,
-          identificationType: getIdentificationType(result.identificationprocess.companyid),
+          identificationType,
+          bankTransactionVerification:
+            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: result.identificationdocument.type.value,
           identDocumentId: result.identificationdocument.number.value,
         });
