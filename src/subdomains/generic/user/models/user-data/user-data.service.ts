@@ -22,7 +22,8 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -37,7 +38,7 @@ import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -61,6 +62,7 @@ export class UserDataService {
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
+    private readonly documentStorageService: DocumentStorageService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -479,25 +481,23 @@ export class UserDataService {
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({
         where: { id: masterId },
-        relations: [
-          'users',
-          'users.wallet',
-          'bankDatas',
-          'bankAccounts',
-          'accountRelations',
-          'relatedAccountRelations',
-        ],
+        relations: {
+          users: { wallet: true },
+          bankDatas: true,
+          bankAccounts: true,
+          accountRelations: true,
+          relatedAccountRelations: true,
+        },
       }),
       this.userDataRepo.findOne({
         where: { id: slaveId },
-        relations: [
-          'users',
-          'users.wallet',
-          'bankDatas',
-          'bankAccounts',
-          'accountRelations',
-          'relatedAccountRelations',
-        ],
+        relations: {
+          users: { wallet: true },
+          bankDatas: true,
+          bankAccounts: true,
+          accountRelations: true,
+          relatedAccountRelations: true,
+        },
       }),
     ]);
     master.checkIfMergePossibleWith(slave);
@@ -513,6 +513,7 @@ export class UserDataService {
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
+      slave.kycSteps && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
     ]
@@ -534,13 +535,22 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+    master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
+    // copy all documents
+    await this.documentStorageService.copyFiles(slave.id, master.id);
+
+    // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.kycFileId = slave.kycFileId;
+    }
+    if (slave.kycSteps.some((k) => k.type === KycStepType.VIDEO && k.status === KycStepStatus.COMPLETED)) {
+      master.identificationType = KycIdentificationType.VIDEO_ID;
+      master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
     master.mail = slave.mail ?? master.mail;
 

@@ -49,6 +49,20 @@ export class DocumentStorageService {
     return this.storageService.getBlob(this.toFileId(userDataId, type, name));
   }
 
+  async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
+    const files = [
+      ...(await this.listUserFiles(sourceUserDataId)),
+      ...(await this.listSpiderFiles(sourceUserDataId, false)),
+      ...(await this.listSpiderFiles(sourceUserDataId, true)),
+    ];
+
+    for (const file of files) {
+      const [_, type, name] = this.fromFileId(file.name);
+      const blob = await this.downloadFile(sourceUserDataId, type, name);
+      await this.uploadFile(targetUserDataId, type, name, blob.data, file.contentType, file.metadata);
+    }
+  }
+
   // --- HELPER METHODS --- //
   private toFileId(userDataId: number, type: FileType, name: string): string {
     return `user/${userDataId}/${type}/${name}`;
