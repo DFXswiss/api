@@ -176,7 +176,7 @@ export class UserDataService {
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
-    await this.loadRelationsAndVerify(dto, dto);
+    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     await this.userDataRepo.update(userData.id, dto);
 
@@ -379,7 +379,7 @@ export class UserDataService {
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
         identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
       });
-      if (existing)
+      if (existing && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
   }
