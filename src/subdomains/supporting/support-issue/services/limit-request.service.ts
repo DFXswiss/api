@@ -5,11 +5,11 @@ import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.d
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { KycLevel } from '../../user/models/user-data/user-data.entity';
-import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { LimitRequestDto } from '../dto/input/limit-request.dto';
-import { UpdateLimitRequestDto } from '../dto/input/update-limit-request.dto';
+import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
+import { UserDataService } from '../../../generic/user/models/user-data/user-data.service';
+import { WebhookService } from '../../../generic/user/services/webhook/webhook.service';
+import { LimitRequestDto, LimitRequestInternalDto } from '../dto/limit-request.dto';
+import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
 
@@ -25,30 +25,35 @@ export class LimitRequestService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async increaseLimit(dto: LimitRequestDto, kycHash: string, userDataId?: number): Promise<void> {
+  async increaseLimit(dto: LimitRequestDto, kycHash?: string, userDataId?: number): Promise<void> {
     // get user data
     const user = userDataId
       ? await this.userDataService.getUserData(userDataId)
       : await this.userDataService.getByKycHashOrThrow(kycHash);
 
-    if (user.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
-
-    // create entity
-    let entity = this.limitRequestRepo.create(dto);
-    entity.userData = user;
-
     // upload document proof
     if (dto.documentProof) {
       const { contentType, buffer } = Util.fromBase64(dto.documentProof);
 
-      entity.documentProofUrl = await this.storageService.uploadFile(
+      const documentProofUrl = await this.storageService.uploadFile(
         user.id,
         FileType.USER_NOTES,
         `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
         buffer,
         contentType as ContentType,
       );
+
+      return this.increaseLimitInternal({ ...dto, documentProofUrl }, user);
     }
+
+    return this.increaseLimitInternal(dto, user);
+  }
+
+  async increaseLimitInternal(dto: LimitRequestInternalDto, userData: UserData): Promise<void> {
+    if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
+
+    // create entity
+    let entity = this.limitRequestRepo.create({ ...dto, userData });
 
     // save
     entity = await this.limitRequestRepo.save(entity);
