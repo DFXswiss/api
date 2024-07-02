@@ -319,7 +319,7 @@ export class UserDataService {
   }
 
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
+    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
   }
 
   private async loadRelationsAndVerify(

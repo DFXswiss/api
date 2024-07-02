@@ -69,7 +69,7 @@ export class BuyCryptoRegistrationService {
   private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, Swap][]): Promise<void> {
     for (const [payIn, cryptoRoute] of payInsPairs) {
       try {
-        const alreadyExists = await this.buyCryptoRepo.exist({ where: { cryptoInput: { id: payIn.id } } });
+        const alreadyExists = await this.buyCryptoRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);

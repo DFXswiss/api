@@ -84,13 +84,11 @@ export class TfaService {
   }
 
   async checkVerification(user: UserData, ip: string) {
-    const isVerified = await this.tfaRepo.exist({
-      where: {
-        userData: { id: user.id },
-        ipAddress: ip,
-        comment: TfaComment.VERIFIED,
-        created: MoreThan(Util.hoursBefore(TfaValidityHours)),
-      },
+    const isVerified = await this.tfaRepo.existsBy({
+      userData: { id: user.id },
+      ipAddress: ip,
+      comment: TfaComment.VERIFIED,
+      created: MoreThan(Util.hoursBefore(TfaValidityHours)),
     });
     if (!isVerified) throw new ForbiddenException('2FA required');
   }
