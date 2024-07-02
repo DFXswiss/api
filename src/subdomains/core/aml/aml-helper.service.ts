@@ -109,6 +109,9 @@ export class AmlHelperService {
         case AmlRule.RULE_4:
           if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
+        case AmlRule.RULE_5:
+          if (ibanCountry.symbol === 'AE') errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
+          break;
       }
 
       if (entity.bankTx) {
