@@ -11,6 +11,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -31,6 +32,7 @@ export class BankDataService {
     private readonly bankDataRepo: BankDataRepository,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly nameCheckService: NameCheckService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -63,6 +65,9 @@ export class BankDataService {
     if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
       if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
+      if (entity.type === BankDataType.IDENT) await this.nameCheckService.closeAndRefreshRiskStatus(entity);
+
       return;
     }
     try {
