@@ -44,7 +44,8 @@ export class AmlHelperService {
     } else if (!entity.userData.verifiedCountry.fatfEnable) {
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
     }
-    if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
+    if (ibanCountry && (!ibanCountry.fatfEnable || ibanCountry.symbol === 'AE'))
+      errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
@@ -108,9 +109,6 @@ export class AmlHelperService {
           break;
         case AmlRule.RULE_4:
           if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
-          break;
-        case AmlRule.RULE_5:
-          if (ibanCountry.symbol === 'AE') errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
           break;
       }
 
