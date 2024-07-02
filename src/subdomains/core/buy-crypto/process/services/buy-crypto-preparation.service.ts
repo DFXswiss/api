@@ -120,9 +120,12 @@ export class BuyCryptoPreparationService {
         const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
-        const ibanCountry = entity.bankTx?.iban
-          ? await this.countryService.getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
-          : undefined;
+        const ibanCountry =
+          entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry
+            ? await this.countryService.getCountryWithSymbol(
+                entity.bankTx?.iban.substring(0, 2) ?? entity.checkoutTx.cardIssuerCountry,
+              )
+            : undefined;
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
