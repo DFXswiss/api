@@ -81,7 +81,7 @@ export class BuyFiatRegistrationService {
           where: { id: sellIdentifier.id },
         });
 
-        const alreadyExists = await this.buyFiatRepo.exist({ where: { cryptoInput: { id: payIn.id } } });
+        const alreadyExists = await this.buyFiatRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
