@@ -165,6 +165,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
+
   // Pass
   @Column({ type: 'datetime2', nullable: true })
   priceDefinitionAllowedDate: Date;
