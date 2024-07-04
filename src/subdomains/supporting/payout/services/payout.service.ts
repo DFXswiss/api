@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -34,6 +34,8 @@ export class PayoutService {
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {
+      if (request.amount < 0) throw new BadRequestException('Amount is lower 0');
+
       const order = this.payoutOrderFactory.createOrder(request);
 
       await this.payoutOrderRepo.save(order);
