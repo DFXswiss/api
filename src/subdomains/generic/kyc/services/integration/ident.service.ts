@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -9,7 +14,7 @@ import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
 import { IdentResultDto } from '../../dto/input/ident-result.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepType } from '../../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class IdentService {
@@ -21,6 +26,10 @@ export class IdentService {
 
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
+
+    const pendingVideoIdent = user.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
+    if (pendingVideoIdent.status !== KycStepStatus.CANCELED && kycStep.type === KycStepType.VIDEO)
+      throw new BadRequestException('You cannot start another video ident');
 
     const data = {
       firstname: user.firstname,
