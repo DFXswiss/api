@@ -70,7 +70,8 @@
                 "high_risk_blocked_checkout": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
                 "fee_too_high": "Las tarifas de la red son actualmente demasiado altas para la cantidad que has enviado",
                 "receiver_rejected_tx": "El nodo receptor ha rechazado la transacción",
-                "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada"
+                "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada",
+                "chf_abroad_tx": "No se pueden pagar CHF a IBAN extranjeros"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },

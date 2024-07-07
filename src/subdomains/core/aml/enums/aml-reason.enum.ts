@@ -21,6 +21,7 @@ export enum AmlReason {
   FEE_TOO_HIGH = 'FeeTooHigh',
   RECEIVER_REJECTED_TX = 'ReceiverRejectedTx',
   CHARGEBACK_NOT_POSSIBLE_NO_IBAN = 'ChargebackNotPossibleNoIban',
+  CHF_ABROAD_TX = 'ChfAbroadTx',
 }
 
 export const KycAmlReasons = [
