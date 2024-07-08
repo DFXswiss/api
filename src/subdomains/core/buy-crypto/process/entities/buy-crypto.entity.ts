@@ -168,6 +168,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
 
+  @Column({ length: 256, nullable: true })
+  chargebackIban: string;
+
   // Pass
   @Column({ type: 'datetime2', nullable: true })
   priceDefinitionAllowedDate: Date;
@@ -474,6 +477,7 @@ export class BuyCrypto extends IEntity {
       recipientMail: null,
       status: BuyCryptoStatus.CREATED,
       comment: null,
+      chargebackIban: null,
     };
 
     Object.assign(this, update);

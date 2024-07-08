@@ -168,4 +168,8 @@ export class UpdateBuyCryptoDto {
   @IsDate()
   @Type(() => Date)
   chargebackAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  chargebackIban: string;
 }

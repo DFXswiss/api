@@ -54,14 +54,18 @@ export class NameCheckService implements OnModuleInit {
     }
 
     for (const sanction of sanctionData.found_records) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanction), RiskStatus.SANCTIONED);
+      await this.createNameCheckLog(
+        bankData,
+        JSON.stringify(sanction),
+        !sanction.date_of_birth?.length ? RiskStatus.MATCH_WITHOUT_BIRTHDAY : RiskStatus.SANCTIONED,
+      );
     }
 
     return RiskStatus.SANCTIONED;
   }
 
   async hasOpenNameChecks(userData: UserData): Promise<boolean> {
-    return this.nameCheckLogRepo.exist({
+    return this.nameCheckLogRepo.exists({
       where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
       relations: { userData: true },
     });
