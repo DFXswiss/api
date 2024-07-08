@@ -375,13 +375,10 @@ export class BuyCrypto extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
-    maxNetworkFee: number,
+    feeConstraints: BuyCryptoFee,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
-
-    const feeConstraints = this.fee ?? BuyCryptoFee.create(this);
-    feeConstraints.allowedTotalFeeAmount = maxNetworkFee;
 
     const update: Partial<BuyCrypto> =
       inputReferenceAmountMinusFee < 0
