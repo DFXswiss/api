@@ -203,7 +203,7 @@ export class TransactionDtoMapper {
     if (entity.percentFee == null) return null;
 
     const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
-    const networkStartFee = (entity instanceof BuyCrypto && entity.networkStartFeeAmount) ?? 0;
+    const networkStartFee = (entity instanceof BuyCrypto && entity.networkStartFeeAmount) || 0;
     const blockchainFee = entity.blockchainFee ?? 0;
 
     return {
@@ -216,7 +216,7 @@ export class TransactionDtoMapper {
         entity.minFeeAmount != null
           ? Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : null,
-      network: blockchainFee ? Util.roundReadable(blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)) : 0,
+      network: Util.roundReadable(blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)),
       dfx:
         entity.totalFeeAmount != null
           ? Util.roundReadable(
@@ -228,9 +228,7 @@ export class TransactionDtoMapper {
         entity.totalFeeAmount != null
           ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : null,
-      networkStart: networkStartFee
-        ? Util.roundReadable(networkStartFee * referencePrice, isFiat(entity.inputAssetEntity))
-        : 0,
+      networkStart: Util.roundReadable(networkStartFee * referencePrice, isFiat(entity.inputAssetEntity)),
     };
   }
 }
