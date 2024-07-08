@@ -33,9 +33,8 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
 
-    if (kycStep.isCompleted) {
-      if (kycStep.name === KycStepName.IDENT)
-        kycStep.userData = await this.kycService.completeIdent(kycStep.getResult<IdentResultDto>(), kycStep.userData);
+    if (kycStep.name === KycStepName.IDENT && kycStep.isCompleted) {
+      kycStep.userData = await this.kycService.completeIdent(kycStep.getResult<IdentResultDto>(), kycStep.userData);
 
       if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
         await this.bankDataService.createBankData(kycStep.userData, {
