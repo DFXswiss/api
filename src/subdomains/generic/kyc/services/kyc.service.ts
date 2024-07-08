@@ -531,6 +531,7 @@ export class KycService {
           kycLevel: KycLevel.LEVEL_30,
           birthday: new Date(result.userdata.birthday.value),
           nationality,
+          verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
