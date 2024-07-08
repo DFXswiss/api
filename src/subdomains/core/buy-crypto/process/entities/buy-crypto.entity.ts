@@ -228,7 +228,7 @@ export class BuyCrypto extends IEntity {
             ),
           ]
         : [];
-    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...(price.steps ?? [])];
+    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...price.steps];
     return this;
   }
 
