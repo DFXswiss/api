@@ -2,11 +2,6 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -34,12 +29,10 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   abstract get blockchain(): Blockchain;
 
-  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | Swap): Promise<CheckStatus> | CheckStatus;
-
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
-    await this.payInService.createPayIns(transactions);
+    const payIns = await this.payInService.createPayIns(transactions);
 
-    log.newRecords.push(...transactions.map((p) => ({ address: p.address.address, txId: p.txId })));
+    log.newRecords.push(...payIns.map((p) => ({ address: p.address.address, txId: p.inTxId })));
   }
 
   protected createNewLogObject(): PayInInputLog {

@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { Transaction, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -27,6 +31,9 @@ export class BuyCryptoOutService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly siftService: SiftService,
+    private readonly assetService: AssetService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -56,7 +63,7 @@ export class BuyCryptoOutService {
       const transactionsToPayout = payingOutBatches
         .reduce((prev: BuyCrypto[], curr) => prev.concat(curr.transactions), [])
         .filter((r) => r.status === BuyCryptoStatus.READY_FOR_PAYOUT)
-        .sort((a, b) => (a.target.address > b.target.address ? 1 : -1));
+        .sort((a, b) => (a.targetAddress > b.targetAddress ? 1 : -1));
 
       const successfulRequests = [];
 
@@ -87,11 +94,12 @@ export class BuyCryptoOutService {
       },
       relations: {
         transactions: {
-          buy: { user: { userData: true, wallet: true } },
-          cryptoRoute: { user: { userData: true, wallet: true } },
+          buy: true,
+          cryptoRoute: true,
           cryptoInput: true,
           bankTx: true,
           checkoutTx: true,
+          transaction: { user: { userData: true, wallet: true } },
         },
       },
     });
@@ -103,10 +111,27 @@ export class BuyCryptoOutService {
       correlationId: transaction.id.toString(),
       asset: transaction.outputAsset,
       amount: transaction.outputAmount,
-      destinationAddress: transaction.target.address,
+      destinationAddress: transaction.targetAddress,
     };
 
     await this.payoutService.doPayout(request);
+
+    if (transaction.networkStartFeeAmount && !DisabledProcess(Process.NETWORK_START_FEE)) {
+      const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
+      const inputReferenceCurrency =
+        transaction.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(transaction.inputReferenceAsset));
+      const networkStartFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
+
+      const networkStartFeeRequest: PayoutRequest = {
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: `${transaction.id}-network-start-fee`,
+        asset: nativeAsset,
+        amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount),
+        destinationAddress: transaction.targetAddress,
+      };
+
+      await this.payoutService.doPayout(networkStartFeeRequest);
+    }
 
     transaction.payingOut();
     await this.buyCryptoRepo.save(transaction);
@@ -139,12 +164,10 @@ export class BuyCryptoOutService {
           tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
 
-          //update sift transaction status
-          await this.siftService.transaction({
-            $transaction_id: tx.id.toString(),
-            $transaction_status: TransactionStatus.SUCCESS,
-            $time: tx.updated.getTime(),
-          } as Transaction);
+          // create sift transaction
+          const siftResponse = await this.siftService.buyCryptoTransaction(tx, TransactionStatus.SUCCESS);
+          tx.siftResponse = JSON.stringify(siftResponse.score_response.scores);
+          await this.buyCryptoRepo.update(tx.id, { siftResponse: tx.siftResponse });
 
           // payment webhook
           await this.buyCryptoWebhookService.triggerWebhook(tx);

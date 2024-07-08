@@ -61,7 +61,7 @@ export class NameCheckService implements OnModuleInit {
   }
 
   async hasOpenNameChecks(userData: UserData): Promise<boolean> {
-    return this.nameCheckLogRepo.exist({
+    return this.nameCheckLogRepo.exists({
       where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
       relations: { userData: true },
     });

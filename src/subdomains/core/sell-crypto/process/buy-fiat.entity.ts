@@ -9,8 +9,7 @@ import { MailTranslationKey } from 'src/subdomains/supporting/notification/facto
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -89,6 +88,9 @@ export class BuyFiat extends IEntity {
   @Column({ nullable: true })
   highRisk: boolean;
 
+  @Column({ length: 256, nullable: true })
+  amlResponsible: string;
+
   // Fee
   @Column({ length: 256, nullable: true })
   usedFees: string; // Semicolon separated id's
@@ -131,6 +133,9 @@ export class BuyFiat extends IEntity {
   mailReturnSendDate: Date;
 
   // Pass
+  @Column({ type: 'datetime2', nullable: true })
+  priceDefinitionAllowedDate: Date;
+
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
@@ -142,6 +147,9 @@ export class BuyFiat extends IEntity {
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputAsset: Fiat;
+
+  @Column({ length: 'MAX', nullable: true })
+  priceSteps: string;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
@@ -174,22 +182,15 @@ export class BuyFiat extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
-  @OneToOne(() => TransactionRequest, { nullable: true })
-  @JoinColumn()
-  transactionRequest: TransactionRequest;
-
-  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
   transaction: Transaction;
-
-  @Column({ length: 256, nullable: true })
-  externalTransactionId: string;
 
   // --- ENTITY METHODS --- //
 
   pendingMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mail2SendDate: new Date(),
     };
 
@@ -200,7 +201,7 @@ export class BuyFiat extends IEntity {
 
   returnMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
     };
 
@@ -211,7 +212,7 @@ export class BuyFiat extends IEntity {
 
   fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mail3SendDate: new Date(),
     };
 
@@ -256,12 +257,15 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, outputAssetEntity: Fiat): UpdateResult<BuyFiat> {
+  setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
       outputAsset: outputAssetEntity,
       outputReferenceAsset: outputAssetEntity,
+      priceSteps: this.priceSteps,
     };
 
     Object.assign(this, update);
@@ -275,6 +279,7 @@ export class BuyFiat extends IEntity {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
@@ -287,6 +292,7 @@ export class BuyFiat extends IEntity {
       last24hVolume,
       last7dVolume,
       last30dVolume,
+      last365dVolume,
       bankData,
       blacklist,
     );
@@ -329,6 +335,7 @@ export class BuyFiat extends IEntity {
       cryptoReturnTxId: null,
       cryptoReturnDate: null,
       mailReturnSendDate: null,
+      comment: null,
     };
 
     Object.assign(this, update);
@@ -347,7 +354,7 @@ export class BuyFiat extends IEntity {
   }
 
   get user(): User {
-    return this.sell.user;
+    return this.transaction.user;
   }
 
   get userData(): UserData {
@@ -358,20 +365,20 @@ export class BuyFiat extends IEntity {
     this.user.userData = userData;
   }
 
-  get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {
-    return {
-      address: this.sell.iban,
-      asset: this.sell.fiat,
-      trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
-    };
-  }
-
   get noCommunication(): boolean {
     return this.amlReason === AmlReason.NO_COMMUNICATION;
   }
 
   get inputMailTranslationKey(): MailTranslationKey {
     return MailTranslationKey.CRYPTO_INPUT;
+  }
+
+  get priceStepsObject(): PriceStep[] {
+    return this.priceSteps ? JSON.parse(this.priceSteps) : [];
+  }
+
+  set priceStepsObject(priceSteps: PriceStep[]) {
+    this.priceSteps = JSON.stringify(priceSteps);
   }
 }
 

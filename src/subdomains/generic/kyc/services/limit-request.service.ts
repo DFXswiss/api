@@ -58,7 +58,7 @@ export class LimitRequestService {
         type: MailType.INTERNAL,
         context: MailContext.LIMIT_REQUEST,
         input: {
-          to: 'liq@dfx.swiss',
+          to: 'limitRequest@dfx.swiss',
           title: 'LimitRequest',
           salutation: { key: 'New LimitRequest' },
           prefix: [
@@ -89,5 +89,9 @@ export class LimitRequestService {
     Util.removeNullFields(entity);
 
     return this.limitRequestRepo.save({ ...update, ...entity });
+  }
+
+  async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {
+    return this.limitRequestRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 }

@@ -109,6 +109,7 @@ export class SellController {
       error,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -133,6 +134,7 @@ export class SellController {
       feesTarget: feeTarget,
       maxVolume,
       maxVolumeTarget,
+      priceSteps,
       isValid,
       error,
     };
@@ -230,6 +232,7 @@ export class SellController {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
+      timestamp,
       minVolume,
       minVolumeTarget,
       maxVolume,
@@ -243,6 +246,7 @@ export class SellController {
       exactPrice,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -256,6 +260,7 @@ export class SellController {
 
     const sellDto: SellPaymentInfoDto = {
       id: 0, // set during request creation
+      timestamp,
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
@@ -269,9 +274,11 @@ export class SellController {
       exchangeRate,
       rate,
       exactPrice,
+      priceSteps,
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.toDto(dto.currency),
+      beneficiary: { name: user.userData.verifiedName, iban: sell.iban },
       asset: AssetDtoMapper.toDto(dto.asset),
       maxVolume,
       maxVolumeTarget,

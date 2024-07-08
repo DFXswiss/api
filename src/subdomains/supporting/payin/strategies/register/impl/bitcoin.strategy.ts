@@ -6,12 +6,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { RegisterStrategy } from './base/register.strategy';
@@ -26,12 +20,6 @@ export class BitcoinStrategy extends RegisterStrategy {
 
   get blockchain(): Blockchain {
     return Blockchain.BITCOIN;
-  }
-
-  //*** PUBLIC API ***//
-
-  async doAmlCheck(_: CryptoInput, route: Staking | Sell | Swap): Promise<CheckStatus> {
-    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   //*** JOBS ***//
@@ -58,28 +46,9 @@ export class BitcoinStrategy extends RegisterStrategy {
   private async getNewEntries(): Promise<PayInEntry[]> {
     await this.bitcoinService.checkHealthOrThrow();
 
-    const allUtxos = await this.bitcoinService.getUtxo();
-    const newUtxos = await this.filterOutExistingUtxos(allUtxos);
+    const utxos = await this.bitcoinService.getUtxo();
 
-    return this.mapUtxosToEntries(newUtxos);
-  }
-
-  private async filterOutExistingUtxos(allUtxos: UTXO[]): Promise<UTXO[]> {
-    const inputs = [];
-
-    for (const utxo of allUtxos) {
-      const existingInput = await this.payInRepository.findOneBy({
-        inTxId: utxo.txid,
-        txSequence: utxo.vout,
-        address: { address: utxo.address },
-      });
-
-      if (existingInput) continue;
-
-      inputs.push(utxo);
-    }
-
-    return inputs;
+    return this.mapUtxosToEntries(utxos);
   }
 
   private async mapUtxosToEntries(utxos: UTXO[]): Promise<PayInEntry[]> {

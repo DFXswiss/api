@@ -101,7 +101,7 @@ export class CoinTrackingHistoryDtoMapper {
           buyCrypto.inputAmount &&
           buyCrypto.outputAmount &&
           buyCrypto.inputAsset &&
-          buyCrypto.bankTx &&
+          (buyCrypto.bankTx || buyCrypto.checkoutTx) &&
           buyCrypto.outputDate &&
           buyCrypto.txId &&
           buyCrypto.buy,
@@ -119,7 +119,9 @@ export class CoinTrackingHistoryDtoMapper {
           tradeGroup: null,
           comment: 'DFX Purchase',
           date: buyCrypto.outputDate ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount) : null,
-          txid: buyCrypto.bankTx?.id.toString(),
+          txid:
+            buyCrypto.bankTx?.id.toString() ??
+            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx?.id.toString()}` : undefined),
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: null,
         },

@@ -5,6 +5,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -27,6 +28,7 @@ export class BuyFiatPreparationService {
     private readonly buyFiatService: BuyFiatService,
     private readonly amlService: AmlService,
     private readonly userService: UserService,
+    private readonly payInService: PayInService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -40,7 +42,8 @@ export class BuyFiatPreparationService {
       },
       relations: {
         cryptoInput: true,
-        sell: { user: { wallet: true, userData: { users: true } } },
+        sell: true,
+        transaction: { user: { wallet: true, userData: { users: true } } },
       },
     });
     if (entities.length === 0) return;
@@ -54,7 +57,7 @@ export class BuyFiatPreparationService {
 
     for (const entity of entities) {
       try {
-        if (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck) continue;
+        if (!entity.cryptoInput.isConfirmed) continue;
 
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
@@ -93,7 +96,17 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
+        const last365dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(365, entity.transaction.created),
+          Util.daysAfter(365, entity.transaction.created),
+          entity.userData.users,
+        );
+
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(
@@ -102,10 +115,13 @@ export class BuyFiatPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
+            last365dVolume,
             bankData,
             blacklist,
           ),
         );
+
+        await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
@@ -123,7 +139,7 @@ export class BuyFiatPreparationService {
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
+      relations: { sell: true, cryptoInput: true, transaction: { user: { wallet: true, userData: true } } },
     });
 
     // CHF/EUR Price
@@ -141,7 +157,7 @@ export class BuyFiatPreparationService {
           entity.sell.fiat,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
-          entity.sell.user,
+          entity.user,
         );
 
         const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
@@ -162,7 +178,7 @@ export class BuyFiatPreparationService {
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.sell.user.userData);
+          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
         }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
@@ -180,8 +196,9 @@ export class BuyFiatPreparationService {
         isComplete: false,
         inputReferenceAmountMinusFee: Not(IsNull()),
         outputAmount: IsNull(),
+        priceDefinitionAllowedDate: Not(IsNull()),
       },
-      relations: ['sell', 'cryptoInput'],
+      relations: { sell: true, cryptoInput: true },
     });
 
     for (const entity of entities) {
@@ -191,7 +208,7 @@ export class BuyFiatPreparationService {
         const price = await this.pricingService.getPrice(asset, currency, false);
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency),
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency, price.steps),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);

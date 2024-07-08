@@ -29,7 +29,7 @@ export enum Process {
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
   AUTO_AML_CHECK = 'AutoAmlCheck',
-  BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
+  BUY_CRYPTO_REFRESH_FEE = 'BuyCryptoRefreshFee',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
   TFA_CACHE = '2faCache',
@@ -45,6 +45,8 @@ export enum Process {
   SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
   BANK_DATA_VERIFICATION = 'BankDataVerification',
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
+  SYNCHRONIZE_TRANSACTION_USER = 'SynchronizeTransactionUser',
+  NETWORK_START_FEE = 'NetworkStartFee',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

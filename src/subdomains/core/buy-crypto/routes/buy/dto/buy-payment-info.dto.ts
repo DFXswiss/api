@@ -4,10 +4,14 @@ import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class BankInfoDto {
   @ApiProperty()
   name: string;
+
+  @ApiProperty()
+  bank: string;
 
   @ApiProperty()
   street: string;
@@ -37,6 +41,9 @@ export class BankInfoDto {
 export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
+
+  @ApiProperty({ description: 'Price timestamp' })
+  timestamp: Date;
 
   @ApiProperty()
   routeId: number;
@@ -88,6 +95,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiProperty({ description: 'Exact or approximate price' })
   exactPrice: boolean;
+
+  @ApiProperty({ type: PriceStep, isArray: true })
+  priceSteps: PriceStep[];
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;

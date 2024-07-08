@@ -154,4 +154,13 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsNumber()
   blockchainFee: number;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  priceDefinitionAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  amlResponsible: string;
 }

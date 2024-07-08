@@ -28,6 +28,7 @@ export enum AmlError {
   NAME_CHECK_WITH_BIRTHDAY = 'NameCheckWithBirthday',
   WEEKLY_LIMIT_REACHED = 'WeeklyLimitReached',
   MONTHLY_LIMIT_REACHED = 'MonthlyLimitReached',
+  YEARLY_LIMIT_WO_KYC_REACHED = 'YearlyLimitWoKycReached',
   DEPOSIT_LIMIT_REACHED = 'DepositLimitReached',
   BANK_DATA_MISSING = 'BankDataMissing',
   BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
@@ -35,7 +36,6 @@ export enum AmlError {
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
   CARD_BLACKLISTED = 'CardBlacklisted',
-  INPUT_AML_CHECK_FAILED = 'InputAmlFailed',
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
   SUSPICIOUS_MAIL = 'SuspiciousMail',
@@ -108,6 +108,11 @@ export const AmlErrorResult: {
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
+  [AmlError.YEARLY_LIMIT_WO_KYC_REACHED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+  },
   [AmlError.DEPOSIT_LIMIT_REACHED]: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
@@ -123,7 +128,6 @@ export const AmlErrorResult: {
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.CARD_BLACKLISTED]: null,
-  [AmlError.INPUT_AML_CHECK_FAILED]: null,
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,

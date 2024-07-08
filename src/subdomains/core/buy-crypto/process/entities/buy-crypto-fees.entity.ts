@@ -42,13 +42,11 @@ export class BuyCryptoFee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  static create(transaction: BuyCrypto, totalFeeAmount: number): BuyCryptoFee {
+  static create(transaction: BuyCrypto): BuyCryptoFee {
     const entity = new BuyCryptoFee();
 
     entity.buyCrypto = transaction;
     entity.feeReferenceAsset = transaction.outputReferenceAsset;
-
-    entity.allowedTotalFeeAmount = totalFeeAmount;
 
     return entity;
   }

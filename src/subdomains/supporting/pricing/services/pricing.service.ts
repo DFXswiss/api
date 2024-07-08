@@ -11,7 +11,7 @@ import { NotificationService } from '../../notification/services/notification.se
 import { Price } from '../domain/entities/price';
 import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.entity';
 import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
-import { PricingProvider } from '../domain/interfaces';
+import { PricingProviderMap } from '../domain/interfaces';
 import { PriceRuleRepository } from '../repositories/price-rule.repository';
 import { CoinGeckoService } from './integration/coin-gecko.service';
 import { CurrencyService } from './integration/currency.service';
@@ -24,7 +24,7 @@ import { PricingFrankencoinService } from './integration/pricing-frankencoin.ser
 export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
-  private readonly providerMap: { [s in PriceSource]: PricingProvider };
+  private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
   private readonly updateCalls = new AsyncCache<PriceRule>(CacheItemResetPeriod.ALWAYS);
@@ -198,7 +198,7 @@ export class PricingService {
   }
 
   private joinRules(rules: PriceRule[]): Price {
-    return Price.join(...rules.map((r) => r.price));
+    return Price.join(...rules.map((r) => r.getPrice(this.providerMap)));
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {

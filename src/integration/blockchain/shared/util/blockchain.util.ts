@@ -18,7 +18,7 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
-  [Blockchain.BITCOIN]: 'https://explorer.lightning.space',
+  [Blockchain.BITCOIN]: 'https://mempool.space',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',

@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -15,9 +25,10 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
@@ -30,6 +41,7 @@ import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
+import { InvoiceDto } from './dto/invoice.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @ApiTags('Buy')
@@ -45,6 +57,7 @@ export class BuyController {
     private readonly checkoutService: CheckoutService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly fiatService: FiatService,
+    private readonly swissQrService: SwissQRService,
   ) {}
 
   @Get()
@@ -97,6 +110,7 @@ export class BuyController {
       feeTarget,
       isValid,
       error,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -121,6 +135,7 @@ export class BuyController {
       maxVolumeTarget,
       fees: feeSource,
       feesTarget: feeTarget,
+      priceSteps,
       isValid,
       error,
     };
@@ -143,6 +158,38 @@ export class BuyController {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     ).then((buy) => this.toPaymentInfoDto(jwt.user, buy, dto));
+  }
+
+  @Put('/paymentInfos/:id/invoice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse({ type: InvoiceDto })
+  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    const buy = await this.buyService.get(jwt.account, request.routeId);
+    const currency = await this.fiatService.getFiat(request.sourceId);
+    const bankInfo = await this.getBankInfo({
+      amount: request.amount,
+      currency: currency.name,
+      paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+      userData: request.user.userData,
+    });
+
+    if (currency.name !== 'CHF') throw new Error('PDF invoice is only available for CHF payments');
+
+    return {
+      invoicePdf: await this.swissQrService.createInvoice(
+        request.amount,
+        currency.name,
+        buy.bankUsage,
+        bankInfo,
+        request,
+      ),
+    };
   }
 
   @Put(':id')
@@ -200,6 +247,7 @@ export class BuyController {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
+      timestamp,
       minVolume,
       minVolumeTarget,
       maxVolume,
@@ -213,6 +261,7 @@ export class BuyController {
       exactPrice,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -223,10 +272,17 @@ export class BuyController {
       !dto.exactPrice,
       user,
     );
-    const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
+    const bankInfo = await this.getBankInfo({
+      amount: amount,
+      currency: dto.currency.name,
+      bankAccount: buy.bankAccount,
+      paymentMethod: dto.paymentMethod,
+      userData: user.userData,
+    });
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
+      timestamp,
       routeId: buy.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
@@ -239,6 +295,7 @@ export class BuyController {
       exchangeRate,
       rate,
       exactPrice,
+      priceSteps,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.toDto(dto.asset),
@@ -251,7 +308,7 @@ export class BuyController {
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
-      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
+      paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto) : undefined,
       // card info
       paymentLink:
         isValid && dto.paymentMethod === FiatPaymentMethod.CARD
@@ -278,18 +335,20 @@ export class BuyController {
   }
 
   // --- HELPER-METHODS --- //
-  private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
-    const bank = await this.bankService.getBank({
-      amount: dto.amount,
-      currency: dto.currency.name,
-      bankAccount: buy.bankAccount,
-      paymentMethod: dto.paymentMethod,
-      userData: buy.user.userData,
-    });
+  private async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto> {
+    const bank = await this.bankService.getBank(selector);
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+    return { ...Config.bank.dfxBankInfo, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+  }
+
+  private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
+    if (dto.currency.name === 'CHF') {
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
+    } else {
+      return this.generateGiroCode(buy, bankInfo, dto);
+    }
   }
 
   private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {

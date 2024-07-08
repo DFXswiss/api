@@ -6,6 +6,7 @@ export enum CacheItemResetPeriod {
   EVERY_30_SECONDS = 30,
   EVERY_1_MINUTE = 60,
   EVERY_5_MINUTES = 5 * 60,
+  EVERY_HOUR = 3600,
   EVERY_6_HOURS = 3600 * 6,
 }
 

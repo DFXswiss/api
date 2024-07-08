@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
 
 interface CheckoutBalanceData {
@@ -17,6 +18,12 @@ export interface CheckoutBalances {
   collateral: number;
   payable: number;
   pending: number;
+}
+
+export interface CheckoutReverse {
+  action_id: string;
+  reference: string;
+  _links: { payment: { href: string } };
 }
 
 @Injectable()
@@ -59,7 +66,7 @@ export class CheckoutService {
         description: remittanceInfo,
         success_url: `${Config.frontend.services}/buy/success`,
         cancel_url: `${Config.frontend.services}/buy`,
-        failure_url: `${Config.frontend.services}/buy`,
+        failure_url: `${Config.frontend.services}/buy/failure`,
       })
       .then((r: CheckoutHostedPayment) => r._links.redirect.href);
   }
@@ -85,8 +92,23 @@ export class CheckoutService {
     return payments.filter((p) => !(new Date(p.requested_on) < since));
   }
 
+  async getPaymentList(chargebackList: CheckoutTx[]): Promise<CheckoutPayment[]> {
+    const payments: CheckoutPayment[] = [];
+
+    for (const chargeback of chargebackList) {
+      const payment: CheckoutPayment = await this.checkout.payments.get(chargeback.paymentId);
+      payments.push(payment);
+    }
+
+    return payments;
+  }
+
   async getBalances(): Promise<CheckoutBalanceData[]> {
     const balance = await this.checkout.balances.retrieve(Config.checkout.entityId);
     return balance.data;
+  }
+
+  async refundPayment(paymentId: string): Promise<CheckoutReverse> {
+    return (await this.checkout.payments.refund(paymentId)) as CheckoutReverse;
   }
 }

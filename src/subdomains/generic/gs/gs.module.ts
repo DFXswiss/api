@@ -12,6 +12,7 @@ import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-out
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
+import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { UserModule } from '../user/user.module';
 import { GsEvmController } from './gs-evm.controller';
@@ -36,6 +37,7 @@ import { GsService } from './gs.service';
     FiatOutputModule,
     KycModule,
     TransactionModule,
+    SupportIssueModule,
   ],
   controllers: [GsController, GsEvmController],
   providers: [GsService, GsEvmService],

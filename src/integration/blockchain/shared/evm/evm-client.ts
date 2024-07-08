@@ -4,7 +4,7 @@ import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/mai
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
-import { AssetTransfersCategory } from 'alchemy-sdk';
+import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
@@ -85,7 +85,11 @@ export abstract class EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
+    return this.getNativeCoinBalanceForAddress(this.dfxAddress);
+  }
+
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, address);
 
     return EvmUtil.fromWeiAmount(balance);
   }
@@ -206,6 +210,10 @@ export abstract class EvmClient {
     return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit, nonce);
   }
 
+  async isPermitContract(address: string): Promise<boolean> {
+    return this.contractHasMethod(address, SIGNATURE_TRANSFER_ABI, 'permitTransferFrom');
+  }
+
   async permitTransfer(
     from: string,
     signature: string,
@@ -213,13 +221,14 @@ export abstract class EvmClient {
     asset: Asset,
     amount: number,
     permittedAmount: number,
+    to: string,
     nonce: number,
-    deadline: number,
+    deadline: BigNumberish,
   ): Promise<string> {
     const contract = new ethers.Contract(signatureTransferContract, SIGNATURE_TRANSFER_ABI, this.wallet);
 
     const token = await this.getToken(asset);
-    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
+    const requestedAmount = EvmUtil.toWeiAmount(amount, token.decimals);
     const permittedAmountWei = EvmUtil.toWeiAmount(permittedAmount, token.decimals);
 
     const values = {
@@ -231,10 +240,7 @@ export abstract class EvmClient {
       nonce,
       deadline,
     };
-    const transferDetails = {
-      to: this.dfxAddress,
-      requestedAmount: amountWei,
-    };
+    const transferDetails = { to, requestedAmount };
 
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(this.dfxAddress);
@@ -626,5 +632,11 @@ export abstract class EvmClient {
       tokenName: atr.asset,
       tokenDecimal: Number(atr.rawContract.decimal).toString(),
     }));
+  }
+
+  private async contractHasMethod(address: string, abi: any, method: string): Promise<boolean> {
+    const method_selector = new ethers.utils.Interface(abi).getSighash(method).substring(2);
+
+    return this.provider.getCode(address).then((code) => code.includes(method_selector));
   }
 }

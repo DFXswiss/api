@@ -111,6 +111,7 @@ export class Util {
 
   static isSameName(input1: string, input2: string): boolean {
     if (!input1 || !input2) return false;
+
     const array1 = this.removeSpecialChars(input1).split(' ');
     const array2 = this.removeSpecialChars(input2).split(' ');
 
@@ -129,19 +130,19 @@ export class Util {
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
-      .replace(/[ìíî]/g, 'i')
+      .replace(/[ìíîy]/g, 'i')
       .replace(/[úûùü]/g, 'u')
       .replace(/[áâåàä]/g, 'a')
       .replace(/[éèê]/g, 'e')
-      .replace(/[ö]/g, 'o')
+      .replace(/[öó]/g, 'o')
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
-      .replace(/[ñ]/g, 'n')
+      .replace(/[ñń]/g, 'n')
       .replace(/[ç]/g, 'c')
       .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '')
-      .replace(/[-]/g, ' ');
+      .replace(/[-‘`´']/g, ' ');
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
@@ -393,6 +394,14 @@ export class Util {
     const hash = createHash(algo);
     hash.update(data);
     return hash.digest(encoding);
+  }
+
+  static createObjectHash(
+    data: object,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    return this.createHash(JSON.stringify(data), algo, encoding);
   }
 
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {

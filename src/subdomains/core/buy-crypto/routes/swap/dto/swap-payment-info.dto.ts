@@ -4,10 +4,14 @@ import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class SwapPaymentInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
+
+  @ApiProperty({ description: 'Price timestamp' })
+  timestamp: Date;
 
   @ApiProperty()
   routeId: number;
@@ -62,6 +66,9 @@ export class SwapPaymentInfoDto {
 
   @ApiProperty({ description: 'Exact or approximate price' })
   exactPrice: boolean;
+
+  @ApiProperty({ type: PriceStep, isArray: true })
+  priceSteps: PriceStep[];
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;

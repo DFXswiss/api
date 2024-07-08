@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -10,7 +16,9 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { AccountMergeService } from '../account-merge/account-merge.service';
+import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
@@ -22,6 +30,7 @@ export class BankDataService {
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly specialAccountService: SpecialExternalAccountService,
+    private readonly accountMergeService: AccountMergeService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -32,10 +41,15 @@ export class BankDataService {
   }
 
   async checkUnverifiedBankDatas(): Promise<void> {
+    const search: FindOptionsWhere<BankData> = {
+      type: Not(In([BankDataType.IDENT, BankDataType.USER])),
+      comment: IsNull(),
+      userData: { verifiedName: Not(IsNull()) },
+    };
     const entities = await this.bankDataRepo.find({
       where: [
-        { active: false, type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
-        { active: IsNull(), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+        { ...search, active: false },
+        { ...search, active: IsNull() },
       ],
       relations: { userData: true },
     });
@@ -46,14 +60,18 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
+    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
+      if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+      return;
+    }
     try {
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, active: true },
         relations: { userData: true },
       });
 
-      if (!existing && !entity.userData.verifiedName)
+      if (!entity.userData.verifiedName)
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
@@ -108,7 +126,7 @@ export class BankDataService {
     // update updated time in user data
     await this.userDataRepo.setNewUpdateTime(userData.id);
 
-    userData.bankDatas.push(bankData);
+    userData.bankDatas?.push(bankData);
     return userData;
   }
 
@@ -187,13 +205,23 @@ export class BankDataService {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
-    const existing = await this.bankDataRepo.exist({
+    const existing = await this.bankDataRepo.findOne({
       where: [
         { iban, active: true },
         { iban, active: IsNull() },
       ],
+      relations: { userData: true },
     });
-    if (existing) throw new ConflictException('IBAN already exists');
+    if (existing) {
+      const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+      if (userData.id === existing.userData.id) return;
+
+      if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
+        throw new ForbiddenException('IBAN already in use');
+
+      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(existing.userData, userData);
+      throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
+    }
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },

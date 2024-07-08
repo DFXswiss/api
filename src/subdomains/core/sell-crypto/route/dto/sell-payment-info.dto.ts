@@ -5,10 +5,22 @@ import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+
+export class BeneficiaryDto {
+  @ApiProperty()
+  iban: string;
+
+  @ApiPropertyOptional()
+  name?: string;
+}
 
 export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
+
+  @ApiProperty({ description: 'Price timestamp' })
+  timestamp: Date;
 
   @ApiProperty()
   routeId: number;
@@ -64,11 +76,17 @@ export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Exact or approximate price' })
   exactPrice: boolean;
 
+  @ApiProperty({ type: PriceStep, isArray: true })
+  priceSteps: PriceStep[];
+
   @ApiProperty({ description: 'Estimated amount in target currency' })
   estimatedAmount: number;
 
   @ApiProperty({ type: FiatDto, description: 'Target currency' })
   currency: FiatDto;
+
+  @ApiProperty({ type: BeneficiaryDto, description: 'Bank transaction beneficiary' })
+  beneficiary: BeneficiaryDto;
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
   paymentRequest?: string;

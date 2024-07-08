@@ -19,9 +19,8 @@ import {
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -109,6 +108,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
+  @Column({ length: 256, nullable: true })
+  amlResponsible: string;
+
   // Check
   @Column({ length: 256, nullable: true })
   amlCheck: CheckStatus;
@@ -145,6 +147,9 @@ export class BuyCrypto extends IEntity {
   absoluteFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
+  networkStartFeeAmount: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
   @Column({ type: 'float', nullable: true })
@@ -161,6 +166,9 @@ export class BuyCrypto extends IEntity {
   chargebackCryptoTxId: string;
 
   // Pass
+  @Column({ type: 'datetime2', nullable: true })
+  priceDefinitionAllowedDate: Date;
+
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
@@ -173,6 +181,9 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset: Asset;
 
+  @Column({ length: 'MAX', nullable: true })
+  priceSteps: string;
+
   // Transaction details
   @Column({ length: 256, nullable: true })
   txId: string;
@@ -180,7 +191,7 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, default: BuyCryptoStatus.CREATED })
   status: BuyCryptoStatus;
 
   @Column({ default: false })
@@ -189,21 +200,29 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
-  @OneToOne(() => TransactionRequest, { nullable: true })
-  @JoinColumn()
-  transactionRequest: TransactionRequest;
-
-  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
   transaction: Transaction;
 
-  @Column({ length: 256, nullable: true })
-  externalTransactionId: string;
+  @Column({ length: 'MAX', nullable: true })
+  siftResponse: string;
 
   // --- ENTITY METHODS --- //
 
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
+    const inputPriceStep =
+      this.inputAsset !== this.inputReferenceAsset
+        ? [
+            PriceStep.create(
+              'Bank',
+              this.inputAsset,
+              this.inputReferenceAsset,
+              this.inputAmount / this.inputReferenceAmount,
+            ),
+          ]
+        : [];
+    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...(price.steps ?? [])];
     return this;
   }
 
@@ -356,16 +375,18 @@ export class BuyCrypto extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
-    feeConstraints: BuyCryptoFee,
+    maxNetworkFee: number,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
+
+    const feeConstraints = this.fee ?? BuyCryptoFee.create(this);
+    feeConstraints.allowedTotalFeeAmount = maxNetworkFee;
 
     const update: Partial<BuyCrypto> =
       inputReferenceAmountMinusFee < 0
         ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH, mailSendDate: null }
         : {
-            status: BuyCryptoStatus.CREATED,
             absoluteFeeAmount: fee.fixed,
             percentFee: fee.rate,
             percentFeeAmount: fee.rate * this.inputReferenceAmount,
@@ -382,6 +403,7 @@ export class BuyCrypto extends IEntity {
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             fee: feeConstraints,
+            networkStartFeeAmount: fee.networkStart,
           };
 
     Object.assign(this, update);
@@ -395,6 +417,7 @@ export class BuyCrypto extends IEntity {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks: Bank[],
@@ -409,6 +432,7 @@ export class BuyCrypto extends IEntity {
       last24hVolume,
       last7dVolume,
       last30dVolume,
+      last365dVolume,
       bankData,
       blacklist,
       instantBanks,
@@ -445,7 +469,8 @@ export class BuyCrypto extends IEntity {
       txId: null,
       outputDate: null,
       recipientMail: null,
-      status: null,
+      status: BuyCryptoStatus.CREATED,
+      comment: null,
     };
 
     Object.assign(this, update);
@@ -474,7 +499,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get user(): User {
-    return this.buy ? this.buy.user : this.cryptoRoute.user;
+    return this.transaction.user;
   }
 
   get userData(): UserData {
@@ -493,18 +518,8 @@ export class BuyCrypto extends IEntity {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 
-  get target(): { address: string; asset: Asset; trimmedReturnAddress: string } {
-    return this.buy
-      ? {
-          address: this.buy.deposit?.address ?? this.buy.user.address,
-          asset: this.buy.asset,
-          trimmedReturnAddress: this.buy?.iban ? Util.blankStart(this.buy.iban) : null,
-        }
-      : {
-          address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
-          asset: this.cryptoRoute.asset,
-          trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
-        };
+  get targetAddress(): string {
+    return this.buy?.deposit?.address ?? this.cryptoRoute?.targetDeposit?.address ?? this.user.address;
   }
 
   get noCommunication(): boolean {
@@ -513,6 +528,14 @@ export class BuyCrypto extends IEntity {
 
   get inputMailTranslationKey(): MailTranslationKey {
     return this.isCryptoCryptoTransaction ? MailTranslationKey.CRYPTO_INPUT : MailTranslationKey.FIAT_INPUT;
+  }
+
+  get priceStepsObject(): PriceStep[] {
+    return this.priceSteps ? JSON.parse(this.priceSteps) : [];
+  }
+
+  set priceStepsObject(priceSteps: PriceStep[]) {
+    this.priceSteps = JSON.stringify(priceSteps);
   }
 
   get mailReturnReason(): string {
@@ -546,6 +569,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

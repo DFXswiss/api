@@ -25,6 +25,7 @@ export enum MailTranslationKey {
   FIAT_RETURN = 'mail.payment.return.fiat',
   REFERRAL = 'mail.referral',
   KYC = 'mail.kyc',
+  IDENT_STARTED = 'mail.kyc.identStarted',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
   KYC_REMINDER = 'mail.kyc.reminder',
@@ -139,7 +140,7 @@ export class MailFactory {
     const { correlationId, options } = request;
     const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
 
-    const lang = userData.language.symbol.toLowerCase();
+    const lang = userData.language.symbol;
 
     return new UserMail({
       to: userData.mail,
@@ -173,7 +174,7 @@ export class MailFactory {
     const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonalInput;
     const { correlationId, options } = request;
 
-    const lang = userData.language.symbol.toLowerCase();
+    const lang = userData.language.symbol;
 
     return new PersonalMail({
       to: userData.mail,
@@ -190,7 +191,7 @@ export class MailFactory {
   //*** TRANSLATION METHODS ***//
 
   private translate(key: string, lang: string, args?: any): string {
-    return this.i18n.translate(key, { lang, args });
+    return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
   }
 
   //*** MAIL BUILDING METHODS ***//

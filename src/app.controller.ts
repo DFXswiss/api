@@ -8,12 +8,12 @@ import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.
 import { AnnouncementDto } from './shared/dto/announcement.dto';
 import { FlagDto } from './shared/dto/flag.dto';
 import { SettingService } from './shared/models/setting/setting.service';
-import { HttpService } from './shared/services/http.service';
 import { Util } from './shared/utils/util';
 import { RefService } from './subdomains/core/referral/process/ref.service';
 
 enum App {
   BTC = 'btc',
+  FRANKENCOIN = 'frankencoin',
   EXCHANGE = 'exchange',
   LIGHTNING = 'lightning',
 }
@@ -21,6 +21,7 @@ enum App {
 enum Manufacturer {
   APPLE = 'Apple',
   GOOGLE = 'Google',
+  UNKNOWN = 'Unknown',
 }
 
 @Controller('')
@@ -33,16 +34,18 @@ export class AppController {
     [App.BTC]: {
       [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6466037617`,
       [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=swiss.dfx.bitcoin`,
+      [Manufacturer.UNKNOWN]: this.homepageUrl,
+    },
+    [App.FRANKENCOIN]: {
+      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6480348701`,
+      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=swiss.dfx.frankencoin_wallet`,
+      [Manufacturer.UNKNOWN]: 'https://frankencoin.app',
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
     [App.LIGHTNING]: 'https://lightning.dfx.swiss',
   };
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly refService: RefService,
-    private readonly settingService: SettingService,
-  ) {}
+  constructor(private readonly refService: RefService, private readonly settingService: SettingService) {}
 
   @Get()
   @Redirect('swagger')
@@ -168,12 +171,14 @@ export class AppController {
     }
   }
 
-  private getDeviceManufacturer(req: Request): Manufacturer | undefined {
+  private getDeviceManufacturer(req: Request): Manufacturer {
     const agent = new UserAgent().parse(req.headers['user-agent'] ?? '');
     if (agent.isAndroid) {
       return Manufacturer.GOOGLE;
     } else if (agent.isiPhone || agent.isiPad || agent.isiPod || agent.isMac) {
       return Manufacturer.APPLE;
+    } else {
+      return Manufacturer.UNKNOWN;
     }
   }
 }

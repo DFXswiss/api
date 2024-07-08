@@ -24,7 +24,13 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
-  async sendMergeRequest(master: UserData, slave: UserData): Promise<void> {
+  async sendMergeRequest(master: UserData, slave: UserData): Promise<boolean> {
+    if (!slave.mail) return false;
+    try {
+      master.checkIfMergePossibleWith(slave);
+    } catch {
+      return false;
+    }
     const request =
       (await this.accountMergeRepo.findOne({
         where: {
@@ -61,6 +67,8 @@ export class AccountMergeService {
       options: { debounce: 60000 },
       correlationId: `${request.id}`,
     });
+
+    return true;
   }
 
   async executeMerge(code: string): Promise<AccountMerge> {

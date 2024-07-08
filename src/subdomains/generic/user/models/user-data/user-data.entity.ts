@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -210,7 +210,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycType: KycType;
 
-  @OneToMany(() => KycStep, (step) => step.userData, { eager: true, cascade: true })
+  @OneToMany(() => KycStep, (step) => step.userData, { cascade: true })
   kycSteps: KycStep[];
 
   @Column({ type: 'float', nullable: true })
@@ -395,6 +395,10 @@ export class UserData extends IEntity {
     return `${Config.frontend.services}/kyc?code=${this.kycHash}`;
   }
 
+  get kycVideoUrl(): string {
+    return `${this.kycUrl}&step=ident/video`;
+  }
+
   get dilisenseUrl(): string | undefined {
     return this.verifiedName ? `https://dilisense.com/en/search/${encodeURIComponent(this.verifiedName)}` : undefined;
   }
@@ -445,6 +449,36 @@ export class UserData extends IEntity {
 
   get kycLevelDisplay(): number {
     return Util.floor(this.kycLevel, -1);
+  }
+
+  get completeName(): string {
+    return this.organizationName ?? [this.firstname, this.surname].filter((n) => n).join(' ');
+  }
+
+  get isBlocked(): boolean {
+    return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
+  }
+
+  get address() {
+    if (!this.isDataComplete) return undefined;
+
+    return this.accountType === AccountType.BUSINESS
+      ? {
+          name: this.organizationName,
+          street: this.organizationStreet,
+          houseNumber: this.organizationHouseNumber,
+          city: this.organizationLocation,
+          zip: this.organizationZip,
+          country: this.organizationCountry,
+        }
+      : {
+          name: `${this.firstname} ${this.surname}`,
+          street: this.street,
+          houseNumber: this.houseNumber,
+          city: this.location,
+          zip: this.zip,
+          country: this.country,
+        };
   }
 
   // --- KYC PROCESS --- //
@@ -570,6 +604,19 @@ export class UserData extends IEntity {
 
   hasDoneStep(stepName: KycStepName): boolean {
     return this.getStepsWith(stepName).some((s) => s.isDone);
+  }
+
+  checkIfMergePossibleWith(slave: UserData): void {
+    if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
+    if (slave.amlListAddedDate && this.amlListAddedDate)
+      throw new BadRequestException('Slave and master are on AML list');
+    if ([this.status, slave.status].includes(UserDataStatus.MERGED))
+      throw new BadRequestException('Master or slave is already merged');
+    if (slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
+      throw new BadRequestException('Verified name mismatch');
+    if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+    if (this.accountType !== slave.accountType && slave.kycLevel >= KycLevel.LEVEL_20)
+      throw new BadRequestException('Account type mismatch');
   }
 
   get requiredKycFields(): string[] {

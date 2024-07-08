@@ -5,6 +5,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Process } from 'src/shared/services/process.service';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
@@ -33,7 +34,6 @@ export class Configuration {
   defaultVersionString = `v${this.defaultVersion}`;
 
   defaultLanguage = 'en';
-  defaultCountry = 'DE';
   defaultCurrency = 'EUR';
 
   defaultVolumeDecimal = 2;
@@ -45,12 +45,22 @@ export class Configuration {
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
+  networkStartFee = 0.5; // CHF
+  networkStartBalanceLimit = 0.00001;
+  networkStartBlockchains = [
+    Blockchain.BASE,
+    Blockchain.ARBITRUM,
+    Blockchain.OPTIMISM,
+    Blockchain.POLYGON,
+    Blockchain.BINANCE_SMART_CHAIN,
+  ];
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
     weeklyAmlRule: 5000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
+    yearlyWithoutKyc: 50000, // CHF
     cardDefault: 4000, // CHF
   };
 
@@ -344,6 +354,7 @@ export class Configuration {
       zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
       zchfApiKey: process.env.ALCHEMY_API_KEY,
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
+      zchfTvlUrl: process.env.ZCHF_TVL_URL,
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
@@ -376,6 +387,7 @@ export class Configuration {
 
   exchange: ExchangeConfig = {
     enableRateLimit: true,
+    rateLimit: 500,
     timeout: 30000,
   };
 
@@ -496,6 +508,15 @@ export class Configuration {
       secret: process.env.BINANCE_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.BINANCE_WITHDRAW_KEYS),
       quoteJsonNumbers: false,
+      ...this.exchange,
+    };
+  }
+
+  get p2b(): ExchangeConfig {
+    return {
+      apiKey: process.env.P2B_KEY,
+      secret: process.env.P2B_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }

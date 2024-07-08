@@ -4,6 +4,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { UserModule } from '../user/user.module';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { KycClientController } from './controllers/kyc-client.controller';
@@ -26,6 +27,7 @@ import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycAdminService } from './services/kyc-admin.service';
 import { KycClientService } from './services/kyc-client.service';
+import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { LimitRequestNotificationService } from './services/limit-request-notification.service';
@@ -41,11 +43,13 @@ import { TfaService } from './services/tfa.service';
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => SellCryptoModule),
+    TransactionModule,
   ],
   controllers: [KycController, KycAdminController, KycClientController, LimitRequestController],
   providers: [
     KycService,
     KycAdminService,
+    KycLogService,
     TfaService,
     DocumentStorageService,
     NameCheckService,
@@ -63,6 +67,13 @@ import { TfaService } from './services/tfa.service';
     LimitRequestService,
     LimitRequestNotificationService,
   ],
-  exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService, LimitRequestService],
+  exports: [
+    DocumentStorageService,
+    NameCheckService,
+    KycAdminService,
+    KycLogService,
+    KycNotificationService,
+    LimitRequestService,
+  ],
 })
 export class KycModule {}

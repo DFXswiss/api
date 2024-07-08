@@ -9,12 +9,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Like } from 'typeorm';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
@@ -35,10 +29,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   protected abstract getOwnAddresses(): string[];
-
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | Swap): CheckStatus {
-    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
-  }
 
   // --- WEBHOOKS --- //
 
@@ -93,7 +83,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     this.assetTransfersMessageQueue
       .handle<void>(async () => this.processAssetTransfers(assetTransfers))
       .catch((e) => {
-        this.logger.error('Error while process payin entries', e);
+        this.logger.error('Error while processing asset transfers:', e);
       });
   }
 
@@ -109,38 +99,14 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
     const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
 
-    const payInEntries: PayInEntry[] = [];
-
-    for (const assetTransfer of relevantAssetTransfers) {
-      const txId = assetTransfer.hash;
-      const asset = this.getTransactionAsset(supportedAssets, assetTransfer.rawContract.address) ?? null;
-
-      if (asset) {
-        const dbPayInEntry = await this.payInRepository.findOne({
-          where: {
-            inTxId: txId,
-            asset: { id: asset.id },
-            address: {
-              address: assetTransfer.to,
-              blockchain: this.blockchain,
-            },
-          },
-        });
-
-        if (!dbPayInEntry) {
-          const payInEntry: PayInEntry = {
-            address: BlockchainAddress.create(assetTransfer.to, this.blockchain),
-            txId: txId,
-            txType: null,
-            blockHeight: Number(assetTransfer.blockNum),
-            amount: EvmUtil.fromWeiAmount(assetTransfer.rawContract.value, Number(assetTransfer.rawContract.decimal)),
-            asset: asset,
-          };
-
-          payInEntries.push(payInEntry);
-        }
-      }
-    }
+    const payInEntries = relevantAssetTransfers.map((tx) => ({
+      address: BlockchainAddress.create(tx.to, this.blockchain),
+      txId: tx.hash,
+      txType: null,
+      blockHeight: Number(tx.blockNum),
+      amount: EvmUtil.fromWeiAmount(tx.rawContract.value, Number(tx.rawContract.decimal)),
+      asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
+    }));
 
     if (payInEntries.length) {
       const log = this.createNewLogObject();

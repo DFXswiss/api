@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
@@ -45,9 +45,12 @@ export class BuyCryptoBatchService {
       const txWithAssets = await this.buyCryptoRepo.find({
         where: {
           outputReferenceAsset: Not(IsNull()),
-          outputAsset: Not(IsNull()),
+          outputAsset: { type: Not(AssetType.CUSTOM) },
           outputReferenceAmount: IsNull(),
+          outputAmount: IsNull(),
+          priceDefinitionAllowedDate: Not(IsNull()),
           batch: IsNull(),
+          inputReferenceAmountMinusFee: Not(IsNull()),
           status: In([
             BuyCryptoStatus.CREATED,
             BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
@@ -244,7 +247,7 @@ export class BuyCryptoBatchService {
   private async getPayoutFee(tx: BuyCrypto): Promise<number> {
     const nativePayoutFee = await this.payoutService.estimateFee(
       tx.outputAsset,
-      tx.target.address,
+      tx.targetAddress,
       tx.outputReferenceAmount,
       tx.outputReferenceAsset,
     );

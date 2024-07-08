@@ -1,7 +1,10 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { SpecialExternalAccount } from '../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTxRepeat } from '../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx-return/bank-tx-return.entity';
@@ -196,6 +199,9 @@ export class BankTx extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;
 
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.chargebackBankTx, { nullable: true })
+  buyCryptoChargeback?: BuyCrypto;
+
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
 
@@ -205,27 +211,39 @@ export class BankTx extends IEntity {
 
   //*** GETTER METHODS ***//
 
-  get completeName(): string {
+  get user(): User {
+    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiat?.user;
+  }
+
+  completeName(multiAccountName?: string): string {
+    const regex = multiAccountName ? new RegExp(`${multiAccountName}|,`, 'g') : /[,]/g;
     return [this.name, this.ultimateName]
-      .filter((n) => n)
-      .map((n) => n.replace(/[,]/g, '').trim())
+      .filter((n) => n && ![multiAccountName, 'Schaltereinzahlung'].includes(n))
+      .map((n) => n.replace(regex, '').trim())
       .join(' ');
+  }
+
+  bankDataName(multiAccounts: SpecialExternalAccount[]): string | undefined {
+    if (Util.isSameName(this.name, this.ultimateName)) return this.name.replace(/[,]/g, '').trim();
+
+    const multiAccount = multiAccounts.find((m) => m.value === this.iban);
+    return this.completeName(multiAccount?.name);
   }
 
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
-      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().split(' ').join('')}`;
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
       return this.iban;
     }
 
     if (this.name) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
-      if (this.name === 'Schaltereinzahlung') return this.name;
+      if (this.name === 'Schaltereinzahlung') return `${this.name};${this.ultimateName?.split(' ')?.join('')}`;
     }
 
-    if (this.completeName) {
-      return this.completeName.split(' ').join(':');
+    if (this.completeName()) {
+      return this.completeName().split(' ').join(':');
     }
   }
 

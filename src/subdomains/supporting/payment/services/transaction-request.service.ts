@@ -1,6 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CreateOrder, SiftAssetType, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -97,25 +96,8 @@ export class TransactionRequestService {
       await this.transactionRequestRepo.save(transactionRequest);
       response.id = transactionRequest.id;
 
-      // create order at sift
-      await this.siftService.createOrder({
-        $order_id: transactionRequest.id.toString(),
-        $user_id: userId.toString(),
-        $time: transactionRequest.created.getTime(),
-        $amount: transactionRequest.amount * 10000,
-        $currency_code: sourceCurrencyName,
-        $site_country: 'CH',
-        $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
-        $digital_orders: [
-          {
-            $digital_asset: targetCurrencyName,
-            $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
-            $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
-            $volume: transactionRequest.estimatedAmount.toString(),
-          },
-        ],
-        blockchain,
-      } as CreateOrder);
+      // create order at sift (without waiting)
+      void this.siftService.createOrder(transactionRequest, userId, sourceCurrencyName, targetCurrencyName, blockchain);
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -127,7 +109,10 @@ export class TransactionRequestService {
   }
 
   async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
-    const request = await this.transactionRequestRepo.findOne({ where: { id }, relations: { user: true } });
+    const request = await this.transactionRequestRepo.findOne({
+      where: { id },
+      relations: { user: { userData: true } },
+    });
     if (!request) throw new NotFoundException('Transaction request not found');
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 
@@ -160,4 +145,6 @@ export class TransactionRequestService {
   async complete(id: number): Promise<void> {
     await this.transactionRequestRepo.update(id, { isComplete: true });
   }
+
+  // --- HELPER METHODS --- //
 }

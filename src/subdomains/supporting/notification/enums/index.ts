@@ -33,6 +33,7 @@ export enum MailContext {
   KYC_CHANGED = 'KycChanged',
   KYC_FAILED = 'KycFailed',
   KYC_REMINDER = 'KycReminder',
+  IDENT_STARTED = 'IdentStarted',
   CUSTOM = 'Custom',
   REF_REWARD = 'RefReward',
   MONITORING = 'Monitoring',

@@ -1,16 +1,15 @@
-import { Controller, UseGuards, Body, Post, Get, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { LiquidityOrderContext } from './entities/liquidity-order.entity';
 import {
   CheckLiquidityRequest,
   CheckLiquidityResult,
-  PurchaseLiquidityRequest,
   LiquidityTransactionResult,
+  PurchaseLiquidityRequest,
   ReserveLiquidityRequest,
   TransferRequest,
 } from './interfaces';
@@ -58,19 +57,6 @@ export class DexController {
   async transferLiquidity(@Body() dto: TransferRequest): Promise<string> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.transferLiquidity(dto);
-    }
-  }
-
-  @Post('transfer-minimal-utxo')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async transferMinimalUtxo(
-    @Query('address') address: string,
-    @Query('blockchain') blockchain: Blockchain,
-  ): Promise<string> {
-    if (process.env.ENVIRONMENT === 'test') {
-      return this.dexService.transferMinimalCoin(BlockchainAddress.create(address, blockchain));
     }
   }
 

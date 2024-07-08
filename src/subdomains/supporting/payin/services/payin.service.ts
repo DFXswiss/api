@@ -10,6 +10,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -17,7 +18,6 @@ import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus, PayInType } from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
-import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
 
@@ -28,21 +28,36 @@ export class PayInService {
   constructor(
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
-    private readonly registerStrategyRegistry: RegisterStrategyRegistry,
     private readonly transactionService: TransactionService,
   ) {}
 
   //*** PUBLIC API ***//
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
-    const payIns = transactions.map(({ address, txId, txType, txSequence, blockHeight, amount, asset }) =>
-      CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset),
-    );
+    const payIns: CryptoInput[] = [];
 
-    for (const payIn of payIns) {
-      payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
+    for (const { address, txId, txType, txSequence, blockHeight, amount, asset } of transactions) {
+      const payIn = CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset);
 
-      await this.payInRepository.save(payIn);
+      const exists = await this.payInRepository.exists({
+        where: {
+          inTxId: txId,
+          txSequence: txSequence,
+          asset: { id: asset?.id },
+          address: {
+            address: address.address,
+            blockchain: address.blockchain,
+          },
+        },
+      });
+
+      if (!exists) {
+        payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
+
+        await this.payInRepository.save(payIn);
+
+        payIns.push(payIn);
+      }
     }
 
     return payIns;
@@ -70,16 +85,16 @@ export class PayInService {
     });
   }
 
-  async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<CheckStatus> {
+  async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
-    const amlCheck = await this.doAmlCheck(payIn, route);
-
-    payIn.acknowledge(purpose, route, amlCheck);
+    payIn.acknowledge(purpose, route);
 
     await this.payInRepository.save(payIn);
+  }
 
-    return amlCheck;
+  async updateAmlCheck(payInId: number, amlCheck: CheckStatus): Promise<void> {
+    await this.payInRepository.update(payInId, { amlCheck });
   }
 
   async returnPayIn(
@@ -88,12 +103,14 @@ export class PayInService {
     returnAddress: BlockchainAddress,
     route: Staking | Sell | Swap,
   ): Promise<void> {
-    const amlCheck = await this.doAmlCheck(payIn, route);
-
+    const amlCheck = route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
     payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
 
     if (payIn.transaction)
-      await this.transactionService.update(payIn.transaction.id, { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN });
+      await this.transactionService.update(payIn.transaction.id, {
+        type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
+        user: route.user,
+      });
 
     await this.payInRepository.save(payIn);
   }
@@ -141,15 +158,6 @@ export class PayInService {
   }
 
   //*** HELPER METHODS ***//
-
-  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | Swap): Promise<CheckStatus> {
-    try {
-      const strategy = this.registerStrategyRegistry.getRegisterStrategy(payIn.asset);
-      return await strategy.doAmlCheck(payIn, route);
-    } catch (e) {
-      this.logger.error(`Error during AML check for pay-in ${payIn.id}:`, e);
-    }
-  }
 
   private async forwardPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({

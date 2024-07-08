@@ -20,7 +20,6 @@ export abstract class SupplementaryStrategy implements OnModuleInit, OnModuleDes
   abstract get blockchain(): Blockchain;
 
   abstract transferLiquidity(request: TransferRequest): Promise<string>;
-  abstract transferMinimalCoin(address: string): Promise<string>;
   abstract checkTransferCompletion(transferTxId: string): Promise<boolean>;
   abstract findTransaction(query: TransactionQuery): Promise<TransactionResult>;
   abstract getTargetAmount(amount: number, from: Asset, to: Asset, poolFee?: FeeAmount): Promise<number>;

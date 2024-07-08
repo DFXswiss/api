@@ -24,6 +24,7 @@ export class TransactionService {
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
+    entity.externalId = dto.request?.externalTransactionId;
 
     if (dto.resetMailSendDate) entity.mailSendDate = null;
 
@@ -40,6 +41,20 @@ export class TransactionService {
     return this.repo.findOne({ where: { uid }, relations });
   }
 
+  async getTransactionByRequestId(
+    requestId: number,
+    relations: FindOptionsRelations<Transaction>,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { request: { id: requestId } }, relations });
+  }
+
+  async getTransactionByExternalId(
+    externalId: string,
+    relations: FindOptionsRelations<Transaction> = {},
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { externalId }, relations });
+  }
+
   async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
     return this.repo.findOne({ where: { checkoutTx: { paymentId: ckoId } }, relations });
   }
@@ -53,14 +68,31 @@ export class TransactionService {
       where: { user: { userData: { id: userDataId } }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
         buyCrypto: {
-          buy: { user: true },
-          cryptoRoute: { user: true },
+          buy: true,
+          cryptoRoute: true,
           bankTx: true,
           checkoutTx: true,
           cryptoInput: true,
         },
-        buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
-        refReward: { user: true },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true },
+        refReward: true,
+      },
+    });
+  }
+
+  async getTransactionsForUser(userId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { user: { id: userId }, type: Not(IsNull()), created: Between(from, to) },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+        },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
       },
     });
   }

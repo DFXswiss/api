@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -196,8 +196,29 @@ export class KycStep extends IEntity {
     return this;
   }
 
+  get isValidCreatingBankData(): boolean {
+    return (
+      this.name === KycStepName.IDENT &&
+      this.isCompleted &&
+      this.userData.status !== UserDataStatus.MERGED &&
+      this.userData.kycLevel >= KycLevel.LEVEL_30 &&
+      this.identDocumentId &&
+      this.userName &&
+      this.userData.kycType === KycType.DFX
+    );
+  }
+
   get identDocumentId(): string | undefined {
     const result = this.getResult<IdentResultDto>();
-    return result?.identificationdocument.number.value;
+    return result?.identificationdocument?.number?.value;
+  }
+
+  get userName(): string | undefined {
+    const result = this.getResult<IdentResultDto>();
+    if (!result) return undefined;
+    return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]
+      .filter((n) => n)
+      .map((n) => n.trim())
+      .join(' ');
   }
 }

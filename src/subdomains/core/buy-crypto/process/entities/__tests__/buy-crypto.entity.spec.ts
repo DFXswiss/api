@@ -3,7 +3,7 @@ import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-
 import { BuyCrypto } from '../buy-crypto.entity';
 
 function createPrice(source: string, target: string, price?: number): Price {
-  return Object.assign(new Price(), { source, target, price });
+  return Object.assign(new Price(), { source, target, price, steps: [] });
 }
 
 describe('BuyCrypto', () => {

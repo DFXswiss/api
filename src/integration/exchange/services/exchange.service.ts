@@ -6,7 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
-import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PricingProvider } from 'src/subdomains/supporting/pricing/services/integration/pricing-provider';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from './exchange-registry.service';
@@ -28,7 +28,7 @@ enum PrecisionMode {
   TICK_SIZE = 2,
 }
 
-export abstract class ExchangeService implements PricingProvider, OnModuleInit {
+export abstract class ExchangeService extends PricingProvider implements OnModuleInit {
   protected abstract readonly logger: DfxLogger;
 
   protected abstract readonly networks: { [b in Blockchain]: string };
@@ -43,6 +43,8 @@ export abstract class ExchangeService implements PricingProvider, OnModuleInit {
     public readonly config: ExchangeConfig,
     private readonly queue?: QueueHandler,
   ) {
+    super();
+
     this.queue ??= new QueueHandler(180000, 60000);
     this.exchange = new exchange(config);
   }
@@ -284,7 +286,15 @@ export abstract class ExchangeService implements PricingProvider, OnModuleInit {
 
   // other
   protected async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
-    return this.queue.handle(() => action(this.exchange));
+    return this.queue.handle(() =>
+      action(this.exchange).catch((e) => {
+        if (e.message?.includes('throttle')) {
+          this.logger.verbose(`${this.name} throttler: ${JSON.stringify(this.exchange.throttler)}`);
+        }
+
+        throw e;
+      }),
+    );
   }
 
   mapNetwork(blockchain: Blockchain): string {

@@ -183,4 +183,13 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsString()
   comment: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  priceDefinitionAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  amlResponsible: string;
 }
