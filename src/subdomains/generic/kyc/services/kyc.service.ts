@@ -508,7 +508,7 @@ export class KycService {
 
   // --- HELPER METHODS --- //
 
-  private async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
+  async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
     const identificationType = getIdentificationType(result.identificationprocess?.companyid);
     if (
       result.userdata?.birthday?.value &&
