@@ -165,6 +165,11 @@ export class UpdateBuyCryptoDto {
   amlResponsible: string;
 
   @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDate: Date;
+
+  @IsOptional()
   @IsString()
   chargebackIban: string;
 }

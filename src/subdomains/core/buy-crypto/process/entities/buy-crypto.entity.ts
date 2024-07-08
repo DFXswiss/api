@@ -165,6 +165,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
+
   @Column({ length: 256, nullable: true })
   chargebackIban: string;
 
@@ -475,6 +478,7 @@ export class BuyCrypto extends IEntity {
       status: BuyCryptoStatus.CREATED,
       comment: null,
       chargebackIban: null,
+      chargebackAllowedDate: null,
     };
 
     Object.assign(this, update);
