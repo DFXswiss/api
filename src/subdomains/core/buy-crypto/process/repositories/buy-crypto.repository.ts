@@ -14,6 +14,10 @@ export class BuyCryptoRepository extends BaseRepository<BuyCrypto> {
     return this.manager.update(BuyCryptoFee, id, update);
   }
 
+  async saveFee(fee: BuyCryptoFee): Promise<BuyCryptoFee> {
+    return this.manager.save(BuyCryptoFee, fee);
+  }
+
   async deleteFee(fee: BuyCryptoFee): Promise<void> {
     await this.manager.remove(BuyCryptoFee, fee);
   }

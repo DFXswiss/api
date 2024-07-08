@@ -211,7 +211,7 @@ export class BuyCryptoPreparationService {
           entity.outputAsset,
           maxNetworkFee,
         );
-        const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.save(BuyCryptoFee.create(entity)));
+        const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.saveFee(BuyCryptoFee.create(entity)));
         await this.buyCryptoRepo.updateFee(feeConstraints.id, { allowedTotalFeeAmount: maxNetworkFeeInOutAsset });
 
         await this.buyCryptoRepo.update(
