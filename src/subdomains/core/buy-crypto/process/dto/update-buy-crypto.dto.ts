@@ -163,4 +163,8 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsString()
   amlResponsible: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackIban: string;
 }
