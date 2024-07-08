@@ -221,7 +221,6 @@ export class BuyCryptoPreparationService {
             fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             referenceChfPrice.convert(fee.total, 2),
-            feeConstraints,
           ),
         );
 
