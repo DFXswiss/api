@@ -155,7 +155,7 @@
                 "line2": "Purtroppo abbiamo bisogno di una verifica (KYC) da parte vostra per il bene che avete depositato.",
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
+                "line5": "Se non si desidera effettuare la verifica, il bene verrà restituito in modo completamente automatico dopo 2 giorni."
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",

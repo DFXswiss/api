@@ -155,7 +155,7 @@
                 "line2": "Unfortunately, we need verification (KYC) from you for the asset you have deposited.",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+                "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",
