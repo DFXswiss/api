@@ -41,7 +41,12 @@ export class AssetService {
       { instantSellable: true },
       { cardBuyable: true },
       { cardSellable: true },
+      { payment: true },
     ]);
+  }
+
+  async getPaymentAssets(): Promise<Asset[]> {
+    return this.assetRepo.findBy({ payment: true });
   }
 
   async getAssetById(id: number): Promise<Asset> {
