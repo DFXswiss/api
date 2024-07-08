@@ -14,7 +14,7 @@ import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
 import { IdentResultDto } from '../../dto/input/ident-result.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType } from '../../enums/kyc.enum';
+import { KycStepName, KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class IdentService {
@@ -27,8 +27,8 @@ export class IdentService {
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    const pendingVideoIdent = user.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
-    if (pendingVideoIdent.status !== KycStepStatus.CANCELED && kycStep.type === KycStepType.VIDEO)
+    const videoIdentSteps = user.getStepsWith(KycStepName.IDENT, KycStepType.VIDEO);
+    if (videoIdentSteps.some((s) => !s.isFailed) && kycStep.type === KycStepType.VIDEO)
       throw new BadRequestException('You cannot start another video ident');
 
     const data = {
