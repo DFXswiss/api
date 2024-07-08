@@ -106,7 +106,7 @@ export class AmlService {
     entity.userData.lastNameCheckDate = bankData.userData.lastNameCheckDate;
   }
 
-  private async getVerifiedCountry(entity: BuyFiat | BuyCrypto): Promise<Country> {
+  private async getVerifiedCountry(entity: BuyFiat | BuyCrypto): Promise<Country | undefined> {
     if (entity instanceof BuyFiat) return this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
     if (entity.cryptoInput) return undefined;
 
