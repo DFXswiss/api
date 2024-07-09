@@ -487,6 +487,7 @@ export class UserDataService {
           bankAccounts: true,
           accountRelations: true,
           relatedAccountRelations: true,
+          kycSteps: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -497,6 +498,7 @@ export class UserDataService {
           bankAccounts: true,
           accountRelations: true,
           relatedAccountRelations: true,
+          kycSteps: true,
         },
       }),
     ]);
