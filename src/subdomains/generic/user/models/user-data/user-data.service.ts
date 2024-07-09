@@ -22,7 +22,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
@@ -548,7 +548,7 @@ export class UserDataService {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.kycFileId = slave.kycFileId;
     }
-    if (slave.kycSteps.some((k) => k.type === KycStepType.VIDEO && k.status === KycStepStatus.COMPLETED)) {
+    if (slave.kycSteps.some((k) => k.type === KycStepType.VIDEO && k.isCompleted)) {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
