@@ -11,7 +11,7 @@ import { PaymentLinkPayment } from './entities/payment-link-payment.entity';
 import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentLinkService } from './services/payment-link.services';
 
-@ApiTags('PaymentLink')
+@ApiTags('Payment Link')
 @Controller('paymentLink')
 @ApiExcludeController()
 export class PaymentLinkController {
@@ -28,7 +28,7 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLink })
-  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> {
+  async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> {
     return this.paymentLinkService.get(+jwt.user, +id);
   }
 
@@ -56,11 +56,11 @@ export class PaymentLinkController {
     return this.paymentLinkService.createPayment(+jwt.user, +id, dto);
   }
 
-  @Delete(':id')
+  @Delete(':id/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLink })
-  async cancelPaymentLinkPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> {
-    return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, id);
+  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> {
+    return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, +id);
   }
 }

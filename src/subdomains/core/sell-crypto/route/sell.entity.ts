@@ -5,7 +5,7 @@ import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/depos
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { ChildEntity, Column, ManyToOne, OneToMany } from 'typeorm';
 import { BankAccount } from '../../../supporting/bank/bank-account/bank-account.entity';
-import { PaymentLink } from '../../payment-llink/entities/payment-link.entity';
+import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { BuyFiat } from '../process/buy-fiat.entity';
 
 @ChildEntity()

@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
-import { PaymentLinkPaymentStatus, TransferPrice } from '../dto/payment-link.dto';
+import { PaymentLinkPaymentStatus, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 
@@ -20,14 +20,20 @@ export class PaymentLinkPaymentService {
   ) {}
 
   async create(dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+    const pendingLinkPayment = await this.paymentLinkPaymentRepo.findBy({ status: PaymentLinkPaymentStatus.PENDING });
+
+    if (pendingLinkPayment.length > 0)
+      throw new ConflictException('There is already a pending payment for the specified payment link');
+
     // create hash
     const hash = Util.createHash(new Date().toString()).toLowerCase();
 
     const paymentLinkPayment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
+      externalId: dto.externalId,
       expiryDate: dto.expiryDate ?? Util.secondsAfter(60),
       mode: dto.mode,
-      fiat: dto.currency,
+      currency: dto.currency,
       uniqueId: `plp_${hash.slice(0, 6)}`,
       transferAmounts: await this.createTransferAmounts(dto.currency, dto.amount).then(JSON.stringify),
       status: PaymentLinkPaymentStatus.PENDING,
@@ -40,9 +46,9 @@ export class PaymentLinkPaymentService {
     return this.paymentLinkPaymentRepo.save(paymentLinkPayment);
   }
 
-  async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferPrice[]> {
+  async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferInfo[]> {
     const paymentAssets = await this.assetService.getPaymentAssets();
-    const transferPrices: TransferPrice[] = [];
+    const transferPrices: TransferInfo[] = [];
     for (const asset of paymentAssets) {
       const price = await this.pricingService.getPrice(asset, currency, false);
       transferPrices.push({

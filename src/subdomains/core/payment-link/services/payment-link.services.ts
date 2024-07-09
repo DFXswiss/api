@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkStatus } from '../dto/payment-link.dto';
+import { PaymentLinkPaymentStatus, PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -32,8 +32,9 @@ export class PaymentLinkService {
   async updatePaymentLink(userId: number, id: number, dto: UpdatePaymentLinkDto): Promise<PaymentLink> {
     const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, id } });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
+    await this.paymentLinkRepo.update(paymentLink.id, { status: dto.status });
     paymentLink.status = dto.status;
-    return this.paymentLinkRepo.save(paymentLink);
+    return paymentLink;
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -47,26 +48,22 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: `pl_${hash.slice(0, 6)}`,
-      paymentLinkPayment: dto.payment ? await this.createPaymentLinkPayment(dto.payment) : undefined,
+      payments: dto.payment ? [await this.paymentLinkPaymentService.create(dto.payment)] : undefined,
     });
     return this.paymentLinkRepo.save(paymentLink);
-  }
-
-  async createPaymentLinkPayment(dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    return this.paymentLinkPaymentService.create(dto);
   }
 
   async createPayment(userId: number, id: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
     const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, id } });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
-    const paymentLinkPayment = await this.createPaymentLinkPayment(dto);
+    const paymentLinkPayment = await this.paymentLinkPaymentService.create(dto);
     return this.paymentLinkPaymentService.save(paymentLinkPayment);
   }
 
-  async cancelPaymentLinkPayment(userId: number, externalId: string): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, externalId } });
-    paymentLink.paymentLinkPayment.cancel();
-    await this.paymentLinkPaymentService.save(paymentLink.paymentLinkPayment);
+  async cancelPaymentLinkPayment(userId: number, id: number): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, id } });
+    const paymentLinkPayment = paymentLink.payments.find((p) => p.status == PaymentLinkPaymentStatus.PENDING).cancel();
+    await this.paymentLinkPaymentService.save(paymentLinkPayment);
     return paymentLink;
   }
 }

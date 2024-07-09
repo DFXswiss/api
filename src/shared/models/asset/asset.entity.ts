@@ -61,7 +61,7 @@ export class Asset extends IEntity {
   instantSellable: boolean;
 
   @Column({ default: false })
-  payment: boolean;
+  paymentEnabled: boolean;
 
   @Column({ default: false })
   ikna: boolean;
