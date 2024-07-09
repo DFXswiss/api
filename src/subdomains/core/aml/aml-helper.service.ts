@@ -77,6 +77,8 @@ export class AmlHelperService {
     if (entity.cryptoInput) {
       // crypto input
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
+      if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
+        errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
     } else if (entity.userData.status === UserDataStatus.NA && entity.userData.hasSuspiciousMail)
       errors.push(AmlError.SUSPICIOUS_MAIL);
 
@@ -131,6 +133,8 @@ export class AmlHelperService {
         }
       } else if (entity.checkoutTx) {
         // checkout
+        if (entity.checkoutTx.cardName && !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName))
+          errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
           blacklist.some((b) =>
@@ -150,6 +154,8 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
+      if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
+        errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (
         blacklist.some((b) =>

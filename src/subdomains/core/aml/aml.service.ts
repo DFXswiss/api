@@ -116,12 +116,14 @@ export class AmlService {
   }
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
-    if (entity instanceof BuyFiat) return this.bankDataService.getBankDataWithIban(entity.sell.iban);
+    if (entity instanceof BuyFiat) return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban);
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService.getBankDatasForUser(entity.userData.id);
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 
-    return this.bankDataService.getBankDataWithIban(entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint);
+    return this.bankDataService.getVerifiedBankDataWithIban(
+      entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
+    );
   }
 }

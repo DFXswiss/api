@@ -165,6 +165,12 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackIban: string;
+
   // Pass
   @Column({ type: 'datetime2', nullable: true })
   priceDefinitionAllowedDate: Date;
@@ -222,7 +228,7 @@ export class BuyCrypto extends IEntity {
             ),
           ]
         : [];
-    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...(price.steps ?? [])];
+    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...price.steps];
     return this;
   }
 
@@ -375,13 +381,9 @@ export class BuyCrypto extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
-    maxNetworkFee: number,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
-
-    const feeConstraints = this.fee ?? BuyCryptoFee.create(this);
-    feeConstraints.allowedTotalFeeAmount = maxNetworkFee;
 
     const update: Partial<BuyCrypto> =
       inputReferenceAmountMinusFee < 0
@@ -402,7 +404,6 @@ export class BuyCrypto extends IEntity {
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-            fee: feeConstraints,
             networkStartFeeAmount: fee.networkStart,
           };
 
@@ -471,6 +472,8 @@ export class BuyCrypto extends IEntity {
       recipientMail: null,
       status: BuyCryptoStatus.CREATED,
       comment: null,
+      chargebackIban: null,
+      chargebackAllowedDate: null,
     };
 
     Object.assign(this, update);
@@ -570,6 +573,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
   AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN,
+  AmlReason.ASSET_KYC_NEEDED,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];
