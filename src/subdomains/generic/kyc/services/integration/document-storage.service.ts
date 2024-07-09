@@ -50,17 +50,12 @@ export class DocumentStorageService {
   }
 
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
-    const files = [
-      ...(await this.listUserFiles(sourceUserDataId)),
-      ...(await this.listSpiderFiles(sourceUserDataId, false)),
-      ...(await this.listSpiderFiles(sourceUserDataId, true)),
-    ];
-
-    for (const file of files) {
-      const [_, type, name] = this.fromFileId(file.name);
-      const blob = await this.downloadFile(sourceUserDataId, type, name);
-      await this.uploadFile(targetUserDataId, type, name, blob.data, file.contentType, file.metadata);
-    }
+    await this.storageService.copyBlobs(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
+    await this.storageService.copyBlobs(
+      `spider/${sourceUserDataId}-organization/`,
+      `spider/${targetUserDataId}-organization/`,
+    );
+    await this.storageService.copyBlobs(`user/${sourceUserDataId}/`, `user/${targetUserDataId}/`);
   }
 
   // --- HELPER METHODS --- //
