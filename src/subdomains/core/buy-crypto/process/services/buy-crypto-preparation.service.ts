@@ -18,6 +18,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -120,9 +121,12 @@ export class BuyCryptoPreparationService {
         const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
-        const ibanCountry = entity.bankTx?.iban
-          ? await this.countryService.getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
-          : undefined;
+        const ibanCountry =
+          entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry
+            ? await this.countryService.getCountryWithSymbol(
+                entity.bankTx?.iban.substring(0, 2) ?? entity.checkoutTx.cardIssuerCountry,
+              )
+            : undefined;
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
@@ -207,17 +211,18 @@ export class BuyCryptoPreparationService {
           entity.outputAsset,
           maxNetworkFee,
         );
+        const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.saveFee(BuyCryptoFee.create(entity)));
+        await this.buyCryptoRepo.updateFee(feeConstraints.id, { allowedTotalFeeAmount: maxNetworkFeeInOutAsset });
 
-        entity.setFeeAndFiatReference(
-          referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-          amountInChf,
-          fee,
-          isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
-          referenceChfPrice.convert(fee.total, 2),
-          maxNetworkFeeInOutAsset,
+        await this.buyCryptoRepo.update(
+          ...entity.setFeeAndFiatReference(
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            amountInChf,
+            fee,
+            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
+            referenceChfPrice.convert(fee.total, 2),
+          ),
         );
-
-        await this.buyCryptoRepo.save(entity);
 
         if (entity.amlCheck === CheckStatus.FAIL) {
           // create sift transaction

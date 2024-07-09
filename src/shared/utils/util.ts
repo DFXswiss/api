@@ -138,7 +138,7 @@ export class Util {
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
-      .replace(/[ñ]/g, 'n')
+      .replace(/[ñń]/g, 'n')
       .replace(/[ç]/g, 'c')
       .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '')

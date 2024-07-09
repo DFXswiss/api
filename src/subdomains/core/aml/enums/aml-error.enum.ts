@@ -6,12 +6,14 @@ export enum AmlError {
   KYC_LEVEL_30_NOT_REACHED = 'KycLevel30NotReached',
   KYC_LEVEL_50_NOT_REACHED = 'KycLevel50NotReached',
   KYC_LEVEL_TOO_LOW = 'KycLevelTooLow',
+  KYC_LEVEL_FOR_ASSET_NOT_REACHED = 'KycLevelForAssetNotReached',
   ASSET_NOT_SELLABLE = 'AssetNotSellable',
   ASSET_NOT_BUYABLE = 'AssetNotBuyable',
   ASSET_NOT_INSTANT_BUYABLE = 'AssetNotInstantBuyable',
   ASSET_NOT_CARD_BUYABLE = 'AssetNotCardBuyable',
   INSTANT_NOT_ALLOWED = 'InstantNotAllowed',
   CRYPTO_CRYPTO_NOT_ALLOWED = 'CryptoCryptoNotAllowed',
+  ABROAD_CHF_NOT_ALLOWED = 'AbroadChfNotAllowed',
   INVALID_USER_STATUS = 'InvalidUserStatus',
   INVALID_USER_DATA_STATUS = 'InvalidUserDataStatus',
   INVALID_KYC_STATUS = 'InvalidKycStatus',
@@ -39,6 +41,7 @@ export enum AmlError {
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
   SUSPICIOUS_MAIL = 'SuspiciousMail',
+  CARD_NAME_MISMATCH = 'CardNameMismatch',
 }
 
 export enum AmlErrorType {
@@ -54,6 +57,11 @@ export const AmlErrorResult: {
   [AmlError.KYC_LEVEL_30_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_50_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_TOO_LOW]: null,
+  [AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.ASSET_KYC_NEEDED,
+  },
   [AmlError.ASSET_NOT_SELLABLE]: null,
   [AmlError.ASSET_NOT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,
@@ -72,6 +80,11 @@ export const AmlErrorResult: {
     amlReason: AmlReason.OLKY_NO_KYC,
   },
   [AmlError.CRYPTO_CRYPTO_NOT_ALLOWED]: null,
+  [AmlError.ABROAD_CHF_NOT_ALLOWED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.CHF_ABROAD_TX,
+  },
   [AmlError.INVALID_USER_STATUS]: null,
   [AmlError.INVALID_USER_DATA_STATUS]: null,
   [AmlError.INVALID_KYC_STATUS]: null,
@@ -128,6 +141,11 @@ export const AmlErrorResult: {
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.CARD_BLACKLISTED]: null,
+  [AmlError.CARD_NAME_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.CARD_NAME_MISMATCH,
+  },
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,

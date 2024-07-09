@@ -34,6 +34,8 @@ export class PayoutService {
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {
+      if (request.amount < 0) throw new Error('Amount is lower 0');
+
       const order = this.payoutOrderFactory.createOrder(request);
 
       await this.payoutOrderRepo.save(order);
