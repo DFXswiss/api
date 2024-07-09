@@ -67,9 +67,6 @@ export class BuyCryptoPreparationService {
       `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
     );
 
-    // CHF/EUR Price
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
     for (const entity of entities) {
       try {
         if (entity.cryptoInput && !entity.cryptoInput.isConfirmed) continue;
@@ -77,8 +74,6 @@ export class BuyCryptoPreparationService {
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
-
-        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, inputReferenceCurrency, false);
 
@@ -130,7 +125,6 @@ export class BuyCryptoPreparationService {
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
-            inputReferenceAssetChfPrice,
             minVolume,
             last24hVolume,
             last7dVolume,
