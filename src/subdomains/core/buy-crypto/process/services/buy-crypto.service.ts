@@ -82,7 +82,7 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
       if (!bankData) {
         const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
@@ -120,7 +120,10 @@ export class BuyCryptoService {
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        checkoutTx.cardFingerPrint,
+        buy.userData.id,
+      );
 
       if (!bankData)
         await this.bankDataService.createBankData(buy.userData, {

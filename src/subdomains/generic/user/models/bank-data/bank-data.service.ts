@@ -174,11 +174,11 @@ export class BankDataService {
       .getOne();
   }
 
-  async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
+  async getVerifiedBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
       .find({
-        where: { iban, userData: { id: userDataId } },
+        where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
         relations: { userData: true },
       })
       .then((b) => b.filter((b) => b.active)[0] ?? b[0]);

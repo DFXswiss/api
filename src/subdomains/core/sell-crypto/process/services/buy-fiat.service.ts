@@ -70,7 +70,7 @@ export class BuyFiatService {
     });
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
       if (!bankData)
         await this.bankDataService.createBankData(sell.userData, {
           name: sell.userData.completeName,
