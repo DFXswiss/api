@@ -45,7 +45,7 @@ export enum TransactionReason {
   RECEIVER_REJECTED = 'ReceiverRejected',
   CHF_ABROAD_NOT_ALLOWED = 'ChfAbroadNotAllowed',
   ASSET_KYC_NEEDED = 'AssetKycNeeded',
-  CARD_NAME_NOT_MATCHING = 'CardNameNotMatching',
+  CARD_NAME_MISMATCH = 'CardNameMismatch',
 }
 
 export const KycRequiredReason = [
@@ -83,7 +83,7 @@ export const TransactionReasonMapper: {
   [AmlReason.RECEIVER_REJECTED_TX]: TransactionReason.RECEIVER_REJECTED,
   [AmlReason.CHF_ABROAD_TX]: TransactionReason.CHF_ABROAD_NOT_ALLOWED,
   [AmlReason.ASSET_KYC_NEEDED]: TransactionReason.ASSET_KYC_NEEDED,
-  [AmlReason.CARD_NAME_NOT_MATCHING]: TransactionReason.CARD_NAME_NOT_MATCHING,
+  [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
 };
 
 export class UnassignedTransactionDto {
