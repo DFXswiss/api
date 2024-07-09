@@ -133,6 +133,8 @@ export class AmlHelperService {
         }
       } else if (entity.checkoutTx) {
         // checkout
+        if (entity.checkoutTx.cardName && !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName))
+          errors.push(AmlError.CARD_NAME_NOT_MATCHING);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
           blacklist.some((b) =>

@@ -41,6 +41,7 @@ export enum AmlError {
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
   SUSPICIOUS_MAIL = 'SuspiciousMail',
+  CARD_NAME_NOT_MATCHING = 'CardNameNotMatching',
 }
 
 export enum AmlErrorType {
@@ -140,6 +141,11 @@ export const AmlErrorResult: {
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.CARD_BLACKLISTED]: null,
+  [AmlError.CARD_NAME_NOT_MATCHING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.CARD_NAME_NOT_MATCHING,
+  },
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,
