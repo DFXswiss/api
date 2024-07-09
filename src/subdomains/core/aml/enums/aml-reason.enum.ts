@@ -23,6 +23,7 @@ export enum AmlReason {
   CHARGEBACK_NOT_POSSIBLE_NO_IBAN = 'ChargebackNotPossibleNoIban',
   CHF_ABROAD_TX = 'ChfAbroadTx',
   ASSET_KYC_NEEDED = 'AssetKycNeeded',
+  CARD_NAME_MISMATCH = 'CardNameMismatch',
 }
 
 export const KycAmlReasons = [
