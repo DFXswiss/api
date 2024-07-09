@@ -43,6 +43,7 @@ export enum TransactionReason {
   INSTANT_PAYMENT = 'InstantPayment',
   FEE_TOO_HIGH = 'FeeTooHigh',
   RECEIVER_REJECTED = 'ReceiverRejected',
+  ASSET_KYC_NEEDED = 'AssetKycNeeded',
 }
 
 export const KycRequiredReason = [
@@ -78,6 +79,7 @@ export const TransactionReasonMapper: {
   [AmlReason.COUNTRY_NOT_ALLOWED]: TransactionReason.COUNTRY_NOT_ALLOWED,
   [AmlReason.FEE_TOO_HIGH]: TransactionReason.FEE_TOO_HIGH,
   [AmlReason.RECEIVER_REJECTED_TX]: TransactionReason.RECEIVER_REJECTED,
+  [AmlReason.ASSET_KYC_NEEDED]: TransactionReason.ASSET_KYC_NEEDED,
 };
 
 export class UnassignedTransactionDto {

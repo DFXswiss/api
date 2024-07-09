@@ -70,7 +70,8 @@
                 "high_risk_blocked_checkout": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
                 "fee_too_high": "Las tarifas de la red son actualmente demasiado altas para la cantidad que has enviado",
                 "receiver_rejected_tx": "El nodo receptor ha rechazado la transacción",
-                "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada"
+                "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada",
+                "asset_kyc_needed": "Se requiere KYC para el activo depositado"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -146,6 +147,15 @@
                 "line3": "Póngase en contacto con nuestro equipo de asistencia.",
                 "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [mail:support@dfx.swiss].",
                 "line5": ""
+            },
+            "asset_kyc_needed": {
+                "title": "Verificación (KYC) requerida",
+                "salutation": "Se requiere verificación (KYC) para ejecutar su transacción pendiente",
+                "line1": "Gracias por confiar en DFX.",
+                "line2": "Lamentablemente, necesitamos que verifique (KYC) el activo que ha depositado.",
+                "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
+                "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
+                "line5": "Si no desea llevar a cabo la verificación, el activo se devolverá de forma totalmente automática al cabo de 2 días."
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",

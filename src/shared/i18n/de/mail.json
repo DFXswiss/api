@@ -70,7 +70,8 @@
                 "high_risk_blocked_checkout": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
                 "fee_too_high": "Die Netzwerk Gebühren sind derzeit zu hoch für den Betrag, den du geschickt hast",
                 "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt",
-                "asset_not_available_with_chosen_bank": "Dieses Asset kann nicht über die gewählte Bankverbindung gekauft werden"
+                "asset_not_available_with_chosen_bank": "Dieses Asset kann nicht über die gewählte Bankverbindung gekauft werden",
+                "asset_kyc_needed": "Für das eingezahlte Asset wird KYC benötigt"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
         },
@@ -146,6 +147,15 @@
                 "line3": "Bitte setze dich daher mit unserem Support in Verbindung.",
                 "line4": "Du kannst den Support über [mail:support@dfx.swiss] kontaktieren.",
                 "line5": ""
+            },
+            "asset_kyc_needed": {
+                "title": "Verifizierung (KYC) erforderlich",
+                "salutation": "Verifizierung (KYC) ist erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Lieber Kunde, vielen Dank für dein Vertrauen in DFX.",
+                "line2": "Leider brauchen wir für das von dir eingezahlte Asset eine Verifizierung (KYC) von dir.",
+                "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Assets vollautomatisch nach 2 Tagen retourniert."
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
