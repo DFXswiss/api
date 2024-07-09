@@ -21,7 +21,6 @@ export class AmlHelperService {
   static getAmlErrors(
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
-    amountInChf: number,
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
@@ -60,8 +59,7 @@ export class AmlHelperService {
       if (!entity.userData.letterSentDate) errors.push(AmlError.NO_LETTER);
       if (!entity.userData.amlListAddedDate) errors.push(AmlError.NO_AML_LIST);
       if (!entity.userData.kycFileId) errors.push(AmlError.NO_KYC_FILE_ID);
-      if (entity.userData.annualBuyVolume + amountInChf > entity.userData.depositLimit)
-        errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+      if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
     }
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
@@ -174,7 +172,6 @@ export class AmlHelperService {
   static getAmlResult(
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
-    amountInChf: number,
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
@@ -187,7 +184,6 @@ export class AmlHelperService {
     const amlErrors = this.getAmlErrors(
       entity,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,

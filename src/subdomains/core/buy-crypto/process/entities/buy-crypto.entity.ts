@@ -413,7 +413,6 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
     last7dVolume: number,
@@ -424,12 +423,9 @@ export class BuyCrypto extends IEntity {
     instantBanks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
-    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
-
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,
