@@ -25,26 +25,6 @@ export interface TransferInfo {
   method: Blockchain;
 }
 
-export class PaymentLinkDto {
-  @ApiProperty()
-  id: number;
-
-  @ApiProperty()
-  routeId: number;
-
-  @ApiProperty()
-  uniqueId: string;
-
-  @ApiProperty()
-  externalId: string;
-
-  @ApiProperty()
-  status: PaymentLinkStatus;
-
-  @ApiPropertyOptional()
-  payment: PaymentLinkPaymentDto;
-}
-
 export class PaymentLinkPaymentDto {
   @ApiProperty()
   id: number;
@@ -69,4 +49,24 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty()
   expiryDate: Date;
+}
+
+export class PaymentLinkDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  routeId: number;
+
+  @ApiProperty()
+  uniqueId: string;
+
+  @ApiProperty()
+  externalId: string;
+
+  @ApiProperty()
+  status: PaymentLinkStatus;
+
+  @ApiPropertyOptional()
+  payment: PaymentLinkPaymentDto;
 }
