@@ -540,7 +540,9 @@ export class UserDataService {
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
     // copy all documents
-    await this.documentStorageService.copyFiles(slave.id, master.id);
+    void this.documentStorageService
+      .copyFiles(slave.id, master.id)
+      .catch((e) => this.logger.critical('Error in document copy files:', e));
 
     // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
