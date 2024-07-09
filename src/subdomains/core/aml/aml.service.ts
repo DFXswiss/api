@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
+import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -66,6 +67,11 @@ export class AmlService {
       }
     }
 
+    if (!entity.userData.verifiedCountry) {
+      const verifiedCountry = await this.getVerifiedCountry(entity);
+      verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
+    }
+
     if (entity instanceof BuyFiat) return { bankData, blacklist };
     if (entity.cryptoInput) return { bankData: undefined, blacklist, instantBanks: undefined };
 
@@ -100,13 +106,24 @@ export class AmlService {
     entity.userData.lastNameCheckDate = bankData.userData.lastNameCheckDate;
   }
 
+  private async getVerifiedCountry(entity: BuyFiat | BuyCrypto): Promise<Country | undefined> {
+    if (entity instanceof BuyFiat) return this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
+    if (entity.cryptoInput) return undefined;
+
+    return this.countryService.getCountryWithSymbol(
+      entity.checkoutTx?.cardIssuerCountry ?? entity.bankTx.iban.substring(0, 2),
+    );
+  }
+
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
-    if (entity instanceof BuyFiat) return this.bankDataService.getBankDataWithIban(entity.sell.iban);
+    if (entity instanceof BuyFiat) return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban);
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService.getBankDatasForUser(entity.userData.id);
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 
-    return this.bankDataService.getBankDataWithIban(entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint);
+    return this.bankDataService.getVerifiedBankDataWithIban(
+      entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
+    );
   }
 }

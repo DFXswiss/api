@@ -6,6 +6,7 @@ export enum AmlError {
   KYC_LEVEL_30_NOT_REACHED = 'KycLevel30NotReached',
   KYC_LEVEL_50_NOT_REACHED = 'KycLevel50NotReached',
   KYC_LEVEL_TOO_LOW = 'KycLevelTooLow',
+  KYC_LEVEL_FOR_ASSET_NOT_REACHED = 'KycLevelForAssetNotReached',
   ASSET_NOT_SELLABLE = 'AssetNotSellable',
   ASSET_NOT_BUYABLE = 'AssetNotBuyable',
   ASSET_NOT_INSTANT_BUYABLE = 'AssetNotInstantBuyable',
@@ -55,6 +56,11 @@ export const AmlErrorResult: {
   [AmlError.KYC_LEVEL_30_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_50_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_TOO_LOW]: null,
+  [AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.ASSET_KYC_NEEDED,
+  },
   [AmlError.ASSET_NOT_SELLABLE]: null,
   [AmlError.ASSET_NOT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,

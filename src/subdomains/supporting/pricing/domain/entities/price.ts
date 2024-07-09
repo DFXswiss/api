@@ -27,7 +27,7 @@ export class Price {
   }
 
   addPriceSteps(steps: PriceStep[]) {
-    this.steps = [...(this.steps ?? []), ...steps];
+    this.steps = [...this.steps, ...steps];
   }
 
   static create(
@@ -45,7 +45,7 @@ export class Price {
     price.price = _price;
     price.isValid = _isValid;
     price.timestamp = _timestamp;
-    price.steps = step ? [step] : undefined;
+    price.steps = step ? [step] : [];
 
     return price;
   }

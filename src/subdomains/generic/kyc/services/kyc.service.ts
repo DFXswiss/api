@@ -28,6 +28,7 @@ import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-finan
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
+import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
@@ -228,7 +229,7 @@ export class KycService {
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
-    return { status: kycStep.status };
+    return KycStepMapper.toKycResult(kycStep);
   }
 
   async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycResultDto> {
@@ -244,7 +245,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { status: kycStep.status };
+    return KycStepMapper.toKycResult(kycStep);
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
@@ -281,7 +282,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { status: kycStep.status };
+    return KycStepMapper.toKycResult(kycStep);
   }
 
   async updateIdent(dto: IdentResultDto): Promise<void> {
@@ -376,7 +377,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { status: kycStep.status };
+    return KycStepMapper.toKycResult(kycStep);
   }
 
   // --- STEPPING METHODS --- //
@@ -508,7 +509,7 @@ export class KycService {
 
   // --- HELPER METHODS --- //
 
-  private async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
+  async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
     const identificationType = getIdentificationType(result.identificationprocess?.companyid);
     if (
       result.userdata?.birthday?.value &&
@@ -531,6 +532,7 @@ export class KycService {
           kycLevel: KycLevel.LEVEL_30,
           birthday: new Date(result.userdata.birthday.value),
           nationality,
+          verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
