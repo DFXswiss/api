@@ -63,6 +63,16 @@ export class AzureStorageService {
     return this.blobUrl(name);
   }
 
+  async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {
+    const blobs = await this.listBlobs(sourcePrefix);
+
+    for (const blob of blobs) {
+      const data = await this.getBlob(blob.name);
+      const targetName = blob.name.replace(sourcePrefix, targetPrefix);
+      await this.uploadBlob(targetName, data.data, data.contentType, blob.metadata);
+    }
+  }
+
   private blobUrl(name: string): string {
     const urlEncodedName = name
       .split('/')

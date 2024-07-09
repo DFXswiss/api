@@ -49,6 +49,15 @@ export class DocumentStorageService {
     return this.storageService.getBlob(this.toFileId(userDataId, type, name));
   }
 
+  async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
+    await this.storageService.copyBlobs(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
+    await this.storageService.copyBlobs(
+      `spider/${sourceUserDataId}-organization/`,
+      `spider/${targetUserDataId}-organization/`,
+    );
+    await this.storageService.copyBlobs(`user/${sourceUserDataId}/`, `user/${targetUserDataId}/`);
+  }
+
   // --- HELPER METHODS --- //
   private toFileId(userDataId: number, type: FileType, name: string): string {
     return `user/${userDataId}/${type}/${name}`;
