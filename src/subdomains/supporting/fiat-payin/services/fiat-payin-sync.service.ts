@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
-import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { ChargebackReason, ChargebackState, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -57,7 +57,14 @@ export class FiatPayInSyncService {
 
     for (const refundedPayment of refundedPayments) {
       try {
-        await this.createCheckoutTx(refundedPayment);
+        const checkoutTx = await this.createCheckoutTx(refundedPayment);
+        if (checkoutTx)
+          await this.siftService.createChargeback({
+            $transaction_id: checkoutTx.transaction?.id.toString(),
+            $order_id: checkoutTx.transaction?.request?.id.toString(),
+            $chargeback_reason: ChargebackReason.OTHER,
+            $chargeback_state: ChargebackState.ACCEPTED,
+          });
       } catch (e) {
         this.logger.error(`Failed to import refunded transaction:`, e);
       }

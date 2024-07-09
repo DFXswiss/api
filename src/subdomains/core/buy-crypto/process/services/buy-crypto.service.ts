@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
-import { ChargebackReason, ChargebackState, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -302,13 +302,6 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(buyCrypto.id, {
       chargebackDate: new Date(),
       chargebackRemittanceInfo: chargebackRemittanceInfo.reference,
-    });
-
-    await this.siftService.createChargeback({
-      $transaction_id: buyCrypto.checkoutTx?.transaction?.id.toString(),
-      $order_id: buyCrypto.checkoutTx?.transaction?.request?.id.toString(),
-      $chargeback_reason: ChargebackReason.OTHER,
-      $chargeback_state: ChargebackState.ACCEPTED,
     });
   }
 
