@@ -71,6 +71,7 @@
                 "fee_too_high": "Les frais de réseau sont actuellement trop élevés pour le montant que vous avez envoyé",
                 "receiver_rejected_tx": "Le noeud récepteur a rejeté la transaction",
                 "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné",
+                "chf_abroad_tx": "Il n'est pas possible de verser des CHF à des IBAN étrangers",
                 "asset_kyc_needed": "KYC est requis pour l'actif déposé"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"

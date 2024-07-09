@@ -974,6 +974,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.RECEIVER_REJECTED_TX]: DeclineCategory.OTHER,
   [AmlReason.STAKING_DISCONTINUED]: DeclineCategory.INVALID,
   [AmlReason.USER_DATA_MISMATCH]: DeclineCategory.OTHER,
+  [AmlReason.CHF_ABROAD_TX]: DeclineCategory.INVALID,
   [AmlReason.ASSET_KYC_NEEDED]: DeclineCategory.OTHER,
 };
 

@@ -71,6 +71,7 @@
                 "fee_too_high": "Le spese di rete sono attualmente troppo elevate per l'importo inviato.",
                 "receiver_rejected_tx": "Il nodo ricevente ha rifiutato la transazione",
                 "asset_not_available_with_chosen_bank": "Questo bene non può essere acquistato tramite il conto bancario selezionato",
+                "chf_abroad_tx": "I CHF non possono essere versati su IBAN stranieri",
                 "asset_kyc_needed": "Il KYC è richiesto per l'attività depositata"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"

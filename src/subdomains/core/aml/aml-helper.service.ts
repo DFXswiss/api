@@ -152,6 +152,8 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
+      if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
+        errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (
         blacklist.some((b) =>
