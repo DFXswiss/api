@@ -12,8 +12,10 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -25,7 +27,6 @@ import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -57,6 +58,7 @@ describe('BuyCryptoService', () => {
   let checkoutService: CheckoutService;
   let checkoutTxService: CheckoutTxService;
   let payInService: PayInService;
+  let fiatOutputService: FiatOutputService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -77,6 +79,7 @@ describe('BuyCryptoService', () => {
     checkoutService = createMock<CheckoutService>();
     checkoutTxService = createMock<CheckoutTxService>();
     payInService = createMock<PayInService>();
+    fiatOutputService = createMock<FiatOutputService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -100,6 +103,7 @@ describe('BuyCryptoService', () => {
         { provide: CheckoutService, useValue: checkoutService },
         { provide: CheckoutTxService, useValue: checkoutTxService },
         { provide: PayInService, useValue: payInService },
+        { provide: FiatOutputService, useValue: fiatOutputService },
       ],
     }).compile();
 
