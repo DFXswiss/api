@@ -468,7 +468,7 @@ export abstract class EvmClient {
   swapConfig(maxSlippage: number) {
     return {
       recipient: this.dfxAddress,
-      slippageTolerance: new Percent(maxSlippage * 1000, 1000),
+      slippageTolerance: new Percent(maxSlippage * 100000, 100000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
       type: SwapType.SWAP_ROUTER_02,
     };
