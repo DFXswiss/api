@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import * as IbanTools from 'ibantools';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -46,7 +45,7 @@ export class AmlService {
           entity.userData.verifiedName &&
           (Util.isSameName(entity.bankTx?.name ?? entity.checkoutTx?.cardName, entity.userData.verifiedName) ||
             Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName)) &&
-          IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid
+          !entity.checkoutTx
         ) {
           try {
             const [master, slave] =
