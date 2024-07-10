@@ -49,10 +49,13 @@ export class PaymentLinkService {
       uniqueId: `pl_${hash.slice(0, 6)}`,
     });
 
+    await this.paymentLinkRepo.save(paymentLink);
+
     paymentLink.payments = dto.payment
       ? [await this.paymentLinkPaymentService.create(paymentLink, dto.payment)]
       : undefined;
-    return this.paymentLinkRepo.save(paymentLink);
+
+    return paymentLink;
   }
 
   async createPayment(userId: number, id: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLink> {

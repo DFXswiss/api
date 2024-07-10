@@ -21,9 +21,7 @@ export class PaymentLinkPaymentService {
   ) {}
 
   async create(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    const pendingLinkPayment = await this.paymentLinkPaymentRepo.exists({
-      where: { status: PaymentLinkPaymentStatus.PENDING },
-    });
+    const pendingLinkPayment = paymentLink.payments.some((p) => p.status == PaymentLinkPaymentStatus.PENDING);
 
     if (pendingLinkPayment)
       throw new ConflictException('There is already a pending payment for the specified payment link');

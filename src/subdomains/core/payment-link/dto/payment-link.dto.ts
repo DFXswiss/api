@@ -51,6 +51,12 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty()
   expiryDate: Date;
+
+  @ApiProperty()
+  url: string;
+
+  @ApiProperty()
+  lnurl: string;
 }
 
 export class PaymentLinkDto {
@@ -72,4 +78,10 @@ export class PaymentLinkDto {
 
   @ApiPropertyOptional()
   payment: PaymentLinkPaymentDto;
+
+  @ApiProperty()
+  url: string;
+
+  @ApiProperty()
+  lnurl: string;
 }

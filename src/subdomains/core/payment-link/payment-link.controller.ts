@@ -9,7 +9,6 @@ import { CreatePaymentLinkPaymentDto } from './dto/create-payment-link-payment.d
 import { PaymentLinkDtoMapper } from './dto/payment-link-dto.mapper';
 import { PaymentLinkDto } from './dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from './dto/update-payment-link.dto';
-import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentLinkService } from './services/payment-link.services';
 
 @ApiTags('Payment Link')
@@ -20,7 +19,7 @@ export class PaymentLinkController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLink, isArray: true })
+  @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
   async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> {
     return PaymentLinkDtoMapper.entitiesToDto(await this.paymentLinkService.getAll(+jwt.user));
   }
@@ -28,7 +27,7 @@ export class PaymentLinkController {
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLink })
+  @ApiOkResponse({ type: PaymentLinkDto })
   async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
     return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.get(+jwt.user, +id));
   }
@@ -36,7 +35,7 @@ export class PaymentLinkController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLink })
+  @ApiOkResponse({ type: PaymentLinkDto })
   async updatePaymentLink(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -48,7 +47,7 @@ export class PaymentLinkController {
   @Post(':id/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLink })
+  @ApiOkResponse({ type: PaymentLinkDto })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -60,7 +59,6 @@ export class PaymentLinkController {
   @Delete(':id/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLink })
   async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
     return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, +id);
   }

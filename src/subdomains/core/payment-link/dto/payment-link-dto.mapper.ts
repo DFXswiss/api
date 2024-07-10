@@ -1,3 +1,4 @@
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkDto, PaymentLinkPaymentStatus } from './payment-link.dto';
@@ -21,8 +22,12 @@ export class PaymentLinkDtoMapper {
             currency: FiatDtoMapper.toDto(paymentLinkPayment.currency),
             mode: paymentLinkPayment.mode,
             expiryDate: paymentLinkPayment.expiryDate,
+            url: LightningHelper.createLnurlp(paymentLinkPayment.uniqueId),
+            lnurl: LightningHelper.createEncodedLnurlp(paymentLinkPayment.uniqueId),
           }
         : undefined,
+      url: LightningHelper.createLnurlp(paymentLink.uniqueId),
+      lnurl: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
     };
 
     return Object.assign(new PaymentLinkDto(), dto);
