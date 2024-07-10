@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -21,6 +23,7 @@ export class PaymentLinkService {
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
     private readonly sellService: SellService,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
   ) {}
 
@@ -48,6 +51,8 @@ export class PaymentLinkService {
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = await this.sellService.get(userId, dto.routeId);
     if (!route) throw new NotFoundException('Route not found');
+    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
@@ -103,14 +108,17 @@ export class PaymentLinkService {
       if (exists) throw new ConflictException('Payment already exists');
     }
 
+    const currency = await this.fiatService.getFiat(dto.currency.id);
+    if (!currency) throw new NotFoundException('Currency not found');
+
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
       expiryDate: dto.expiryDate ?? Util.secondsAfter(60),
       mode: dto.mode,
-      currency: dto.currency,
+      currency,
       uniqueId: this.createUniqueId('plp'),
-      transferAmounts: await this.createTransferAmounts(dto.currency, dto.amount).then(JSON.stringify),
+      transferAmounts: await this.createTransferAmounts(currency, dto.amount).then(JSON.stringify),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
     });
