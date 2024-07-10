@@ -531,10 +531,6 @@ export class UserDataService {
     if (notifyUser && slave.mail && master.mail !== slave.mail)
       await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
-    // Adapt slave kyc step sequenceNumber
-    const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
-    slave.kycSteps.forEach((k) => (k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset));
-
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
