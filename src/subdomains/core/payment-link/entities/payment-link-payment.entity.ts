@@ -7,7 +7,7 @@ import { PaymentLink } from './payment-link.entity';
 @Entity()
 export class PaymentLinkPayment extends IEntity {
   @ManyToOne(() => PaymentLink)
-  @Index({ unique: true, where: `status = ${PaymentLinkPaymentStatus.PENDING}` })
+  @Index({ unique: true, where: `status = '${PaymentLinkPaymentStatus.PENDING}'` })
   link: PaymentLink;
 
   @Column({ length: 256, nullable: false, unique: true })
