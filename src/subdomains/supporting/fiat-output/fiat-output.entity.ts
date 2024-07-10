@@ -15,7 +15,7 @@ export class FiatOutput extends IEntity {
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.fiatOutput, { nullable: true })
   buyFiat?: BuyFiat;
 
-  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.fiatOutput, { nullable: true })
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.chargebackOutput, { nullable: true })
   buyCrypto?: BuyCrypto;
 
   @OneToOne(() => BankTx, { nullable: true })

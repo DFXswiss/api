@@ -244,7 +244,7 @@ export class BuyCryptoService {
     }
 
     if (dto.chargebackAllowedDate)
-      update.fiatOutput = await this.fiatOutputService.create({ buyCryptoId: entity.id, type: 'BuyCrypto' });
+      update.chargebackOutput = await this.fiatOutputService.create({ buyCryptoId: entity.id, type: 'BuyCrypto' });
 
     Util.removeNullFields(entity);
     const fee = entity.fee;

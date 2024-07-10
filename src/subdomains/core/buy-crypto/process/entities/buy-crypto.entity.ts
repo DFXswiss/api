@@ -174,7 +174,7 @@ export class BuyCrypto extends IEntity {
 
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
-  fiatOutput: FiatOutput;
+  chargebackOutput: FiatOutput;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
