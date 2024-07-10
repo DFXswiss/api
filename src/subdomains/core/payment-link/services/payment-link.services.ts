@@ -6,7 +6,6 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
-import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.services';
@@ -56,10 +55,11 @@ export class PaymentLinkService {
     return this.paymentLinkRepo.save(paymentLink);
   }
 
-  async createPayment(userId: number, id: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+  async createPayment(userId: number, id: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLink> {
     const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, id } });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
-    return this.paymentLinkPaymentService.create(paymentLink, dto);
+    paymentLink.payments.push(await this.paymentLinkPaymentService.create(paymentLink, dto));
+    return paymentLink;
   }
 
   async cancelPaymentLinkPayment(userId: number, id: number): Promise<void> {

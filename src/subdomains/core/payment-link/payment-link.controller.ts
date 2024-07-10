@@ -9,7 +9,6 @@ import { CreatePaymentLinkPaymentDto } from './dto/create-payment-link-payment.d
 import { PaymentLinkDtoMapper } from './dto/payment-link-dto.mapper';
 import { PaymentLinkDto } from './dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from './dto/update-payment-link.dto';
-import { PaymentLinkPayment } from './entities/payment-link-payment.entity';
 import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentLinkService } from './services/payment-link.services';
 
@@ -42,8 +41,8 @@ export class PaymentLinkController {
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkDto,
-  ): Promise<PaymentLink> {
-    return this.paymentLinkService.updatePaymentLink(+jwt.user, +id, dto);
+  ): Promise<PaymentLinkDto> {
+    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.updatePaymentLink(+jwt.user, +id, dto));
   }
 
   @Post(':id/payment')
@@ -54,8 +53,8 @@ export class PaymentLinkController {
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
-  ): Promise<PaymentLinkPayment> {
-    return this.paymentLinkService.createPayment(+jwt.user, +id, dto);
+  ): Promise<PaymentLinkDto> {
+    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.createPayment(+jwt.user, +id, dto));
   }
 
   @Delete(':id/payment')
