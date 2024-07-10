@@ -1,11 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreatePaymentLinkPaymentDto } from './dto/create-payment-link-payment.dto';
+import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
 import { PaymentLinkDtoMapper } from './dto/payment-link-dto.mapper';
 import { PaymentLinkDto } from './dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from './dto/update-payment-link.dto';
@@ -13,7 +14,6 @@ import { PaymentLinkService } from './services/payment-link.services';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')
-@ApiExcludeController()
 export class PaymentLinkController {
   constructor(private readonly paymentLinkService: PaymentLinkService) {}
   @Get()
@@ -22,6 +22,14 @@ export class PaymentLinkController {
   @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
   async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> {
     return PaymentLinkDtoMapper.entitiesToDto(await this.paymentLinkService.getAll(+jwt.user));
+  }
+
+  @Post()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: PaymentLinkDto })
+  async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
+    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.create(+jwt.user, dto));
   }
 
   @Get(':id')
