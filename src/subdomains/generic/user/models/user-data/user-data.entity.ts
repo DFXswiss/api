@@ -457,7 +457,11 @@ export class UserData extends IEntity {
   }
 
   get isBlocked(): boolean {
-    return [UserDataStatus.BLOCKED, UserDataStatus.DELETED].includes(this.status) || this.kycLevel < 0;
+    return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
+  }
+
+  get isDeleted(): boolean {
+    return this.status === UserDataStatus.DELETED;
   }
 
   get address() {
