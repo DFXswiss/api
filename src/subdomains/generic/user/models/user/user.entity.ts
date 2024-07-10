@@ -17,6 +17,7 @@ export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
+  DELETED = 'Deleted',
 }
 
 @Entity()
@@ -123,7 +124,7 @@ export class User extends IEntity {
   //*** FACTORY METHODS ***//
   blockUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
-      status: UserStatus.BLOCKED,
+      status: UserStatus.DELETED,
       comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
     };
 

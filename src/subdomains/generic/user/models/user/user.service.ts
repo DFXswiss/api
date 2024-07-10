@@ -115,7 +115,9 @@ export class UserService {
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
-      .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
+      .andWhere('userData.status NOT IN (:...userDataStatus)', {
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DELETED],
+      })
       .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
   }
@@ -239,9 +241,9 @@ export class UserService {
   async blockUser(id: number, allUser = false): Promise<void> {
     const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.status === UserDataStatus.BLOCKED)
-      throw new BadRequestException('User Account already blocked');
-    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+    if (mainUser.userData.status === UserDataStatus.DELETED)
+      throw new BadRequestException('User Account already deleted');
+    if (mainUser.status === UserStatus.DELETED) throw new BadRequestException('User already deleted');
 
     if (!allUser) {
       await this.userRepo.update(...mainUser.blockUser('Manual user block'));
