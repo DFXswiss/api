@@ -3,9 +3,8 @@ import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsEnum, IsNotEmpty, IsNotEmptyObject, IsString, ValidateIf, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
-import { Util } from 'src/shared/utils/util';
 import { AccountType } from '../../user-data/account-type.enum';
-import { IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
+import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
 
 export class KycUserDataDto {
   @ApiPropertyOptional({ enum: AccountType })
@@ -68,7 +67,7 @@ export class KycUserDataDto {
   @IsNotEmpty()
   @IsString()
   @IsDfxPhone()
-  @Transform(Util.trim)
+  @Transform(DfxPhoneTransform)
   phone?: string;
 
   @ApiPropertyOptional()
