@@ -1,13 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CreatePaymentLinkPaymentDto } from './create-payment-link-payment.dto';
 
 export class CreatePaymentLinkDto {
   @ApiProperty()
-  @IsNumber()
+  @IsInt()
   @IsNotEmpty()
-  route: number;
+  routeId: number;
 
   @ApiPropertyOptional()
   @IsOptional()

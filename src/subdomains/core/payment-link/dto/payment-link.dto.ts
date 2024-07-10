@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 
@@ -30,23 +29,19 @@ export class PaymentLinkPaymentDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty()
-  uniqueId: string;
-
-  @ApiProperty()
+  @ApiPropertyOptional()
   externalId: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: PaymentLinkPaymentStatus })
   status: PaymentLinkPaymentStatus;
 
   @ApiProperty()
   amount: number;
 
-  @ApiProperty()
+  @ApiProperty({ type: FiatDto })
   currency: FiatDto;
 
-  @ApiProperty()
-  @IsEnum(PaymentLinkPaymentMode)
+  @ApiProperty({ enum: PaymentLinkPaymentMode })
   mode: PaymentLinkPaymentMode;
 
   @ApiProperty()
@@ -66,22 +61,18 @@ export class PaymentLinkDto {
   @ApiProperty()
   routeId: number;
 
-  @ApiProperty()
-  uniqueId: string;
-
   @ApiPropertyOptional()
   externalId: string;
 
-  @ApiProperty()
-  @IsEnum(PaymentLinkStatus)
+  @ApiProperty({ enum: PaymentLinkStatus })
   status: PaymentLinkStatus;
-
-  @ApiPropertyOptional()
-  payment: PaymentLinkPaymentDto;
 
   @ApiProperty()
   url: string;
 
   @ApiProperty()
   lnurl: string;
+
+  @ApiPropertyOptional({ type: PaymentLinkPaymentDto })
+  payment: PaymentLinkPaymentDto;
 }

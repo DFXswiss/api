@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -16,20 +16,13 @@ import { PaymentLinkService } from './services/payment-link.services';
 @Controller('paymentLink')
 export class PaymentLinkController {
   constructor(private readonly paymentLinkService: PaymentLinkService) {}
+
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
   async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> {
-    return PaymentLinkDtoMapper.entitiesToDto(await this.paymentLinkService.getAll(+jwt.user));
-  }
-
-  @Post()
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLinkDto })
-  async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
-    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.create(+jwt.user, dto));
+    return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.entitiesToDto);
   }
 
   @Get(':id')
@@ -37,7 +30,15 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto })
   async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
-    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.get(+jwt.user, +id));
+    return this.paymentLinkService.get(+jwt.user, +id).then(PaymentLinkDtoMapper.entityToDto);
+  }
+
+  @Post()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: PaymentLinkDto })
+  async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
+    return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.entityToDto);
   }
 
   @Put(':id')
@@ -49,7 +50,7 @@ export class PaymentLinkController {
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.updatePaymentLink(+jwt.user, +id, dto));
+    return this.paymentLinkService.update(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.entityToDto);
   }
 
   @Post(':id/payment')
@@ -61,13 +62,13 @@ export class PaymentLinkController {
     @Param('id') id: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.createPayment(+jwt.user, +id, dto));
+    return this.paymentLinkService.createPayment(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.entityToDto);
   }
 
   @Delete(':id/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, +id);
+    return this.paymentLinkService.cancelPayment(+jwt.user, +id);
   }
 }
