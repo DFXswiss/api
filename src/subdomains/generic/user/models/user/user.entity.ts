@@ -122,7 +122,7 @@ export class User extends IEntity {
   comment: string;
 
   //*** FACTORY METHODS ***//
-  blockUser(reason: string): UpdateResult<User> {
+  deactivateUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
       status: UserStatus.DELETED,
       comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,

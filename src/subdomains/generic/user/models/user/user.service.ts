@@ -114,7 +114,7 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DELETED],
       })
@@ -238,7 +238,7 @@ export class UserService {
     return this.userRepo.save({ ...user, ...update });
   }
 
-  async blockUser(id: number, allUser = false): Promise<void> {
+  async deactivateUser(id: number, allUser = false): Promise<void> {
     const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (!mainUser) throw new NotFoundException('User not found');
     if (mainUser.userData.status === UserDataStatus.DELETED)
@@ -246,14 +246,14 @@ export class UserService {
     if (mainUser.status === UserStatus.DELETED) throw new BadRequestException('User already deleted');
 
     if (!allUser) {
-      await this.userRepo.update(...mainUser.blockUser('Manual user block'));
+      await this.userRepo.update(...mainUser.deactivateUser('Manual user block'));
       return;
     }
 
-    await this.userDataService.blockUserData(mainUser.userData);
+    await this.userDataService.deactivateUserData(mainUser.userData);
 
     for (const user of mainUser.userData.users) {
-      await this.userRepo.update(...user.blockUser('Manual user account block'));
+      await this.userRepo.update(...user.deactivateUser('Manual user account block'));
     }
   }
 

@@ -320,7 +320,10 @@ export class UserData extends IEntity {
   }
 
   blockUserData(): UpdateResult<UserData> {
-    const update: Partial<UserData> = { status: UserDataStatus.DELETED };
+    const update: Partial<UserData> = {
+      status: UserDataStatus.DELETED,
+      kycLevel: this.kycLevel < KycLevel.LEVEL_20 ? this.kycLevel : KycLevel.LEVEL_20,
+    };
 
     Object.assign(this, update);
 

@@ -24,6 +24,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -63,6 +64,7 @@ export class UserDataService {
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
     private readonly documentStorageService: DocumentStorageService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -291,8 +293,9 @@ export class UserDataService {
     return { user: userData, isKnownUser };
   }
 
-  async blockUserData(userData: UserData): Promise<void> {
+  async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.blockUserData());
+    await this.kycAdminService.deactivateKycSteps(userData.kycSteps);
   }
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {

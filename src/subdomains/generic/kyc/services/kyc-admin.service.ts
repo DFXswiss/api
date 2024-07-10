@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -16,7 +16,7 @@ export class KycAdminService {
   constructor(
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
-    private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly kycService: KycService,
   ) {}
 
@@ -45,6 +45,13 @@ export class KycAdminService {
     }
 
     await this.kycStepRepo.save(kycStep);
+  }
+
+  async deactivateKycSteps(kycSteps: KycStep[]): Promise<void> {
+    for (const kycStep of kycSteps) {
+      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && kycStep.isCompleted)
+        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.DEACTIVATED });
+    }
   }
 
   async triggerWebhook(dto: KycWebhookTriggerDto): Promise<void> {
