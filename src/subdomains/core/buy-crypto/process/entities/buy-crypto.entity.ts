@@ -9,6 +9,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -170,6 +171,10 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   chargebackIban: string;
+
+  @OneToOne(() => FiatOutput, { nullable: true })
+  @JoinColumn()
+  chargebackOutput: FiatOutput;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
