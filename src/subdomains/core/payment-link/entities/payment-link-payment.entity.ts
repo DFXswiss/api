@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../dto/payment-link.dto';
 import { PaymentLink } from './payment-link.entity';
 
@@ -33,4 +34,8 @@ export class PaymentLinkPayment extends IEntity {
 
   @Column({ length: 'MAX' })
   transferAmounts: string;
+
+  @OneToOne(() => CryptoInput, { nullable: true })
+  @JoinColumn()
+  cryptoInput: CryptoInput;
 }
