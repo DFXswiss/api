@@ -56,7 +56,7 @@ export class PaymentLinkController {
   @Post(':id/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLinkDto })
+  @ApiCreatedResponse({ type: PaymentLinkDto })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
