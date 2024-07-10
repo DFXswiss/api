@@ -26,8 +26,8 @@ export class FiatOutputService {
     }
 
     if (dto.buyCryptoId) {
-      entity.buyCrypto = await this.buyCryptoRepo.findOneBy({ id: dto.buyFiatId });
-      if (!entity.buyFiat) throw new NotFoundException('BuyCrypto not found');
+      entity.buyCrypto = await this.buyCryptoRepo.findOneBy({ id: dto.buyCryptoId });
+      if (!entity.buyCrypto) throw new NotFoundException('BuyCrypto not found');
     }
 
     return this.fiatOutputRepo.save(entity);
