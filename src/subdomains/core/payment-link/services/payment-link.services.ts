@@ -145,7 +145,7 @@ export class PaymentLinkService {
   }
 
   private createUniqueId(prefix: string): string {
-    const hash = Util.createHash(new Date().toString()).toLowerCase();
+    const hash = Util.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
     return `${prefix}_${hash.slice(0, 6)}`;
   }
 }
