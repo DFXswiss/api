@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -24,15 +25,18 @@ export class PaymentLinkService {
   ) {}
 
   async get(userId: number, id: number): Promise<PaymentLink> {
-    return this.paymentLinkRepo.findOneBy({ id, route: { user: { id: userId } } });
+    return this.paymentLinkRepo.findOne({ where: { id, route: { user: { id: userId } } }, relations: { route: true } });
   }
 
   async getAll(userId: number): Promise<PaymentLink[]> {
-    return this.paymentLinkRepo.findBy({ route: { user: { id: userId } } });
+    return this.paymentLinkRepo.find({ where: { route: { user: { id: userId } } }, relations: { route: true } });
   }
 
   async update(userId: number, id: number, dto: UpdatePaymentLinkDto): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.findOneBy({ id, route: { user: { id: userId } } });
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id, route: { user: { id: userId } } },
+      relations: { route: true },
+    });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     paymentLink.status = dto.status;
@@ -44,6 +48,14 @@ export class PaymentLinkService {
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = await this.sellService.get(userId, dto.routeId);
     if (!route) throw new NotFoundException('Route not found');
+
+    if (dto.externalId) {
+      const exists = await this.paymentLinkRepo.existsBy({
+        externalId: dto.externalId,
+        route: { user: { id: userId } },
+      });
+      if (exists) throw new ConflictException('Payment link already exists');
+    }
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
@@ -62,7 +74,10 @@ export class PaymentLinkService {
 
   // --- PAYMENTS --- //
   async createPayment(userId: number, linkId: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.findOneBy({ id: linkId, route: { user: { id: userId } } });
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: linkId, route: { user: { id: userId } } },
+      relations: { route: true },
+    });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     paymentLink.payments.push(await this.createPaymentFor(paymentLink, dto));
@@ -74,9 +89,19 @@ export class PaymentLinkService {
     paymentLink: PaymentLink,
     dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkPayment> {
+    if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
+
     const pendingPayment = paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (pendingPayment)
       throw new ConflictException('There is already a pending payment for the specified payment link');
+
+    if (dto.externalId) {
+      const exists = await this.paymentLinkPaymentRepo.existsBy({
+        externalId: dto.externalId,
+        link: { id: paymentLink.id },
+      });
+      if (exists) throw new ConflictException('Payment already exists');
+    }
 
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
@@ -105,16 +130,18 @@ export class PaymentLinkService {
 
   private async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferInfo[]> {
     const paymentAssets = await this.assetService.getPaymentAssets();
-    const transferPrices: TransferInfo[] = [];
-    for (const asset of paymentAssets) {
-      const price = await this.pricingService.getPrice(asset, currency, false);
-      transferPrices.push({
-        amount: asset.name == 'ZCHF' ? amount : price.invert().convert(amount) / 0.98,
-        asset: asset.name,
-        method: asset.blockchain,
-      });
-    }
-    return transferPrices;
+
+    return Promise.all(paymentAssets.map((asset) => this.getTransferAmount(currency, asset, amount)));
+  }
+
+  private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<TransferInfo> {
+    const price = await this.pricingService.getPrice(asset, currency, false);
+
+    return {
+      amount: asset.name == 'ZCHF' ? amount : price.invert().convert(amount) / 0.98,
+      asset: asset.name,
+      method: asset.blockchain,
+    };
   }
 
   private createUniqueId(prefix: string): string {
