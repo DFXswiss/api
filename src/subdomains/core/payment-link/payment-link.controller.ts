@@ -6,6 +6,8 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreatePaymentLinkPaymentDto } from './dto/create-payment-link-payment.dto';
+import { PaymentLinkDtoMapper } from './dto/payment-link-dto.mapper';
+import { PaymentLinkDto } from './dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from './dto/update-payment-link.dto';
 import { PaymentLinkPayment } from './entities/payment-link-payment.entity';
 import { PaymentLink } from './entities/payment-link.entity';
@@ -20,16 +22,16 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLink, isArray: true })
-  async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLink[]> {
-    return this.paymentLinkService.getAll(+jwt.user);
+  async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> {
+    return PaymentLinkDtoMapper.entitiesToDto(await this.paymentLinkService.getAll(+jwt.user));
   }
 
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLink })
-  async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> {
-    return this.paymentLinkService.get(+jwt.user, +id);
+  async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
+    return PaymentLinkDtoMapper.entityToDto(await this.paymentLinkService.get(+jwt.user, +id));
   }
 
   @Put(':id')
@@ -60,7 +62,7 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLink })
-  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> {
+  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
     return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, +id);
   }
 }

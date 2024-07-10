@@ -1,3 +1,4 @@
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkDto, PaymentLinkPaymentStatus } from './payment-link.dto';
 
@@ -10,16 +11,18 @@ export class PaymentLinkDtoMapper {
       uniqueId: paymentLink.uniqueId,
       externalId: paymentLink.externalId,
       status: paymentLink.status,
-      payment: {
-        id: paymentLinkPayment.id,
-        uniqueId: paymentLinkPayment.uniqueId,
-        externalId: paymentLinkPayment.externalId,
-        status: paymentLinkPayment.status,
-        amount: paymentLinkPayment.amount,
-        currency: paymentLinkPayment.currency,
-        mode: paymentLinkPayment.mode,
-        expiryDate: paymentLinkPayment.expiryDate,
-      },
+      payment: paymentLinkPayment
+        ? {
+            id: paymentLinkPayment.id,
+            uniqueId: paymentLinkPayment.uniqueId,
+            externalId: paymentLinkPayment.externalId,
+            status: paymentLinkPayment.status,
+            amount: paymentLinkPayment.amount,
+            currency: FiatDtoMapper.toDto(paymentLinkPayment.currency),
+            mode: paymentLinkPayment.mode,
+            expiryDate: paymentLinkPayment.expiryDate,
+          }
+        : undefined,
     };
 
     return Object.assign(new PaymentLinkDto(), dto);

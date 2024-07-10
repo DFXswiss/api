@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -7,6 +7,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkPaymentStatus, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 
 @Injectable()
@@ -19,10 +20,12 @@ export class PaymentLinkPaymentService {
     private readonly pricingService: PricingService,
   ) {}
 
-  async create(dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    const pendingLinkPayment = await this.paymentLinkPaymentRepo.findBy({ status: PaymentLinkPaymentStatus.PENDING });
+  async create(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+    const pendingLinkPayment = await this.paymentLinkPaymentRepo.exists({
+      where: { status: PaymentLinkPaymentStatus.PENDING },
+    });
 
-    if (pendingLinkPayment.length > 0)
+    if (pendingLinkPayment)
       throw new ConflictException('There is already a pending payment for the specified payment link');
 
     // create hash
@@ -37,13 +40,19 @@ export class PaymentLinkPaymentService {
       uniqueId: `plp_${hash.slice(0, 6)}`,
       transferAmounts: await this.createTransferAmounts(dto.currency, dto.amount).then(JSON.stringify),
       status: PaymentLinkPaymentStatus.PENDING,
+      link: paymentLink,
     });
 
     return this.paymentLinkPaymentRepo.save(paymentLinkPayment);
   }
 
-  async save(paymentLinkPayment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
-    return this.paymentLinkPaymentRepo.save(paymentLinkPayment);
+  async cancel(paymentLinkId: number, userId: number): Promise<void> {
+    const paymentLinkPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: { link: { id: paymentLinkId, route: { user: { id: userId } } } },
+    });
+    if (!paymentLinkPayment) throw new NotFoundException('Payment not found');
+    paymentLinkPayment.cancel();
+    await this.paymentLinkPaymentRepo.save(paymentLinkPayment);
   }
 
   async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferInfo[]> {

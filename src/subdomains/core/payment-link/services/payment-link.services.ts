@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkPaymentStatus, PaymentLinkStatus } from '../dto/payment-link.dto';
+import { PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -48,22 +48,21 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: `pl_${hash.slice(0, 6)}`,
-      payments: dto.payment ? [await this.paymentLinkPaymentService.create(dto.payment)] : undefined,
     });
+
+    paymentLink.payments = dto.payment
+      ? [await this.paymentLinkPaymentService.create(paymentLink, dto.payment)]
+      : undefined;
     return this.paymentLinkRepo.save(paymentLink);
   }
 
   async createPayment(userId: number, id: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
     const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, id } });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
-    const paymentLinkPayment = await this.paymentLinkPaymentService.create(dto);
-    return this.paymentLinkPaymentService.save(paymentLinkPayment);
+    return this.paymentLinkPaymentService.create(paymentLink, dto);
   }
 
-  async cancelPaymentLinkPayment(userId: number, id: number): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.findOne({ where: { route: { user: { id: userId } }, id } });
-    const paymentLinkPayment = paymentLink.payments.find((p) => p.status == PaymentLinkPaymentStatus.PENDING).cancel();
-    await this.paymentLinkPaymentService.save(paymentLinkPayment);
-    return paymentLink;
+  async cancelPaymentLinkPayment(userId: number, id: number): Promise<void> {
+    return this.paymentLinkPaymentService.cancel(id, userId);
   }
 }
