@@ -1,9 +1,12 @@
+import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
+
 export interface LnurlPayRequestDto {
   tag: string;
   callback: string;
   minSendable: number;
   maxSendable: number;
   metadata: string;
+  transferAmounts?: TransferInfo[];
 }
 
 export interface LnurlpInvoiceDto {

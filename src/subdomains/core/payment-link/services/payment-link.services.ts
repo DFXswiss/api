@@ -9,7 +9,12 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkPaymentStatus, PaymentLinkStatus, TransferInfo } from '../dto/payment-link.dto';
+import {
+  PaymentLinkPaymentInfo,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  TransferInfo,
+} from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -155,5 +160,27 @@ export class PaymentLinkService {
   private createUniqueId(prefix: string): string {
     const hash = Util.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
     return `${prefix}_${hash.slice(0, 6)}`;
+  }
+
+  async getPaymentLinkPaymentInfo(paymentId: string): Promise<PaymentLinkPaymentInfo> {
+    const pendingPayments = await this.paymentLinkPaymentRepo.find({
+      where: {
+        link: { uniqueId: paymentId },
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: {
+        link: true,
+      },
+    });
+    if (!pendingPayments.length) throw new NotFoundException('No pending payment found');
+
+    const pendingPayment = pendingPayments[0];
+
+    return {
+      paymentLinkExternalId: pendingPayment.link.externalId,
+      paymentLinkPaymentId: pendingPayment.uniqueId,
+      paymentLinkPaymentExternalId: pendingPayment.externalId,
+      transferAmounts: <TransferInfo[]>JSON.parse(pendingPayment.transferAmounts),
+    };
   }
 }

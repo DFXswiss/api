@@ -25,6 +25,13 @@ export interface TransferInfo {
   method: Blockchain;
 }
 
+export interface PaymentLinkPaymentInfo {
+  paymentLinkExternalId: string;
+  paymentLinkPaymentId: string;
+  paymentLinkPaymentExternalId: string;
+  transferAmounts: TransferInfo[];
+}
+
 export class PaymentLinkPaymentDto {
   @ApiProperty()
   id: number;

@@ -1,4 +1,4 @@
-import { LnurlWithdrawRequestDto } from '../lnurlw.dto';
+import { LnurlWithdrawRequestDto } from '../../../../../integration/lightning/dto/lnurlw.dto';
 
 const defaultLnurlwRequest: Partial<LnurlWithdrawRequestDto> = {
   tag: 'withdrawRequest',

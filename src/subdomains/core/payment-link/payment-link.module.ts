@@ -14,6 +14,6 @@ import { PaymentLinkService } from './services/payment-link.services';
   imports: [TypeOrmModule.forFeature([PaymentLink, PaymentLinkPayment]), SellCryptoModule, SharedModule, PricingModule],
   controllers: [PaymentLinkController],
   providers: [PaymentLinkRepository, PaymentLinkPaymentRepository, PaymentLinkService],
-  exports: [],
+  exports: [PaymentLinkService],
 })
 export class PaymentLinkModule {}
