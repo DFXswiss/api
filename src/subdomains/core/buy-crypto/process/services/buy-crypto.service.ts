@@ -321,10 +321,9 @@ export class BuyCryptoService {
       .select('buyCrypto')
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
       .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
+      .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')
@@ -332,8 +331,6 @@ export class BuyCryptoService {
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
-      .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
       .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
   }
