@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
+import { CheckoutPayment, CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { ChargebackReason, ChargebackState, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -9,6 +9,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
+import { TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
@@ -25,6 +26,7 @@ export class FiatPayInSyncService {
     private readonly transactionService: TransactionService,
     private readonly siftService: SiftService,
     private readonly buyService: BuyService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   // --- JOBS --- //
@@ -58,13 +60,16 @@ export class FiatPayInSyncService {
     for (const refundedPayment of refundedPayments) {
       try {
         const checkoutTx = await this.createCheckoutTx(refundedPayment);
-        if (checkoutTx)
+        if (checkoutTx?.status === CheckoutPaymentStatus.REFUNDED) {
+          const transaction = await this.transactionService.getTransactionById(checkoutTx.transaction.id);
+          const transactionRequest = await this.transactionRequestService.getById(transaction.request.id);
           await this.siftService.createChargeback({
-            $transaction_id: checkoutTx.transaction?.id.toString(),
-            $order_id: checkoutTx.transaction?.request?.id.toString(),
+            $transaction_id: transaction.id.toString(),
+            $order_id: transactionRequest?.id.toString(),
             $chargeback_reason: ChargebackReason.OTHER,
             $chargeback_state: ChargebackState.ACCEPTED,
           });
+        }
       } catch (e) {
         this.logger.error(`Failed to import refunded transaction:`, e);
       }

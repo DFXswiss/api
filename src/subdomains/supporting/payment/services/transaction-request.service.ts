@@ -119,6 +119,12 @@ export class TransactionRequestService {
     return request;
   }
 
+  async getById(id: number): Promise<TransactionRequest | undefined> {
+    return this.transactionRequestRepo.findOne({
+      where: { id },
+    });
+  }
+
   async findAndComplete(
     amount: number,
     routeId: number,
