@@ -11,7 +11,7 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
   if (asset.type === AssetType.COIN) return undefined;
 
   const assetPath = assetPaths(asset);
-  return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
+  return `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath ?? ''}`;
 }
 
 // --- HELPERS --- //
