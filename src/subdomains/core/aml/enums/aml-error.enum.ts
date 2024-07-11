@@ -134,8 +134,8 @@ export const AmlErrorResult: {
   [AmlError.BANK_DATA_MISSING]: null,
   [AmlError.BANK_DATA_NOT_ACTIVE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
-    amlReason: AmlReason.IBAN_CHECK,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
   [AmlError.BIC_BLACKLISTED]: null,
