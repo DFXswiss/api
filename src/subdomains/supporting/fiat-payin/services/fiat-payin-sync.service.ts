@@ -61,11 +61,9 @@ export class FiatPayInSyncService {
       try {
         const checkoutTx = await this.createCheckoutTx(refundedPayment);
         if (checkoutTx?.status === CheckoutPaymentStatus.REFUNDED) {
-          const transaction = await this.transactionService.getTransactionById(checkoutTx.transaction.id);
-          const transactionRequest = await this.transactionRequestService.getById(transaction.request.id);
           await this.siftService.createChargeback({
-            $transaction_id: transaction.id.toString(),
-            $order_id: transactionRequest?.id.toString(),
+            $transaction_id: checkoutTx.transaction.id.toString(),
+            $order_id: checkoutTx.transaction.request?.id.toString(),
             $chargeback_reason: ChargebackReason.OTHER,
             $chargeback_state: ChargebackState.ACCEPTED,
           });
@@ -81,7 +79,7 @@ export class FiatPayInSyncService {
 
     let entity = await this.checkoutTxRepo.findOne({
       where: { paymentId: tx.paymentId },
-      relations: { buyCrypto: true, transaction: true },
+      relations: { buyCrypto: true, transaction: { request: true } },
     });
     if (entity) {
       Object.assign(entity, tx);
