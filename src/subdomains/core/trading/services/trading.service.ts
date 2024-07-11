@@ -169,7 +169,7 @@ export class TradingService {
       throw new Error(`Swap fee (${swapFeeChf} CHF) ist larger than estimated profit (${estimatedProfitChf} CHF)`);
 
     tradingInfo.amountIn = amountIn;
-    tradingInfo.amountOut = targetAmount;
+    tradingInfo.amountExpected = targetAmount;
 
     return tradingInfo;
   }
