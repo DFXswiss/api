@@ -8,10 +8,8 @@ export function txExplorerUrl(blockchain: Blockchain, txId: string): string | un
 }
 
 export function assetExplorerUrl(asset: Asset): string | undefined {
-  if (asset.type === AssetType.COIN) return undefined;
-
-  const assetPath = assetPaths(asset);
-  return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
+  const explorerUrl = BlockchainExplorerUrls[asset.blockchain];
+  return asset.type === AssetType.COIN ? explorerUrl : `${explorerUrl}/${assetPaths(asset) ?? ''}`;
 }
 
 // --- HELPERS --- //
