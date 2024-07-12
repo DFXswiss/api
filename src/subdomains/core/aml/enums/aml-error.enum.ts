@@ -112,13 +112,13 @@ export const AmlErrorResult: {
   },
   [AmlError.NAME_CHECK_WITH_BIRTHDAY]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.WEEKLY_LIMIT_REACHED]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
   [AmlError.YEARLY_LIMIT_WO_KYC_REACHED]: {
@@ -134,8 +134,8 @@ export const AmlErrorResult: {
   [AmlError.BANK_DATA_MISSING]: null,
   [AmlError.BANK_DATA_NOT_ACTIVE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
   [AmlError.BIC_BLACKLISTED]: null,
@@ -149,12 +149,12 @@ export const AmlErrorResult: {
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.SUSPICIOUS_MAIL]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
 };
