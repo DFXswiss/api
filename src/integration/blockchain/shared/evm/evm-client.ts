@@ -460,6 +460,20 @@ export abstract class EvmClient {
     return tx.hash;
   }
 
+  async sqrtX96Price(price: number, source: Asset, target: Asset, poolFee: FeeAmount): Promise<number> {
+    const sourceToken = await this.getToken(source);
+    const targetToken = await this.getToken(target);
+    if (sourceToken instanceof NativeCurrency || targetToken instanceof NativeCurrency) throw new Error();
+
+    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const token0IsInToken = sourceToken.address === (await poolContract.token0());
+    const [token0, token1] = token0IsInToken ? [sourceToken, targetToken] : [targetToken, sourceToken];
+
+    price = token0IsInToken ? 1 / price : price;
+
+    return Math.sqrt((price * 10 ** token1.decimals) / 10 ** token0.decimals) * 2 ** 96;
+  }
+
   // --- GETTERS --- //
   get dfxAddress(): string {
     return this.wallet.address;
