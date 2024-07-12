@@ -78,10 +78,7 @@ export class BuyCryptoNotificationService {
         outputAmount: Not(IsNull()),
       },
       relations: {
-        buy: { user: { userData: true } },
-        cryptoRoute: { user: { userData: true } },
-        cryptoInput: true,
-        transaction: true,
+        transaction: { user: { userData: true } },
       },
     });
 
@@ -136,12 +133,10 @@ export class BuyCryptoNotificationService {
         { ...search, checkoutTx: Not(IsNull()) },
       ],
       relations: {
-        buy: { user: { userData: true } },
-        cryptoRoute: { user: { userData: true } },
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: true,
+        transaction: { user: { userData: true } },
       },
     });
 
@@ -216,7 +211,7 @@ export class BuyCryptoNotificationService {
         amlReason: In(BuyCryptoAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } }, cryptoInput: true },
+      relations: { transaction: { user: { userData: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);

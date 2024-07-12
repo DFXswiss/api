@@ -69,7 +69,11 @@ export class BscClient extends EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    const balance = await this.provider.getBalance(this.dfxAddress);
+    return this.getNativeCoinBalanceForAddress(this.dfxAddress);
+  }
+
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    const balance = await this.provider.getBalance(address);
 
     return EvmUtil.fromWeiAmount(balance);
   }

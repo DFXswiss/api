@@ -93,7 +93,7 @@ export class ChainReportHistoryDtoMapper {
           buyCrypto.inputAmount &&
           buyCrypto.outputAmount &&
           buyCrypto.inputAsset &&
-          buyCrypto.bankTx &&
+          (buyCrypto.bankTx || buyCrypto.checkoutTx) &&
           buyCrypto.outputDate &&
           buyCrypto.txId &&
           buyCrypto.buy,
@@ -110,7 +110,9 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txid: buyCrypto.bankTx?.id.toString(),
+          txid:
+            buyCrypto.bankTx?.id.toString() ??
+            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx?.id.toString()}` : undefined),
           description: 'DFX Purchase',
         },
         {

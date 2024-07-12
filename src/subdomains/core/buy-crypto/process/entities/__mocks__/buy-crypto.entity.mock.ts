@@ -1,5 +1,6 @@
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createDefaultBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
+import { createDefaultTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { CheckStatus } from '../../../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
@@ -40,6 +41,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
     cryptoInput,
     fee,
     status,
+    transaction,
   } = customValues;
 
   const keys = Object.keys(customValues);
@@ -78,5 +80,6 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.cryptoInput = keys.includes('cryptoInput') ? cryptoInput : undefined;
   entity.fee = keys.includes('fee') ? fee : createDefaultBuyCryptoFee();
   entity.status = keys.includes('status') ? status : BuyCryptoStatus.PENDING_LIQUIDITY;
+  entity.transaction = keys.includes('transaction') ? transaction : createDefaultTransaction();
   return entity;
 }

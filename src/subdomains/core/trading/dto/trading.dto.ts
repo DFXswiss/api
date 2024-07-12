@@ -9,5 +9,5 @@ export interface TradingInfo {
   assetIn?: Asset;
   assetOut?: Asset;
   amountIn?: number;
-  amountOut?: number;
+  amountExpected?: number;
 }

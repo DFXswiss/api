@@ -3,8 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Language } from 'src/shared/models/language/language.entity';
-import { Util } from 'src/shared/utils/util';
-import { IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
+import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
@@ -16,7 +15,7 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   @IsDfxPhone()
-  @Transform(Util.trim)
+  @Transform(DfxPhoneTransform)
   phone?: string;
 
   @ApiPropertyOptional({ type: EntityDto })

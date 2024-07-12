@@ -1,6 +1,7 @@
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepStatus as EntityStatus } from '../../enums/kyc.enum';
 import { KycStepStatus as DtoStatus, KycStepBase, KycStepDto, KycStepSessionDto } from '../output/kyc-info.dto';
+import { KycResultDto } from '../output/kyc-result.dto';
 
 export class KycStepMapper {
   static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
@@ -21,13 +22,21 @@ export class KycStepMapper {
     return Object.assign(new KycStepSessionDto(), dto);
   }
 
+  static toKycResult(kycStep: KycStep): KycResultDto {
+    return { status: KycStepMapper.toStepStatus(kycStep.status) };
+  }
+
   private static toBase(kycStep: KycStep): KycStepBase {
     return {
       name: kycStep.name,
       type: kycStep.type ?? undefined,
-      status: KycStepMapper.StepMap[kycStep.status],
+      status: this.toStepStatus(kycStep.status),
       sequenceNumber: kycStep.sequenceNumber,
     };
+  }
+
+  private static toStepStatus(entityStatus: EntityStatus): DtoStatus {
+    return KycStepMapper.StepMap[entityStatus];
   }
 
   private static StepMap: Record<EntityStatus, DtoStatus> = {

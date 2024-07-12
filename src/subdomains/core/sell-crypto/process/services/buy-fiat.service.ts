@@ -15,7 +15,7 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, In, IsNull } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -63,14 +63,14 @@ export class BuyFiatService {
 
     // transaction
     request = await this.getTxRequest(entity, request);
-    await this.transactionService.update(entity.transaction.id, {
+    entity.transaction = await this.transactionService.update(entity.transaction.id, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
       request,
     });
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
       if (!bankData)
         await this.bankDataService.createBankData(sell.userData, {
           name: sell.userData.completeName,
@@ -105,10 +105,11 @@ export class BuyFiatService {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
       relations: {
-        sell: { user: { wallet: true, userData: true } },
+        sell: true,
         fiatOutput: true,
         bankTx: true,
         cryptoInput: true,
+        transaction: { user: { userData: true, wallet: true } },
       },
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
@@ -154,8 +155,8 @@ export class BuyFiatService {
     if (dto.amlCheck) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
     // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.sell?.user) {
-      await this.userService.activateUser(entity.sell.user);
+    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
+      await this.userService.activateUser(entity.user);
     }
 
     // payment webhook
@@ -178,7 +179,8 @@ export class BuyFiatService {
       .createQueryBuilder('buyFiat')
       .select('buyFiat')
       .leftJoinAndSelect('buyFiat.sell', 'sell')
-      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('buyFiat.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
@@ -194,7 +196,12 @@ export class BuyFiatService {
   async triggerWebhookManual(id: number): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: { sell: { user: { wallet: true, userData: true } }, bankTx: true, cryptoInput: true },
+      relations: {
+        sell: true,
+        bankTx: true,
+        cryptoInput: true,
+        transaction: { user: { wallet: true, userData: true } },
+      },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
@@ -248,20 +255,6 @@ export class BuyFiatService {
       .then((refs) => refs.map((r) => r.usedRef));
 
     await this.updateRefVolume([...new Set(refs)]);
-  }
-
-  async getUserTransactions(
-    userId: number,
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<BuyFiat[]> {
-    return this.buyFiatRepo.find({
-      where: [
-        { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-        { sell: { user: { id: userId } }, outputDate: IsNull() },
-      ],
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
-    });
   }
 
   async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {

@@ -58,7 +58,7 @@ export class LimitRequestService {
         type: MailType.INTERNAL,
         context: MailContext.LIMIT_REQUEST,
         input: {
-          to: 'liq@dfx.swiss',
+          to: 'limitRequest@dfx.swiss',
           title: 'LimitRequest',
           salutation: { key: 'New LimitRequest' },
           prefix: [

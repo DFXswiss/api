@@ -8,17 +8,15 @@ export function txExplorerUrl(blockchain: Blockchain, txId: string): string | un
 }
 
 export function assetExplorerUrl(asset: Asset): string | undefined {
-  if (asset.type === AssetType.COIN) return undefined;
-
-  const assetPath = assetPaths(asset);
-  return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
+  const explorerUrl = BlockchainExplorerUrls[asset.blockchain];
+  return asset.type === AssetType.COIN ? explorerUrl : `${explorerUrl}/${assetPaths(asset) ?? ''}`;
 }
 
 // --- HELPERS --- //
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
-  [Blockchain.BITCOIN]: 'https://explorer.lightning.space',
+  [Blockchain.BITCOIN]: 'https://mempool.space',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',

@@ -70,7 +70,10 @@
                 "high_risk_blocked_checkout": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
                 "fee_too_high": "Les frais de réseau sont actuellement trop élevés pour le montant que vous avez envoyé",
                 "receiver_rejected_tx": "Le noeud récepteur a rejeté la transaction",
-                "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné"
+                "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné",
+                "chf_abroad_tx": "Il n'est pas possible de verser des CHF à des IBAN étrangers",
+                "asset_kyc_needed": "KYC est requis pour l'actif déposé",
+                "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -146,6 +149,15 @@
                 "line3": "Veuillez contacter notre équipe d'assistance.",
                 "line4": "Vous pouvez contacter l'assistance via [mail:support@dfx.swiss].",
                 "line5": ""
+            },
+            "asset_kyc_needed": {
+                "title": "Vérification (KYC) requise",
+                "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours.",
+                "line1": "Nous vous remercions de la confiance que vous accordez à DFX",
+                "line2": "Malheureusement, nous avons besoin d'une vérification (KYC) de votre part pour l'actif que vous avez déposé.",
+                "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
+                "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
+                "line5": "Si vous ne souhaitez pas procéder à la vérification, le bien sera restitué automatiquement après deux jours."
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",

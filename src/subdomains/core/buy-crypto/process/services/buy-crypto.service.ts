@@ -24,6 +24,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -70,6 +71,7 @@ export class BuyCryptoService {
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly checkoutService: CheckoutService,
     private readonly payInService: PayInService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -82,7 +84,7 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
       if (!bankData) {
         const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
@@ -120,7 +122,10 @@ export class BuyCryptoService {
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        checkoutTx.cardFingerPrint,
+        buy.userData.id,
+      );
 
       if (!bankData)
         await this.bankDataService.createBankData(buy.userData, {
@@ -166,12 +171,11 @@ export class BuyCryptoService {
   }
 
   private async createEntity(entity: BuyCrypto, dto: UpdateTransactionDto): Promise<void> {
-    entity.outputAsset = entity.target.asset;
-    entity.outputReferenceAsset = entity.outputAsset;
+    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
 
     // transaction
     const request = await this.getTxRequest(entity);
-    await this.transactionService.update(entity.transaction.id, { ...dto, request });
+    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
 
@@ -185,7 +189,7 @@ export class BuyCryptoService {
       entity.inputAmount,
       entity.route.id,
       inputCurrency.id,
-      entity.target.asset.id,
+      entity.outputAsset.id,
     );
   }
 
@@ -193,11 +197,12 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOne({
       where: { id },
       relations: {
-        buy: { user: { userData: true, wallet: true } },
-        cryptoRoute: { user: { userData: true, wallet: true } },
+        buy: true,
+        cryptoRoute: true,
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
+        transaction: { user: { userData: true, wallet: true } },
       },
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
@@ -238,6 +243,12 @@ export class BuyCryptoService {
       if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
     }
 
+    if (dto.chargebackAllowedDate)
+      update.chargebackOutput = await this.fiatOutputService.create({
+        buyCryptoId: entity.id,
+        type: 'BuyCryptoFail',
+      });
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
 
@@ -265,8 +276,8 @@ export class BuyCryptoService {
       await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
     // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.buy?.user) {
-      await this.userService.activateUser(entity.buy.user);
+    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
+      await this.userService.activateUser(entity.user);
     }
 
     // create sift transaction
@@ -313,10 +324,9 @@ export class BuyCryptoService {
       .select('buyCrypto')
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
       .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
+      .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')
@@ -324,8 +334,6 @@ export class BuyCryptoService {
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
-      .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
       .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
   }
@@ -366,22 +374,6 @@ export class BuyCryptoService {
 
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
-  }
-
-  async getUserTransactions(
-    userId: number,
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<BuyCrypto[]> {
-    return this.buyCryptoRepo.find({
-      where: [
-        { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-        { buy: { user: { id: userId } }, outputDate: IsNull() },
-        { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-        { cryptoRoute: { user: { id: userId } }, outputDate: IsNull() },
-      ],
-      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
-    });
   }
 
   async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {

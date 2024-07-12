@@ -109,7 +109,7 @@ export class TradingOrderService {
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
     const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
 
-    order.txId = await client.swapPool(order.assetIn, order.assetOut, order.amountIn, order.tradingRule.poolFee, 0.2);
+    order.txId = await client.swapPool(order.assetIn, order.assetOut, order.amountIn, order.tradingRule.poolFee, 0.0001);
     await this.orderRepo.save(order);
   }
 

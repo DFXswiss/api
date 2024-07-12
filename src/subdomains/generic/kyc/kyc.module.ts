@@ -4,6 +4,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { UserModule } from '../user/user.module';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { KycClientController } from './controllers/kyc-client.controller';
@@ -42,6 +43,7 @@ import { TfaService } from './services/tfa.service';
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => SellCryptoModule),
+    TransactionModule,
   ],
   controllers: [KycController, KycAdminController, KycClientController, LimitRequestController],
   providers: [

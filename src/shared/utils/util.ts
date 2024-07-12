@@ -138,11 +138,11 @@ export class Util {
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
-      .replace(/[ñ]/g, 'n')
+      .replace(/[ñń]/g, 'n')
       .replace(/[ç]/g, 'c')
       .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '')
-      .replace(/[-]/g, ' ');
+      .replace(/[-‘`´']/g, ' ');
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {

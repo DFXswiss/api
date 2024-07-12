@@ -23,6 +23,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -37,7 +38,7 @@ import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -61,6 +62,7 @@ export class UserDataService {
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
+    private readonly documentStorageService: DocumentStorageService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -176,7 +178,7 @@ export class UserDataService {
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
-    await this.loadRelationsAndVerify(dto, dto);
+    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     await this.userDataRepo.update(userData.id, dto);
 
@@ -225,7 +227,7 @@ export class UserDataService {
           $address_1: `${data.street} ${data.houseNumber}`,
           $city: data.location,
           $phone: data.phone,
-          $country: country.name,
+          $country: country.symbol,
           $zipcode: data.zip,
         },
       });
@@ -269,15 +271,18 @@ export class UserDataService {
     }
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;
+    const phoneChanged = dto.phone && dto.phone !== userData.phone;
 
     const updateSiftAccount: CreateAccount = { $time: Date.now() };
 
-    if (dto.phone && dto.phone !== userData.phone) updateSiftAccount.$phone = dto.phone;
+    if (phoneChanged) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;
 
-    for (const user of userData.users) {
-      updateSiftAccount.$user_id = user.id.toString();
-      await this.siftService.updateAccount(updateSiftAccount);
+    if (phoneChanged || mailChanged) {
+      for (const user of userData.users) {
+        updateSiftAccount.$user_id = user.id.toString();
+        await this.siftService.updateAccount(updateSiftAccount);
+      }
     }
 
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
@@ -316,7 +321,7 @@ export class UserDataService {
   }
 
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
+    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
   }
 
   private async loadRelationsAndVerify(
@@ -376,7 +381,7 @@ export class UserDataService {
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
         identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
       });
-      if (existing)
+      if (existing && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
   }
@@ -476,35 +481,28 @@ export class UserDataService {
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({
         where: { id: masterId },
-        relations: [
-          'users',
-          'users.wallet',
-          'bankDatas',
-          'bankAccounts',
-          'accountRelations',
-          'relatedAccountRelations',
-        ],
+        relations: {
+          users: { wallet: true },
+          bankDatas: true,
+          bankAccounts: true,
+          accountRelations: true,
+          relatedAccountRelations: true,
+          kycSteps: true,
+        },
       }),
       this.userDataRepo.findOne({
         where: { id: slaveId },
-        relations: [
-          'users',
-          'users.wallet',
-          'bankDatas',
-          'bankAccounts',
-          'accountRelations',
-          'relatedAccountRelations',
-        ],
+        relations: {
+          users: { wallet: true },
+          bankDatas: true,
+          bankAccounts: true,
+          accountRelations: true,
+          relatedAccountRelations: true,
+          kycSteps: true,
+        },
       }),
     ]);
-    if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
-    if (slave.amlListAddedDate && master.amlListAddedDate)
-      throw new BadRequestException('Slave and master are on AML list');
-    if ([master.status, slave.status].includes(UserDataStatus.MERGED))
-      throw new BadRequestException('Master or slave is already merged');
-    if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
-      throw new BadRequestException('Verified name mismatch');
-    if (master.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+    master.checkIfMergePossibleWith(slave);
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
@@ -517,6 +515,7 @@ export class UserDataService {
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
+      slave.kycSteps && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
     ]
@@ -532,19 +531,34 @@ export class UserDataService {
     if (notifyUser && slave.mail && master.mail !== slave.mail)
       await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
+    // Adapt slave kyc step sequenceNumber
+    const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
+    slave.kycSteps.forEach((k) => (k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset));
+
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+    master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
+    // copy all documents
+    void this.documentStorageService
+      .copyFiles(slave.id, master.id)
+      .catch((e) => this.logger.critical('Error in document copy files:', e));
+
+    // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.kycFileId = slave.kycFileId;
+    }
+    if (slave.kycSteps.some((k) => k.type === KycStepType.VIDEO && k.isCompleted)) {
+      master.identificationType = KycIdentificationType.VIDEO_ID;
+      master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
     master.mail = slave.mail ?? master.mail;
 

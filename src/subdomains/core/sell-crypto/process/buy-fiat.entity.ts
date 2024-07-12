@@ -9,7 +9,7 @@ import { MailTranslationKey } from 'src/subdomains/supporting/notification/facto
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -88,6 +88,9 @@ export class BuyFiat extends IEntity {
   @Column({ nullable: true })
   highRisk: boolean;
 
+  @Column({ length: 256, nullable: true })
+  amlResponsible: string;
+
   // Fee
   @Column({ length: 256, nullable: true })
   usedFees: string; // Semicolon separated id's
@@ -128,6 +131,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   mailReturnSendDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
@@ -179,7 +185,7 @@ export class BuyFiat extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
-  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
   transaction: Transaction;
 
@@ -187,7 +193,7 @@ export class BuyFiat extends IEntity {
 
   pendingMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mail2SendDate: new Date(),
     };
 
@@ -198,7 +204,7 @@ export class BuyFiat extends IEntity {
 
   returnMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
     };
 
@@ -209,7 +215,7 @@ export class BuyFiat extends IEntity {
 
   fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mail3SendDate: new Date(),
     };
 
@@ -271,7 +277,6 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
     last7dVolume: number,
@@ -280,12 +285,9 @@ export class BuyFiat extends IEntity {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
-    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
-
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,
@@ -333,6 +335,7 @@ export class BuyFiat extends IEntity {
       cryptoReturnDate: null,
       mailReturnSendDate: null,
       comment: null,
+      chargebackAllowedDate: null,
     };
 
     Object.assign(this, update);
@@ -351,7 +354,7 @@ export class BuyFiat extends IEntity {
   }
 
   get user(): User {
-    return this.sell.user;
+    return this.transaction.user;
   }
 
   get userData(): UserData {
@@ -360,14 +363,6 @@ export class BuyFiat extends IEntity {
 
   set userData(userData: UserData) {
     this.user.userData = userData;
-  }
-
-  get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {
-    return {
-      address: this.sell.iban,
-      asset: this.sell.fiat,
-      trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
-    };
   }
 
   get noCommunication(): boolean {
@@ -394,6 +389,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.ASSET_KYC_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

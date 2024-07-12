@@ -11,5 +11,8 @@ export class RouteDto {
   sell: SellDto[];
 
   @ApiProperty({ type: SwapDto, isArray: true })
+  swap: SwapDto[];
+
+  @ApiProperty({ type: SwapDto, isArray: true, deprecated: true })
   crypto: SwapDto[];
 }

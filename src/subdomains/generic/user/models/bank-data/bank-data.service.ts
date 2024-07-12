@@ -11,13 +11,15 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
@@ -30,6 +32,7 @@ export class BankDataService {
     private readonly bankDataRepo: BankDataRepository,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly nameCheckService: NameCheckService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -40,10 +43,15 @@ export class BankDataService {
   }
 
   async checkUnverifiedBankDatas(): Promise<void> {
+    const search: FindOptionsWhere<BankData> = {
+      type: Not(In([BankDataType.IDENT, BankDataType.USER])),
+      comment: IsNull(),
+      userData: { verifiedName: Not(IsNull()) },
+    };
     const entities = await this.bankDataRepo.find({
       where: [
-        { active: false, type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
-        { active: IsNull(), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+        { ...search, active: false },
+        { ...search, active: IsNull() },
       ],
       relations: { userData: true },
     });
@@ -54,14 +62,21 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
+    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
+      if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
+      if (entity.type === BankDataType.IDENT) await this.nameCheckService.closeAndRefreshRiskStatus(entity);
+
+      return;
+    }
     try {
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, active: true },
         relations: { userData: true },
       });
 
-      if (!existing && !entity.userData.verifiedName)
+      if (!entity.userData.verifiedName)
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
@@ -159,11 +174,11 @@ export class BankDataService {
       .getOne();
   }
 
-  async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
+  async getVerifiedBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
       .find({
-        where: { iban, userData: { id: userDataId } },
+        where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
         relations: { userData: true },
       })
       .then((b) => b.filter((b) => b.active)[0] ?? b[0]);

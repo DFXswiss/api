@@ -16,6 +16,7 @@ enum App {
   FRANKENCOIN = 'frankencoin',
   EXCHANGE = 'exchange',
   LIGHTNING = 'lightning',
+  SERVICES = 'services',
 }
 
 enum Manufacturer {
@@ -43,6 +44,7 @@ export class AppController {
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
     [App.LIGHTNING]: 'https://lightning.dfx.swiss',
+    [App.SERVICES]: 'https://services.dfx.swiss',
   };
 
   constructor(private readonly refService: RefService, private readonly settingService: SettingService) {}
@@ -122,7 +124,7 @@ export class AppController {
 
     // redirect user depending on app and platform
     let url: string;
-    if (app === App.EXCHANGE || app === App.LIGHTNING) {
+    if (app === App.EXCHANGE || app === App.LIGHTNING || app === App.SERVICES) {
       url = this.appUrls[app];
     } else {
       url = this.appUrls[app]?.[this.getDeviceManufacturer(req)];

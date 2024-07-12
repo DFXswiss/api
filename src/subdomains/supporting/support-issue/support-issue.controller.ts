@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -22,17 +22,6 @@ export class SupportIssueController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<void> {
     return this.supportIssueService.createIssue(jwt.account, dto);
-  }
-
-  @Post('transaction')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async createTransactionIssue(
-    @GetJwt() jwt: JwtPayload,
-    @Query('id') transactionId: string,
-    @Body() dto: CreateSupportIssueDto,
-  ): Promise<void> {
-    return this.supportIssueService.createTransactionIssue(jwt.account, +transactionId, dto);
   }
 
   @Post(':id/message')

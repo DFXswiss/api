@@ -4,7 +4,7 @@ import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
-import { NameCheckLog, RiskStatus } from '../entities/name-check-log.entity';
+import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
 import { DilisenseService } from './integration/dilisense.service';
@@ -54,14 +54,35 @@ export class NameCheckService implements OnModuleInit {
     }
 
     for (const sanction of sanctionData.found_records) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanction), RiskStatus.SANCTIONED);
+      await this.createNameCheckLog(
+        bankData,
+        JSON.stringify(sanction),
+        !sanction.date_of_birth?.length ? RiskStatus.MATCH_WITHOUT_BIRTHDAY : RiskStatus.SANCTIONED,
+      );
     }
 
     return RiskStatus.SANCTIONED;
   }
 
+  async closeAndRefreshRiskStatus(bankData: BankData): Promise<void> {
+    const openNameChecks = await this.nameCheckLogRepo.find({
+      where: { userData: { id: bankData.userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
+      relations: { userData: true },
+    });
+
+    for (const nameCheck of openNameChecks) {
+      await this.nameCheckLogRepo.update(nameCheck.id, {
+        riskEvaluation: RiskEvaluation.CANCELED,
+        riskEvaluationDate: new Date(),
+        comment: 'Ident refresh',
+      });
+    }
+
+    await this.refreshRiskStatus(bankData);
+  }
+
   async hasOpenNameChecks(userData: UserData): Promise<boolean> {
-    return this.nameCheckLogRepo.exist({
+    return this.nameCheckLogRepo.exists({
       where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
       relations: { userData: true },
     });

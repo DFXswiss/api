@@ -70,7 +70,10 @@
                 "high_risk_blocked_checkout": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
                 "fee_too_high": "Le spese di rete sono attualmente troppo elevate per l'importo inviato.",
                 "receiver_rejected_tx": "Il nodo ricevente ha rifiutato la transazione",
-                "asset_not_available_with_chosen_bank": "Questo bene non può essere acquistato tramite il conto bancario selezionato"
+                "asset_not_available_with_chosen_bank": "Questo bene non può essere acquistato tramite il conto bancario selezionato",
+                "chf_abroad_tx": "I CHF non possono essere versati su IBAN stranieri",
+                "asset_kyc_needed": "Il KYC è richiesto per l'attività depositata",
+                "card_name_mismatch": "Il nome della carta di credito indicato non corrisponde al nome del titolare del conto DFX"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
@@ -146,6 +149,15 @@
                 "line3": "Contattate il nostro team di assistenza.",
                 "line4": "È possibile contattare l'assistenza tramite [mail:support@dfx.swiss].",
                 "line5": ""
+            },
+            "asset_kyc_needed": {
+                "title": "Verifica (KYC) richiesta",
+                "salutation": "La verifica (KYC) è necessaria per eseguire la transazione in corso.",
+                "line1": "Grazie per la vostra fiducia in DFX.",
+                "line2": "Purtroppo abbiamo bisogno di una verifica (KYC) da parte vostra per il bene che avete depositato.",
+                "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
+                "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line5": "Se non si desidera effettuare la verifica, il bene verrà restituito in modo completamente automatico dopo 2 giorni."
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",

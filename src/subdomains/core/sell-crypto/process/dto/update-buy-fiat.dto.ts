@@ -188,4 +188,13 @@ export class UpdateBuyFiatDto {
   @IsDate()
   @Type(() => Date)
   priceDefinitionAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  amlResponsible: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDate: Date;
 }

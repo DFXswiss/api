@@ -159,4 +159,17 @@ export class UpdateBuyCryptoDto {
   @IsDate()
   @Type(() => Date)
   priceDefinitionAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  amlResponsible: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  chargebackIban: string;
 }

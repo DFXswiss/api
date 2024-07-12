@@ -21,7 +21,6 @@ export class AmlHelperService {
   static getAmlErrors(
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
-    amountInChf: number,
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
@@ -44,7 +43,8 @@ export class AmlHelperService {
     } else if (!entity.userData.verifiedCountry.fatfEnable) {
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
     }
-    if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
+    if (ibanCountry && (!ibanCountry.fatfEnable || ibanCountry.symbol === 'AE'))
+      errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
@@ -59,8 +59,7 @@ export class AmlHelperService {
       if (!entity.userData.letterSentDate) errors.push(AmlError.NO_LETTER);
       if (!entity.userData.amlListAddedDate) errors.push(AmlError.NO_AML_LIST);
       if (!entity.userData.kycFileId) errors.push(AmlError.NO_KYC_FILE_ID);
-      if (entity.userData.annualBuyVolume + amountInChf > entity.userData.depositLimit)
-        errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+      if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
     }
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
@@ -76,12 +75,14 @@ export class AmlHelperService {
     if (entity.cryptoInput) {
       // crypto input
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
+      if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
+        errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
     } else if (entity.userData.status === UserDataStatus.NA && entity.userData.hasSuspiciousMail)
       errors.push(AmlError.SUSPICIOUS_MAIL);
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
-      if (!entity.target.asset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
+      if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
       switch (entity.user.wallet.amlRule) {
         case AmlRule.DEFAULT:
@@ -94,7 +95,7 @@ export class AmlHelperService {
           if (
             entity.user.status === UserStatus.NA &&
             entity.userData.kycLevel < KycLevel.LEVEL_30 &&
-            entity.target.asset.blockchain !== Blockchain.LIGHTNING
+            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
           )
             errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
@@ -102,7 +103,7 @@ export class AmlHelperService {
           if (
             entity.user.status === UserStatus.NA &&
             entity.userData.kycLevel < KycLevel.LEVEL_50 &&
-            entity.target.asset.blockchain !== Blockchain.LIGHTNING
+            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
           )
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
@@ -126,11 +127,13 @@ export class AmlHelperService {
           errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
-          if (!entity.target.asset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
+          if (!entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
         }
       } else if (entity.checkoutTx) {
         // checkout
-        if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
+        if (entity.checkoutTx.cardName && !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName))
+          errors.push(AmlError.CARD_NAME_MISMATCH);
+        if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
           blacklist.some((b) =>
             b.matches(
@@ -149,7 +152,9 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
-      if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+      if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
+        errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
+      if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (
         blacklist.some((b) =>
           b.matches(
@@ -167,7 +172,6 @@ export class AmlHelperService {
   static getAmlResult(
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
-    amountInChf: number,
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
@@ -176,11 +180,10 @@ export class AmlHelperService {
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
     ibanCountry?: Country,
-  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string } {
+  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string; amlResponsible?: string } {
     const amlErrors = this.getAmlErrors(
       entity,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,
@@ -194,7 +197,7 @@ export class AmlHelperService {
     const comment = amlErrors.join(';');
 
     // Pass
-    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA };
+    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
 
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
@@ -204,7 +207,12 @@ export class AmlHelperService {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
-        ? { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment }
+        ? {
+            amlCheck: crucialErrorResult.amlCheck,
+            amlReason: crucialErrorResult.amlReason,
+            comment,
+            amlResponsible: 'API',
+          }
         : { comment };
     }
 
@@ -219,7 +227,7 @@ export class AmlHelperService {
       (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
         amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
     )
-      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment };
+      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment, amlResponsible: 'API' };
 
     // GSheet
     if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };

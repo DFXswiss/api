@@ -12,6 +12,7 @@ export enum EventType {
   LOGIN = '$login',
   CREATE_ORDER = '$create_order',
   TRANSACTION = '$transaction',
+  CHARGEBACK = '$chargeback',
 }
 
 export enum SiftAssetType {
@@ -835,9 +836,17 @@ export interface CreateAccount extends SiftBase {
     $client_language?: string;
   };
 
-  //Custom fields
+  // custom fields
   blockchain_address?: string;
   kyc_level?: number;
+}
+
+export interface DigitalOrder {
+  $digital_asset?: string;
+  $pair?: string;
+  $asset_type?: string;
+  $order_type?: string;
+  $volume?: string;
 }
 
 export interface CreateOrder extends SiftBase {
@@ -861,16 +870,9 @@ export interface CreateOrder extends SiftBase {
   $account_number_last5?: string;
   $bank_name?: string;
   $bank_country?: string;
-  $digital_orders?: [
-    {
-      $digital_asset?: string;
-      $pair?: string;
-      $asset_type?: string;
-      $order_type?: string;
-      $volume?: string;
-    },
-  ];
-  // custom field
+  $digital_orders?: DigitalOrder[];
+
+  // custom fields
   blockchain: Blockchain;
 }
 
@@ -885,32 +887,52 @@ export interface Transaction extends SiftBase {
   $status_3ds?: string;
   $brand_name?: string;
   $site_country?: string;
-  $payment_methods?: [
-    {
-      $payment_type?: PaymentType;
-      $payment_gateway?: PaymentGateway;
-      $account_holder_name?: string;
-      $card_bin?: string;
-      $card_last4?: string;
-      $shortened_iban_first6?: string;
-      $shortened_iban_last4?: string;
-      $bank_name?: string;
-      $bank_country?: string;
-      $routing_number?: string;
-    },
-  ];
-  $digital_orders?: [
-    {
-      $digital_asset?: string;
-      $pair?: string;
-      $asset_type?: string;
-      $order_type?: string;
-      $volume?: string;
-    },
-  ];
+  $payment_method?: {
+    $payment_type?: PaymentType;
+    $payment_gateway?: PaymentGateway;
+    $account_holder_name?: string;
+    $card_bin?: string;
+    $card_last4?: string;
+    $shortened_iban_first6?: string;
+    $shortened_iban_last4?: string;
+    $bank_name?: string;
+    $bank_country?: string;
+    $routing_number?: string;
+  };
+  $digital_orders?: DigitalOrder[];
 
   // custom field
   blockchain?: Blockchain;
+}
+
+export interface Chargeback extends SiftBase {
+  $order_id?: string;
+  $transaction_id?: string;
+  $chargeback_state?: ChargebackState;
+  $chargeback_reason?: ChargebackReason;
+}
+
+export enum ChargebackState {
+  RECEIVED = '$received',
+  ACCEPTED = '$accepted',
+  DISPUTED = '$disputed',
+  WON = '$won',
+  LOST = '$lost',
+}
+
+export enum ChargebackReason {
+  FRAUD = '$fraud',
+  DUPLICATE = '$duplicate',
+  PRODUCT_NOT_RECEIVED = '$product_not_received',
+  PRODUCT_UNACCEPTABLE = '$product_unacceptable',
+  OTHER = '$other',
+  AUTHORIZATION = '$authorization',
+  CONSUMER_DISPUTES = '$consumer_disputes',
+  PROCESSING_ERRORS = '$processing_errors',
+  CANCEL_SUBSCRIPTION = '$cancel_subscription',
+  FRIENDLY_FRAUD = '$friendly_fraud',
+  ACH_RETURN = '$ach_return',
+  ACH_REVERSAL = '$ach_reversal',
 }
 
 export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
@@ -983,6 +1005,9 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.RECEIVER_REJECTED_TX]: DeclineCategory.OTHER,
   [AmlReason.STAKING_DISCONTINUED]: DeclineCategory.INVALID,
   [AmlReason.USER_DATA_MISMATCH]: DeclineCategory.OTHER,
+  [AmlReason.CHF_ABROAD_TX]: DeclineCategory.INVALID,
+  [AmlReason.ASSET_KYC_NEEDED]: DeclineCategory.OTHER,
+  [AmlReason.CARD_NAME_MISMATCH]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {
