@@ -4,7 +4,11 @@ import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-valida
 export class CreateFiatOutputDto {
   @IsOptional()
   @IsNumber()
-  buyFiatId: number;
+  buyFiatId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  buyCryptoId?: number;
 
   @IsNotEmpty()
   @IsString()

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { FiatOutputController } from '../fiat-output/fiat-output.controller';
@@ -12,7 +13,7 @@ import { FiatOutputService } from '../fiat-output/fiat-output.service';
   imports: [TypeOrmModule.forFeature([FiatOutput]), SharedModule, BankTxModule],
 
   controllers: [FiatOutputController],
-  providers: [FiatOutputRepository, BuyFiatRepository, FiatOutputService],
+  providers: [FiatOutputRepository, BuyFiatRepository, BuyCryptoRepository, FiatOutputService],
   exports: [FiatOutputService],
 })
 export class FiatOutputModule {}
