@@ -9,7 +9,6 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
-import { TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
@@ -26,7 +25,6 @@ export class FiatPayInSyncService {
     private readonly transactionService: TransactionService,
     private readonly siftService: SiftService,
     private readonly buyService: BuyService,
-    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   // --- JOBS --- //
