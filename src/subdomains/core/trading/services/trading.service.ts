@@ -166,7 +166,7 @@ export class TradingService {
     const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
     const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
     if (swapFeeChf > estimatedProfitChf)
-      throw new Error(`Swap fee (${swapFeeChf} CHF) ist larger than estimated profit (${estimatedProfitChf} CHF)`);
+      throw new Error(`Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`);
 
     tradingInfo.amountIn = amountIn;
     tradingInfo.amountExpected = targetAmount;
