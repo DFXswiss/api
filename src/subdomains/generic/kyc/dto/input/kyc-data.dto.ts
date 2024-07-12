@@ -12,9 +12,8 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
-import { Util } from 'src/shared/utils/util';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
-import { IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
 
 export class KycContactData {
   @ApiProperty()
@@ -71,7 +70,7 @@ export class KycPersonalData {
   @IsNotEmpty()
   @IsString()
   @IsDfxPhone()
-  @Transform(Util.trim)
+  @Transform(DfxPhoneTransform)
   phone: string;
 
   @ApiProperty({ type: KycAddress })

@@ -24,6 +24,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -70,6 +71,7 @@ export class BuyCryptoService {
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly checkoutService: CheckoutService,
     private readonly payInService: PayInService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -241,6 +243,12 @@ export class BuyCryptoService {
       if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
     }
 
+    if (dto.chargebackAllowedDate)
+      update.chargebackOutput = await this.fiatOutputService.create({
+        buyCryptoId: entity.id,
+        type: 'BuyCryptoFail',
+      });
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
 
@@ -316,10 +324,9 @@ export class BuyCryptoService {
       .select('buyCrypto')
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
       .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
+      .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')
@@ -327,8 +334,6 @@ export class BuyCryptoService {
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
-      .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
       .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
   }
