@@ -131,6 +131,13 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
+  async backfillUsers(): Promise<void> {
+    const users = await this.userService.getAllUser();
+    for (const user of users) {
+      if (user.status == UserStatus.ACTIVE) await this.siftService.createAccount(user);
+    }
+  }
+
   async signIn(dto: AuthCredentialsDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);

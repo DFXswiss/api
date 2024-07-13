@@ -300,6 +300,13 @@ export class BuyCryptoService {
     return entity;
   }
 
+  async backfillFailedTransactions(): Promise<void> {
+    const failedBuyCryptos = await this.buyCryptoRepo.find({ where: { amlCheck: CheckStatus.FAIL } });
+    for (const buyCrypto of failedBuyCryptos) {
+      await this.siftService.buyCryptoTransaction(buyCrypto, TransactionStatus.FAILURE);
+    }
+  }
+
   async refundBuyCrypto(buyCryptoId: number): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
     if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');

@@ -73,6 +73,18 @@ export class FiatPayInSyncService {
     }
   }
 
+  async backfillFailedTransactions(): Promise<void> {
+    const failedCheckoutTxs = await this.checkoutTxRepo.find({
+      where: {
+        approved: false,
+      },
+    });
+    for (const checkoutTx of failedCheckoutTxs) {
+      const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
+      await this.siftService.checkoutTransaction(checkoutTx, TransactionStatus.FAILURE, buy);
+    }
+  }
+
   async createCheckoutTx(payment: CheckoutPayment): Promise<CheckoutTx> {
     const tx = this.mapCheckoutPayment(payment);
 
