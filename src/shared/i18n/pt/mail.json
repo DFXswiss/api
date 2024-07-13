@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Your DFX Team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "If you have any questions,<br>we are happy to help you at [mail:support@dfx.swiss].",
+        "support": "If you have any questions,<br>we are happy to help you at [url:https://services.dfx.swiss/support].",
         "thanks": "Thank you very much for your trust",
         "happy_trading": "Happy Trading",
         "welcome": "Hi {name},",
@@ -147,7 +147,7 @@
                 "line1": "Thank you for your trust in DFX.",
                 "line2": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.",
                 "line3": "Please get in touch with our support team.",
-                "line4": "You can contact support via [mail:support@dfx.swiss].",
+                "line4": "You can contact support via [url:https://services.dfx.swiss/support].",
                 "line5": ""
             },
             "asset_kyc_needed": {

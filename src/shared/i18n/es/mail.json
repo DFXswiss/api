@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Tu Equipo DFX",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "Si tienes alguna pregunta,<br>nos encantaría ayudarte en [mail:support@dfx.swiss].",
+        "support": "Si tienes alguna pregunta,<br>nos encantaría ayudarte en [url:https://services.dfx.swiss/support].",
         "thanks": "Muchas gracias por tu confianza",
         "happy_trading": "¡Que disfrutes al comerciar!",
         "welcome": "Hola {name},",
@@ -147,7 +147,7 @@
                 "line1": "Gracias por confiar en DFX.",
                 "line2": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.",
                 "line3": "Póngase en contacto con nuestro equipo de asistencia.",
-                "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [mail:support@dfx.swiss].",
+                "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [url:https://services.dfx.swiss/support].",
                 "line5": ""
             },
             "asset_kyc_needed": {

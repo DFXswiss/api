@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Votre équipe DFX",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [mail:support@dfx.swiss].",
+        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://services.dfx.swiss/support].",
         "thanks": "Merci beaucoup pour votre confiance",
         "happy_trading": "Bon trading",
         "welcome": "Bonjour {name},",
@@ -147,7 +147,7 @@
                 "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
                 "line2": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.",
                 "line3": "Veuillez contacter notre équipe d'assistance.",
-                "line4": "Vous pouvez contacter l'assistance via [mail:support@dfx.swiss].",
+                "line4": "Vous pouvez contacter l'assistance via [url:https://services.dfx.swiss/support].",
                 "line5": ""
             },
             "asset_kyc_needed": {
