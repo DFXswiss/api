@@ -65,7 +65,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   private async mapWebhookTransactions(transactions: AlchemyWebhookActivityDto[]): Promise<PayInEntry[]> {
-    const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     return transactions.map((tx) => ({
       address: BlockchainAddress.create(tx.toAddress, this.blockchain),
@@ -97,7 +97,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       assetTransfers,
     );
 
-    const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     const payInEntries = relevantAssetTransfers.map((tx) => ({
       address: BlockchainAddress.create(tx.to, this.blockchain),
