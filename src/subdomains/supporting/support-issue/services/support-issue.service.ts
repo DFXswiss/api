@@ -37,7 +37,7 @@ export class SupportIssueService {
   async createIssueInternal(userData: UserData, dto: CreateSupportIssueInternalDto): Promise<void> {
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
-    const existingIssue = await this.supportIssueRepo.findOneBy({
+    const existingIssue = await this.supportIssueRepo.existsBy({
       userData: { id: userData.id },
       type: newIssue.type,
       information: newIssue.information,
