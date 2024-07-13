@@ -1,7 +1,7 @@
 const { MigrationInterface, QueryRunner } = require("typeorm");
 
-module.exports = class addIEntitySetting1720894069676 {
-    name = 'addIEntitySetting1720894069676'
+module.exports = class addIEntitySetting1720894487055 {
+    name = 'addIEntitySetting1720894487055'
 
     async up(queryRunner) {
         await queryRunner.query(`ALTER TABLE "dbo"."setting" ADD "id" int NOT NULL IDENTITY(1,1)`);
