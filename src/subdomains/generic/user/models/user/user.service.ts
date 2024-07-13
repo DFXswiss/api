@@ -100,7 +100,9 @@ export class UserService {
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
       .andWhere('wallet.isKycClient = 0')
-      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
+      .andWhere('linkedUser.status NOT IN (:...userStatus)', {
+        userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
+      })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -114,9 +116,9 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
-        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DELETED],
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
       })
       .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
@@ -239,11 +241,11 @@ export class UserService {
   }
 
   async deactivateUser(id: number, allUser = false): Promise<void> {
-    const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    const mainUser = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.status === UserDataStatus.DELETED)
-      throw new BadRequestException('User Account already deleted');
-    if (mainUser.status === UserStatus.DELETED) throw new BadRequestException('User already deleted');
+    if (mainUser.userData.isBlocked || mainUser.userData.isDeactivated)
+      throw new BadRequestException('User Account already deactivated');
+    if (mainUser.isBlockedOrDeleted) throw new BadRequestException('User already deactivated');
 
     if (!allUser) {
       await this.userRepo.update(...mainUser.deactivateUser('Manual user block'));

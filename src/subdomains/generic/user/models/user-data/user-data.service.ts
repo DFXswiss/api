@@ -294,7 +294,7 @@ export class UserDataService {
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {
-    await this.userDataRepo.update(...userData.blockUserData());
+    await this.userDataRepo.update(...userData.deactivateUserData());
     await this.kycAdminService.deactivateKycSteps(userData.kycSteps);
   }
 
@@ -553,11 +553,8 @@ export class UserDataService {
       .copyFiles(slave.id, master.id)
       .catch((e) => this.logger.critical('Error in document copy files:', e));
 
-    if (slave.isDeleted) slave.status = master.status;
-    if (master.isDeleted) master.status = slave.status;
-
     // optional master updates
-    if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
+    if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.kycFileId = slave.kycFileId;

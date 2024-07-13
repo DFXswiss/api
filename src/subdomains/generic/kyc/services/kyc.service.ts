@@ -558,7 +558,7 @@ export class KycService {
     const errors = [];
 
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
-    if (entity.userData.isBlocked || entity.userData.isDeleted) errors.push(IdentCheckError.USER_DATA_BLOCKED);
+    if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(IdentCheckError.USER_DATA_BLOCKED);
 
     if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
       errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);

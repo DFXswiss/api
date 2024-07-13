@@ -2,7 +2,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
-import { User, UserStatus } from '../user.entity';
+import { User } from '../user.entity';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
@@ -23,7 +23,7 @@ export class UserDtoMapper {
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
-        .filter((u) => u.status !== UserStatus.BLOCKED && !u.wallet.isKycClient)
+        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.isKycClient)
         .map((u) => this.mapAddress(u)),
       activeAddress: activeUser && this.mapAddress(activeUser),
     };

@@ -84,7 +84,7 @@ export enum UserDataStatus {
   BLOCKED = 'Blocked',
   MERGED = 'Merged',
   KYC_ONLY = 'KycOnly',
-  DELETED = 'Deleted',
+  DEACTIVATED = 'Deactivated',
 }
 
 @Entity()
@@ -319,10 +319,10 @@ export class UserData extends IEntity {
     ];
   }
 
-  blockUserData(): UpdateResult<UserData> {
+  deactivateUserData(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      status: UserDataStatus.DELETED,
-      kycLevel: this.kycLevel < KycLevel.LEVEL_20 ? this.kycLevel : KycLevel.LEVEL_20,
+      status: UserDataStatus.DEACTIVATED,
+      kycLevel: Math.min(this.kycLevel, KycLevel.LEVEL_20),
     };
 
     Object.assign(this, update);
@@ -460,8 +460,8 @@ export class UserData extends IEntity {
     return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
   }
 
-  get isDeleted(): boolean {
-    return this.status === UserDataStatus.DELETED;
+  get isDeactivated(): boolean {
+    return this.status === UserDataStatus.DEACTIVATED;
   }
 
   get address() {

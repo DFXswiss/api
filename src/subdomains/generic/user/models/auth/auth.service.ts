@@ -29,7 +29,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
-import { User, UserStatus } from '../user/user.entity';
+import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
@@ -141,7 +141,7 @@ export class AuthService {
   }
 
   private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
-    if (user.status === UserStatus.BLOCKED) throw new ConflictException('User is blocked');
+    if (user.isBlockedOrDeleted) throw new ConflictException('User is deactivated or blocked');
 
     const keyWalletId =
       user.signature?.includes(this.masterKeyPrefix) && +user.signature?.replace(this.masterKeyPrefix, '');
@@ -277,7 +277,7 @@ export class AuthService {
   async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
-    if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User is blocked');
+    if (user.isBlockedOrDeleted) throw new BadRequestException('User is deactivated or blocked');
     return { accessToken: this.generateUserToken(user, ip) };
   }
 
