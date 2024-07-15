@@ -58,7 +58,7 @@ export class AzureStorageService {
   async uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
     await this.client
       .getBlockBlobClient(name)
-      .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata });
+      .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata: !metadata ? undefined : metadata });
 
     return this.blobUrl(name);
   }

@@ -57,12 +57,12 @@ export class CheckoutTxService {
   }
 
   async getPendingRefundedList(): Promise<CheckoutTx[]> {
-    return this.checkoutTxRepo.find({ where: { status: CheckoutPaymentStatus.REFUNDED_PENDING } });
+    return this.checkoutTxRepo.find({ where: { status: CheckoutPaymentStatus.REFUND_PENDING } });
   }
 
   async paymentRefunded(entityId: number): Promise<void> {
     await this.checkoutTxRepo.update(entityId, {
-      status: CheckoutPaymentStatus.REFUNDED_PENDING,
+      status: CheckoutPaymentStatus.REFUND_PENDING,
     });
   }
 

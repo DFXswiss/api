@@ -48,6 +48,7 @@ export enum Process {
   SYNCHRONIZE_TRANSACTION_USER = 'SynchronizeTransactionUser',
   NETWORK_START_FEE = 'NetworkStartFee',
   TRADING_LOG = 'TradingLog',
+  ASSET_DECIMALS = 'AssetDecimals',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
