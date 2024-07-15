@@ -35,7 +35,7 @@ export class AssetController {
     const specs = await specRepo.find();
 
     return this.assetService
-      .getAllAsset(queryBlockchains ?? jwt?.blockchains ?? [], includePrivate === 'true')
+      .getAllBlockchainAssets(queryBlockchains ?? jwt?.blockchains ?? [], includePrivate === 'true')
       .then((list) =>
         list.map((a) => AssetDtoMapper.toDetailDto(a, specRepo.getSpecFor(specs, a, TransactionDirection.OUT))),
       );

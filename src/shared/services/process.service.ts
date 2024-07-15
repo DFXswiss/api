@@ -48,6 +48,7 @@ export enum Process {
   SYNCHRONIZE_TRANSACTION_USER = 'SynchronizeTransactionUser',
   NETWORK_START_FEE = 'NetworkStartFee',
   LIMIT_REQUEST_SYNC = 'LimitRequestSync',
+  TRADING_LOG = 'TradingLog',
   ASSET_DECIMALS = 'AssetDecimals',
 }
 

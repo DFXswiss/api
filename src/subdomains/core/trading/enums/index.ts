@@ -10,4 +10,5 @@ export enum TradingOrderStatus {
   IN_PROGRESS = 'InProgress',
   COMPLETE = 'Complete',
   FAILED = 'Failed',
+  IGNORED = 'Ignored',
 }
