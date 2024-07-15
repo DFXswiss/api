@@ -426,7 +426,7 @@ export class TransactionHelper implements OnModuleInit {
   private async getLimits(
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    user: User,
+    user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
     const volume24h =
       user?.userData.kycLevel < KycLevel.LEVEL_50
