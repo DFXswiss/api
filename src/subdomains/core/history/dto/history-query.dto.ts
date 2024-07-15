@@ -36,7 +36,7 @@ export class HistoryQueryUser extends HistoryQuery {
 }
 
 export class HistoryQueryExportType extends HistoryQuery {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: ExportType })
   @IsOptional()
   @IsEnum(ExportType)
   type: ExportType = ExportType.COIN_TRACKING;

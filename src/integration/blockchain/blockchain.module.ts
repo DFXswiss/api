@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { SharedModule } from 'src/shared/shared.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
@@ -11,12 +12,14 @@ import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
+import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { EvmRegistryService } from './shared/evm/evm-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 
 @Module({
-  providers: [EvmRegistryService, CryptoService],
+  providers: [EvmRegistryService, EvmDecimalsService, CryptoService],
   imports: [
+    SharedModule,
     AinModule,
     BscModule,
     EthereumModule,

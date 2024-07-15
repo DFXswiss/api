@@ -1,4 +1,5 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { BankTxService } from '../bank-tx/bank-tx/bank-tx.service';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
@@ -13,14 +14,29 @@ export class FiatOutputService {
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    private readonly buyCryptoRepo: BuyCryptoRepository,
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
+    const existing = await this.fiatOutputRepo.exists({
+      where: [
+        { buyCrypto: { id: dto.buyCryptoId }, type: dto.type },
+        { buyFiat: { id: dto.buyFiatId }, type: dto.type },
+      ],
+      relations: { buyCrypto: true, buyFiat: true },
+    });
+    if (existing) throw new BadRequestException('FiatOutput already exists');
+
     const entity = this.fiatOutputRepo.create(dto);
 
     if (dto.buyFiatId) {
       entity.buyFiat = await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId });
-      if (!entity.buyFiat) throw new NotFoundException('Buy-fiat not found');
+      if (!entity.buyFiat) throw new NotFoundException('BuyFiat not found');
+    }
+
+    if (dto.buyCryptoId) {
+      entity.buyCrypto = await this.buyCryptoRepo.findOneBy({ id: dto.buyCryptoId });
+      if (!entity.buyCrypto) throw new NotFoundException('BuyCrypto not found');
     }
 
     return this.fiatOutputRepo.save(entity);

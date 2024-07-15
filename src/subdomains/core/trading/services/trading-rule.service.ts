@@ -79,7 +79,10 @@ export class TradingRuleService {
         await this.orderRepo.save(order);
       }
     } catch (e) {
-      const logLevel = e instanceof PoolOutOfRangeException ? LogLevel.WARN : LogLevel.ERROR;
+      let logLevel = LogLevel.ERROR;
+      if (e instanceof PoolOutOfRangeException) logLevel = LogLevel.WARN;
+      if (e.message?.includes('estimated profit')) logLevel = LogLevel.INFO;
+
       this.logger.log(logLevel, `Error processing trading rule ${rule.id}:`, e);
     }
   }

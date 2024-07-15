@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Your DFX Team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "If you have any questions,<br>we are happy to help you at [mail:support@dfx.swiss].",
+        "support": "If you have any questions,<br>we are happy to help you at [url:https://services.dfx.swiss/support].",
         "thanks": "Thank you very much for your trust",
         "happy_trading": "Happy Trading",
         "welcome": "Hi {name},",
@@ -70,7 +70,10 @@
                 "high_risk_blocked_checkout": "We cannot ensure that this transaction is not fraudulent and therefore unfortunately had to decline the transaction.<br>Payments by bank transaction are still available to you.",
                 "fee_too_high": "The network fees are currently too high for the amount you have sent",
                 "receiver_rejected_tx": "The receiver node rejected the transaction",
-                "asset_not_available_with_chosen_bank": "This asset cannot be purchased via the selected bank account"
+                "asset_not_available_with_chosen_bank": "This asset cannot be purchased via the selected bank account",
+                "chf_abroad_tx": "CHF cannot be paid out to foreign IBANs",
+                "asset_kyc_needed": "KYC is required for the deposited asset",
+                "card_name_mismatch": "The given credit card name does not match the name of the DFX account holder"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -144,8 +147,17 @@
                 "line1": "Thank you for your trust in DFX.",
                 "line2": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.",
                 "line3": "Please get in touch with our support team.",
-                "line4": "You can contact support via [mail:support@dfx.swiss].",
+                "line4": "You can contact support via [url:https://services.dfx.swiss/support].",
                 "line5": ""
+            },
+            "asset_kyc_needed": {
+                "title": "Verification (KYC) required",
+                "salutation": "Verification (KYC) is required to execute your pending transaction",
+                "line1": "Thank you for your trust in DFX.",
+                "line2": "Unfortunately, we need verification (KYC) from you for the asset you have deposited.",
+                "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
+                "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",

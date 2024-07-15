@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx/bank-tx.entity';
@@ -13,6 +14,9 @@ export enum TransactionCharge {
 export class FiatOutput extends IEntity {
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.fiatOutput, { nullable: true })
   buyFiat?: BuyFiat;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.chargebackOutput, { nullable: true })
+  buyCrypto?: BuyCrypto;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()

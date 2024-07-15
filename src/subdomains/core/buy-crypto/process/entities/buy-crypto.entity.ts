@@ -9,6 +9,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -165,6 +166,16 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackIban: string;
+
+  @OneToOne(() => FiatOutput, { nullable: true })
+  @JoinColumn()
+  chargebackOutput: FiatOutput;
+
   // Pass
   @Column({ type: 'datetime2', nullable: true })
   priceDefinitionAllowedDate: Date;
@@ -222,7 +233,7 @@ export class BuyCrypto extends IEntity {
             ),
           ]
         : [];
-    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...(price.steps ?? [])];
+    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...price.steps];
     return this;
   }
 
@@ -375,13 +386,9 @@ export class BuyCrypto extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
-    maxNetworkFee: number,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
-
-    const feeConstraints = this.fee ?? BuyCryptoFee.create(this);
-    feeConstraints.allowedTotalFeeAmount = maxNetworkFee;
 
     const update: Partial<BuyCrypto> =
       inputReferenceAmountMinusFee < 0
@@ -402,7 +409,6 @@ export class BuyCrypto extends IEntity {
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-            fee: feeConstraints,
             networkStartFeeAmount: fee.networkStart,
           };
 
@@ -412,7 +418,6 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
     last7dVolume: number,
@@ -423,12 +428,9 @@ export class BuyCrypto extends IEntity {
     instantBanks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
-    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
-
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,
@@ -471,6 +473,8 @@ export class BuyCrypto extends IEntity {
       recipientMail: null,
       status: BuyCryptoStatus.CREATED,
       comment: null,
+      chargebackIban: null,
+      chargebackAllowedDate: null,
     };
 
     Object.assign(this, update);
@@ -570,6 +574,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
   AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN,
+  AmlReason.ASSET_KYC_NEEDED,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

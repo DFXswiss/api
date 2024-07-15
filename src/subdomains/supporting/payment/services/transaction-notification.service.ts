@@ -95,7 +95,7 @@ export class TransactionNotificationService {
 
     for (const entity of entities) {
       try {
-        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.senderAccount);
+        const bankData = await this.bankDataService.getVerifiedBankDataWithIban(entity.bankTx.senderAccount);
         if (!bankData) continue;
 
         if (bankData.userData.mail) {

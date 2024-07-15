@@ -30,12 +30,12 @@ export class TransactionIssueDto {
 }
 
 export class CreateSupportIssueDto extends CreateSupportMessageDto {
-  @ApiProperty()
+  @ApiProperty({ enum: SupportIssueType })
   @IsNotEmpty()
   @IsEnum(SupportIssueType)
   type: SupportIssueType = SupportIssueType.GENERIC_ISSUE;
 
-  @ApiProperty()
+  @ApiProperty({ enum: SupportIssueReason })
   @IsNotEmpty()
   @IsEnum(SupportIssueReason)
   reason: SupportIssueReason;

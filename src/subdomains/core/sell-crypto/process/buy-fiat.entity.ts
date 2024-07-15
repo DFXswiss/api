@@ -9,7 +9,7 @@ import { MailTranslationKey } from 'src/subdomains/supporting/notification/facto
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -131,6 +131,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   mailReturnSendDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
@@ -274,7 +277,6 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
     last7dVolume: number,
@@ -283,12 +285,9 @@ export class BuyFiat extends IEntity {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
-    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
-
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,
@@ -336,6 +335,7 @@ export class BuyFiat extends IEntity {
       cryptoReturnDate: null,
       mailReturnSendDate: null,
       comment: null,
+      chargebackAllowedDate: null,
     };
 
     Object.assign(this, update);
@@ -389,6 +389,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.ASSET_KYC_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

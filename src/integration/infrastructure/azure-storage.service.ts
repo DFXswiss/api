@@ -58,9 +58,19 @@ export class AzureStorageService {
   async uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
     await this.client
       .getBlockBlobClient(name)
-      .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata });
+      .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata: !metadata ? undefined : metadata });
 
     return this.blobUrl(name);
+  }
+
+  async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {
+    const blobs = await this.listBlobs(sourcePrefix);
+
+    for (const blob of blobs) {
+      const data = await this.getBlob(blob.name);
+      const targetName = blob.name.replace(sourcePrefix, targetPrefix);
+      await this.uploadBlob(targetName, data.data, data.contentType, blob.metadata);
+    }
   }
 
   private blobUrl(name: string): string {

@@ -3,11 +3,13 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
+import { KycService } from './kyc.service';
 
 @Injectable()
 export class KycAdminService {
@@ -15,6 +17,7 @@ export class KycAdminService {
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
     private readonly bankDataService: BankDataService,
+    private readonly kycService: KycService,
   ) {}
 
   async getKycSteps(userDataId: number): Promise<KycStep[]> {
@@ -30,12 +33,16 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
 
-    if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-      await this.bankDataService.createBankData(kycStep.userData, {
-        name: kycStep.userName,
-        iban: `Ident${kycStep.identDocumentId}`,
-        type: BankDataType.IDENT,
-      });
+    if (kycStep.name === KycStepName.IDENT && kycStep.isCompleted) {
+      kycStep.userData = await this.kycService.completeIdent(kycStep.getResult<IdentResultDto>(), kycStep.userData);
+
+      if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+        await this.bankDataService.createBankData(kycStep.userData, {
+          name: kycStep.userName,
+          iban: `Ident${kycStep.identDocumentId}`,
+          type: BankDataType.IDENT,
+        });
+    }
 
     await this.kycStepRepo.save(kycStep);
   }

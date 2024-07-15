@@ -103,14 +103,12 @@ export class WebhookService {
   }
 
   private async createAndSendWebhook(dto: CreateWebhookInput): Promise<Webhook | undefined> {
-    const exists = await this.webhookRepo.exist({
-      where: {
-        identifier: dto.identifier,
-        type: dto.type,
-        reason: dto.reason,
-        userData: { id: dto.userData.id },
-        wallet: { id: dto.wallet.id },
-      },
+    const exists = await this.webhookRepo.existsBy({
+      identifier: dto.identifier,
+      type: dto.type,
+      reason: dto.reason,
+      userData: { id: dto.userData.id },
+      wallet: { id: dto.wallet.id },
     });
     if (exists) return;
 
