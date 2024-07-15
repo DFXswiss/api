@@ -43,10 +43,10 @@ export class LimitRequestService {
         contentType as ContentType,
       );
 
-      return void this.increaseLimitInternal({ ...dto, documentProofUrl }, user);
+      await this.increaseLimitInternal({ ...dto, documentProofUrl }, user);
+    } else {
+      await this.increaseLimitInternal(dto, user);
     }
-
-    return void this.increaseLimitInternal(dto, user);
   }
 
   async increaseLimitInternal(dto: LimitRequestInternalDto, userData: UserData): Promise<LimitRequest> {
