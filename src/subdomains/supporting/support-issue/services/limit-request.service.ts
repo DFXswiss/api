@@ -43,13 +43,13 @@ export class LimitRequestService {
         contentType as ContentType,
       );
 
-      return this.increaseLimitInternal({ ...dto, documentProofUrl }, user);
+      return void this.increaseLimitInternal({ ...dto, documentProofUrl }, user);
     }
 
-    return this.increaseLimitInternal(dto, user);
+    return void this.increaseLimitInternal(dto, user);
   }
 
-  async increaseLimitInternal(dto: LimitRequestInternalDto, userData: UserData): Promise<void> {
+  async increaseLimitInternal(dto: LimitRequestInternalDto, userData: UserData): Promise<LimitRequest> {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
 
     // create entity
@@ -77,6 +77,8 @@ export class LimitRequestService {
         },
       })
       .catch((error) => this.logger.error(`Failed to send limitRequest ${entity.id} created mail:`, error));
+
+    return entity;
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {

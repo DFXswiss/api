@@ -70,7 +70,8 @@ export class SupportIssueService {
     }
 
     // limit request
-    if (dto.limitRequest) await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+    if (dto.limitRequest)
+      newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
 
     const existingIssue = await this.supportIssueRepo.findOneBy({
       userData: { id: userDataId },
