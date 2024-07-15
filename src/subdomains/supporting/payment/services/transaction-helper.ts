@@ -153,7 +153,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, false);
 
-    const { dfx, total } = this.calculateTotalFee(inputReferenceAmount, from, fee.rate, sourceSpecs);
+    const { dfx, total } = this.calculateTotalFee(inputReferenceAmount, fee.rate, sourceSpecs, isFiat(from));
 
     return {
       ...fee,
@@ -330,7 +330,7 @@ export class TransactionHelper implements OnModuleInit {
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
-    const sourceFees = this.calculateTotalFee(sourceAmount, from, feeRate, sourceSpecs);
+    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, sourceSpecs, isFiat(from));
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
@@ -404,14 +404,14 @@ export class TransactionHelper implements OnModuleInit {
 
   private calculateTotalFee(
     amount: number,
-    active: Active,
     rate: number,
     { fee: { fixed, min, network, networkStart } }: TxSpec,
+    isFiat: boolean,
   ): { dfx: number; total: number } {
     const dfx = Math.max(amount * rate + fixed, min);
     const total = dfx + network + (networkStart ?? 0);
 
-    return { dfx: Util.roundReadable(dfx, isFiat(active)), total: Util.roundReadable(total, isFiat(active)) };
+    return { dfx: Util.roundReadable(dfx, isFiat), total: Util.roundReadable(total, isFiat) };
   }
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
@@ -428,17 +428,16 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     user: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
+    const volume24h =
+      user?.userData.kycLevel < KycLevel.LEVEL_50
+        ? await this.getVolumeSince(Util.daysBefore(1), new Date(), [user])
+        : 0;
+
+    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume24h;
+
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
       : Config.tradingLimits.yearlyDefault;
-
-    let kycLimit = 0;
-    if (user?.userData.kycLevel < KycLevel.LEVEL_50) {
-      const volume24h = await this.getVolumeSince(Util.daysBefore(1), new Date(), [user]);
-      kycLimit = user?.userData.availableTradingLimit - volume24h;
-    } else {
-      kycLimit = user?.userData.availableTradingLimit ?? Number.MAX_VALUE;
-    }
 
     return { kycLimit, defaultLimit };
   }
