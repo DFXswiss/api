@@ -50,7 +50,7 @@ export class KycAdminService {
 
   async resetKyc(userData: UserData): Promise<void> {
     for (const kycStep of userData.kycSteps) {
-      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && kycStep.isDone)
+      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
         await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
     }
   }
