@@ -1,8 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import {
+  PaymentLinkEvmPaymentDto,
+  PaymentLinkPayRequestDto,
+  TransferInfo,
+} from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.services';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
-import { LnurlWithdrawRequestDto, LnurlwInvoiceDto } from '../../../../integration/lightning/dto/lnurlw.dto';
+import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
 import { LightningHelper } from '../../../../integration/lightning/lightning-helper';
 import { LightningService } from '../../../../integration/lightning/services/lightning.service';
@@ -19,26 +25,14 @@ export class LnUrlForwardService {
   }
 
   // --- LNURLp --- //
-  async lnurlpForward(id: string): Promise<LnurlPayRequestDto> {
-    if (id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX)) return this.doPaymentLinkForward(id);
+  async lnurlpForward(id: string): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto> {
+    if (id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX)) return this.createPaymentLinkPayRequest(id);
 
-    return this.doLnurlpForward(id);
+    return this.createLnurlpPayRequest(id);
   }
 
-  async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto> {
-    return this.client.getLnurlpInvoice(id, params);
-  }
-
-  private async doLnurlpForward(id: string): Promise<LnurlPayRequestDto> {
-    const payRequest = await this.client.getLnurlpPaymentRequest(id);
-
-    payRequest.callback = LightningHelper.createLnurlpCallbackUrl(id);
-
-    return payRequest;
-  }
-
-  private async doPaymentLinkForward(paymentId: string): Promise<LnurlPayRequestDto> {
-    const paymentLinkPaymentInfo = await this.paymentLinkService.getPaymentLinkPaymentInfo(paymentId);
+  private async createPaymentLinkPayRequest(paymentLinkId: string): Promise<PaymentLinkPayRequestDto> {
+    const paymentLinkPaymentInfo = await this.paymentLinkService.getPaymentLinkForwardInfo(paymentLinkId);
     const metaData = `Payment to ${paymentLinkPaymentInfo.paymentLinkExternalId}: ${paymentLinkPaymentInfo.paymentLinkPaymentExternalId}`;
 
     const transferAmounts = paymentLinkPaymentInfo.transferAmounts;
@@ -47,7 +41,7 @@ export class LnUrlForwardService {
 
     const satsSendable = LightningHelper.btcToSat(Util.round(btcTransferAmount.amount, 8));
 
-    const payRequest: LnurlPayRequestDto = {
+    const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(paymentLinkPaymentInfo.paymentLinkPaymentId),
       minSendable: satsSendable,
@@ -57,6 +51,47 @@ export class LnUrlForwardService {
     };
 
     return payRequest;
+  }
+
+  private async createLnurlpPayRequest(lnurlpId: string): Promise<LnurlPayRequestDto> {
+    const payRequest = await this.client.getLnurlpPaymentRequest(lnurlpId);
+
+    payRequest.callback = LightningHelper.createLnurlpCallbackUrl(lnurlpId);
+
+    return payRequest;
+  }
+
+  async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+    if (id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)) {
+      const transferInfo = this.getPaymentTransferInfo(params);
+
+      if (transferInfo.method !== Blockchain.LIGHTNING) {
+        return this.createPaymentLinkEvmPayment(id, transferInfo);
+      }
+    }
+
+    return this.createLnurlpInvoice(id, params);
+  }
+
+  private async createPaymentLinkEvmPayment(
+    paymentLinkPaymentId: string,
+    transferInfo: TransferInfo,
+  ): Promise<PaymentLinkEvmPaymentDto> {
+    return this.paymentLinkService.getPaymentLinkEvmPaymentInfo(paymentLinkPaymentId, transferInfo);
+  }
+
+  private async createLnurlpInvoice(id: string, params: any): Promise<LnurlpInvoiceDto> {
+    return this.client.getLnurlpInvoice(id, params);
+  }
+
+  private getPaymentTransferInfo(params: any): TransferInfo {
+    const method = Util.toEnum(Blockchain, params.method);
+
+    return {
+      asset: params.asset ?? 'BTC',
+      amount: params.amount ?? 0,
+      method: method ?? Blockchain.LIGHTNING,
+    };
   }
 
   // --- LNURLw --- //

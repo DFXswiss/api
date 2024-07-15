@@ -25,7 +25,22 @@ export interface TransferInfo {
   method: Blockchain;
 }
 
-export interface PaymentLinkPaymentInfo {
+export interface PaymentLinkPayRequestDto {
+  tag: string;
+  callback: string;
+  minSendable: number;
+  maxSendable: number;
+  metadata: string;
+  transferAmounts: TransferInfo[];
+}
+
+export interface PaymentLinkEvmPaymentDto {
+  expiryDate: Date;
+  blockchain: Blockchain;
+  uri: string;
+}
+
+export interface PaymentLinkForwardInfoDto {
   paymentLinkExternalId: string;
   paymentLinkPaymentId: string;
   paymentLinkPaymentExternalId: string;

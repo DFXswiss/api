@@ -236,6 +236,10 @@ export class Configuration {
     apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
+  payment = {
+    evmAddress: process.env.PAYMENT_EVM_ADDRESS,
+  };
+
   blockchain = {
     default: {
       user: process.env.NODE_USER,

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
@@ -11,7 +12,13 @@ import { PaymentLinkRepository } from './repositories/payment-link.repository';
 import { PaymentLinkService } from './services/payment-link.services';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PaymentLink, PaymentLinkPayment]), SellCryptoModule, SharedModule, PricingModule],
+  imports: [
+    TypeOrmModule.forFeature([PaymentLink, PaymentLinkPayment]),
+    SellCryptoModule,
+    SharedModule,
+    PricingModule,
+    BlockchainModule,
+  ],
   controllers: [PaymentLinkController],
   providers: [PaymentLinkRepository, PaymentLinkPaymentRepository, PaymentLinkService],
   exports: [PaymentLinkService],

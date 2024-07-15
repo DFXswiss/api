@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -10,7 +12,8 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import {
-  PaymentLinkPaymentInfo,
+  PaymentLinkEvmPaymentDto,
+  PaymentLinkForwardInfoDto,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
   TransferInfo,
@@ -30,6 +33,7 @@ export class PaymentLinkService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
+    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
   async get(userId: number, id: number): Promise<PaymentLink> {
@@ -162,17 +166,17 @@ export class PaymentLinkService {
     return `${prefix}_${hash.slice(0, 6)}`;
   }
 
-  async getPaymentLinkPaymentInfo(paymentId: string): Promise<PaymentLinkPaymentInfo> {
+  async getPaymentLinkForwardInfo(paymentLinkId: string): Promise<PaymentLinkForwardInfoDto> {
     const pendingPayments = await this.paymentLinkPaymentRepo.find({
       where: {
-        link: { uniqueId: paymentId },
+        link: { uniqueId: paymentLinkId },
         status: PaymentLinkPaymentStatus.PENDING,
       },
       relations: {
         link: true,
       },
     });
-    if (!pendingPayments.length) throw new NotFoundException('No pending payment found');
+    if (!pendingPayments.length) throw new NotFoundException(`No pending payment found by unique id ${paymentLinkId}`);
 
     const pendingPayment = pendingPayments[0];
 
@@ -181,6 +185,30 @@ export class PaymentLinkService {
       paymentLinkPaymentId: pendingPayment.uniqueId,
       paymentLinkPaymentExternalId: pendingPayment.externalId,
       transferAmounts: <TransferInfo[]>JSON.parse(pendingPayment.transferAmounts),
+    };
+  }
+
+  async getPaymentLinkEvmPaymentInfo(
+    paymentLinkPaymentId: string,
+    transferInfo: TransferInfo,
+  ): Promise<PaymentLinkEvmPaymentDto> {
+    const paymentLinkPayment = await this.paymentLinkPaymentRepo.findOneBy({ uniqueId: paymentLinkPaymentId });
+    if (!paymentLinkPayment)
+      throw new NotFoundException(`No payment link payment found by unique id ${paymentLinkPaymentId}`);
+
+    const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
+    const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
+    if (!asset) throw new NotFoundException(`Asset ${uniqueAssetName} not found`);
+
+    const evmService = this.evmRegistryService.getService(transferInfo.method);
+    if (!evmService) throw new NotFoundException(`EVM Service ${transferInfo.method} not found`);
+
+    const evmPaymentRequest = await evmService.getPaymentRequest(Config.payment.evmAddress, asset, transferInfo.amount);
+
+    return {
+      expiryDate: paymentLinkPayment.expiryDate,
+      blockchain: transferInfo.method,
+      uri: evmPaymentRequest,
     };
   }
 }
