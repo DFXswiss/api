@@ -28,6 +28,7 @@ export class AlchemyNetworkMapper {
 
     [137, Network.MATIC_MAINNET],
     [80001, Network.MATIC_MUMBAI],
+    [80002, Network.MATIC_AMOY],
 
     [8453, Network.BASE_MAINNET],
     [84531, Network.BASE_GOERLI],

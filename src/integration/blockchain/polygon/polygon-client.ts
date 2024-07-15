@@ -142,7 +142,7 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
 
   private async initPolygonNetwork(ethWalletAddress: string, polygonWalletAddress: string) {
     const network = Config.network === 'mainnet' ? 'mainnet' : 'testnet';
-    const version = network === 'mainnet' ? 'v1' : 'mumbai';
+    const version = network === 'mainnet' ? 'v1' : 'amoy';
 
     await this.posClient.init({
       network: network,
