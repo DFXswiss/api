@@ -245,7 +245,7 @@ export class UserService {
     if (!mainUser) throw new NotFoundException('User not found');
     if (mainUser.userData.isBlocked || mainUser.userData.isDeactivated)
       throw new BadRequestException('User Account already deactivated');
-    if (mainUser.isBlockedOrDeleted) throw new BadRequestException('User already deactivated');
+    if (mainUser.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
 
     if (!allUser) {
       await this.userRepo.update(...mainUser.deactivateUser('Manual user block'));

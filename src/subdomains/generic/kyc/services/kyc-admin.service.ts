@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
@@ -47,8 +48,8 @@ export class KycAdminService {
     await this.kycStepRepo.save(kycStep);
   }
 
-  async deactivateKycSteps(kycSteps: KycStep[]): Promise<void> {
-    for (const kycStep of kycSteps) {
+  async cancelKycSteps(userData: UserData): Promise<void> {
+    for (const kycStep of userData.kycSteps) {
       if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && kycStep.isCompleted)
         await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
     }

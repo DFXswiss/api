@@ -141,7 +141,7 @@ export class AuthService {
   }
 
   private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
-    if (user.isBlockedOrDeleted) throw new ConflictException('User is deactivated or blocked');
+    if (user.isBlockedOrDeactivated) throw new ConflictException('User is deactivated or blocked');
 
     const keyWalletId =
       user.signature?.includes(this.masterKeyPrefix) && +user.signature?.replace(this.masterKeyPrefix, '');
@@ -277,7 +277,7 @@ export class AuthService {
   async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
-    if (user.isBlockedOrDeleted) throw new BadRequestException('User is deactivated or blocked');
+    if (user.isBlockedOrDeactivated) throw new BadRequestException('User is deactivated or blocked');
     return { accessToken: this.generateUserToken(user, ip) };
   }
 

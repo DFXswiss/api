@@ -159,7 +159,7 @@ export class User extends IEntity {
     return customChains[this.wallet.name] ?? CryptoService.getBlockchainsBasedOn(this.address);
   }
 
-  get isBlockedOrDeleted(): boolean {
+  get isBlockedOrDeactivated(): boolean {
     return [UserStatus.BLOCKED, UserStatus.DEACTIVATED].includes(this.status);
   }
 }
