@@ -152,7 +152,6 @@ export class CoinTrackingHistoryDtoMapper {
       .filter(
         (buyFiat) =>
           buyFiat.amlCheck === CheckStatus.PASS &&
-          buyFiat.fiatOutput?.bankTx &&
           buyFiat.cryptoInput &&
           buyFiat.outputAmount &&
           buyFiat.outputAsset &&
