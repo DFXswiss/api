@@ -295,7 +295,7 @@ export class UserDataService {
 
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
-    await this.kycAdminService.cancelKycSteps(userData);
+    await this.kycAdminService.resetKyc(userData);
   }
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
