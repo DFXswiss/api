@@ -23,6 +23,7 @@ export class FiatOutputService {
         { buyCrypto: { id: dto.buyCryptoId }, type: dto.type },
         { buyFiat: { id: dto.buyFiatId }, type: dto.type },
       ],
+      relations: { buyCrypto: true, buyFiat: true },
     });
     if (existing) throw new BadRequestException('FiatOutput already exists');
 
