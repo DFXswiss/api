@@ -257,7 +257,13 @@ export abstract class EvmClient {
   async isTxComplete(txHash: string): Promise<boolean> {
     const transaction = await this.getTxReceipt(txHash);
 
-    return transaction && transaction.confirmations > 0 && transaction.status === 1;
+    if (transaction?.confirmations > 0) {
+      if (transaction.status) return true;
+
+      throw new Error(`Transaction ${txHash} has failed`);
+    }
+
+    return false;
   }
 
   async getTx(txHash: string): Promise<ethers.providers.TransactionResponse> {
