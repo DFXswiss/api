@@ -156,7 +156,7 @@
       "value": "xxx"
     },
     "polygonGatewayUrl": {
-      "value": "https://polygon-mumbai.g.alchemy.com/v2"
+      "value": "https://polygon-amoy.g.alchemy.com/v2"
     },
     "polygonSwapContractAddress": {
       "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
@@ -165,7 +165,7 @@
       "value": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
     },
     "polygonChainId": {
-      "value": "80001"
+      "value": "80002"
     },
     "baseWalletAddress": {
       "value": "xxx"

@@ -5,7 +5,6 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -17,8 +16,6 @@ const START_AMOUNT_IN = 10000; // CHF
 
 @Injectable()
 export class TradingService {
-  private readonly logger = new DfxLogger(TradingService);
-
   constructor(
     private readonly evmRegistryService: EvmRegistryService,
     private readonly pricingService: PricingService,
@@ -74,7 +71,7 @@ export class TradingService {
     const lowerCheckDeviation = currentPrice / lowerCheckPrice - 1;
     const upperCheckDeviation = currentPrice / upperCheckPrice - 1;
 
-    if (lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit) {
+    if (lowerDeviation < 0) {
       return {
         price1: lowerTargetPrice,
         price2: currentPrice,
@@ -82,8 +79,9 @@ export class TradingService {
         poolFee: tradingRule.poolFee,
         assetIn: tradingRule.leftAsset,
         assetOut: tradingRule.rightAsset,
+        tradeRequired: lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit,
       };
-    } else if (upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit) {
+    } else {
       return {
         price1: upperTargetPrice,
         price2: currentPrice,
@@ -91,11 +89,8 @@ export class TradingService {
         poolFee: tradingRule.poolFee,
         assetIn: tradingRule.rightAsset,
         assetOut: tradingRule.leftAsset,
+        tradeRequired: upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit,
       };
-    } else {
-      this.logger.verbose(
-        `No action required for trading rule ${tradingRule.id}: lower deviation is ${lowerDeviation} / ${lowerCheckDeviation}, upper deviation is ${upperDeviation} / ${upperCheckDeviation}`,
-      );
     }
   }
 

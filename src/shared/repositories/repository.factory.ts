@@ -10,6 +10,7 @@ import { CheckoutTxRepository } from 'src/subdomains/supporting/fiat-payin/repos
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { EntityManager } from 'typeorm';
+import { AssetRepository } from '../models/asset/asset.repository';
 
 @Injectable()
 export class RepositoryFactory {
@@ -23,6 +24,7 @@ export class RepositoryFactory {
   public readonly depositRoute: DepositRouteRepository;
   public readonly transactionSpecification: TransactionSpecificationRepository;
   public readonly checkoutTx: CheckoutTxRepository;
+  public readonly asset: AssetRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -35,5 +37,6 @@ export class RepositoryFactory {
     this.depositRoute = new DepositRouteRepository(manager);
     this.transactionSpecification = new TransactionSpecificationRepository(manager);
     this.checkoutTx = new CheckoutTxRepository(manager);
+    this.asset = new AssetRepository(manager);
   }
 }

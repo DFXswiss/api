@@ -48,7 +48,7 @@ export class TradingOrder extends IEntity {
   static create(tradingRule: TradingRule, tradingInfo: TradingInfo): TradingOrder {
     const order = new TradingOrder();
 
-    order.status = TradingOrderStatus.CREATED;
+    order.status = tradingInfo.tradeRequired ? TradingOrderStatus.CREATED : TradingOrderStatus.IGNORED;
     order.tradingRule = tradingRule;
     order.price1 = tradingInfo.price1;
     order.price2 = tradingInfo.price2;

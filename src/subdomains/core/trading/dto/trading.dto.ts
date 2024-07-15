@@ -10,4 +10,5 @@ export interface TradingInfo {
   assetOut?: Asset;
   amountIn?: number;
   amountExpected?: number;
+  tradeRequired: boolean;
 }

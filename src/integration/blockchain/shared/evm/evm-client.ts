@@ -257,7 +257,13 @@ export abstract class EvmClient {
   async isTxComplete(txHash: string): Promise<boolean> {
     const transaction = await this.getTxReceipt(txHash);
 
-    return transaction && transaction.confirmations > 0 && transaction.status === 1;
+    if (transaction?.confirmations > 0) {
+      if (transaction.status) return true;
+
+      throw new Error(`Transaction ${txHash} has failed`);
+    }
+
+    return false;
   }
 
   async getTx(txHash: string): Promise<ethers.providers.TransactionResponse> {
@@ -297,14 +303,9 @@ export abstract class EvmClient {
 
   // --- PUBLIC API - SWAPS --- //
   async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
-    const token1 = await this.getToken(asset1);
-    const token2 = await this.getToken(asset2);
+    const [token1, token2] = await this.getTokenPair(asset1, asset2);
 
-    if (token1 instanceof Token && token2 instanceof Token) {
-      return Pool.getAddress(token1, token2, poolFee);
-    } else {
-      throw new Error(`Only tokens can be in a pool`);
-    }
+    return Pool.getAddress(token1, token2, poolFee);
   }
 
   async testSwap(
@@ -331,10 +332,7 @@ export abstract class EvmClient {
   ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
     if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
 
-    const sourceToken = await this.getToken(source);
-    const targetToken = await this.getToken(target);
-    if (sourceToken instanceof NativeCurrency || targetToken instanceof NativeCurrency)
-      throw new Error(`Only tokens can be in a pool`);
+    const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
     const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
 
@@ -377,10 +375,7 @@ export abstract class EvmClient {
     maxSlippage: number,
   ): Promise<string> {
     // get pool info
-    const sourceToken = await this.getToken(source);
-    const targetToken = await this.getToken(target);
-    if (sourceToken instanceof NativeCurrency || targetToken instanceof NativeCurrency)
-      throw new Error(`Only tokens can be in a pool`);
+    const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
     const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
     const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
@@ -460,6 +455,18 @@ export abstract class EvmClient {
     return tx.hash;
   }
 
+  async sqrtX96Price(price: number, source: Asset, target: Asset, poolFee: FeeAmount): Promise<number> {
+    const [sourceToken, targetToken] = await this.getTokenPair(source, target);
+
+    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const token0IsInToken = sourceToken.address === (await poolContract.token0());
+    const [token0, token1] = token0IsInToken ? [sourceToken, targetToken] : [targetToken, sourceToken];
+
+    price = token0IsInToken ? 1 / price : price;
+
+    return Math.sqrt((price * 10 ** token1.decimals) / 10 ** token0.decimals) * 2 ** 96;
+  }
+
   // --- GETTERS --- //
   get dfxAddress(): string {
     return this.wallet.address;
@@ -478,6 +485,16 @@ export abstract class EvmClient {
 
   async getToken(asset: Asset): Promise<Currency> {
     return asset.type === AssetType.COIN ? Ether.onChain(this.chainId) : this.getTokenByAddress(asset.chainId);
+  }
+
+  async getTokenPair(asset1: Asset, asset2: Asset): Promise<[Token, Token]> {
+    const token1 = await this.getToken(asset1);
+    const token2 = await this.getToken(asset2);
+
+    if (token1 instanceof NativeCurrency || token2 instanceof NativeCurrency)
+      throw new Error(`Only tokens can be in a pool`);
+
+    return [token1, token2];
   }
 
   getPoolContract(poolAddress: string): Contract {

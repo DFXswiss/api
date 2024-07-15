@@ -548,7 +548,7 @@ export class UserDataService {
     // copy all documents
     void this.documentStorageService
       .copyFiles(slave.id, master.id)
-      .catch((e) => this.logger.critical('Error in document copy files:', e));
+      .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
 
     // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
