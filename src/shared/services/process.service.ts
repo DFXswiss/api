@@ -47,6 +47,7 @@ export enum Process {
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
   SYNCHRONIZE_TRANSACTION_USER = 'SynchronizeTransactionUser',
   NETWORK_START_FEE = 'NetworkStartFee',
+  ASSET_DECIMALS = 'AssetDecimals',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
