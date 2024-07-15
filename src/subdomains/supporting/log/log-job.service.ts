@@ -33,11 +33,7 @@ export class LogJobService {
             ...o,
             assetIn: o.assetIn.id,
             assetOut: o.assetOut.id,
-            tradingRule: {
-              ...o.tradingRule,
-              leftAsset: o.tradingRule.leftAsset.id,
-              rightAsset: o.tradingRule.rightAsset.id,
-            },
+            tradingRule: o.tradingRule.id,
           };
         }),
       );
@@ -52,7 +48,12 @@ export class LogJobService {
         severity: LogSeverity.INFO,
         message: JSON.stringify({
           assets: assets.map((a) => {
-            return { ...a, ...liqBalances.find((b) => b.asset.id === a.id) };
+            return {
+              id: a.id,
+              approxPriceChf: a.approxPriceChf,
+              approxPriceUsd: a.approxPriceUsd,
+              balance: liqBalances.find((b) => b.asset.id === a.id)?.amount,
+            };
           }),
           tradings: tradingOrders,
         }),

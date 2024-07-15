@@ -26,7 +26,7 @@ export class TradingRuleService {
       .createQueryBuilder('tradingOrder')
       .select('MAX(tradingOrder.id)', 'tradingOrderId')
       .innerJoin('tradingOrder.tradingRule', 'tradingRule')
-      .groupBy('tradingRule.id')
+      .groupBy('tradingOrder.tradingRuleId')
       .getRawMany<{ tradingOrderId: number }>()
       .then((t) => t.map((t) => t.tradingOrderId));
 
