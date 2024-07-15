@@ -29,7 +29,7 @@ export class LimitRequestJobService {
 
     for (const entity of entities) {
       await this.supportIssueService.createIssueInternal(entity.userData, {
-        name: entity.userData.firstname ?? '-',
+        name: entity.userData.completeName ?? '-',
         type: SupportIssueType.LIMIT_REQUEST,
         reason: SupportIssueReason.OTHER,
         fileUrl: entity.documentProofUrl,
