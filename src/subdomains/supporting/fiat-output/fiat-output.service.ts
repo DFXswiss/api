@@ -18,6 +18,14 @@ export class FiatOutputService {
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
+    const existing = await this.fiatOutputRepo.exists({
+      where: [
+        { buyCrypto: { id: dto.buyCryptoId }, type: dto.type },
+        { buyFiat: { id: dto.buyFiatId }, type: dto.type },
+      ],
+    });
+    if (existing) throw new BadRequestException('FiatOutput already exists');
+
     const entity = this.fiatOutputRepo.create(dto);
 
     if (dto.buyFiatId) {

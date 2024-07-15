@@ -203,6 +203,7 @@ export class BuyCryptoService {
         bankTx: true,
         checkoutTx: true,
         transaction: { user: { userData: true, wallet: true } },
+        chargebackOutput: true,
       },
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
@@ -243,7 +244,7 @@ export class BuyCryptoService {
       if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
     }
 
-    if (dto.chargebackAllowedDate)
+    if (dto.chargebackAllowedDate && !entity.chargebackOutput)
       update.chargebackOutput = await this.fiatOutputService.create({
         buyCryptoId: entity.id,
         type: 'BuyCryptoFail',
