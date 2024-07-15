@@ -10,6 +10,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -140,8 +141,13 @@ export class BuyFiatPreparationService {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
+        cryptoInput: { paymentLinkPayment: IsNull() },
       },
-      relations: { sell: true, cryptoInput: true, transaction: { user: { wallet: true, userData: true } } },
+      relations: {
+        sell: true,
+        cryptoInput: { paymentLinkPayment: true },
+        transaction: { user: { wallet: true, userData: true } },
+      },
     });
 
     // CHF/EUR Price
@@ -188,6 +194,76 @@ export class BuyFiatPreparationService {
         await this.buyFiatService.updateRefVolume([entity.usedRef]);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async fillPaymentLinkPayments(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: CheckStatus.PASS,
+        isComplete: false,
+        percentFee: IsNull(),
+        inputReferenceAmount: Not(IsNull()),
+        cryptoInput: { paymentLinkPayment: Not(IsNull()) },
+      },
+      relations: {
+        sell: true,
+        cryptoInput: { paymentLinkPayment: true },
+        transaction: { user: { wallet: true, userData: true } },
+      },
+    });
+
+    // CHF/EUR Price
+    const fiatEur = await this.fiatService.getFiatByName('EUR');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+
+    for (const entity of entities) {
+      try {
+        const inputCurrency = entity.cryptoInput.asset;
+        const outputReferenceCurrency = entity.paymentLinkPayment.currency;
+        const outputCurrency = entity.sell.fiat;
+        const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
+
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
+        const outputReferencePrice = await this.pricingService.getPrice(outputReferenceCurrency, outputCurrency, false);
+        const referencePrice = Price.create(
+          inputCurrency.name,
+          outputReferenceCurrency.name,
+          entity.inputReferenceAmount / entity.outputReferenceAmount,
+        );
+
+        const priceStep = PriceStep.create(
+          'Payment',
+          inputCurrency.name,
+          outputReferenceCurrency.name,
+          entity.inputAmount / outputReferenceAmount,
+        );
+
+        const totalFee = entity.inputReferenceAmount - referencePrice.invert().convert(entity.outputReferenceAmount);
+
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+
+        await this.buyFiatRepo.update(
+          ...entity.setPaymentLinkPayment(
+            eurPrice.convert(entity.inputAmount, 2),
+            amountInChf,
+            totalFee,
+            chfPrice.convert(totalFee, 5),
+            outputReferenceAmount,
+            outputReferenceCurrency,
+            outputReferencePrice.convert(outputReferenceAmount, 2),
+            outputCurrency,
+            [priceStep, ...outputReferencePrice.steps],
+          ),
+        );
+
+        if (entity.amlCheck === CheckStatus.FAIL) return;
+
+        await this.buyFiatService.updateSellVolume([entity.sell?.id]);
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} fill paymentLinkPayments:`, e);
       }
     }
   }
