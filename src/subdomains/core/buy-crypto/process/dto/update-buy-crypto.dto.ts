@@ -179,5 +179,5 @@ export class UpdateBuyCryptoDto {
 
   @IsOptional()
   @IsBoolean()
-  activateBankData: boolean;
+  bankDataActive: boolean;
 }

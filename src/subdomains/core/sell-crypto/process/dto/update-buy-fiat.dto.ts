@@ -204,5 +204,5 @@ export class UpdateBuyFiatDto {
 
   @IsOptional()
   @IsBoolean()
-  activateBankData: boolean;
+  bankDataActive: boolean;
 }

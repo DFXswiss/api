@@ -144,9 +144,9 @@ export class BuyFiatService {
       if (!update.bankData) throw new NotFoundException('BankData not found');
     }
 
-    if (dto.activateBankData && (update.bankData || entity.bankData))
+    if (dto.bankDataActive && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData.id ?? entity.bankData.id, {
-        active: dto.activateBankData,
+        active: dto.bankDataActive,
       });
 
     Util.removeNullFields(entity);
