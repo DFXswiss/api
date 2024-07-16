@@ -48,11 +48,14 @@ export class LogJobService {
         severity: LogSeverity.INFO,
         message: JSON.stringify({
           assets: assets.map((a) => {
+            const liquidityBalance = liqBalances.find((b) => b.asset.id === a.id)?.amount;
+
             return {
               id: a.id,
-              approxPriceChf: a.approxPriceChf,
-              approxPriceUsd: a.approxPriceUsd,
-              balance: liqBalances.find((b) => b.asset.id === a.id)?.amount,
+              priceChf: a.approxPriceChf,
+              liquidityBalance,
+              plusBalance: liquidityBalance,
+              minusBalance: 0,
             };
           }),
           tradings: tradingOrders,
