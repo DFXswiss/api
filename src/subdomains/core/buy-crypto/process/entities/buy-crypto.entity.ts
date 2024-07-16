@@ -73,6 +73,9 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
   fee: BuyCryptoFee;
 
+  @ManyToOne(() => BankData, { nullable: true })
+  bankData: BankData;
+
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail: string;

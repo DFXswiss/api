@@ -139,6 +139,16 @@ export class BuyFiatService {
       if (!update.outputAsset) throw new BadRequestException('OutputAsset not found');
     }
 
+    if (dto.bankDataId && !entity.bankData) {
+      update.bankData = await this.bankDataService.getBankData(dto.bankDataId);
+      if (!update.bankData) throw new NotFoundException('BankData not found');
+    }
+
+    if (dto.activateBankData && (update.bankData || entity.bankData))
+      await this.bankDataService.updateBankData(update.bankData.id ?? entity.bankData.id, {
+        active: dto.activateBankData,
+      });
+
     Util.removeNullFields(entity);
 
     const forceUpdate: Partial<BuyFiat> = {

@@ -244,6 +244,16 @@ export class BuyCryptoService {
       if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
     }
 
+    if (dto.bankDataId && !entity.bankData) {
+      update.bankData = await this.bankDataService.getBankData(dto.bankDataId);
+      if (!update.bankData) throw new NotFoundException('BankData not found');
+    }
+
+    if (dto.activateBankData && (update.bankData || entity.bankData))
+      await this.bankDataService.updateBankData(update.bankData.id ?? entity.bankData.id, {
+        active: dto.activateBankData,
+      });
+
     if (dto.chargebackAllowedDate && !entity.chargebackOutput)
       update.chargebackOutput = await this.fiatOutputService.create({
         buyCryptoId: entity.id,
