@@ -78,11 +78,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   async depositTokenOnDex(l1Token: Asset, _l2Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
-    const contract = this.getERC20ContractForDexL1(l1Token.chainId);
-    const decimals = await contract.decimals();
 
     const depositTx = await erc20Bridge.deposit({
-      amount: EvmUtil.toWeiAmount(amount, decimals),
+      amount: EvmUtil.toWeiAmount(amount, l1Token.decimals),
       erc20L1Address: l1Token.chainId,
       l1Signer: this.#l1Wallet,
       l2Provider: this.provider,
@@ -93,11 +91,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   async withdrawTokenOnDex(l1Token: Asset, _l2Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
-    const contract = this.getERC20ContractForDexL1(l1Token.chainId);
-    const decimals = await contract.decimals();
 
     const withdrawTx = await erc20Bridge.withdraw({
-      amount: EvmUtil.toWeiAmount(amount, decimals),
+      amount: EvmUtil.toWeiAmount(amount, l1Token.decimals),
       destinationAddress: this.#l1Wallet.address,
       erc20l1Address: l1Token.chainId,
       l2Signer: this.wallet,

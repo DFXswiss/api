@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
@@ -12,8 +11,6 @@ import { LogService } from './log.service';
 
 @Injectable()
 export class LogJobService {
-  private readonly logger = new DfxLogger(LogJobService);
-
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -26,42 +23,42 @@ export class LogJobService {
   async saveTradingLog() {
     if (DisabledProcess(Process.TRADING_LOG)) return;
 
-    try {
-      const tradingOrders = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
-        t.map((o) => {
-          return {
-            rule: o.tradingRule.id,
-            price1: o.price1,
-            price2: o.price2,
-          };
-        }),
-      );
-      const assets = await this.assetService
-        .getAllAssets()
-        .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
-      const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+    // trading
+    const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
+      t.reduce((prev, curr) => {
+        prev[curr.tradingRule.id] = {
+          price1: curr.price1,
+          price2: curr.price2,
+        };
 
-      await this.logService.create({
-        system: 'LogService',
-        subsystem: 'TradingLog',
-        severity: LogSeverity.INFO,
-        message: JSON.stringify({
-          assets: assets.map((a) => {
-            const liquidityBalance = liqBalances.find((b) => b.asset.id === a.id)?.amount;
+        return prev;
+      }, {}),
+    );
 
-            return {
-              id: a.id,
-              priceChf: a.approxPriceChf,
-              liquidityBalance,
-              plusBalance: liquidityBalance,
-              minusBalance: 0,
-            };
-          }),
-          tradings: tradingOrders,
-        }),
-      });
-    } catch (e) {
-      this.logger.error('Error in creating trading log:', e);
-    }
+    // assets
+    const assets = await this.assetService
+      .getAllAssets()
+      .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
+    const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+
+    const assetLog = assets.reduce((prev, curr) => {
+      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
+
+      prev[curr.id] = {
+        priceChf: curr.approxPriceChf,
+        liquidityBalance,
+        plusBalance: liquidityBalance,
+        minusBalance: 0,
+      };
+
+      return prev;
+    }, {});
+
+    await this.logService.create({
+      system: 'LogService',
+      subsystem: 'TradingLog',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({ assets: assetLog, tradings: tradingLog }),
+    });
   }
 }

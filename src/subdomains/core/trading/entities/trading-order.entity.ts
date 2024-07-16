@@ -28,7 +28,7 @@ export class TradingOrder extends IEntity {
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   assetOut: Asset;
 
-  @Column({ type: 'float' })
+  @Column({ type: 'float', nullable: true })
   amountIn: number;
 
   @Column({ type: 'float', nullable: true })
