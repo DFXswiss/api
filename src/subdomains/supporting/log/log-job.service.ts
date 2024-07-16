@@ -30,10 +30,9 @@ export class LogJobService {
       const tradingOrders = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
         t.map((o) => {
           return {
-            ...o,
-            assetIn: o.assetIn.id,
-            assetOut: o.assetOut.id,
-            tradingRule: o.tradingRule.id,
+            rule: o.tradingRule.id,
+            price1: o.price1,
+            price2: o.price2,
           };
         }),
       );
@@ -48,11 +47,14 @@ export class LogJobService {
         severity: LogSeverity.INFO,
         message: JSON.stringify({
           assets: assets.map((a) => {
+            const liquidityBalance = liqBalances.find((b) => b.asset.id === a.id)?.amount;
+
             return {
               id: a.id,
-              approxPriceChf: a.approxPriceChf,
-              approxPriceUsd: a.approxPriceUsd,
-              balance: liqBalances.find((b) => b.asset.id === a.id)?.amount,
+              priceChf: a.approxPriceChf,
+              liquidityBalance,
+              plusBalance: liquidityBalance,
+              minusBalance: 0,
             };
           }),
           tradings: tradingOrders,
