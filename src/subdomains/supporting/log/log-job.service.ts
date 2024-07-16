@@ -30,10 +30,9 @@ export class LogJobService {
       const tradingOrders = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
         t.map((o) => {
           return {
-            ...o,
-            assetIn: o.assetIn.id,
-            assetOut: o.assetOut.id,
-            tradingRule: o.tradingRule.id,
+            rule: o.tradingRule.id,
+            price1: o.price1,
+            price2: o.price2,
           };
         }),
       );
