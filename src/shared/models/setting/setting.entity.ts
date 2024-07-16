@@ -1,8 +1,9 @@
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { Column, Entity } from 'typeorm';
+import { IEntity } from '../entity';
 
 @Entity()
-export class Setting {
-  @PrimaryColumn({ length: 256, unique: true })
+export class Setting extends IEntity {
+  @Column({ length: 256, unique: true })
   key: string;
 
   @Column({ length: 'MAX' })
