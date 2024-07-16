@@ -196,6 +196,10 @@ export class AmlHelperService {
 
     const comment = amlErrors.join(';');
 
+    // Expired pending amlChecks
+    if (entity.amlCheck === CheckStatus.PENDING && Util.daysDiff(entity.created) > 2)
+      return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
+
     // Pass
     if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
 

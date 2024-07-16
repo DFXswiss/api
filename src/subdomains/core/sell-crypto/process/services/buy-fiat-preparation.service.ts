@@ -3,6 +3,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -32,14 +33,16 @@ export class BuyFiatPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
+    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
     const entities = await this.buyFiatRepo.find({
-      where: {
-        amlCheck: IsNull(),
-        amlReason: IsNull(),
-        inputAmount: Not(IsNull()),
-        inputAsset: Not(IsNull()),
-        isComplete: false,
-      },
+      where: [
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          ...request,
+        },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+      ],
       relations: {
         cryptoInput: true,
         sell: true,
