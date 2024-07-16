@@ -26,7 +26,7 @@ export class LogJobService {
     // trading
     const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
       t.reduce((prev, curr) => {
-        prev[curr.id] = {
+        prev[curr.tradingRule.id] = {
           price1: curr.price1,
           price2: curr.price2,
         };
