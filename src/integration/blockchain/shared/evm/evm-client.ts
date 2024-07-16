@@ -227,9 +227,8 @@ export abstract class EvmClient {
   ): Promise<string> {
     const contract = new ethers.Contract(signatureTransferContract, SIGNATURE_TRANSFER_ABI, this.wallet);
 
-    const token = await this.getToken(asset);
-    const requestedAmount = EvmUtil.toWeiAmount(amount, token.decimals);
-    const permittedAmountWei = EvmUtil.toWeiAmount(permittedAmount, token.decimals);
+    const requestedAmount = EvmUtil.toWeiAmount(amount, asset.decimals);
+    const permittedAmountWei = EvmUtil.toWeiAmount(permittedAmount, asset.decimals);
 
     const values = {
       permitted: {

@@ -12,7 +12,7 @@ import { NodeService } from '../../ain/node/node.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
-import { EvmRegistryService } from '../evm/evm-registry.service';
+import { EvmUtil } from '../evm/evm.util';
 
 @Injectable()
 export class CryptoService {
@@ -33,7 +33,6 @@ export class CryptoService {
     private readonly moneroService: MoneroService,
     private readonly arweaveService: ArweaveService,
     private readonly nodeService: NodeService,
-    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
   // --- PAYMENT REQUEST --- //
@@ -59,8 +58,7 @@ export class CryptoService {
       case Blockchain.BASE:
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
-        const evmService = this.evmRegistryService.getService(asset.blockchain);
-        return evmService.getPaymentRequest(address, asset, amount);
+        return EvmUtil.getPaymentRequest(address, asset, amount);
 
       default:
         return undefined;

@@ -1,18 +1,8 @@
 import { Network } from 'alchemy-sdk';
-import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from '../blockchain/shared/evm/evm.util';
 
 export class AlchemyNetworkMapper {
-  private static blockchainConfig = GetConfig().blockchain;
-
-  private static readonly blockchainToChainIdMap = new Map<Blockchain, number>([
-    [Blockchain.ETHEREUM, this.blockchainConfig.ethereum.ethChainId],
-    [Blockchain.ARBITRUM, this.blockchainConfig.arbitrum.arbitrumChainId],
-    [Blockchain.OPTIMISM, this.blockchainConfig.optimism.optimismChainId],
-    [Blockchain.POLYGON, this.blockchainConfig.polygon.polygonChainId],
-    [Blockchain.BASE, this.blockchainConfig.base.baseChainId],
-  ]);
-
   private static readonly chainIdToNetworkMap = new Map<number, Network>([
     [1, Network.ETH_MAINNET],
     [5, Network.ETH_GOERLI],
@@ -35,20 +25,16 @@ export class AlchemyNetworkMapper {
     [84532, Network.BASE_SEPOLIA],
   ]);
 
-  static getChainId(blockchain: Blockchain): number | undefined {
-    return this.blockchainToChainIdMap.get(blockchain);
-  }
-
   static toAlchemyNetworkByChainId(chainId: number): Network | undefined {
     return this.chainIdToNetworkMap.get(chainId);
   }
 
   static toAlchemyNetworkByBlockchain(blockchain: Blockchain): Network | undefined {
-    const chainId = this.blockchainToChainIdMap.get(blockchain);
+    const chainId = EvmUtil.getChainId(blockchain);
     return this.chainIdToNetworkMap.get(chainId);
   }
 
   static get availableNetworks(): Blockchain[] {
-    return Array.from(this.blockchainToChainIdMap.keys());
+    return [Blockchain.ETHEREUM, Blockchain.ARBITRUM, Blockchain.OPTIMISM, Blockchain.POLYGON, Blockchain.BASE];
   }
 }

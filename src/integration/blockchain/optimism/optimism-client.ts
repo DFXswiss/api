@@ -65,44 +65,32 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
-    const l1Contract = this.getERC20ContractForDexL1(l1Token.chainId);
-    const l2Contract = this.getERC20ContractForDex(l2Token.chainId);
-
-    const l1Decimals = await l1Contract.decimals();
-    const l2Decimals = await l2Contract.decimals();
-
-    if (l1Decimals !== l2Decimals) {
+    if (l1Token.decimals !== l2Token.decimals) {
       throw new Error(
-        `Cannot bridge/deposit Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Decimals}`,
+        `Cannot bridge/deposit Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Token.decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Token.decimals}`,
       );
     }
 
     const response = await this.#crossChainMessenger.depositERC20(
       l1Token.chainId,
       l2Token.chainId,
-      EvmUtil.toWeiAmount(amount, l1Decimals),
+      EvmUtil.toWeiAmount(amount, l1Token.decimals),
     );
 
     return response.hash;
   }
 
   async withdrawTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
-    const l1Contract = this.getERC20ContractForDexL1(l1Token.chainId);
-    const l2Contract = this.getERC20ContractForDex(l2Token.chainId);
-
-    const l1Decimals = await l1Contract.decimals();
-    const l2Decimals = await l2Contract.decimals();
-
-    if (l1Decimals !== l2Decimals) {
+    if (l1Token.decimals !== l2Token.decimals) {
       throw new Error(
-        `Cannot bridge/withdraw Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Decimals}`,
+        `Cannot bridge/withdraw Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Token.decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Token.decimals}`,
       );
     }
 
     const response = await this.#crossChainMessenger.withdrawERC20(
       l1Token.chainId,
       l2Token.chainId,
-      EvmUtil.toWeiAmount(amount, l1Decimals),
+      EvmUtil.toWeiAmount(amount, l1Token.decimals),
     );
 
     return response.hash;
