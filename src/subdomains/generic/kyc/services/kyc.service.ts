@@ -12,6 +12,7 @@ import { LessThan } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
 import {
   KycIdentificationType,
   KycLevel,
@@ -60,6 +61,7 @@ export enum IdentCheckError {
   VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
   FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
+  ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
 }
 
 @Injectable()
@@ -572,10 +574,15 @@ export class KycService {
     if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
       errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
     } else if (entity.userData.verifiedName) {
-      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
-        errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
-      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
-        errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
+      if (entity.userData.accountType === AccountType.PERSONAL) {
+        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
+          errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
+        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
+          errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
+      } else {
+        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.organizationName))
+          errors.push(IdentCheckError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME);
+      }
     }
 
     return errors;
