@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { mock } from 'jest-mock-extended';
 import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.services';
 import { LightningService } from '../../../../../integration/lightning/services/lightning.service';
 import { createCustomLnurlpLRequest } from '../../dto/__mocks__/lnurlp.dto.mock';
@@ -13,6 +14,7 @@ import { LnUrlWForwardController } from '../lnurlw-forward.controller';
 describe('LnurlForward', () => {
   let httpServiceMock: HttpService;
   let paymentLinkServiceMock: PaymentLinkService;
+  let paymentActivationServiceMock: PaymentActivationService;
   let lnurlpForward: LnUrlPForwardController;
   let lnurlwForward: LnUrlWForwardController;
 
@@ -32,6 +34,7 @@ describe('LnurlForward', () => {
 
     httpServiceMock = mock<HttpService>();
     paymentLinkServiceMock = mock<PaymentLinkService>();
+    paymentActivationServiceMock = mock<PaymentActivationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [],
@@ -39,6 +42,7 @@ describe('LnurlForward', () => {
         TestUtil.provideConfig(config),
         { provide: HttpService, useValue: httpServiceMock },
         { provide: PaymentLinkService, useValue: paymentLinkServiceMock },
+        { provide: PaymentActivationService, useValue: paymentActivationServiceMock },
         LightningService,
         LnUrlForwardService,
       ],
