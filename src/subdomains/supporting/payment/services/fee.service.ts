@@ -273,6 +273,7 @@ export class FeeService {
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
+
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
@@ -295,10 +296,11 @@ export class FeeService {
     );
 
     // get max discount
-    const discountFee = Util.maxObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT),
-      'rate',
-    );
+    const discountFees = fees.filter((fee) => fee.type === FeeType.DISCOUNT);
+    const relativeDiscountFees = fees.filter((fee) => fee.type === FeeType.RELATIVE_DISCOUNT);
+    relativeDiscountFees.forEach((fee) => Object.assign(fee, { rate: baseFee.rate * fee.rate }));
+
+    const discountFee = Util.maxObj([...discountFees, ...relativeDiscountFees], 'rate');
 
     // get addition fees
     const additiveFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
