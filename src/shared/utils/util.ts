@@ -61,11 +61,11 @@ export class Util {
     return Math.min(...list.map((i) => i[key] as unknown as number));
   }
 
-  static minObj<T>(list: T[], key: KeyType<T, number>): T {
+  static minObj<T>(list: T[], key: KeyType<T, number | Date>): T {
     return list.reduce((i, j) => (i && j[key] >= i[key] ? i : j), undefined);
   }
 
-  static maxObj<T>(list: T[], key: KeyType<T, number>): T {
+  static maxObj<T>(list: T[], key: KeyType<T, number | Date>): T {
     return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 

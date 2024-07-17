@@ -22,7 +22,7 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
   async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> {
-    return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.entitiesToDto);
+    return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
   }
 
   @Get(':id')
@@ -30,7 +30,7 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto })
   async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.get(+jwt.user, +id).then(PaymentLinkDtoMapper.entityToDto);
+    return this.paymentLinkService.get(+jwt.user, +id).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Post()
@@ -38,7 +38,7 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: PaymentLinkDto })
   async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.entityToDto);
+    return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Put(':id')
@@ -50,7 +50,7 @@ export class PaymentLinkController {
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.update(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.entityToDto);
+    return this.paymentLinkService.update(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Post(':id/payment')
@@ -62,7 +62,7 @@ export class PaymentLinkController {
     @Param('id') id: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.createPayment(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.entityToDto);
+    return this.paymentLinkService.createPayment(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Delete(':id/payment')
