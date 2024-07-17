@@ -103,8 +103,8 @@ export class UserDataService {
     return user;
   }
 
-  async getUserDataByIdentDoc(identDocumentId: string): Promise<UserData> {
-    return this.userDataRepo.findOneBy({ identDocumentId });
+  async getUserDataByIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
+    return this.userDataRepo.findOneBy({ id: Not(userDataId), identDocumentId });
   }
 
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
