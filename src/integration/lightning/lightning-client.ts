@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
-import { LnBitsWalletDto } from './dto/lnbits.dto';
+import { LnBitsWalletDto, LnBitsWalletPaymentDto, LnBitsWalletPaymentParamsDto } from './dto/lnbits.dto';
 import {
   LndChannelBalanceDto,
   LndChannelDto,
@@ -132,6 +132,27 @@ export class LightningClient {
       `${Config.blockchain.lightning.lnbits.apiUrl}/wallet`,
       this.httpLnBitsConfig(),
     );
+  }
+
+  async getLnBitsWalletPayment(walletPaymentParams: LnBitsWalletPaymentParamsDto): Promise<LnurlpInvoiceDto> {
+    return this.http
+      .post<LnBitsWalletPaymentDto>(
+        `${Config.blockchain.lightning.lnbits.apiUrl}/payments`,
+        {
+          out: false,
+          amount: walletPaymentParams.amount,
+          memo: walletPaymentParams.memo,
+          expiry: walletPaymentParams.expirySec,
+        },
+        this.httpLnBitsConfig(),
+      )
+      .then((p) => this.mapLnBitsWalletPaymentResponse(p));
+  }
+
+  private mapLnBitsWalletPaymentResponse(payment: LnBitsWalletPaymentDto): LnurlpInvoiceDto {
+    return {
+      pr: payment.payment_request,
+    };
   }
 
   // --- PAYMENTS --- //

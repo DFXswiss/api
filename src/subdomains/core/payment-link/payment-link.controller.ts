@@ -25,12 +25,15 @@ export class PaymentLinkController {
     return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
   }
 
-  @Get(':id')
+  @Get(':idOrExternalId')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto })
-  async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.get(+jwt.user, +id).then(PaymentLinkDtoMapper.toLinkDto);
+  async getPaymentLink(
+    @GetJwt() jwt: JwtPayload,
+    @Param('idOrExternalId') idOrExternalId: string,
+  ): Promise<PaymentLinkDto> {
+    return this.paymentLinkService.get(+jwt.user, idOrExternalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Post()
@@ -41,34 +44,37 @@ export class PaymentLinkController {
     return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  @Put(':id')
+  @Put(':idOrExternalId')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto })
   async updatePaymentLink(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('idOrExternalId') idOrExternalId: string,
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.update(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.update(+jwt.user, idOrExternalId, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  @Post(':id/payment')
+  @Post(':idOrExternalId/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: PaymentLinkDto })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('idOrExternalId') idOrExternalId: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.createPayment(+jwt.user, +id, dto).then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.createPayment(+jwt.user, idOrExternalId, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  @Delete(':id/payment')
+  @Delete(':idOrExternalId/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
-    return this.paymentLinkService.cancelPayment(+jwt.user, +id).then(PaymentLinkDtoMapper.toLinkDto);
+  async cancelPayment(
+    @GetJwt() jwt: JwtPayload,
+    @Param('idOrExternalId') idOrExternalId: string,
+  ): Promise<PaymentLinkDto> {
+    return this.paymentLinkService.cancelPayment(+jwt.user, idOrExternalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 }

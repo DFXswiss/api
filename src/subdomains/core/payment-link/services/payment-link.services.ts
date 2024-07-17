@@ -12,7 +12,6 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import {
-  PaymentLinkEvmPaymentDto,
   PaymentLinkForwardInfoDto,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -36,19 +35,16 @@ export class PaymentLinkService {
     private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
-  async get(userId: number, id: number): Promise<PaymentLink> {
-    return this.paymentLinkRepo.findOne({ where: { id, route: { user: { id: userId } } }, relations: { route: true } });
+  async get(userId: number, idOrExternalId: string): Promise<PaymentLink> {
+    return this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
   }
 
   async getAll(userId: number): Promise<PaymentLink[]> {
     return this.paymentLinkRepo.find({ where: { route: { user: { id: userId } } }, relations: { route: true } });
   }
 
-  async update(userId: number, id: number, dto: UpdatePaymentLinkDto): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.findOne({
-      where: { id, route: { user: { id: userId } } },
-      relations: { route: true },
-    });
+  async update(userId: number, idOrExternalId: string, dto: UpdatePaymentLinkDto): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     paymentLink.status = dto.status;
@@ -58,7 +54,10 @@ export class PaymentLinkService {
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
-    const route = await this.sellService.get(userId, dto.routeId);
+    const route = dto.routeId
+      ? await this.sellService.get(userId, dto.routeId)
+      : await this.sellService.getLastest(userId);
+
     if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
@@ -87,11 +86,8 @@ export class PaymentLinkService {
   }
 
   // --- PAYMENTS --- //
-  async createPayment(userId: number, linkId: number, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.findOne({
-      where: { id: linkId, route: { user: { id: userId } } },
-      relations: { route: true },
-    });
+  async createPayment(userId: number, idOrExternalId: string, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     paymentLink.payments.push(await this.createPaymentFor(paymentLink, dto));
@@ -123,7 +119,7 @@ export class PaymentLinkService {
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(60),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.timeout),
       mode: dto.mode,
       currency,
       uniqueId: this.createUniqueId('plp'),
@@ -135,23 +131,19 @@ export class PaymentLinkService {
     return this.paymentLinkPaymentRepo.save(payment);
   }
 
-  async cancelPayment(userId: number, linkId: number): Promise<PaymentLink> {
-    const payment = await this.paymentLinkPaymentRepo.findOne({
-      where: {
-        link: { id: linkId, route: { user: { id: userId } } },
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: { link: { route: true, payments: { currency: true } } },
-    });
+  async cancelPayment(userId: number, linkOrExternalId: string): Promise<PaymentLink> {
+    const payment = await this.paymentLinkPaymentRepo.getPayment(
+      userId,
+      linkOrExternalId,
+      PaymentLinkPaymentStatus.PENDING,
+    );
 
     const paymentLink = payment?.link;
     const entity = paymentLink?.payments.find((p) => p.id === payment.id);
 
     if (!entity) throw new NotFoundException('No pending payment found');
 
-    entity.status = PaymentLinkPaymentStatus.CANCELLED;
-
-    await this.paymentLinkPaymentRepo.save(entity);
+    await this.paymentLinkPaymentRepo.save(entity.cancel());
 
     return paymentLink;
   }
@@ -196,30 +188,6 @@ export class PaymentLinkService {
       paymentLinkPaymentId: pendingPayment.uniqueId,
       paymentLinkPaymentExternalId: pendingPayment.externalId,
       transferAmounts: <TransferInfo[]>JSON.parse(pendingPayment.transferAmounts),
-    };
-  }
-
-  async getPaymentLinkEvmPaymentInfo(
-    paymentLinkPaymentId: string,
-    transferInfo: TransferInfo,
-  ): Promise<PaymentLinkEvmPaymentDto> {
-    const paymentLinkPayment = await this.paymentLinkPaymentRepo.findOneBy({ uniqueId: paymentLinkPaymentId });
-    if (!paymentLinkPayment)
-      throw new NotFoundException(`No payment link payment found by unique id ${paymentLinkPaymentId}`);
-
-    const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
-    const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
-    if (!asset) throw new NotFoundException(`Asset ${uniqueAssetName} not found`);
-
-    const evmService = this.evmRegistryService.getService(transferInfo.method);
-    if (!evmService) throw new NotFoundException(`EVM Service ${transferInfo.method} not found`);
-
-    const evmPaymentRequest = await evmService.getPaymentRequest(Config.payment.evmAddress, asset, transferInfo.amount);
-
-    return {
-      expiryDate: paymentLinkPayment.expiryDate,
-      blockchain: transferInfo.method,
-      uri: evmPaymentRequest,
     };
   }
 }

@@ -237,6 +237,9 @@ export class Configuration {
   };
 
   payment = {
+    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 10),
+
     evmAddress: process.env.PAYMENT_EVM_ADDRESS,
   };
 
