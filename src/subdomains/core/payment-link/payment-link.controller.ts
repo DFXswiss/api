@@ -68,7 +68,7 @@ export class PaymentLinkController {
   @Delete(':id/payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    return this.paymentLinkService.cancelPayment(+jwt.user, +id);
+  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLinkDto> {
+    return this.paymentLinkService.cancelPayment(+jwt.user, +id).then(PaymentLinkDtoMapper.toLinkDto);
   }
 }

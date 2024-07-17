@@ -135,14 +135,25 @@ export class PaymentLinkService {
     return this.paymentLinkPaymentRepo.save(payment);
   }
 
-  async cancelPayment(userId: number, linkId: number): Promise<void> {
-    const pendingPayment = await this.paymentLinkPaymentRepo.findOneBy({
-      link: { id: linkId, route: { user: { id: userId } } },
-      status: PaymentLinkPaymentStatus.PENDING,
+  async cancelPayment(userId: number, linkId: number): Promise<PaymentLink> {
+    const payment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        link: { id: linkId, route: { user: { id: userId } } },
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: { link: { route: true, payments: { currency: true } } },
     });
-    if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    await this.paymentLinkPaymentRepo.update(pendingPayment.id, { status: PaymentLinkPaymentStatus.CANCELLED });
+    const paymentLink = payment?.link;
+    const entity = paymentLink?.payments.find((p) => p.id === payment.id);
+
+    if (!entity) throw new NotFoundException('No pending payment found');
+
+    entity.status = PaymentLinkPaymentStatus.CANCELLED;
+
+    await this.paymentLinkPaymentRepo.save(entity);
+
+    return paymentLink;
   }
 
   private async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferInfo[]> {
