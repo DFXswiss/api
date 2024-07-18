@@ -521,7 +521,7 @@ export class KycService {
       result.identificationdocument?.number?.value
     ) {
       const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
-      const existing = await this.userDataService.getUserDataByIdentDoc(
+      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
         userData.id,
         `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
       );

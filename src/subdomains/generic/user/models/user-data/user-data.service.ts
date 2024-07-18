@@ -103,7 +103,7 @@ export class UserDataService {
     return user;
   }
 
-  async getUserDataByIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
+  async getDifferentUserWithSameIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
     return this.userDataRepo.findOneBy({ id: Not(userDataId), identDocumentId });
   }
 
