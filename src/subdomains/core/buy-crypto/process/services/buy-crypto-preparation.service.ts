@@ -59,6 +59,7 @@ export class BuyCryptoPreparationService {
         buy: true,
         cryptoRoute: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;
