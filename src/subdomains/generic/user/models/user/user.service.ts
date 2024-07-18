@@ -248,14 +248,14 @@ export class UserService {
     if (mainUser.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
 
     if (!allUser) {
-      await this.userRepo.update(...mainUser.deactivateUser('Manual user block'));
+      await this.userRepo.update(...mainUser.deactivateUser('Manual user deactivation'));
       return;
     }
 
     await this.userDataService.deactivateUserData(mainUser.userData);
 
     for (const user of mainUser.userData.users) {
-      await this.userRepo.update(...user.deactivateUser('Manual user account block'));
+      await this.userRepo.update(...user.deactivateUser('Manual user account deactivation'));
     }
   }
 
