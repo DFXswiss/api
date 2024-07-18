@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -69,7 +76,7 @@ export class KycService {
   private readonly logger = new DfxLogger(KycService);
 
   constructor(
-    private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
     private readonly financialService: FinancialService,
     private readonly storageService: DocumentStorageService,
@@ -79,7 +86,7 @@ export class KycService {
     private readonly stepLogRepo: StepLogRepository,
     private readonly tfaService: TfaService,
     private readonly kycNotificationService: KycNotificationService,
-    private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly walletService: WalletService,
     private readonly accountMergeService: AccountMergeService,
     private readonly webhookService: WebhookService,
@@ -521,7 +528,7 @@ export class KycService {
       result.identificationdocument?.number?.value
     ) {
       const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
-      const existing = await this.userDataService.getUserDataByIdentDoc(
+      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
         userData.id,
         `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
       );
@@ -554,7 +561,7 @@ export class KycService {
     const errors = [];
 
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
-    if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
+    if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(IdentCheckError.USER_DATA_BLOCKED);
 
     if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
       errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);

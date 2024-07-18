@@ -103,7 +103,9 @@ export class UserService {
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
       .andWhere('wallet.isKycClient = 0')
-      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
+      .andWhere('linkedUser.status NOT IN (:...userStatus)', {
+        userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
+      })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -117,8 +119,10 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
-      .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED] })
+      .andWhere('userData.status NOT IN (:...userDataStatus)', {
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      })
       .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
   }
@@ -257,25 +261,25 @@ export class UserService {
     return { user: UserDtoMapper.mapUser(userData) };
   }
 
-  async blockUser(id: number, address?: string): Promise<void> {
-    const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+  async deactivateUser(id: number, address?: string): Promise<void> {
+    const mainUser = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.status === UserDataStatus.BLOCKED)
-      throw new BadRequestException('User Account already blocked');
+    if (mainUser.userData.isBlocked || mainUser.userData.isDeactivated)
+      throw new BadRequestException('User Account already deactivated');
 
     if (address) {
       const user = mainUser.userData.users.find((u) => u.address === address);
       if (!user) throw new NotFoundException('User not found');
-      if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+      if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User already deactivated');
 
-      await this.userRepo.update(...user.blockUser('Manual user account block'));
+      await this.userRepo.update(...user.deactivateUser('Manual user account block'));
       return;
     }
 
-    await this.userDataService.blockUserData(mainUser.userData);
+    await this.userDataService.deactivateUserData(mainUser.userData);
 
     for (const user of mainUser.userData.users) {
-      await this.userRepo.update(...user.blockUser('Manual user account block'));
+      await this.userRepo.update(...user.deactivateUser('Manual user account deactivation'));
     }
   }
 
