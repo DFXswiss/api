@@ -44,6 +44,7 @@ export class BuyFiatPreparationService {
         cryptoInput: true,
         sell: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;

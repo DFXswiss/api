@@ -204,6 +204,7 @@ export class BuyCryptoService {
         checkoutTx: true,
         transaction: { user: { userData: true, wallet: true } },
         chargebackOutput: true,
+        bankData: true,
       },
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
