@@ -45,6 +45,12 @@ export class PaymentLinkPayment extends IEntity {
 
   // --- ENTITY METHODS --- //
 
+  complete(): this {
+    this.status = PaymentLinkPaymentStatus.COMPLETED;
+
+    return this;
+  }
+
   cancel(): this {
     this.status = PaymentLinkPaymentStatus.CANCELLED;
 

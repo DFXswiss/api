@@ -6,12 +6,12 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { CreatePaymentLinkPaymentDto } from './dto/create-payment-link-payment.dto';
-import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
-import { PaymentLinkDtoMapper } from './dto/payment-link-dto.mapper';
-import { PaymentLinkDto } from './dto/payment-link.dto';
-import { UpdatePaymentLinkDto } from './dto/update-payment-link.dto';
-import { PaymentLinkService } from './services/payment-link.services';
+import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
+import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
+import { PaymentLinkDto } from '../dto/payment-link.dto';
+import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
+import { PaymentLinkService } from '../services/payment-link.services';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')

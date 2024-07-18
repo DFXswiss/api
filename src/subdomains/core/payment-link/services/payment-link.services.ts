@@ -1,36 +1,23 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import {
-  PaymentLinkForwardInfoDto,
-  PaymentLinkPaymentStatus,
-  PaymentLinkStatus,
-  TransferInfo,
-} from '../dto/payment-link.dto';
+import { PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
-import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
+import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
 export class PaymentLinkService {
+  static readonly PREFIX_UNIQUE_ID = 'pl';
+
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
-    private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
-    private readonly assetService: AssetService,
-    private readonly fiatService: FiatService,
-    private readonly pricingService: PricingService,
   ) {}
 
   async get(userId: number, idOrExternalId: string): Promise<PaymentLink> {
@@ -72,13 +59,14 @@ export class PaymentLinkService {
       route,
       externalId: dto.externalId,
       status: PaymentLinkStatus.ACTIVE,
-      uniqueId: this.createUniqueId('pl'),
+      uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
       payments: [],
     });
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    dto.payment && paymentLink.payments.push(await this.createPaymentFor(paymentLink, dto.payment));
+    dto.payment &&
+      paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
   }
@@ -88,104 +76,12 @@ export class PaymentLinkService {
     const paymentLink = await this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
-    paymentLink.payments.push(await this.createPaymentFor(paymentLink, dto));
+    paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto));
 
     return paymentLink;
-  }
-
-  private async createPaymentFor(
-    paymentLink: PaymentLink,
-    dto: CreatePaymentLinkPaymentDto,
-  ): Promise<PaymentLinkPayment> {
-    if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
-
-    const pendingPayment = paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING);
-    if (pendingPayment)
-      throw new ConflictException('There is already a pending payment for the specified payment link');
-
-    if (dto.externalId) {
-      const exists = await this.paymentLinkPaymentRepo.existsBy({
-        externalId: dto.externalId,
-        link: { id: paymentLink.id },
-      });
-      if (exists) throw new ConflictException('Payment already exists');
-    }
-
-    const currency = await this.fiatService.getFiat(dto.currency.id);
-    if (!currency) throw new NotFoundException('Currency not found');
-
-    const payment = this.paymentLinkPaymentRepo.create({
-      amount: dto.amount,
-      externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.timeout),
-      mode: dto.mode,
-      currency,
-      uniqueId: this.createUniqueId('plp'),
-      transferAmounts: await this.createTransferAmounts(currency, dto.amount).then(JSON.stringify),
-      status: PaymentLinkPaymentStatus.PENDING,
-      link: paymentLink,
-    });
-
-    return this.paymentLinkPaymentRepo.save(payment);
   }
 
   async cancelPayment(userId: number, linkOrExternalId: string): Promise<PaymentLink> {
-    const payment = await this.paymentLinkPaymentRepo.getPayment(
-      userId,
-      linkOrExternalId,
-      PaymentLinkPaymentStatus.PENDING,
-    );
-
-    const paymentLink = payment?.link;
-    const entity = paymentLink?.payments.find((p) => p.id === payment.id);
-
-    if (!entity) throw new NotFoundException('No pending payment found');
-
-    await this.paymentLinkPaymentRepo.save(entity.cancel());
-
-    return paymentLink;
-  }
-
-  private async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferInfo[]> {
-    const paymentAssets = await this.assetService.getPaymentAssets();
-
-    return Promise.all(paymentAssets.map((asset) => this.getTransferAmount(currency, asset, amount)));
-  }
-
-  private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<TransferInfo> {
-    const price = await this.pricingService.getPrice(asset, currency, false);
-
-    return {
-      amount: asset.name == 'ZCHF' ? amount : price.invert().convert(amount) / 0.98,
-      asset: asset.name,
-      method: asset.blockchain,
-    };
-  }
-
-  private createUniqueId(prefix: string): string {
-    const hash = Util.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
-    return `${prefix}_${hash.slice(0, 6)}`;
-  }
-
-  async getPaymentLinkForwardInfo(paymentLinkId: string): Promise<PaymentLinkForwardInfoDto> {
-    const pendingPayments = await this.paymentLinkPaymentRepo.find({
-      where: {
-        link: { uniqueId: paymentLinkId },
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        link: true,
-      },
-    });
-    if (!pendingPayments.length) throw new NotFoundException(`No pending payment found by unique id ${paymentLinkId}`);
-
-    const pendingPayment = pendingPayments[0];
-
-    return {
-      paymentLinkExternalId: pendingPayment.link.externalId,
-      paymentLinkPaymentId: pendingPayment.uniqueId,
-      paymentLinkPaymentExternalId: pendingPayment.externalId,
-      transferAmounts: <TransferInfo[]>JSON.parse(pendingPayment.transferAmounts),
-    };
+    return this.paymentLinkPaymentService.cancelPayment(userId, linkOrExternalId);
   }
 }

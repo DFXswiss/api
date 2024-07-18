@@ -404,6 +404,11 @@ export class Util {
     return this.createHash(JSON.stringify(data), algo, encoding);
   }
 
+  static createUniqueId(prefix: string, length = 6): string {
+    const hash = this.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
+    return `${prefix}_${hash.slice(0, length)}`;
+  }
+
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
     const sign = createSign(algo);
     sign.update(data);

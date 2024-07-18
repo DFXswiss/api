@@ -1,24 +1,50 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { PaymentLinkEvmPaymentDto, PaymentLinkPaymentStatus, TransferInfo } from '../dto/payment-link.dto';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { LessThan } from 'typeorm';
+import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentActivationStatus } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
-import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
+import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
-export class PaymentActivationService {
+export class PaymentActivationService implements OnModuleInit {
+  private readonly logger = new DfxLogger(PaymentActivationService);
+
+  private walletAddress: string;
+
   constructor(
-    private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
     private readonly paymentActivationRepo: PaymentActivationRepository,
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly assetService: AssetService,
     private readonly evmRegistryService: EvmRegistryService,
   ) {}
+
+  onModuleInit() {
+    this.walletAddress = EvmUtil.createWallet({ seed: Config.blockchain.evm.paymentSeed, index: 0 }).address;
+    this.logger.info(`Wallet Address: ${this.walletAddress}`);
+  }
+
+  async processPendingActivations(): Promise<void> {
+    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
+
+    const pendingPaymentActivations = await this.paymentActivationRepo.findBy({
+      status: PaymentActivationStatus.PENDING,
+      expiryDate: LessThan(maxDate),
+    });
+
+    for (const pendingPaymentActivation of pendingPaymentActivations) {
+      await this.paymentActivationRepo.save(pendingPaymentActivation.expire());
+    }
+  }
 
   async isDuplicate(transferInfo: TransferInfo): Promise<boolean> {
     return this.paymentActivationRepo.exists({
@@ -34,14 +60,11 @@ export class PaymentActivationService {
     paymentLinkPaymentId: string,
     transferInfo: TransferInfo,
   ): Promise<LnBitsWalletPaymentParamsDto> {
-    const pendingPayment = await this.getPaymentLinkPayment(paymentLinkPaymentId);
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(paymentLinkPaymentId);
 
     const memo = `Payment ID: ${pendingPayment.link.externalId}/${pendingPayment.externalId}`;
 
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
-
-    // TODO: Mit Matthias klären
-    // TODO: Wieviele Sekunden sollten hier noch min. übrig sein, damit eine Lightning Invoice erstellt wird?
     if (secondsDiff < 1) throw new BadRequestException(`Payment ${paymentLinkPaymentId} is expired`);
 
     return {
@@ -55,12 +78,9 @@ export class PaymentActivationService {
     paymentLinkPaymentId: string,
     transferInfo: TransferInfo,
   ): Promise<PaymentLinkEvmPaymentDto> {
-    const pendingPayment = await this.getPaymentLinkPayment(paymentLinkPaymentId);
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(paymentLinkPaymentId);
 
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
-
-    // TODO: Mit Matthias klären
-    // TODO: Wieviele Sekunden sollten hier noch min. übrig sein, damit eine EVM URI erstellt wird?
     if (secondsDiff < 1) throw new BadRequestException(`Payment ${paymentLinkPaymentId} is expired`);
 
     const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
@@ -79,25 +99,8 @@ export class PaymentActivationService {
     };
   }
 
-  private async getPaymentLinkPayment(paymentLinkPaymentId: string): Promise<PaymentLinkPayment> {
-    const pendingPayments = await this.paymentLinkPaymentRepo.find({
-      where: {
-        uniqueId: paymentLinkPaymentId,
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        link: true,
-      },
-    });
-
-    if (!pendingPayments.length)
-      throw new NotFoundException(`No pending payment found by unique id ${paymentLinkPaymentId}`);
-
-    return pendingPayments[0];
-  }
-
   async saveLightningPaymentRequest(paymentLinkPaymentId: string, pr: string, transferInfo: TransferInfo) {
-    const paymentLinkPayment = await this.paymentLinkPaymentRepo.findOneBy({ uniqueId: paymentLinkPaymentId });
+    const paymentLinkPayment = await this.paymentLinkPaymentService.getPaymentByUniqueId(paymentLinkPaymentId);
     if (!paymentLinkPayment)
       throw new NotFoundException(`No payment link payment found by unique id ${paymentLinkPaymentId}`);
 
@@ -115,5 +118,27 @@ export class PaymentActivationService {
     });
 
     await this.paymentActivationRepo.save(newPaymentActivation);
+  }
+
+  async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
+    if (cryptoInput.address.address !== this.walletAddress) return;
+
+    const pendingActivation = await this.paymentActivationRepo.findOne({
+      where: {
+        amount: cryptoInput.amount,
+        asset: cryptoInput.asset,
+        status: PaymentActivationStatus.PENDING,
+      },
+      relations: {
+        payment: true,
+      },
+    });
+
+    if (!pendingActivation)
+      throw new NotFoundException(`No pending activation found for crypto input ${cryptoInput.id}`);
+
+    await this.paymentActivationRepo.save(pendingActivation.complete());
+
+    return this.paymentLinkPaymentService.complete(pendingActivation.payment);
   }
 }

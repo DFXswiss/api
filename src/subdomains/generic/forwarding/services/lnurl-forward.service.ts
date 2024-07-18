@@ -7,6 +7,7 @@ import {
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
+import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.services';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
 import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
@@ -16,14 +17,14 @@ import { LightningService } from '../../../../integration/lightning/services/lig
 
 @Injectable()
 export class LnUrlForwardService {
-  private static readonly PAYMENT_LINK_PREFIX = 'pl_';
-  private static readonly PAYMENT_LINK_PAYMENT_PREFIX = 'plp_';
+  private static readonly PAYMENT_LINK_PREFIX = `${PaymentLinkService.PREFIX_UNIQUE_ID}_`;
+  private static readonly PAYMENT_LINK_PAYMENT_PREFIX = `${PaymentLinkPaymentService.PREFIX_UNIQUE_ID}_`;
 
   private readonly client: LightningClient;
 
   constructor(
     lightningService: LightningService,
-    private readonly paymentLinkService: PaymentLinkService,
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentActivationService: PaymentActivationService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -37,7 +38,7 @@ export class LnUrlForwardService {
   }
 
   private async createPaymentLinkPayRequest(paymentLinkId: string): Promise<PaymentLinkPayRequestDto> {
-    const paymentLinkPaymentInfo = await this.paymentLinkService.getPaymentLinkForwardInfo(paymentLinkId);
+    const paymentLinkPaymentInfo = await this.paymentLinkPaymentService.getPaymentLinkForwardInfo(paymentLinkId);
     const metaData = `Payment to ${paymentLinkPaymentInfo.paymentLinkExternalId}: ${paymentLinkPaymentInfo.paymentLinkPaymentExternalId}`;
 
     const transferAmounts = paymentLinkPaymentInfo.transferAmounts;

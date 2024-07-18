@@ -3,7 +3,7 @@ import { mock } from 'jest-mock-extended';
 import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
-import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.services';
+import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { LightningService } from '../../../../../integration/lightning/services/lightning.service';
 import { createCustomLnurlpLRequest } from '../../dto/__mocks__/lnurlp.dto.mock';
 import { createCustomLnurlwRequest } from '../../dto/__mocks__/lnurlw.dto.mock';
@@ -13,7 +13,7 @@ import { LnUrlWForwardController } from '../lnurlw-forward.controller';
 
 describe('LnurlForward', () => {
   let httpServiceMock: HttpService;
-  let paymentLinkServiceMock: PaymentLinkService;
+  let paymentLinkPaymentServiceMock: PaymentLinkPaymentService;
   let paymentActivationServiceMock: PaymentActivationService;
   let lnurlpForward: LnUrlPForwardController;
   let lnurlwForward: LnUrlWForwardController;
@@ -33,7 +33,7 @@ describe('LnurlForward', () => {
     };
 
     httpServiceMock = mock<HttpService>();
-    paymentLinkServiceMock = mock<PaymentLinkService>();
+    paymentLinkPaymentServiceMock = mock<PaymentLinkPaymentService>();
     paymentActivationServiceMock = mock<PaymentActivationService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -41,7 +41,7 @@ describe('LnurlForward', () => {
       providers: [
         TestUtil.provideConfig(config),
         { provide: HttpService, useValue: httpServiceMock },
-        { provide: PaymentLinkService, useValue: paymentLinkServiceMock },
+        { provide: PaymentLinkPaymentService, useValue: paymentLinkPaymentServiceMock },
         { provide: PaymentActivationService, useValue: paymentActivationServiceMock },
         LightningService,
         LnUrlForwardService,

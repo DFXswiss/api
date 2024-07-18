@@ -271,6 +271,7 @@ export class Configuration {
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
+      paymentSeed: process.env.EVM_PAYMENT_SEED,
       minimalPreparationFee: 0.00000001,
 
       walletAccount: (accountIndex: number): WalletAccount => ({

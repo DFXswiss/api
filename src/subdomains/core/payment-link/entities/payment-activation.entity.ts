@@ -37,6 +37,12 @@ export class PaymentActivation extends IEntity {
 
   // --- ENTITY METHODS --- //
 
+  complete(): this {
+    this.status = PaymentActivationStatus.COMPLETED;
+
+    return this;
+  }
+
   expire(): this {
     this.status = PaymentActivationStatus.EXPIRED;
 
