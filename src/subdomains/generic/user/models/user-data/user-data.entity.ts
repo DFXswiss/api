@@ -289,7 +289,7 @@ export class UserData extends IEntity {
 
   // Point of Sale
   @Column({ nullable: true })
-  pointOfSale: boolean;
+  paymentLinksAllowed: boolean;
 
   // References
   @ManyToOne(() => UserData, { nullable: true })
