@@ -23,6 +23,7 @@ import { AuthResponseDto } from '../auth/dto/auth-response.dto';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
@@ -130,22 +131,6 @@ export class UserController {
     return user;
   }
 
-  @Delete()
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse()
-  async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.blockUser(jwt.user);
-  }
-
-  @Delete('account')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse()
-  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.blockUser(jwt.user, true);
-  }
-
   // --- API KEYS --- //
   @Post('apiKey/CT')
   @ApiBearerAuth()
@@ -226,6 +211,37 @@ export class UserV2Controller {
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
+  }
+
+  @Put('addresses/:address')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: UserV2Dto })
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateAddress(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newAddress: UpdateAddressDto,
+    @Param('address') address: string,
+  ): Promise<UserV2Dto> {
+    const { user } = await this.userService.updateAddress(jwt.account, address, newAddress);
+
+    return user;
+  }
+
+  @Delete('addresses/:address')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteUser(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
+    return this.userService.blockUser(jwt.user, address);
+  }
+
+  @Delete()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.blockUser(jwt.user);
   }
 
   @Get('ref')

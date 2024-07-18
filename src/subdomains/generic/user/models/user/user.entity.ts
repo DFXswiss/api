@@ -27,6 +27,9 @@ export class User extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   signature: string;
 
+  @Column({ length: 256, nullable: true })
+  label: string;
+
   @ManyToOne(() => Wallet)
   wallet: Wallet;
 

@@ -10,6 +10,7 @@ import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -33,6 +34,7 @@ import { ApiKeyDto } from './dto/api-key.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
@@ -54,6 +56,7 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -160,10 +163,12 @@ export class UserService {
     user.origin = userOrigin;
 
     const language = await this.languageService.getLanguageByIpCountry(user.ipCountry);
+    const currency = await this.fiatService.getFiatByIpCountry(user.ipCountry);
 
     user.userData = await this.userDataService.createUserData({
       kycType: user.wallet.customKyc ?? KycType.DFX,
       language,
+      currency,
     });
     user = await this.userRepo.save(user);
 
@@ -236,15 +241,34 @@ export class UserService {
     return this.userRepo.save({ ...user, ...update });
   }
 
-  async blockUser(id: number, allUser = false): Promise<void> {
+  async updateAddress(id: number, address: string, dto: UpdateAddressDto): Promise<{ user: UserV2Dto }> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+
+    const userToUpdate = userData.users.find((u) => u.address === address);
+    if (!userToUpdate) throw new NotFoundException('Address not found');
+
+    userToUpdate.label = dto.label;
+    await this.userRepo.save(userToUpdate);
+
+    return { user: UserDtoMapper.mapUser(userData) };
+  }
+
+  async blockUser(id: number, address?: string): Promise<void> {
     const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (!mainUser) throw new NotFoundException('User not found');
     if (mainUser.userData.status === UserDataStatus.BLOCKED)
       throw new BadRequestException('User Account already blocked');
-    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
 
-    if (!allUser) {
-      await this.userRepo.update(...mainUser.blockUser('Manual user block'));
+    if (address) {
+      const user = mainUser.userData.users.find((u) => u.address === address);
+      if (!user) throw new NotFoundException('User not found');
+      if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+
+      await this.userRepo.update(...user.blockUser('Manual user account block'));
       return;
     }
 
