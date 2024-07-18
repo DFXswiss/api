@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
-import { FundOrigin, InvestmentDate } from '../../entities/limit-request.entity';
+import { FundOrigin, InvestmentDate } from '../entities/limit-request.entity';
 
-export class LimitRequestDto {
+export class LimitRequestBaseDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsInt()
@@ -22,7 +22,9 @@ export class LimitRequestDto {
   @IsOptional()
   @IsString()
   fundOriginText?: string;
+}
 
+export class LimitRequestDto extends LimitRequestBaseDto {
   @ApiPropertyOptional({ description: 'Base64 encoded file' })
   @IsOptional()
   @IsString()
@@ -33,4 +35,11 @@ export class LimitRequestDto {
   @IsNotEmpty()
   @IsString()
   documentProofName?: string;
+}
+
+export class LimitRequestInternalDto extends LimitRequestDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentProofUrl?: string;
 }
