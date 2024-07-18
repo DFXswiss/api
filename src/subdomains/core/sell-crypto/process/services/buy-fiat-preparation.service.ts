@@ -59,6 +59,8 @@ export class BuyFiatPreparationService {
       try {
         if (!entity.cryptoInput.isConfirmed) continue;
 
+        const amlCheckBefore = entity.amlCheck;
+
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
         const minVolume = await this.transactionHelper.getMinVolumeIn(
@@ -119,6 +121,8 @@ export class BuyFiatPreparationService {
         );
 
         await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+
+        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
