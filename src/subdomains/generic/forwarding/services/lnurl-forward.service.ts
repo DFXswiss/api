@@ -81,7 +81,7 @@ export class LnUrlForwardService {
   ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     const transferInfo = this.getPaymentTransferInfo(params);
 
-    if (await await this.paymentActivationService.isDuplicate(paymentLinkPaymentId, transferInfo))
+    if (await await this.paymentActivationService.isDuplicate(transferInfo))
       throw new ConflictException(
         `Payment ${paymentLinkPaymentId}: Duplicate method ${transferInfo.method} and amount ${transferInfo.amount}`,
       );

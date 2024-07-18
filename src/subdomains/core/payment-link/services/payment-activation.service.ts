@@ -20,13 +20,12 @@ export class PaymentActivationService {
     private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
-  async isDuplicate(paymentLinkPaymentId: string, transferInfo: TransferInfo): Promise<boolean> {
+  async isDuplicate(transferInfo: TransferInfo): Promise<boolean> {
     return this.paymentActivationRepo.exists({
       where: {
         status: PaymentActivationStatus.PENDING,
         amount: transferInfo.amount,
         method: transferInfo.method,
-        payment: { uniqueId: paymentLinkPaymentId },
       },
     });
   }
