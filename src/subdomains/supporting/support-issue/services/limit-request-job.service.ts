@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import {
@@ -12,6 +13,8 @@ import { LimitRequestRepository } from '../repositories/limit-request.repository
 
 @Injectable()
 export class LimitRequestJobService {
+  private readonly logger = new DfxLogger(LimitRequestJobService);
+
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly supportIssueService: SupportIssueService,
@@ -23,18 +26,22 @@ export class LimitRequestJobService {
     if (DisabledProcess(Process.LIMIT_REQUEST_SYNC)) return;
 
     const entities = await this.limitRequestRepo.find({
-      where: { supportIssue: IsNull() },
-      relations: { userData: true },
+      where: { supportIssue: { id: IsNull() } },
+      relations: { userData: true, supportIssue: true },
     });
 
     for (const entity of entities) {
-      await this.supportIssueService.createIssueInternal(entity.userData, {
-        name: entity.userData.completeName ?? '-',
-        type: SupportIssueType.LIMIT_REQUEST,
-        reason: SupportIssueReason.OTHER,
-        fileUrl: entity.documentProofUrl,
-        limitRequest: entity,
-      });
+      try {
+        await this.supportIssueService.createIssueInternal(entity.userData, {
+          name: entity.userData.completeName ?? '-',
+          type: SupportIssueType.LIMIT_REQUEST,
+          reason: SupportIssueReason.OTHER,
+          fileUrl: entity.documentProofUrl,
+          limitRequest: entity,
+        });
+      } catch (e) {
+        this.logger.error('Error in limitRequest sync job:', e);
+      }
     }
   }
 }
