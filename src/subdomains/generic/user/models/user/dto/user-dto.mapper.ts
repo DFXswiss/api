@@ -36,6 +36,7 @@ export class UserDtoMapper {
   private static mapAddress(user: User): UserAddressDto {
     const dto: UserAddressDto = {
       wallet: user.wallet.displayName ?? user.wallet.name,
+      label: user.label,
       address: user.address,
       blockchains: user.blockchains,
       volumes: this.mapVolumes(user),
