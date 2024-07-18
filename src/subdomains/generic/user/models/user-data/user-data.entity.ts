@@ -287,6 +287,10 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   totpSecret: string;
 
+  // Point of Sale
+  @Column({ nullable: true })
+  pointOfSale: boolean;
+
   // References
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()

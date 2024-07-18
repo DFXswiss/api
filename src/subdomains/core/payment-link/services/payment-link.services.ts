@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -32,7 +31,6 @@ export class PaymentLinkService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
-    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
   async get(userId: number, idOrExternalId: string): Promise<PaymentLink> {
