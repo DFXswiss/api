@@ -1,19 +1,40 @@
-import { KycIdentificationType } from '../../user/models/user-data/user-data.entity';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { KycIdentificationType, UserData } from '../../user/models/user-data/user-data.entity';
 
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
+  NATIONALITY_DATA = 'NationalityData',
+  COMMERCIAL_REGISTER = 'CommercialRegister',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
   DOCUMENT_UPLOAD = 'DocumentUpload',
+  DFX_APPROVAL = 'DfxApproval',
 }
 
 export function getKycStepIndex(stepName: KycStepName): number {
   return Object.values(KycStepName).indexOf(stepName);
 }
 
-export function requiredKycSteps(): KycStepName[] {
-  return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
+export function requiredKycSteps(userData: UserData): KycStepName[] {
+  return userData.accountType === AccountType.BUSINESS
+    ? [
+        KycStepName.CONTACT_DATA,
+        KycStepName.PERSONAL_DATA,
+        KycStepName.NATIONALITY_DATA,
+        KycStepName.COMMERCIAL_REGISTER,
+        KycStepName.IDENT,
+        KycStepName.FINANCIAL_DATA,
+        KycStepName.DFX_APPROVAL,
+      ]
+    : [
+        KycStepName.CONTACT_DATA,
+        KycStepName.PERSONAL_DATA,
+        KycStepName.NATIONALITY_DATA,
+        KycStepName.IDENT,
+        KycStepName.FINANCIAL_DATA,
+        KycStepName.DFX_APPROVAL,
+      ];
 }
 
 export enum KycStepType {

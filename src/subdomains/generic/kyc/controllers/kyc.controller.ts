@@ -32,7 +32,12 @@ import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
-import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
+import {
+  KycCommercialRegisterData,
+  KycContactData,
+  KycNationalityData,
+  KycPersonalData,
+} from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { LimitRequestDto } from '../dto/input/limit-request.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
@@ -135,6 +140,28 @@ export class KycController {
     @Body() data: KycPersonalData,
   ): Promise<KycResultDto> {
     return this.kycService.updatePersonalData(code, +id, data);
+  }
+
+  @Put('data/nationality/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateNationalityData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycNationalityData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateNationalityData(code, +id, data);
+  }
+
+  @Put('data/commercial/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateCommercialRegisterData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycCommercialRegisterData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateCommercialRegisterData(code, +id, data);
   }
 
   @Get('data/financial/:id')

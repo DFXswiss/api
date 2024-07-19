@@ -99,3 +99,18 @@ export class KycInputDataDto extends KycPersonalData {
   @IsEmail()
   mail: string;
 }
+
+export class KycNationalityData {
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  country: Country;
+}
+
+export class KycCommercialRegisterData {
+  @ApiProperty({ description: 'Base64 encoded file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+}

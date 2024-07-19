@@ -46,7 +46,7 @@ export class KycInfoMapper {
     if (userData.isKycTerminated) return [];
 
     // add open steps
-    const openSteps: KycStep[] = requiredKycSteps().map((s) =>
+    const openSteps: KycStep[] = requiredKycSteps(userData).map((s) =>
       Object.assign(new KycStep(), {
         name: s,
         status: KycStepStatus.NOT_STARTED,

@@ -8,6 +8,7 @@ export enum FileType {
   USER_NOTES = 'UserNotes',
   TRANSACTION_NOTES = 'TransactionNotes',
   SUPPORT_ISSUE = 'SupportIssue',
+  COMMERCIAL_REGISTER = 'CommercialRegister',
 }
 
 export enum ContentType {

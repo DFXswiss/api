@@ -24,7 +24,12 @@ import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
-import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
+import {
+  KycCommercialRegisterData,
+  KycContactData,
+  KycNationalityData,
+  KycPersonalData,
+} from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
@@ -250,6 +255,44 @@ export class KycService {
     return KycStepMapper.toKycResult(kycStep);
   }
 
+  async updateNationalityData(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycResultDto> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    const updatedUser = await this.userDataService.updateNationality(user, data);
+    user = updatedUser.nationality ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toKycResult(kycStep);
+  }
+
+  async updateCommercialRegisterData(
+    kycHash: string,
+    stepId: number,
+    data: KycCommercialRegisterData,
+  ): Promise<KycResultDto> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload commercial register extract
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    await this.storageService.uploadFile(
+      user.id,
+      FileType.COMMERCIAL_REGISTER,
+      `${Util.isoDateTime(new Date())}_commercial-register_user-upload`,
+      buffer,
+      contentType as ContentType,
+    );
+
+    user.completeStep(kycStep, data);
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toKycResult(kycStep);
+  }
+
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -306,6 +349,7 @@ export class KycService {
 
     let user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
+    const nationalityMatch = dto.userdata.nationality.value !== user.nationality?.symbol;
 
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
@@ -324,7 +368,7 @@ export class KycService {
         break;
 
       case IdentShortResult.SUCCESS:
-        user = user.internalReviewStep(kycStep, dto);
+        user = nationalityMatch ? user.internalReviewStep(kycStep, dto) : user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep);
         break;
 
@@ -438,7 +482,7 @@ export class KycService {
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
   }> {
-    const missingSteps = requiredKycSteps().filter((rs) => !user.hasDoneStep(rs));
+    const missingSteps = requiredKycSteps(user).filter((rs) => !user.hasDoneStep(rs));
 
     const nextStep = missingSteps[0];
 
@@ -452,6 +496,12 @@ export class KycService {
       case KycStepName.PERSONAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
+      case KycStepName.NATIONALITY_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+
+      case KycStepName.COMMERCIAL_REGISTER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
       case KycStepName.IDENT:
         return {
           nextStep: {
@@ -459,10 +509,12 @@ export class KycService {
             type: await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
-          nextLevel: KycLevel.LEVEL_20,
         };
 
       case KycStepName.FINANCIAL_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.DFX_APPROVAL:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
@@ -503,6 +555,10 @@ export class KycService {
         kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
 
         if (!user.getStepsWith(KycStepName.IDENT).length) await this.kycNotificationService.sendIdentStartedMail(user);
+        break;
+
+      case KycStepName.DFX_APPROVAL:
+        kycStep.manualReview();
         break;
     }
 
