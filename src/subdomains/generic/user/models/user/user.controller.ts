@@ -137,7 +137,7 @@ export class UserController {
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.deactivateUser(jwt.user, jwt.address ?? '');
+    return this.userService.deactivateUser(jwt.account, jwt.address ?? '');
   }
 
   @Delete('account')
@@ -146,7 +146,7 @@ export class UserController {
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.deactivateUser(jwt.user);
+    return this.userService.deactivateUser(jwt.account);
   }
 
   // --- API KEYS --- //
