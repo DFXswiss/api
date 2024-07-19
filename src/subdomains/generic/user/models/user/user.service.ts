@@ -245,9 +245,9 @@ export class UserService {
     return this.userRepo.save({ ...user, ...update });
   }
 
-  async updateAddress(id: number, address: string, dto: UpdateAddressDto): Promise<{ user: UserV2Dto }> {
+  async updateAddress(userDataId: number, address: string, dto: UpdateAddressDto): Promise<{ user: UserV2Dto }> {
     const userData = await this.userDataRepo.findOne({
-      where: { id },
+      where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
@@ -261,24 +261,26 @@ export class UserService {
     return { user: UserDtoMapper.mapUser(userData) };
   }
 
-  async deactivateUser(id: number, address?: string): Promise<void> {
-    const mainUser = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
-    if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.isBlocked || mainUser.userData.isDeactivated)
-      throw new BadRequestException('User Account already deactivated');
+  async deactivateUser(userDataId: number, address?: string): Promise<void> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.isBlocked || userData.isDeactivated) throw new BadRequestException('User Account already deactivated');
 
     if (address) {
-      const user = mainUser.userData.users.find((u) => u.address === address);
+      const user = userData.users.find((u) => u.address === address);
       if (!user) throw new NotFoundException('User not found');
-      if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User already deactivated');
+      if (user.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
 
-      await this.userRepo.update(...user.deactivateUser('Manual user account block'));
+      await this.userRepo.update(...user.deactivateUser('Manual user deactivation'));
       return;
     }
 
-    await this.userDataService.deactivateUserData(mainUser.userData);
+    await this.userDataService.deactivateUserData(userData);
 
-    for (const user of mainUser.userData.users) {
+    for (const user of userData.users) {
       await this.userRepo.update(...user.deactivateUser('Manual user account deactivation'));
     }
   }

@@ -5,6 +5,15 @@ import { Fiat } from './fiat.entity';
 
 @Injectable()
 export class FiatService {
+  private ipCountryToCurrency: { [key: string]: string } = {
+    DE: 'EUR',
+    AT: 'EUR',
+    CH: 'CHF',
+    LI: 'CHF',
+    IT: 'EUR',
+    FR: 'EUR',
+  };
+
   constructor(private fiatRepo: FiatRepository) {}
 
   async getAllFiat(): Promise<Fiat[]> {
@@ -39,13 +48,4 @@ export class FiatService {
     const name = this.ipCountryToCurrency[ipCountry] ?? Config.defaultCurrency.toUpperCase();
     return this.fiatRepo.findOne({ where: { name } });
   }
-
-  ipCountryToCurrency: { [key: string]: string } = {
-    DE: 'EUR',
-    AT: 'EUR',
-    CH: 'CHF',
-    LI: 'CHF',
-    IT: 'EUR',
-    FR: 'EUR',
-  };
 }

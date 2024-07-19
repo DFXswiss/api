@@ -5,6 +5,15 @@ import { Language } from './language.entity';
 
 @Injectable()
 export class LanguageService {
+  private ipCountryToLanguage: { [key: string]: string } = {
+    DE: 'DE',
+    AT: 'DE',
+    CH: 'DE',
+    LI: 'DE',
+    IT: 'IT',
+    FR: 'FR',
+  };
+
   constructor(private languageRepo: LanguageRepository) {}
 
   async getAllLanguage(): Promise<Language[]> {
@@ -23,13 +32,4 @@ export class LanguageService {
     const symbol = this.ipCountryToLanguage[ipCountry] ?? Config.defaultLanguage.toUpperCase();
     return this.languageRepo.findOne({ where: { symbol } });
   }
-
-  ipCountryToLanguage: { [key: string]: string } = {
-    DE: 'DE',
-    AT: 'DE',
-    CH: 'DE',
-    LI: 'DE',
-    IT: 'IT',
-    FR: 'FR',
-  };
 }
