@@ -236,7 +236,8 @@ export class AmlHelperService {
       return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment, amlResponsible: 'API' };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
+      return { amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { comment };
