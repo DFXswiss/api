@@ -62,6 +62,20 @@ export class PaymentLinkPaymentService {
     return pendingPayments[0];
   }
 
+  async getPendingPaymentsByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment[]> {
+    const pendingPayments = await this.paymentLinkPaymentRepo.find({
+      where: {
+        activations: { asset, amount },
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: {
+        link: true,
+      },
+    });
+
+    return pendingPayments;
+  }
+
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
     if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
 

@@ -134,25 +134,41 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (cryptoInput.address.address !== this.walletAddress) return;
+    if (!Util.equalsIgnoreCase(cryptoInput.address?.address, this.walletAddress)) return;
 
-    const pendingActivation = await this.paymentActivationRepo.findOne({
-      where: {
-        amount: cryptoInput.amount,
-        asset: cryptoInput.asset,
-        status: PaymentActivationStatus.PENDING,
-      },
-      relations: {
-        payment: true,
-      },
-    });
+    const pendingPayments = await this.paymentLinkPaymentService.getPendingPaymentsByAsset(
+      cryptoInput.asset,
+      cryptoInput.amount,
+    );
+    if (!pendingPayments.length) {
+      this.logger.error(`EVM transaction ${cryptoInput.id}: No pending payment`);
+      return;
+    }
 
-    if (!pendingActivation)
-      throw new NotFoundException(`No pending activation found for crypto input ${cryptoInput.id}`);
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(
+      pendingPayments[0].uniqueId,
+    );
 
-    await this.paymentActivationRepo.save(pendingActivation.complete());
+    const pendingActivations = pendingPayment.activations.filter((a) => a.status === PaymentActivationStatus.PENDING);
 
-    return this.paymentLinkPaymentService.complete(pendingActivation.payment);
+    if (!pendingActivations.length) {
+      this.logger.error(`EVM transaction ${pendingPayment.uniqueId}: No pending activations`);
+      return;
+    }
+
+    const blockchain = cryptoInput.asset.blockchain;
+    const receviedAmount = cryptoInput.amount;
+
+    const evmActivation = pendingActivations.find((a) => a.method === blockchain && a.amount === receviedAmount);
+
+    if (!evmActivation) {
+      this.logger.error(
+        `EVM transaction ${pendingPayment.uniqueId}: No pending ${blockchain} activation with amount ${receviedAmount}`,
+      );
+      return;
+    }
+
+    return this.doUpdateStatus(evmActivation, pendingActivations, pendingPayment);
   }
 
   private processLightningTransactionMessageQueue(transactionWebhook: LnBitsTransactionWebhookDto) {
@@ -193,15 +209,21 @@ export class PaymentActivationService implements OnModuleInit {
       return;
     }
 
-    await this.doUpdateStatus(pendingActivations, pendingPayment);
+    await this.doUpdateStatus(lightningActivation, pendingActivations, pendingPayment);
   }
 
-  private async doUpdateStatus(pendingActivations: PaymentActivation[], pendingPayment: PaymentLinkPayment) {
+  private async doUpdateStatus(
+    activationToBeCompleted: PaymentActivation,
+    pendingActivations: PaymentActivation[],
+    pendingPayment: PaymentLinkPayment,
+  ): Promise<PaymentLinkPayment> {
+    await this.paymentActivationRepo.save(activationToBeCompleted.complete());
+
     for (const pendingActivation of pendingActivations) {
-      pendingActivation.method === Blockchain.LIGHTNING ? pendingActivation.complete() : pendingActivation.expire();
-      await this.paymentActivationRepo.save(pendingActivation);
+      if (pendingActivation.id !== activationToBeCompleted.id)
+        await this.paymentActivationRepo.save(pendingActivation.expire());
     }
 
-    await this.paymentLinkPaymentService.complete(pendingPayment);
+    return this.paymentLinkPaymentService.complete(pendingPayment);
   }
 }
