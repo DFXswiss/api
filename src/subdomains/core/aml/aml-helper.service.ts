@@ -180,7 +180,7 @@ export class AmlHelperService {
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
     ibanCountry?: Country,
-  ): { bankData: BankData; amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string; amlResponsible?: string } {
+  ): { bankData?: BankData; amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string; amlResponsible?: string } {
     const amlErrors = this.getAmlErrors(
       entity,
       minVolume,
@@ -201,6 +201,12 @@ export class AmlHelperService {
       return { bankData, amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
 
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
+
+    // Expired pending amlChecks
+    if (entity.amlCheck === CheckStatus.PENDING) {
+      if (Util.daysDiff(entity.created) > 2) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
+      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+    }
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
@@ -238,7 +244,8 @@ export class AmlHelperService {
       };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10) return { bankData, amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
+      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { bankData, comment };
