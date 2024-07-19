@@ -161,13 +161,13 @@ export class UserService {
     let user = this.userRepo.create({ address, signature });
 
     user.ip = userIp;
-    user.ipCountry = await this.geoLocationService.getCountry(userIp);
+    user.ipCountry = this.geoLocationService.getCountry(userIp);
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
 
-    const language = await this.languageService.getLanguageByIpCountry(user.ipCountry);
-    const currency = await this.fiatService.getFiatByIpCountry(user.ipCountry);
+    const language = await this.languageService.getLanguageByCountry(user.ipCountry);
+    const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
     user.userData = await this.userDataService.createUserData({
       kycType: user.wallet.customKyc ?? KycType.DFX,

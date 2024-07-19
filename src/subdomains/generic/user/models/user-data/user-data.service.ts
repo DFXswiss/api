@@ -140,8 +140,8 @@ export class UserDataService {
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const userData = this.userDataRepo.create({
       ...dto,
-      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
-      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
+      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
+      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
     });
 
     await this.loadRelationsAndVerify(userData, dto);

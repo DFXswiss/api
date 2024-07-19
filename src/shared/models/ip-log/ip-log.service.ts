@@ -33,7 +33,7 @@ export class IpLogService {
     if (Config.environment === Environment.LOC || userIp?.includes(Config.azureIpSubstring))
       return { country: 'INTERN', result: true };
 
-    const country = await this.geoLocationService.getCountry(userIp);
+    const country = this.geoLocationService.getCountry(userIp);
     const countryObject = await this.countryService.getCountryWithSymbol(country);
 
     const user = await this.repos.user.findOneBy({ address });
