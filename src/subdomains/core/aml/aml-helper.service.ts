@@ -180,7 +180,14 @@ export class AmlHelperService {
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
     ibanCountry?: Country,
-  ): { bankData?: BankData; amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string; amlResponsible?: string } {
+  ): {
+    bankData?: BankData;
+    amlCheck?: CheckStatus;
+    amlReason?: AmlReason;
+    comment?: string;
+    amlResponsible?: string;
+    priceDefinitionAllowedDate?: Date;
+  } {
     const amlErrors = this.getAmlErrors(
       entity,
       minVolume,
@@ -198,7 +205,13 @@ export class AmlHelperService {
 
     // Pass
     if (amlErrors.length === 0)
-      return { bankData, amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
+      return {
+        bankData,
+        amlCheck: CheckStatus.PASS,
+        amlReason: AmlReason.NA,
+        amlResponsible: 'API',
+        priceDefinitionAllowedDate: new Date(),
+      };
 
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
