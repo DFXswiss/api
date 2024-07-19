@@ -43,9 +43,8 @@ export class AmlService {
           entity instanceof BuyCrypto &&
           !entity.isCryptoCryptoTransaction &&
           entity.userData.verifiedName &&
-          (Util.isSameName(entity.bankTx?.name ?? entity.checkoutTx?.cardName, entity.userData.verifiedName) ||
-            Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName)) &&
-          !entity.checkoutTx
+          (Util.isSameName(entity.bankTx?.name ?? bankData.userData.verifiedName, entity.userData.verifiedName) ||
+            Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName))
         ) {
           try {
             const [master, slave] =
