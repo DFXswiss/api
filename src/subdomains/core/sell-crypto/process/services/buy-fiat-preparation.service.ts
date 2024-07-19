@@ -47,6 +47,7 @@ export class BuyFiatPreparationService {
         cryptoInput: true,
         sell: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;
@@ -151,8 +152,14 @@ export class BuyFiatPreparationService {
       try {
         const inputCurrency = entity.cryptoInput.asset;
 
-        const { fee } = await this.transactionHelper.getTxFeeInfos(
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
+
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+
+        const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
+          amountInChf,
           inputCurrency,
           inputCurrency,
           entity.sell.fiat,
@@ -160,11 +167,6 @@ export class BuyFiatPreparationService {
           FiatPaymentMethod.BANK,
           entity.user,
         );
-
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
-
-        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(

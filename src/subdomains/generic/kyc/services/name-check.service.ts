@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { IsNull } from 'typeorm';
-import { BankData } from '../../user/models/bank-data/bank-data.entity';
+import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
@@ -41,7 +41,12 @@ export class NameCheckService implements OnModuleInit {
     // const sanctionData = this.sanctionData.filter((data) =>
     //   this.isSanctionedData(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
     // );
-    const sanctionData = await this.dilisenseService.getRiskData(bankData.name, bankData.userData.birthday);
+    const sanctionData = await this.dilisenseService.getRiskData(
+      bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
+        ? bankData.userData.verifiedName
+        : bankData.name,
+      bankData.userData.birthday,
+    );
 
     if (sanctionData.total_hits == 0) {
       await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED);

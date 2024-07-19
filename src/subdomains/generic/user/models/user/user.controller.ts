@@ -135,7 +135,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.blockUser(jwt.user);
+    return this.userService.deactivateUser(jwt.user);
   }
 
   @Delete('account')
@@ -143,7 +143,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.blockUser(jwt.user, true);
+    return this.userService.deactivateUser(jwt.user, true);
   }
 
   // --- API KEYS --- //

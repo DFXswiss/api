@@ -5,6 +5,7 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -16,18 +17,20 @@ const START_AMOUNT_IN = 10000; // CHF
 
 @Injectable()
 export class TradingService {
+  private readonly logger = new DfxLogger(TradingService);
+
   constructor(
     private readonly evmRegistryService: EvmRegistryService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
   ) {}
 
-  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo | undefined> {
+  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
     if (tradingRule.leftAsset.blockchain !== tradingRule.rightAsset.blockchain)
       throw new Error(`Blockchain mismatch in trading rule ${tradingRule.id}`);
 
     let tradingInfo = await this.getTradingInfo(tradingRule);
-    tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
+    if (tradingInfo.tradeRequired) tradingInfo = await this.calculateAmountForPriceImpact(tradingRule, tradingInfo);
 
     return tradingInfo;
   }
@@ -94,9 +97,10 @@ export class TradingService {
     }
   }
 
-  private async calculateAmountForPriceImpact(tradingInfo?: TradingInfo): Promise<TradingInfo | undefined> {
-    if (!tradingInfo) return;
-
+  private async calculateAmountForPriceImpact(
+    tradingRule: TradingRule,
+    tradingInfo: TradingInfo,
+  ): Promise<TradingInfo> {
     const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
@@ -160,8 +164,12 @@ export class TradingService {
 
     const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
     const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
-    if (swapFeeChf > estimatedProfitChf)
-      throw new Error(`Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`);
+    if (swapFeeChf > estimatedProfitChf) {
+      tradingInfo.tradeRequired = false;
+      this.logger.info(
+        `Trading rule ${tradingRule.id} ignored: swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`,
+      );
+    }
 
     tradingInfo.amountIn = amountIn;
     tradingInfo.amountExpected = targetAmount;

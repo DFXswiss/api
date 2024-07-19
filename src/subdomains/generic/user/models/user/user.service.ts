@@ -100,7 +100,9 @@ export class UserService {
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
       .andWhere('wallet.isKycClient = 0')
-      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
+      .andWhere('linkedUser.status NOT IN (:...userStatus)', {
+        userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
+      })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -114,8 +116,10 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
-      .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED] })
+      .andWhere('userData.status NOT IN (:...userDataStatus)', {
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      })
       .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
   }
@@ -236,22 +240,22 @@ export class UserService {
     return this.userRepo.save({ ...user, ...update });
   }
 
-  async blockUser(id: number, allUser = false): Promise<void> {
-    const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+  async deactivateUser(id: number, allUser = false): Promise<void> {
+    const mainUser = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.status === UserDataStatus.BLOCKED)
-      throw new BadRequestException('User Account already blocked');
-    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+    if (mainUser.userData.isBlocked || mainUser.userData.isDeactivated)
+      throw new BadRequestException('User Account already deactivated');
+    if (mainUser.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
 
     if (!allUser) {
-      await this.userRepo.update(...mainUser.blockUser('Manual user block'));
+      await this.userRepo.update(...mainUser.deactivateUser('Manual user deactivation'));
       return;
     }
 
-    await this.userDataService.blockUserData(mainUser.userData);
+    await this.userDataService.deactivateUserData(mainUser.userData);
 
     for (const user of mainUser.userData.users) {
-      await this.userRepo.update(...user.blockUser('Manual user account block'));
+      await this.userRepo.update(...user.deactivateUser('Manual user account deactivation'));
     }
   }
 

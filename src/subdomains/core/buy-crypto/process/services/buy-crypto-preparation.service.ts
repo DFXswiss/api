@@ -62,6 +62,7 @@ export class BuyCryptoPreparationService {
         buy: true,
         cryptoRoute: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;
@@ -189,8 +190,14 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const { fee } = await this.transactionHelper.getTxFeeInfos(
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+
+        const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
+
+        const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
+          amountInChf,
           inputCurrency,
           inputReferenceCurrency,
           entity.outputAsset,
@@ -198,11 +205,6 @@ export class BuyCryptoPreparationService {
           CryptoPaymentMethod.CRYPTO,
           entity.user,
         );
-
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
-
-        const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
         const maxNetworkFee = fee.network ? fee.network : referenceChfPrice.invert().convert(Config.maxBlockchainFee);
         const maxNetworkFeeInOutAsset = await this.convertNetworkFee(

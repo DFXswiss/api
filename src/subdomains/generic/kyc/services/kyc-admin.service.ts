@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
@@ -16,7 +17,7 @@ export class KycAdminService {
   constructor(
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
-    private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly kycService: KycService,
   ) {}
 
@@ -45,6 +46,13 @@ export class KycAdminService {
     }
 
     await this.kycStepRepo.save(kycStep);
+  }
+
+  async resetKyc(userData: UserData): Promise<void> {
+    for (const kycStep of userData.kycSteps) {
+      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
+        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
+    }
   }
 
   async triggerWebhook(dto: KycWebhookTriggerDto): Promise<void> {

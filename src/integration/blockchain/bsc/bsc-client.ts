@@ -1,5 +1,4 @@
 import { Contract, ethers } from 'ethers';
-import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-router02.abi.json';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig } from 'src/shared/services/http.service';
@@ -31,16 +30,10 @@ export class BscClient extends EvmClient {
     sourceAmount: number,
     targetToken: Asset,
   ): Promise<{ targetAmount: number; feeAmount: number }> {
-    const sourceContract = new ethers.Contract(sourceToken.chainId, ERC20_ABI, this.wallet);
-    const sourceTokenDecimals = await sourceContract.decimals();
-
-    const targetContract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.wallet);
-    const targetTokenDecimals = await targetContract.decimals();
-
-    const inputAmount = EvmUtil.toWeiAmount(sourceAmount, sourceTokenDecimals);
+    const inputAmount = EvmUtil.toWeiAmount(sourceAmount, sourceToken.decimals);
     const outputAmounts = await this.routerV2.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
 
-    return { targetAmount: EvmUtil.fromWeiAmount(outputAmounts[1], targetTokenDecimals), feeAmount: 0 };
+    return { targetAmount: EvmUtil.fromWeiAmount(outputAmounts[1], targetToken.decimals), feeAmount: 0 };
   }
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
@@ -81,9 +74,8 @@ export class BscClient extends EvmClient {
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
     const contract = this.getERC20ContractForDex(asset.chainId);
     const balance = await contract.balanceOf(address ?? this.dfxAddress);
-    const token = await this.getTokenByContract(contract);
 
-    return EvmUtil.fromWeiAmount(balance, token.decimals);
+    return EvmUtil.fromWeiAmount(balance, asset.decimals);
   }
 
   async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
