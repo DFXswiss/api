@@ -196,14 +196,16 @@ export class AmlHelperService {
 
     const comment = amlErrors.join(';');
 
-    // Expired pending amlChecks
-    if (entity.amlCheck === CheckStatus.PENDING && Util.daysDiff(entity.created) > 2)
-      return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-
     // Pass
     if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
 
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
+
+    // Expired pending amlChecks
+    if (entity.amlCheck === CheckStatus.PENDING) {
+      if (Util.daysDiff(entity.created) > 2) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
+      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+    }
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
