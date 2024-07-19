@@ -271,8 +271,8 @@ export class UserService {
 
     if (address) {
       const user = userData.users.find((u) => u.address === address);
-      if (!user) throw new NotFoundException('User not found');
-      if (user.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
+      if (!user) throw new NotFoundException('Address not found');
+      if (user.isBlockedOrDeactivated) throw new BadRequestException('Address already deactivated');
 
       await this.userRepo.update(...user.deactivateUser('Manual user deactivation'));
       return;

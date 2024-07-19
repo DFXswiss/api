@@ -131,6 +131,24 @@ export class UserController {
     return user;
   }
 
+  @Delete()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  @ApiOperation({ deprecated: true })
+  async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.deactivateUser(jwt.user, jwt.address ?? '');
+  }
+
+  @Delete('account')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  @ApiOperation({ deprecated: true })
+  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.deactivateUser(jwt.user);
+  }
+
   // --- API KEYS --- //
   @Post('apiKey/CT')
   @ApiBearerAuth()
@@ -217,7 +235,6 @@ export class UserV2Controller {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: UserV2Dto })
-  @ApiAcceptedResponse(AccountExistsResponse)
   async updateAddress(
     @GetJwt() jwt: JwtPayload,
     @Body() newAddress: UpdateAddressDto,
@@ -230,17 +247,17 @@ export class UserV2Controller {
 
   @Delete('addresses/:address')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse()
-  async deleteUser(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
+  async deleteAddress(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
     return this.userService.deactivateUser(jwt.account, address);
   }
 
   @Delete()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse()
-  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
+  async deleteAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
     return this.userService.deactivateUser(jwt.account);
   }
 
