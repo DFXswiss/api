@@ -143,6 +143,7 @@ export class LightningClient {
           amount: walletPaymentParams.amount,
           memo: walletPaymentParams.memo,
           expiry: walletPaymentParams.expirySec,
+          webhook: walletPaymentParams.webhook,
         },
         this.httpLnBitsConfig(),
       )

@@ -1,19 +1,22 @@
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
+import { LnBitsTransactionWebhookDto, LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
-import { PaymentActivationStatus } from '../entities/payment-activation.entity';
+import { PaymentActivation, PaymentActivationStatus } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
+import { PaymentWebHookService } from './payment-webhhook.service';
 
 @Injectable()
 export class PaymentActivationService implements OnModuleInit {
@@ -21,12 +24,21 @@ export class PaymentActivationService implements OnModuleInit {
 
   private walletAddress: string;
 
+  private readonly paymentWebhookMessageQueue: QueueHandler;
+
   constructor(
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    readonly paymentWebHookService: PaymentWebHookService,
     private readonly assetService: AssetService,
     private readonly evmRegistryService: EvmRegistryService,
-  ) {}
+  ) {
+    this.paymentWebhookMessageQueue = new QueueHandler();
+
+    paymentWebHookService
+      .getLightningTransactionWebhookObservable()
+      .subscribe((transaction) => this.processLightningTransactionMessageQueue(transaction));
+  }
 
   onModuleInit() {
     this.walletAddress = EvmUtil.createWallet({ seed: Config.blockchain.evm.paymentSeed, index: 0 }).address;
@@ -71,6 +83,7 @@ export class PaymentActivationService implements OnModuleInit {
       amount: LightningHelper.btcToSat(transferInfo.amount),
       memo: memo,
       expirySec: secondsDiff,
+      webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${pendingPayment.uniqueId}`,
     };
   }
 
@@ -140,5 +153,55 @@ export class PaymentActivationService implements OnModuleInit {
     await this.paymentActivationRepo.save(pendingActivation.complete());
 
     return this.paymentLinkPaymentService.complete(pendingActivation.payment);
+  }
+
+  private processLightningTransactionMessageQueue(transactionWebhook: LnBitsTransactionWebhookDto) {
+    this.paymentWebhookMessageQueue
+      .handle<void>(async () => this.processLightningTransaction(transactionWebhook))
+      .catch((e) => {
+        this.logger.error('Error while processing transaction data', e);
+      });
+  }
+
+  private async processLightningTransaction(transactionWebhook: LnBitsTransactionWebhookDto): Promise<void> {
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(
+      transactionWebhook.plpUniqueId,
+    );
+
+    if (!pendingPayment) {
+      this.logger.error(`Webhook lightning transaction ${transactionWebhook.plpUniqueId}: No pending payment`);
+      return;
+    }
+
+    const pendingActivations = pendingPayment.activations.filter((a) => a.status === PaymentActivationStatus.PENDING);
+
+    if (!pendingActivations.length) {
+      this.logger.error(`Webhook lightning transaction ${transactionWebhook.plpUniqueId}: No pending activations`);
+      return;
+    }
+
+    const receviedAmount = LightningHelper.satToBtc(transactionWebhook.transaction.amount);
+
+    const lightningActivation = pendingActivations.find(
+      (a) => a.method === Blockchain.LIGHTNING && a.amount === receviedAmount,
+    );
+
+    if (!lightningActivation) {
+      this.logger.error(
+        `Webhook lightning transaction ${transactionWebhook.plpUniqueId}: No pending lightning activation with amount ${receviedAmount}`,
+      );
+      return;
+    }
+
+    await this.doUpdateStatus(pendingActivations, pendingPayment);
+  }
+
+  private async doUpdateStatus(pendingActivations: PaymentActivation[], pendingPayment: PaymentLinkPayment) {
+    for (const pendingActivation of pendingActivations) {
+      pendingActivation.method === Blockchain.LIGHTNING ? pendingActivation.complete() : pendingActivation.expire();
+      await this.paymentActivationRepo.save(pendingActivation);
+    }
+
+    await this.paymentLinkPaymentService.complete(pendingPayment);
   }
 }
