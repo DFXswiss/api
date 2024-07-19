@@ -77,12 +77,18 @@ export class AmlHelperService {
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
-    } else if (entity.userData.status === UserDataStatus.NA && entity.userData.hasSuspiciousMail)
-      errors.push(AmlError.SUSPICIOUS_MAIL);
+    }
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
       if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
+
+      if (
+        entity.userData.hasSuspiciousMail &&
+        ((entity.checkoutTx && entity.userData.status === UserDataStatus.NA) ||
+          (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
+      )
+        errors.push(AmlError.SUSPICIOUS_MAIL);
 
       switch (entity.user.wallet.amlRule) {
         case AmlRule.DEFAULT:
