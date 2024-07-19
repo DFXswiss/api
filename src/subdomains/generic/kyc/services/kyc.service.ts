@@ -273,7 +273,7 @@ export class KycService {
     stepId: number,
     data: KycCommercialRegisterData,
   ): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     // upload commercial register extract
