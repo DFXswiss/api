@@ -1,6 +1,7 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
-import { UserData } from '../../user/models/user-data/user-data.entity';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
+import { UserData } from '../../../generic/user/models/user-data/user-data.entity';
 
 export enum InvestmentDate {
   NOW = 'Now',
@@ -38,7 +39,7 @@ export class LimitRequest extends IEntity {
   fundOriginText: string;
 
   @Column({ length: 256, nullable: true })
-  documentProofUrl: string;
+  documentProofUrl: string; // TODO: remove
 
   @Column({ length: 256, nullable: true })
   decision: LimitRequestDecision;
@@ -59,7 +60,10 @@ export class LimitRequest extends IEntity {
   // References
 
   @ManyToOne(() => UserData, { nullable: false })
-  userData: UserData;
+  userData: UserData; // TODO: remove
+
+  @OneToOne(() => SupportIssue, (supportIssue) => supportIssue.limitRequest, { nullable: true })
+  supportIssue: SupportIssue;
 
   // Methods
   sendMail(): UpdateResult<LimitRequest> {

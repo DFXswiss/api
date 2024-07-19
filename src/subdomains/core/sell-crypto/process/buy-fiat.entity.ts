@@ -36,6 +36,9 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   bankTx: BankTx;
 
+  @ManyToOne(() => BankData, { nullable: true })
+  bankData: BankData;
+
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail: string;

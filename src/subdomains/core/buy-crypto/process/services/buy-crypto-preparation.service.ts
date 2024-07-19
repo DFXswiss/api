@@ -9,6 +9,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -44,14 +45,16 @@ export class BuyCryptoPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
+    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        amlCheck: IsNull(),
-        amlReason: IsNull(),
-        inputAmount: Not(IsNull()),
-        inputAsset: Not(IsNull()),
-        isComplete: false,
-      },
+      where: [
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          ...request,
+        },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+      ],
       relations: {
         bankTx: true,
         checkoutTx: true,
@@ -59,6 +62,7 @@ export class BuyCryptoPreparationService {
         buy: true,
         cryptoRoute: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;
@@ -70,6 +74,8 @@ export class BuyCryptoPreparationService {
     for (const entity of entities) {
       try {
         if (entity.cryptoInput && !entity.cryptoInput.isConfirmed) continue;
+
+        const amlCheckBefore = entity.amlCheck;
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
@@ -139,7 +145,7 @@ export class BuyCryptoPreparationService {
 
         if (entity.cryptoInput) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
-        await this.buyCryptoWebhookService.triggerWebhook(entity);
+        if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
