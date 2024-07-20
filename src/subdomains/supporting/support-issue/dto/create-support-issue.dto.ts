@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
-import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 import { CreateSupportMessageDto } from './create-support-message.dto';
 import { LimitRequestBaseDto } from './limit-request.dto';
 
@@ -62,6 +62,7 @@ export class CreateSupportIssueDto extends CreateSupportMessageDto {
 
 export class CreateSupportIssueInternalDto {
   type: SupportIssueType;
+  state: SupportIssueState;
   reason: SupportIssueReason;
   name: string;
   fileUrl?: string;

@@ -5,6 +5,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import {
   SupportIssueReason,
+  SupportIssueState,
   SupportIssueType,
 } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
@@ -35,6 +36,7 @@ export class LimitRequestJobService {
         await this.supportIssueService.createIssueInternal(entity.userData, {
           name: entity.userData.completeName ?? '-',
           type: SupportIssueType.LIMIT_REQUEST,
+          state: SupportIssueState.PENDING,
           reason: SupportIssueReason.OTHER,
           fileUrl: entity.documentProofUrl,
           limitRequest: entity,
