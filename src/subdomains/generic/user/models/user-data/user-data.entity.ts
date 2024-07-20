@@ -104,6 +104,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
 
+  @Column({ type: 'datetime2', nullable: true })
+  deactivationDate: Date;
+
   // --- PERSONAL DATA --- //
   @Column({ length: 256, nullable: true })
   mail: string;
@@ -323,11 +326,19 @@ export class UserData extends IEntity {
     const update: Partial<UserData> = {
       status: UserDataStatus.DEACTIVATED,
       kycLevel: Math.min(this.kycLevel, KycLevel.LEVEL_20),
+      deactivationDate: new Date(),
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  reactivateUserData(): Partial<UserData> {
+    return {
+      status: UserDataStatus.NA,
+      deactivationDate: null,
+    };
   }
 
   addFee(feeId: number): UpdateResult<UserData> {
@@ -462,6 +473,10 @@ export class UserData extends IEntity {
 
   get isDeactivated(): boolean {
     return this.status === UserDataStatus.DEACTIVATED;
+  }
+
+  get isBlockedOrDeactivated(): boolean {
+    return this.isBlocked || this.isDeactivated;
   }
 
   get address() {

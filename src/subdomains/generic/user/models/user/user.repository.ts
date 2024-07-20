@@ -11,7 +11,10 @@ export class UserRepository extends BaseRepository<User> {
   }
 
   async getByAddress(address: string, needsRelation = false): Promise<User> {
-    return this.findOne({ where: { address }, relations: needsRelation ? ['userData', 'wallet'] : [] });
+    return this.findOne({
+      where: { address },
+      relations: needsRelation ? { userData: true, wallet: true } : {},
+    });
   }
 
   async activateUser(user: User): Promise<void> {

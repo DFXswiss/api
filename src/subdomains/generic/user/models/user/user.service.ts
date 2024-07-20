@@ -103,6 +103,9 @@ export class UserService {
       .andWhere('linkedUser.status NOT IN (:...userStatus)', {
         userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
       })
+      .andWhere('userData.status NOT IN (:...userDataStatus)', {
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -243,8 +246,7 @@ export class UserService {
   async deactivateUser(id: number, allUser = false): Promise<void> {
     const mainUser = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.isBlocked || mainUser.userData.isDeactivated)
-      throw new BadRequestException('User Account already deactivated');
+    if (mainUser.userData.isBlockedOrDeactivated) throw new BadRequestException('User Account already deactivated');
     if (mainUser.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
 
     if (!allUser) {
@@ -253,10 +255,6 @@ export class UserService {
     }
 
     await this.userDataService.deactivateUserData(mainUser.userData);
-
-    for (const user of mainUser.userData.users) {
-      await this.userRepo.update(...user.deactivateUser('Manual user account deactivation'));
-    }
   }
 
   // --- VOLUMES --- //
