@@ -74,22 +74,25 @@ export class TradingService {
     const lowerCheckDeviation = currentPrice / lowerCheckPrice - 1;
     const upperCheckDeviation = currentPrice / upperCheckPrice - 1;
 
+    const result = {
+      price1: referencePrice.price,
+      price2: currentPrice,
+      price3: checkPrice.price,
+      poolFee: tradingRule.poolFee,
+    };
+
     if (lowerDeviation < 0) {
       return {
-        price1: lowerTargetPrice,
-        price2: currentPrice,
+        ...result,
         priceImpact: lowerDeviation,
-        poolFee: tradingRule.poolFee,
         assetIn: tradingRule.leftAsset,
         assetOut: tradingRule.rightAsset,
         tradeRequired: lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit,
       };
     } else {
       return {
-        price1: upperTargetPrice,
-        price2: currentPrice,
+        ...result,
         priceImpact: upperDeviation,
-        poolFee: tradingRule.poolFee,
         assetIn: tradingRule.rightAsset,
         assetOut: tradingRule.leftAsset,
         tradeRequired: upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit,

@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -8,6 +10,7 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
 import { LiquidityManagementService } from '../../liquidity-management/services/liquidity-management.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -28,6 +31,9 @@ export class TradingOrderService {
     private readonly notificationService: NotificationService,
     private readonly evmRegistryService: EvmRegistryService,
     private readonly liquidityService: LiquidityManagementService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
+    private readonly assetService: AssetService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -109,7 +115,13 @@ export class TradingOrderService {
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
     const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
 
-    order.txId = await client.swapPool(order.assetIn, order.assetOut, order.amountIn, order.tradingRule.poolFee, 0.0001);
+    order.txId = await client.swapPool(
+      order.assetIn,
+      order.assetOut,
+      order.amountIn,
+      order.tradingRule.poolFee,
+      0.0001,
+    );
     await this.orderRepo.save(order);
   }
 
@@ -138,8 +150,13 @@ export class TradingOrderService {
 
     const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
     const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
+    const fee = await client.getTxActualFee(order.txId);
 
-    order.complete(outputAmount);
+    const chf = await this.fiatService.getFiatByName('CHF');
+    const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
+    const chfPrice = await this.pricingService.getPrice(coin, chf, true);
+
+    order.complete(outputAmount, fee, chfPrice.convert(fee));
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();
