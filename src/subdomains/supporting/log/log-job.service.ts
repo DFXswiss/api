@@ -29,6 +29,7 @@ export class LogJobService {
         prev[curr.tradingRule.id] = {
           price1: curr.price1,
           price2: curr.price2,
+          price3: curr.price3,
         };
 
         return prev;
