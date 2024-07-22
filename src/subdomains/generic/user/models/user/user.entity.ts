@@ -77,6 +77,9 @@ export class User extends IEntity {
   @Column({ nullable: true })
   approved: boolean;
 
+  @Column({ type: 'datetime2', nullable: true })
+  deactivationDate: Date;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
@@ -126,6 +129,7 @@ export class User extends IEntity {
     const update: Partial<User> = {
       status: UserStatus.DEACTIVATED,
       comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
+      deactivationDate: new Date(),
     };
 
     Object.assign(this, update);

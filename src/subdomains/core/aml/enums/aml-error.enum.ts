@@ -19,7 +19,6 @@ export enum AmlError {
   INVALID_KYC_STATUS = 'InvalidKycStatus',
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
-  NO_VERIFIED_COUNTRY = 'NoVerifiedCountry',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
   IBAN_COUNTRY_NOT_ALLOWED = 'IbanCountryNotAllowed',
   NO_BANK_TX_VERIFICATION = 'NoBankTxVerification',
@@ -90,7 +89,6 @@ export const AmlErrorResult: {
   [AmlError.INVALID_KYC_STATUS]: null,
   [AmlError.INVALID_KYC_TYPE]: null,
   [AmlError.NO_VERIFIED_NAME]: null,
-  [AmlError.NO_VERIFIED_COUNTRY]: null,
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,

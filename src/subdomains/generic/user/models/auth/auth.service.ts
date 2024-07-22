@@ -97,7 +97,7 @@ export class AuthService {
 
   // --- AUTH METHODS --- //
   async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
-    const existingUser = await this.userRepo.getByAddress(dto.address, true);
+    const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
       : this.doSignUp(dto, userIp, false).catch((e) => {
@@ -107,7 +107,7 @@ export class AuthService {
   }
 
   async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
-    const existingUser = await this.userRepo.getByAddress(dto.address, true);
+    const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     if (existingUser) throw new ConflictException('User already exists');
 
     return this.doSignUp(dto, userIp, isCustodial);
@@ -135,13 +135,21 @@ export class AuthService {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
 
-    const user = await this.userRepo.getByAddress(dto.address, true);
+    const user = await this.userService.getUserByAddress(dto.address, { userData: { users: true }, wallet: true });
     if (!user) throw new NotFoundException('User not found');
+
+    if (user.userData.isDeactivated)
+      user.userData = await this.userDataService.updateUserDataInternal(
+        user.userData,
+        user.userData.reactivateUserData(),
+      );
+
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
   private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
-    if (user.isBlockedOrDeactivated) throw new ConflictException('User is deactivated or blocked');
+    if (user.isBlockedOrDeactivated || user.userData.isBlockedOrDeactivated)
+      throw new ConflictException('User is deactivated or blocked');
 
     const keyWalletId =
       user.signature?.includes(this.masterKeyPrefix) && +user.signature?.replace(this.masterKeyPrefix, '');
@@ -152,7 +160,7 @@ export class AuthService {
     } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
       throw new UnauthorizedException('Invalid credentials');
     } else if (!user.signature) {
-      // TODO: temporary code to update empty signatures
+      // TODO: temporary code to update empty signatures (remove?)
       await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
     }
 
@@ -277,7 +285,8 @@ export class AuthService {
   async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
-    if (user.isBlockedOrDeactivated) throw new BadRequestException('User is deactivated or blocked');
+    if (user.isBlockedOrDeactivated || user.userData.isBlockedOrDeactivated)
+      throw new BadRequestException('User is deactivated or blocked');
     return { accessToken: this.generateUserToken(user, ip) };
   }
 

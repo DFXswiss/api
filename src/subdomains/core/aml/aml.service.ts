@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -6,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -30,6 +32,7 @@ export class AmlService {
 
   async getAmlCheckInput(
     entity: BuyFiat | BuyCrypto,
+    last24hVolume: number,
   ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; instantBanks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const bankData = await this.getBankData(entity);
@@ -37,6 +40,7 @@ export class AmlService {
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
+      // merge & bank transaction verification
       if (bankData.active) {
         if (
           bankData.userData.id !== entity.userData.id &&
@@ -65,9 +69,26 @@ export class AmlService {
       }
     }
 
+    if (entity.userData.isDeactivated)
+      entity.userData = await this.userDataService.updateUserDataInternal(
+        entity.userData,
+        entity.userData.reactivateUserData(),
+      );
+
+    // verified country
     if (!entity.userData.verifiedCountry) {
       const verifiedCountry = await this.getVerifiedCountry(entity);
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
+    }
+
+    // KYC file id
+    if (
+      !entity.userData.kycFileId &&
+      last24hVolume > Config.tradingLimits.dailyDefault &&
+      entity.userData.kycLevel >= KycLevel.LEVEL_50
+    ) {
+      const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
+      await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId });
     }
 
     if (entity instanceof BuyFiat) return { bankData, blacklist };

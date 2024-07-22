@@ -37,15 +37,7 @@ export class SupportIssueService {
   async createIssueInternal(userData: UserData, dto: CreateSupportIssueInternalDto): Promise<void> {
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
-    const existingIssue = await this.supportIssueRepo.existsBy({
-      userData: { id: userData.id },
-      type: newIssue.type,
-      information: newIssue.information,
-      reason: newIssue.reason,
-      state: Not(SupportIssueState.COMPLETED),
-    });
-
-    if (!existingIssue) await this.supportIssueRepo.save(newIssue);
+    await this.supportIssueRepo.save(newIssue);
   }
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {

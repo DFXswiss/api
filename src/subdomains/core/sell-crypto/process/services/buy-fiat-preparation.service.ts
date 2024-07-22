@@ -106,7 +106,7 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(

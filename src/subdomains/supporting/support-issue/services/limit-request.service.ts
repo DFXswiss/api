@@ -11,7 +11,9 @@ import { WebhookService } from '../../../generic/user/services/webhook/webhook.s
 import { LimitRequestDto, LimitRequestInternalDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
+import { SupportIssueState } from '../entities/support-issue.entity';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
+import { SupportIssueRepository } from '../repositories/support-issue.repository';
 
 @Injectable()
 export class LimitRequestService {
@@ -23,6 +25,7 @@ export class LimitRequestService {
     private readonly storageService: DocumentStorageService,
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
+    private readonly supportIssueRepo: SupportIssueRepository,
   ) {}
 
   async increaseLimit(dto: LimitRequestDto, kycHash?: string, userDataId?: number): Promise<void> {
@@ -84,14 +87,18 @@ export class LimitRequestService {
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
     const entity = await this.limitRequestRepo.findOne({
       where: { id },
-      relations: { userData: true },
+      relations: { userData: true, supportIssue: true },
     });
     if (!entity) throw new NotFoundException('LimitRequest not found');
 
     const update = this.limitRequestRepo.create(dto);
 
-    if (LimitRequestAccepted(dto.decision) && dto.decision !== entity.decision)
-      await this.webhookService.kycChanged(entity.userData);
+    if (dto.decision !== entity.decision) {
+      await this.supportIssueRepo.update(entity.supportIssue.id, {
+        state: SupportIssueState.COMPLETED,
+      });
+      if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
+    }
 
     Util.removeNullFields(entity);
 
