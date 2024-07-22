@@ -245,7 +245,7 @@ export class UserService {
     return this.userRepo.save({ ...user, ...update });
   }
 
-  async updateAddress(userDataId: number, address: string, dto: UpdateAddressDto): Promise<{ user: UserV2Dto }> {
+  async updateAddress(userDataId: number, address: string, dto: UpdateAddressDto): Promise<UserV2Dto> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
@@ -258,7 +258,7 @@ export class UserService {
     userToUpdate.label = dto.label;
     await this.userRepo.save(userToUpdate);
 
-    return { user: UserDtoMapper.mapUser(userData) };
+    return UserDtoMapper.mapUser(userData);
   }
 
   async deactivateUser(userDataId: number, address?: string): Promise<void> {

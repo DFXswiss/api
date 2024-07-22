@@ -240,9 +240,7 @@ export class UserV2Controller {
     @Body() newAddress: UpdateAddressDto,
     @Param('address') address: string,
   ): Promise<UserV2Dto> {
-    const { user } = await this.userService.updateAddress(jwt.account, address, newAddress);
-
-    return user;
+    return this.userService.updateAddress(jwt.account, address, newAddress);
   }
 
   @Delete('addresses/:address')
