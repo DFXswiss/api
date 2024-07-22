@@ -281,7 +281,7 @@ export class KycService {
     await this.storageService.uploadFile(
       user.id,
       FileType.COMMERCIAL_REGISTER,
-      `${Util.isoDateTime(new Date())}_commercial-register_user-upload`,
+      `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`,
       buffer,
       contentType as ContentType,
     );
