@@ -85,8 +85,8 @@ export class AmlHelperService {
 
       if (
         entity.userData.hasSuspiciousMail &&
-        ((entity.checkoutTx && entity.userData.status === UserDataStatus.NA) ||
-          (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
+        entity.userData.status === UserDataStatus.NA &&
+        (entity.checkoutTx || (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
       )
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
