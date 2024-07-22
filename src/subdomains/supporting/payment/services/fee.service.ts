@@ -273,6 +273,7 @@ export class FeeService {
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
+
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
@@ -295,10 +296,12 @@ export class FeeService {
     );
 
     // get max discount
-    const discountFee = Util.maxObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT),
-      'rate',
-    );
+    const discountFees = fees.filter((fee) => fee.type === FeeType.DISCOUNT);
+    const relativeDiscountFees = fees
+      .filter((fee) => fee.type === FeeType.RELATIVE_DISCOUNT)
+      .map((fee) => Object.assign(fee, { rate: baseFee.rate * fee.rate }));
+
+    const discountFee = Util.maxObj([...discountFees, ...relativeDiscountFees], 'rate');
 
     // get addition fees
     const additiveFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
@@ -368,7 +371,7 @@ export class FeeService {
       fees.filter(
         (f) =>
           [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION].includes(f.type) && !f.discountCode) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.discountCode) ||
           discountFeeIds.includes(f.id) ||
           request.discountCodes.includes(f.discountCode) ||
           (f.wallet && f.wallet.id === wallet?.id),

@@ -8,16 +8,18 @@ import {
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { In, Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
+import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
+import { LimitRequestService } from './limit-request.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
 
 @Injectable()
@@ -29,7 +31,14 @@ export class SupportIssueService {
     private readonly userDataService: UserDataService,
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
+    private readonly limitRequestService: LimitRequestService,
   ) {}
+
+  async createIssueInternal(userData: UserData, dto: CreateSupportIssueInternalDto): Promise<void> {
+    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
+
+    await this.supportIssueRepo.save(newIssue);
+  }
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
     // mail is required
@@ -51,6 +60,10 @@ export class SupportIssueService {
 
       newIssue.additionalInformation = dto.transaction;
     }
+
+    // limit request
+    if (dto.limitRequest)
+      newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
 
     const existingIssue = await this.supportIssueRepo.findOneBy({
       userData: { id: userDataId },

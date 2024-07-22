@@ -33,7 +33,7 @@ export class AmlHelperService {
     const errors = [];
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
-    if (!entity.user.isBlockedOrDeactivated) errors.push(AmlError.INVALID_USER_STATUS);
+    if (entity.user.isBlockedOrDeactivated) errors.push(AmlError.INVALID_USER_STATUS);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
@@ -77,12 +77,18 @@ export class AmlHelperService {
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
-    } else if (entity.userData.status === UserDataStatus.NA && entity.userData.hasSuspiciousMail)
-      errors.push(AmlError.SUSPICIOUS_MAIL);
+    }
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
       if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
+
+      if (
+        entity.userData.hasSuspiciousMail &&
+        ((entity.checkoutTx && entity.userData.status === UserDataStatus.NA) ||
+          (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
+      )
+        errors.push(AmlError.SUSPICIOUS_MAIL);
 
       switch (entity.user.wallet.amlRule) {
         case AmlRule.DEFAULT:
@@ -180,7 +186,14 @@ export class AmlHelperService {
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
     ibanCountry?: Country,
-  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string; amlResponsible?: string } {
+  ): {
+    bankData?: BankData;
+    amlCheck?: CheckStatus;
+    amlReason?: AmlReason;
+    comment?: string;
+    amlResponsible?: string;
+    priceDefinitionAllowedDate?: Date;
+  } {
     const amlErrors = this.getAmlErrors(
       entity,
       minVolume,
@@ -197,9 +210,22 @@ export class AmlHelperService {
     const comment = amlErrors.join(';');
 
     // Pass
-    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA, amlResponsible: 'API' };
+    if (amlErrors.length === 0)
+      return {
+        bankData,
+        amlCheck: CheckStatus.PASS,
+        amlReason: AmlReason.NA,
+        amlResponsible: 'API',
+        priceDefinitionAllowedDate: new Date(),
+      };
 
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
+
+    // Expired pending amlChecks
+    if (entity.amlCheck === CheckStatus.PENDING) {
+      if (Util.daysDiff(entity.created) > 2) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
+      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+    }
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
@@ -208,18 +234,19 @@ export class AmlHelperService {
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? {
+            bankData,
             amlCheck: crucialErrorResult.amlCheck,
             amlReason: crucialErrorResult.amlReason,
             comment,
             amlResponsible: 'API',
           }
-        : { comment };
+        : { bankData, comment };
     }
 
     // Only error aml
     const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);
     if (onlyErrorResult && amlErrors.length === 1)
-      return { amlCheck: onlyErrorResult.amlCheck, amlReason: onlyErrorResult.amlReason, comment };
+      return { bankData, amlCheck: onlyErrorResult.amlCheck, amlReason: onlyErrorResult.amlReason, comment };
 
     // Same error aml
     if (
@@ -227,12 +254,19 @@ export class AmlHelperService {
       (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
         amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
     )
-      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment, amlResponsible: 'API' };
+      return {
+        bankData,
+        amlCheck: amlResults[0].amlCheck,
+        amlReason: amlResults[0].amlReason,
+        comment,
+        amlResponsible: 'API',
+      };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
+      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
-    return { comment };
+    return { bankData, comment };
   }
 }

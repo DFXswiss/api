@@ -110,6 +110,7 @@ export class BuyFiatService {
         bankTx: true,
         cryptoInput: true,
         transaction: { user: { userData: true, wallet: true } },
+        bankData: true,
       },
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
@@ -138,6 +139,16 @@ export class BuyFiatService {
       update.outputAsset = await this.fiatService.getFiat(dto.outputAssetId);
       if (!update.outputAsset) throw new BadRequestException('OutputAsset not found');
     }
+
+    if (dto.bankDataId && !entity.bankData) {
+      update.bankData = await this.bankDataService.getBankData(dto.bankDataId);
+      if (!update.bankData) throw new NotFoundException('BankData not found');
+    }
+
+    if (dto.bankDataActive != null && (update.bankData || entity.bankData))
+      await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
+        active: dto.bankDataActive,
+      });
 
     Util.removeNullFields(entity);
 

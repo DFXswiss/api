@@ -19,6 +19,9 @@ export class TradingOrder extends IEntity {
   @Column({ type: 'float' })
   price2: number; // current price
 
+  @Column({ type: 'float', nullable: true })
+  price3: number; // check price
+
   @Column({ type: 'float' })
   priceImpact: number;
 
@@ -40,6 +43,12 @@ export class TradingOrder extends IEntity {
   @Column({ nullable: true })
   txId: string;
 
+  @Column({ type: 'float', nullable: true })
+  feeAmount: number;
+
+  @Column({ type: 'float', nullable: true })
+  feeAmountChf: number;
+
   @Column({ length: 'MAX', nullable: true })
   errorMessage: string;
 
@@ -52,6 +61,7 @@ export class TradingOrder extends IEntity {
     order.tradingRule = tradingRule;
     order.price1 = tradingInfo.price1;
     order.price2 = tradingInfo.price2;
+    order.price3 = tradingInfo.price3;
     order.priceImpact = tradingInfo.priceImpact;
     order.assetIn = tradingInfo.assetIn;
     order.assetOut = tradingInfo.assetOut;
@@ -85,8 +95,11 @@ export class TradingOrder extends IEntity {
     return this;
   }
 
-  complete(outputAmount: number): this {
+  complete(outputAmount: number, feeAmount: number, feeAmountChf: number): this {
     this.amountOut = outputAmount;
+    this.feeAmount = feeAmount;
+    this.feeAmountChf = feeAmountChf;
+
     this.status = TradingOrderStatus.COMPLETE;
 
     return this;

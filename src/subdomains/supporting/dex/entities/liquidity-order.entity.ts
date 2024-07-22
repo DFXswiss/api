@@ -138,6 +138,13 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
+  cancel(): this {
+    this.isReady = true;
+    this.isComplete = true;
+
+    return this;
+  }
+
   private setTargetAmount(incomingAmount: number): void {
     this.targetAmount =
       this.referenceAsset.dexName === this.targetAsset.dexName ? this.referenceAmount : incomingAmount;

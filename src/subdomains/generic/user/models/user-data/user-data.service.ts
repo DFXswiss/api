@@ -193,6 +193,10 @@ export class UserDataService {
     return userData;
   }
 
+  async getLastKycFileId(): Promise<number> {
+    return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
+  }
+
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
     const isPersonalAccount = (data.accountType ?? userData.accountType) === AccountType.PERSONAL;
 

@@ -204,6 +204,7 @@ export class BuyCryptoService {
         checkoutTx: true,
         transaction: { user: { userData: true, wallet: true } },
         chargebackOutput: true,
+        bankData: true,
       },
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
@@ -243,6 +244,16 @@ export class BuyCryptoService {
       update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputReferenceAssetId);
       if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
     }
+
+    if (dto.bankDataId && !entity.bankData) {
+      update.bankData = await this.bankDataService.getBankData(dto.bankDataId);
+      if (!update.bankData) throw new NotFoundException('BankData not found');
+    }
+
+    if (dto.bankDataActive != null && (update.bankData || entity.bankData))
+      await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
+        active: dto.bankDataActive,
+      });
 
     if (dto.chargebackAllowedDate && !entity.chargebackOutput)
       update.chargebackOutput = await this.fiatOutputService.create({

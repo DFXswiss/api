@@ -202,6 +202,17 @@ export class DexService {
     }
   }
 
+  async cancelOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
+    const orders = await this.liquidityOrderRepo.find({
+      where: { context, correlationId },
+    });
+
+    for (const order of orders) {
+      order.cancel();
+      await this.liquidityOrderRepo.save(order);
+    }
+  }
+
   async hasOrder(context: LiquidityOrderContext, correlationId: string): Promise<boolean> {
     return this.liquidityOrderRepo
       .findOne({ where: { context, correlationId }, loadEagerRelations: false })
