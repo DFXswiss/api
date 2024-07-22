@@ -23,7 +23,7 @@ export class UserDtoMapper {
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
-        .filter((u) => !userData.isBlockedOrDeactivated && !u.isBlockedOrDeactivated && !u.wallet.isKycClient)
+        .filter((u) => !u.isBlockedOrDeactivated && !u.wallet.isKycClient)
         .map((u) => this.mapAddress(u)),
       activeAddress: activeUser && this.mapAddress(activeUser),
     };

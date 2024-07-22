@@ -103,9 +103,6 @@ export class UserService {
       .andWhere('linkedUser.status NOT IN (:...userStatus)', {
         userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
       })
-      .andWhere('userData.status NOT IN (:...userDataStatus)', {
-        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
