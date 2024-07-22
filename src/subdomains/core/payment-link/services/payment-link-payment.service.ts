@@ -42,28 +42,26 @@ export class PaymentLinkPaymentService {
     }
   }
 
-  async getPaymentByUniqueId(uniqueId: string): Promise<PaymentLinkPayment | null> {
-    return this.paymentLinkPaymentRepo.findOneBy({ uniqueId });
-  }
-
-  async getPendingPaymentByUniqueId(uniqueId: string): Promise<PaymentLinkPayment> {
-    const pendingPayments = await this.paymentLinkPaymentRepo.find({
-      where: {
-        uniqueId: uniqueId,
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
+  async getPendingPaymentByUniqueId(uniqueId: string): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: [
+        {
+          link: { uniqueId: uniqueId },
+          status: PaymentLinkPaymentStatus.PENDING,
+        },
+        {
+          uniqueId: uniqueId,
+          status: PaymentLinkPaymentStatus.PENDING,
+        },
+      ],
       relations: {
         link: true,
       },
     });
-
-    if (!pendingPayments.length) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`);
-
-    return pendingPayments[0];
   }
 
   async getPendingPaymentsByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment[]> {
-    const pendingPayments = await this.paymentLinkPaymentRepo.find({
+    return this.paymentLinkPaymentRepo.find({
       where: {
         activations: { asset, amount },
         status: PaymentLinkPaymentStatus.PENDING,
@@ -72,8 +70,6 @@ export class PaymentLinkPaymentService {
         link: true,
       },
     });
-
-    return pendingPayments;
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
@@ -97,12 +93,8 @@ export class PaymentLinkPaymentService {
     return this.save(dto, currency, paymentLink);
   }
 
-  async cancelPayment(userId: number, linkOrExternalId: string): Promise<PaymentLink> {
-    const payment = await this.paymentLinkPaymentRepo.getPayment(
-      userId,
-      linkOrExternalId,
-      PaymentLinkPaymentStatus.PENDING,
-    );
+  async cancelPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
+    const payment = await this.getPaymentByLink(userId, linkId, linkExternalId);
 
     const paymentLink = payment?.link;
     const entity = paymentLink?.payments.find((p) => p.id === payment.id);
@@ -130,8 +122,24 @@ export class PaymentLinkPaymentService {
     };
   }
 
+  private async getPaymentByLink(
+    userId: number,
+    linkId?: number,
+    linkExternalId?: string,
+  ): Promise<PaymentLinkPayment | null> {
+    if (linkId) return this.paymentLinkPaymentRepo.getPaymentByLinkId(userId, linkId, PaymentLinkPaymentStatus.PENDING);
+    if (linkExternalId)
+      return this.paymentLinkPaymentRepo.getPaymentByLinkExternalId(
+        userId,
+        linkExternalId,
+        PaymentLinkPaymentStatus.PENDING,
+      );
+
+    return null;
+  }
+
   async getPaymentLinkForwardInfo(paymentLinkId: string): Promise<PaymentLinkForwardInfoDto> {
-    const pendingPayments = await this.paymentLinkPaymentRepo.find({
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
         link: { uniqueId: paymentLinkId },
         status: PaymentLinkPaymentStatus.PENDING,
@@ -140,13 +148,14 @@ export class PaymentLinkPaymentService {
         link: true,
       },
     });
-    if (!pendingPayments.length) throw new NotFoundException(`No pending payment found by unique id ${paymentLinkId}`);
-
-    const pendingPayment = pendingPayments[0];
+    if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${paymentLinkId}`);
 
     return {
+      paymentLinkId: pendingPayment.link.id,
+      paymentLinkUniqueId: pendingPayment.link.uniqueId,
       paymentLinkExternalId: pendingPayment.link.externalId,
-      paymentLinkPaymentId: pendingPayment.uniqueId,
+      paymentLinkPaymentId: pendingPayment.id,
+      paymentLinkPaymentUniqueId: pendingPayment.uniqueId,
       paymentLinkPaymentExternalId: pendingPayment.externalId,
       transferAmounts: <TransferInfo[]>JSON.parse(pendingPayment.transferAmounts),
     };

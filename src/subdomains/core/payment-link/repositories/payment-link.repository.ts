@@ -9,12 +9,20 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
     super(PaymentLink, manager);
   }
 
-  async getPaymentLink(userId: number, idOrExternalId: string): Promise<PaymentLink | null> {
+  async getAllPaymentLinks(userId: number): Promise<PaymentLink[]> {
+    return this.find({ where: { route: { user: { id: userId } } }, relations: { route: true } });
+  }
+
+  async getPaymentLinkById(userId: number, id: number): Promise<PaymentLink | null> {
     return this.findOne({
-      where: [
-        { id: Equal(+idOrExternalId), route: { user: { id: Equal(userId) } } },
-        { externalId: Equal(idOrExternalId), route: { user: { id: Equal(userId) } } },
-      ],
+      where: { id: Equal(id), route: { user: { id: Equal(userId) } } },
+      relations: { route: true },
+    });
+  }
+
+  async getPaymentLinkByExternalId(userId: number, externalId: string): Promise<PaymentLink | null> {
+    return this.findOne({
+      where: { externalId: Equal(externalId), route: { user: { id: Equal(userId) } } },
       relations: { route: true },
     });
   }

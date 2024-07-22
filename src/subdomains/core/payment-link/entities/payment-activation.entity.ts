@@ -7,7 +7,6 @@ import { PaymentLinkPayment } from './payment-link-payment.entity';
 export enum PaymentActivationStatus {
   PENDING = 'Pending',
   EXPIRED = 'Expired',
-  DUPLICATE = 'Duplicate',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
 }
@@ -20,7 +19,7 @@ export class PaymentActivation extends IEntity {
   @Column()
   method: Blockchain;
 
-  @ManyToOne(() => Asset, { eager: true })
+  @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;
 
   @Column({ type: 'float' })

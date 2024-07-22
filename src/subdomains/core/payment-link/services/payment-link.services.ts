@@ -20,22 +20,15 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
   ) {}
 
-  async get(userId: number, idOrExternalId: string): Promise<PaymentLink> {
-    return this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
+  async get(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink | null> {
+    if (linkId) return this.paymentLinkRepo.getPaymentLinkById(userId, linkId);
+    if (linkExternalId) return this.paymentLinkRepo.getPaymentLinkByExternalId(userId, linkExternalId);
+
+    return null;
   }
 
   async getAll(userId: number): Promise<PaymentLink[]> {
-    return this.paymentLinkRepo.find({ where: { route: { user: { id: userId } } }, relations: { route: true } });
-  }
-
-  async update(userId: number, idOrExternalId: string, dto: UpdatePaymentLinkDto): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
-    if (!paymentLink) throw new NotFoundException('Payment link not found');
-
-    paymentLink.status = dto.status;
-    await this.paymentLinkRepo.update(paymentLink.id, { status: paymentLink.status });
-
-    return paymentLink;
+    return this.paymentLinkRepo.getAllPaymentLinks(userId);
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -71,9 +64,29 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
+  async update(
+    userId: number,
+    dto: UpdatePaymentLinkDto,
+    linkId?: number,
+    linkExternalId?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.get(userId, linkId, linkExternalId);
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
+
+    paymentLink.status = dto.status;
+    await this.paymentLinkRepo.update(paymentLink.id, { status: paymentLink.status });
+
+    return paymentLink;
+  }
+
   // --- PAYMENTS --- //
-  async createPayment(userId: number, idOrExternalId: string, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLink> {
-    const paymentLink = await this.paymentLinkRepo.getPaymentLink(userId, idOrExternalId);
+  async createPayment(
+    userId: number,
+    dto: CreatePaymentLinkPaymentDto,
+    linkId?: number,
+    linkExternalId?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.get(userId, linkId, linkExternalId);
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto));
@@ -81,7 +94,7 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
-  async cancelPayment(userId: number, linkOrExternalId: string): Promise<PaymentLink> {
-    return this.paymentLinkPaymentService.cancelPayment(userId, linkOrExternalId);
+  async cancelPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
+    return this.paymentLinkPaymentService.cancelPayment(userId, linkId, linkExternalId);
   }
 }

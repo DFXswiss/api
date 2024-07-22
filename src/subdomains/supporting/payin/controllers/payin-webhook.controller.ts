@@ -1,19 +1,19 @@
 import { Body, Controller, Param, Post } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { LnBitsTransactionDto } from 'src/integration/lightning/dto/lnbits.dto';
-import { PaymentWebHookService } from '../services/payment-webhhook.service';
+import { PayInWebHookService } from '../services/payin-webhhook.service';
 
 @ApiTags('Payment Webhook')
 @Controller('paymentWebhook')
-export class PaymentWebhookController {
-  constructor(private readonly paymentWebHookService: PaymentWebHookService) {}
+export class PayInWebhookController {
+  constructor(private readonly payInWebHookService: PayInWebHookService) {}
 
-  @Post('transaction-webhook/:plpUniqueId')
+  @Post('transaction-webhook/:uniqueId')
   @ApiExcludeEndpoint()
   async transactionWebhook(
-    @Param('plpUniqueId') plpUniqueId: string,
+    @Param('uniqueId') uniqueId: string,
     @Body() transaction: LnBitsTransactionDto,
   ): Promise<void> {
-    return this.paymentWebHookService.processLightningTransaction({ plpUniqueId, transaction });
+    return this.payInWebHookService.processLightningTransaction({ uniqueId, transaction });
   }
 }

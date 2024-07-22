@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import {
@@ -39,7 +39,12 @@ export class LnUrlForwardService {
 
   private async createPaymentLinkPayRequest(paymentLinkId: string): Promise<PaymentLinkPayRequestDto> {
     const paymentLinkPaymentInfo = await this.paymentLinkPaymentService.getPaymentLinkForwardInfo(paymentLinkId);
-    const metaData = `Payment to ${paymentLinkPaymentInfo.paymentLinkExternalId}: ${paymentLinkPaymentInfo.paymentLinkPaymentExternalId}`;
+
+    const metaPaymentLinkId = paymentLinkPaymentInfo.paymentLinkExternalId ?? paymentLinkPaymentInfo.paymentLinkId;
+    const metaPaymentLinkPaymentId =
+      paymentLinkPaymentInfo.paymentLinkPaymentExternalId ?? paymentLinkPaymentInfo.paymentLinkPaymentId;
+
+    const metaData = `Payment to ${metaPaymentLinkId}: ${metaPaymentLinkPaymentId}`;
 
     const transferAmounts = paymentLinkPaymentInfo.transferAmounts;
     const btcTransferAmount = transferAmounts.find((ta) => ta.asset === 'BTC');
@@ -49,7 +54,7 @@ export class LnUrlForwardService {
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
-      callback: LightningHelper.createLnurlpCallbackUrl(paymentLinkPaymentInfo.paymentLinkPaymentId),
+      callback: LightningHelper.createLnurlpCallbackUrl(paymentLinkPaymentInfo.paymentLinkUniqueId),
       minSendable: satsSendable,
       maxSendable: satsSendable,
       metadata: `[["text/plain", "${metaData}"]]`,
@@ -68,64 +73,15 @@ export class LnUrlForwardService {
   }
 
   async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    if (id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)) {
+    if (
+      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
+      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
+    ) {
       const transferInfo = this.getPaymentTransferInfo(params);
-      return this.createPaymentLinkRequest(id, transferInfo);
+      return this.paymentActivationService.createPaymentLinkRequest(id, transferInfo);
     }
 
     return this.createLnurlpInvoice(id, params);
-  }
-
-  private async createPaymentLinkRequest(
-    paymentLinkPaymentId: string,
-    params: any,
-  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    const transferInfo = this.getPaymentTransferInfo(params);
-
-    if (await await this.paymentActivationService.isDuplicate(transferInfo))
-      throw new ConflictException(
-        `Payment ${paymentLinkPaymentId}: Duplicate method ${transferInfo.method} and amount ${transferInfo.amount}`,
-      );
-
-    if (transferInfo.method === Blockchain.LIGHTNING) {
-      return this.createPaymentLinkLightningPayment(paymentLinkPaymentId, transferInfo);
-    }
-
-    return this.createPaymentLinkEvmPayment(paymentLinkPaymentId, transferInfo);
-  }
-
-  private async createPaymentLinkLightningPayment(
-    paymentLinkPaymentId: string,
-    transferInfo: TransferInfo,
-  ): Promise<LnurlpInvoiceDto> {
-    const walletPaymentParams = await this.paymentActivationService.getLightningPaymentParams(
-      paymentLinkPaymentId,
-      transferInfo,
-    );
-
-    const lightningPayment = await this.client.getLnBitsWalletPayment(walletPaymentParams);
-
-    await this.paymentActivationService.saveLightningPaymentRequest(
-      paymentLinkPaymentId,
-      lightningPayment.pr,
-      transferInfo,
-    );
-
-    return lightningPayment;
-  }
-
-  private async createPaymentLinkEvmPayment(
-    paymentLinkPaymentId: string,
-    transferInfo: TransferInfo,
-  ): Promise<PaymentLinkEvmPaymentDto> {
-    const evmPayment = await this.paymentActivationService.getPaymentLinkEvmPaymentInfo(
-      paymentLinkPaymentId,
-      transferInfo,
-    );
-
-    await this.paymentActivationService.saveLightningPaymentRequest(paymentLinkPaymentId, evmPayment.uri, transferInfo);
-
-    return evmPayment;
   }
 
   private async createLnurlpInvoice(id: string, params: any): Promise<LnurlpInvoiceDto> {

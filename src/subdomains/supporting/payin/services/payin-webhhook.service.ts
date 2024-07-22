@@ -3,7 +3,7 @@ import { Observable, Subject } from 'rxjs';
 import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbits.dto';
 
 @Injectable()
-export class PaymentWebHookService {
+export class PayInWebHookService {
   private lightningTransactionWebhookSubject: Subject<LnBitsTransactionWebhookDto>;
 
   constructor() {

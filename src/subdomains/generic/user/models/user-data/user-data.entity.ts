@@ -288,7 +288,7 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // Point of Sale
-  @Column({ nullable: true })
+  @Column({ default: false })
   paymentLinksAllowed: boolean;
 
   // References

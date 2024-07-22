@@ -41,6 +41,6 @@ export interface LnBitsTransactionDto {
 }
 
 export interface LnBitsTransactionWebhookDto {
-  plpUniqueId: string;
+  uniqueId: string;
   transaction: LnBitsTransactionDto;
 }

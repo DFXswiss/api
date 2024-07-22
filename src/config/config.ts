@@ -238,9 +238,8 @@ export class Configuration {
 
   payment = {
     timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
-    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 10),
-
-    evmAddress: process.env.PAYMENT_EVM_ADDRESS,
+    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
+    paymentSeed: process.env.EVM_PAYMENT_SEED,
   };
 
   blockchain = {
@@ -271,7 +270,6 @@ export class Configuration {
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
-      paymentSeed: process.env.EVM_PAYMENT_SEED,
       minimalPreparationFee: 0.00000001,
 
       walletAccount: (accountIndex: number): WalletAccount => ({

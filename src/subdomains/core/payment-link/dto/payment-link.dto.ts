@@ -41,8 +41,11 @@ export interface PaymentLinkEvmPaymentDto {
 }
 
 export interface PaymentLinkForwardInfoDto {
+  paymentLinkId: number;
+  paymentLinkUniqueId: string;
   paymentLinkExternalId: string;
-  paymentLinkPaymentId: string;
+  paymentLinkPaymentId: number;
+  paymentLinkPaymentUniqueId: string;
   paymentLinkPaymentExternalId: string;
   transferAmounts: TransferInfo[];
 }

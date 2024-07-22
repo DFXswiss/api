@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -25,21 +25,17 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
-  async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> {
-    await this.checkPaymentLinksAllowed(+jwt.user);
-    return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
-  }
-
-  @Get(':idOrExternalId')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLinkDto })
-  async getPaymentLink(
+  async getAllPaymentLinks(
     @GetJwt() jwt: JwtPayload,
-    @Param('idOrExternalId') idOrExternalId: string,
-  ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(+jwt.user);
-    return this.paymentLinkService.get(+jwt.user, idOrExternalId).then(PaymentLinkDtoMapper.toLinkDto);
+    @Query('id') id: string,
+    @Query('externalId') externalId: string,
+  ): Promise<PaymentLinkDto | PaymentLinkDto[]> {
+    await this.checkPaymentLinksAllowed(jwt.account);
+
+    if (id || externalId)
+      return this.paymentLinkService.get(+jwt.user, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
+
+    return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
   }
 
   @Post()
@@ -47,49 +43,54 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: PaymentLinkDto })
   async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(+jwt.user);
+    await this.checkPaymentLinksAllowed(jwt.account);
     return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  @Put(':idOrExternalId')
+  @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto })
   async updatePaymentLink(
     @GetJwt() jwt: JwtPayload,
-    @Param('idOrExternalId') idOrExternalId: string,
+    @Query('id') id: string,
+    @Query('externalId') externalId: string,
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(+jwt.user);
-    return this.paymentLinkService.update(+jwt.user, idOrExternalId, dto).then(PaymentLinkDtoMapper.toLinkDto);
+    await this.checkPaymentLinksAllowed(jwt.account);
+
+    if (id || externalId)
+      return this.paymentLinkService.update(+jwt.user, dto, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  @Post(':idOrExternalId/payment')
+  @Post('payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: PaymentLinkDto })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
-    @Param('idOrExternalId') idOrExternalId: string,
+    @Query('id') id: string,
+    @Query('externalId') externalId: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(+jwt.user);
-    return this.paymentLinkService.createPayment(+jwt.user, idOrExternalId, dto).then(PaymentLinkDtoMapper.toLinkDto);
+    await this.checkPaymentLinksAllowed(jwt.account);
+    return this.paymentLinkService.createPayment(+jwt.user, dto, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  @Delete(':idOrExternalId/payment')
+  @Delete('payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
-    @Param('idOrExternalId') idOrExternalId: string,
+    @Query('id') id: string,
+    @Query('externalId') externalId: string,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(+jwt.user);
-    return this.paymentLinkService.cancelPayment(+jwt.user, idOrExternalId).then(PaymentLinkDtoMapper.toLinkDto);
+    await this.checkPaymentLinksAllowed(jwt.account);
+    return this.paymentLinkService.cancelPayment(+jwt.user, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  private async checkPaymentLinksAllowed(userId: number): Promise<void> {
-    const userData = await this.userDataService.getUserData(userId);
+  private async checkPaymentLinksAllowed(userDataId: number): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
   }
 }
