@@ -40,7 +40,7 @@ export class AmlService {
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
-      // Merge & BankTransactionVerification
+      // merge & bank transaction verification
       if (bankData.active) {
         if (
           bankData.userData.id !== entity.userData.id &&
@@ -69,13 +69,13 @@ export class AmlService {
       }
     }
 
-    // VerifiedCountry
+    // verified country
     if (!entity.userData.verifiedCountry) {
       const verifiedCountry = await this.getVerifiedCountry(entity);
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
     }
 
-    // KycFileId
+    // KYC file id
     if (
       !entity.userData.kycFileId &&
       last24hVolume > Config.tradingLimits.dailyDefault &&
