@@ -37,6 +37,7 @@ import { UserController, UserV2Controller } from './models/user/user.controller'
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
+import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
 import { WebhookNotificationService } from './services/webhook/webhook-notification.service';
 import { Webhook } from './services/webhook/webhook.entity';
@@ -66,6 +67,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycClientController,
     KycController,
     UserDataRelationController,
+    WalletController,
   ],
   providers: [
     UserRepository,
