@@ -16,12 +16,9 @@ export class SettingController {
   constructor(private readonly settingService: SettingService) {}
 
   @Get('infoBanner')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: InfoBannerDto })
   async getInfoBanner(): Promise<InfoBannerDto> {
-    const json = await this.settingService.get('infoBanner', undefined);
-    return json ? JSON.parse(json) : undefined;
+    return this.settingService.getObj('infoBanner', undefined);
   }
 
   // --- ADMIN --- //
