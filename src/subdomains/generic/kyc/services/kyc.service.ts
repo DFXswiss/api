@@ -547,7 +547,7 @@ export class KycService {
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: result.identificationdocument.type.value,
-          identDocumentId: result.identificationdocument.number.value,
+          identDocumentId: `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
         });
       }
     }
