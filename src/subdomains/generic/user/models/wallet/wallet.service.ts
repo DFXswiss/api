@@ -1,21 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { FindOptionsRelations } from 'typeorm';
-import { CreateWalletDto } from './dto/create-wallet.dto';
-import { UpdateWalletDto } from './dto/update-wallet.dto';
+import { WalletDto } from './dto/wallet.dto';
 import { Wallet } from './wallet.entity';
 
 @Injectable()
 export class WalletService {
   constructor(private readonly repo: WalletRepository) {}
 
-  async createWallet(dto: CreateWalletDto): Promise<Wallet> {
+  async createWallet(dto: WalletDto): Promise<Wallet> {
     const entity = this.repo.create(dto);
 
     return this.repo.save(entity);
   }
 
-  async updateWallet(id: number, dto: UpdateWalletDto): Promise<Wallet> {
+  async updateWallet(id: number, dto: WalletDto): Promise<Wallet> {
     const entity = await this.repo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Wallet not found');
 
