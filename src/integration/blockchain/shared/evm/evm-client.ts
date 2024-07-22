@@ -339,16 +339,9 @@ export abstract class EvmClient {
     const slot0 = await poolContract.slot0();
     const sqrtPriceX96 = slot0.sqrtPriceX96;
 
-    const quote = await this.getQuoteContract().callStatic.quoteExactInputSingle({
-      tokenIn: sourceToken.address,
-      tokenOut: targetToken.address,
-      fee: poolFee,
-      amountIn: EvmUtil.toWeiAmount(sourceAmount, sourceToken.decimals),
-      sqrtPriceLimitX96: '0',
-    });
+    const quote = await this.poolQuote(sourceToken, targetToken, sourceAmount, poolFee);
 
-    const sqrtPriceX96After = quote.sqrtPriceX96After;
-    let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
+    let sqrtPriceRatio = +quote.sqrtPriceX96 / +sqrtPriceX96;
     if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
     const gasPrice = await this.getRecommendedGasPrice();
@@ -376,6 +369,32 @@ export abstract class EvmClient {
     // get pool info
     const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
+    const { amountOut, route } = await this.poolQuote(sourceToken, targetToken, sourceAmount, poolFee);
+
+    // generate call parameters
+    const trade = Trade.createUncheckedTrade({
+      route,
+      inputAmount: this.toCurrencyAmount(sourceAmount, sourceToken),
+      outputAmount: CurrencyAmount.fromRawAmount(targetToken, +amountOut),
+      tradeType: TradeType.EXACT_INPUT,
+    });
+
+    const parameters = buildSwapMethodParameters(trade as any, this.swapConfig(maxSlippage), this.chainId);
+
+    return this.doSwap(parameters);
+  }
+
+  private async poolQuote(
+    sourceToken: Token,
+    targetToken: Token,
+    sourceAmount: number,
+    poolFee: FeeAmount,
+  ): Promise<{
+    amountOut: EthersNumber;
+    sqrtPriceX96: EthersNumber;
+    gasEstimate: EthersNumber;
+    route: Route<Token, Token>;
+  }> {
     const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
     const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
 
@@ -396,19 +415,12 @@ export abstract class EvmClient {
       data: calldata,
     });
 
-    const [amountOut] = ethers.utils.defaultAbiCoder.decode(['uint256'], quoteCallReturnData);
+    const [amountOut, sqrtPriceX96, _, gasEstimate] = ethers.utils.defaultAbiCoder.decode(
+      QuoterV2ABI.abi.find((f) => f.name === 'quoteExactInputSingle')?.outputs.map((o) => o.type),
+      quoteCallReturnData,
+    );
 
-    // generate call parameters
-    const trade = Trade.createUncheckedTrade({
-      route,
-      inputAmount: this.toCurrencyAmount(sourceAmount, sourceToken),
-      outputAmount: CurrencyAmount.fromRawAmount(targetToken, +amountOut),
-      tradeType: TradeType.EXACT_INPUT,
-    });
-
-    const parameters = buildSwapMethodParameters(trade as any, this.swapConfig(maxSlippage), this.chainId);
-
-    return this.doSwap(parameters);
+    return { amountOut, sqrtPriceX96, gasEstimate, route };
   }
 
   async getSwapResult(txId: string, asset: Asset): Promise<number> {
