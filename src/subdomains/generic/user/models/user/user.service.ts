@@ -264,10 +264,10 @@ export class UserService {
   async deactivateUser(userDataId: number, address?: string): Promise<void> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true } },
+      relations: { users: { wallet: true }, kycSteps: true },
     });
-    if (!userData) throw new NotFoundException('User not found');
-    if (userData.isBlocked || userData.isDeactivated) throw new BadRequestException('User Account already deactivated');
+    if (!userData) throw new NotFoundException('User account not found');
+    if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
 
     if (address) {
       const user = userData.users.find((u) => u.address === address);
