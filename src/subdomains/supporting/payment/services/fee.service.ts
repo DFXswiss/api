@@ -297,8 +297,9 @@ export class FeeService {
 
     // get max discount
     const discountFees = fees.filter((fee) => fee.type === FeeType.DISCOUNT);
-    const relativeDiscountFees = fees.filter((fee) => fee.type === FeeType.RELATIVE_DISCOUNT);
-    relativeDiscountFees.forEach((fee) => Object.assign(fee, { rate: baseFee.rate * fee.rate }));
+    const relativeDiscountFees = fees
+      .filter((fee) => fee.type === FeeType.RELATIVE_DISCOUNT)
+      .map((fee) => Object.assign(fee, { rate: baseFee.rate * fee.rate }));
 
     const discountFee = Util.maxObj([...discountFees, ...relativeDiscountFees], 'rate');
 
@@ -370,7 +371,7 @@ export class FeeService {
       fees.filter(
         (f) =>
           [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION].includes(f.type) && !f.discountCode) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.discountCode) ||
           discountFeeIds.includes(f.id) ||
           request.discountCodes.includes(f.discountCode) ||
           (f.wallet && f.wallet.id === wallet?.id),
