@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
+import { InfoBannerDto } from './dto/info-banner.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
@@ -13,6 +14,12 @@ import { SettingService } from './setting.service';
 @ApiExcludeController()
 export class SettingController {
   constructor(private readonly settingService: SettingService) {}
+
+  @Get('infoBanner')
+  @ApiOkResponse({ type: InfoBannerDto })
+  async getInfoBanner(): Promise<InfoBannerDto> {
+    return this.settingService.getObj('infoBanner', undefined);
+  }
 
   // --- ADMIN --- //
   @Get()
