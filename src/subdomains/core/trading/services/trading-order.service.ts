@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -20,11 +21,13 @@ import { TradingOrderRepository } from '../repositories/trading-order.respositor
 import { TradingRuleRepository } from '../repositories/trading-rule.respository';
 
 @Injectable()
-export class TradingOrderService {
+export class TradingOrderService implements OnModuleInit {
   private readonly logger = new DfxLogger(TradingOrderService);
 
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
+
+  private chf: Fiat;
 
   constructor(
     private readonly dexService: DexService,
@@ -35,6 +38,10 @@ export class TradingOrderService {
     private readonly fiatService: FiatService,
     private readonly assetService: AssetService,
   ) {}
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+  }
 
   // --- PUBLIC API --- //
 
@@ -152,9 +159,8 @@ export class TradingOrderService {
     const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
     const fee = await client.getTxActualFee(order.txId);
 
-    const chf = await this.fiatService.getFiatByName('CHF');
     const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
-    const chfPrice = await this.pricingService.getPrice(coin, chf, true);
+    const chfPrice = await this.pricingService.getPrice(coin, this.chf, true);
 
     order.complete(outputAmount, fee, chfPrice.convert(fee));
     await this.orderRepo.save(order);
