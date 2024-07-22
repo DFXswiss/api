@@ -194,7 +194,7 @@ export class UserDataService {
   }
 
   async getLastKycFileId(): Promise<number> {
-    return this.userDataRepo.findOne({ order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
+    return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
   }
 
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
