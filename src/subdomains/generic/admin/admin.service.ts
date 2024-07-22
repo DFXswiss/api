@@ -30,10 +30,13 @@ export class AdminService {
     const orderExists = await this.dexService.hasOrder(context, id);
     if (orderExists) throw new ConflictException(`${context} order ${id} already exists`);
 
+    const lContext = context as LiquidityOrderContext;
+    const pContext = context as PayoutOrderContext;
+
     try {
       // reserve liquidity
       const reservationRequest: ReserveLiquidityRequest = {
-        context: context as LiquidityOrderContext,
+        context: lContext,
         correlationId: id,
         referenceAmount: amount,
         referenceAsset: asset,
@@ -43,7 +46,7 @@ export class AdminService {
 
       // payout
       const payoutRequest: PayoutRequest = {
-        context: context as PayoutOrderContext,
+        context: pContext,
         correlationId: id,
         amount: amount,
         asset: asset,
@@ -51,6 +54,8 @@ export class AdminService {
       };
       await this.payoutService.doPayout(payoutRequest);
     } catch (e) {
+      await this.dexService.cancelOrders(lContext, id);
+
       throw new ServiceUnavailableException('Exception during payout', { description: e.message });
     }
   }
