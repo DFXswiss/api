@@ -10,13 +10,6 @@ export class UserRepository extends BaseRepository<User> {
     super(User, manager);
   }
 
-  async getByAddress(address: string, needsRelation = false): Promise<User> {
-    return this.findOne({
-      where: { address },
-      relations: needsRelation ? { userData: true, wallet: true } : {},
-    });
-  }
-
   async activateUser(user: User): Promise<void> {
     if (user.status === UserStatus.NA) {
       let ref = user.ref ?? (await this.getNextRef());
