@@ -69,6 +69,12 @@ export class AmlService {
       }
     }
 
+    if (entity.userData.isDeactivated)
+      entity.userData = await this.userDataService.updateUserDataInternal(
+        entity.userData,
+        entity.userData.reactivateUserData(),
+      );
+
     // verified country
     if (!entity.userData.verifiedCountry) {
       const verifiedCountry = await this.getVerifiedCountry(entity);
