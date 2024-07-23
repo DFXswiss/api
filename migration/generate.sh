@@ -1,1 +1,1 @@
-typeorm migration:generate migration/$1 -o -d dev-data-source.ts
+typeorm migration:generate migration/$1 -o -d migration/dev-data-source.ts
