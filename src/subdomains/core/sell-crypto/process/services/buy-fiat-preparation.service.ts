@@ -145,7 +145,7 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
-        cryptoInput: { paymentLinkPayment: true },
+        cryptoInput: true,
         transaction: { user: { wallet: true, userData: true } },
       },
     });
