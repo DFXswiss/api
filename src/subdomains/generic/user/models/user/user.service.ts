@@ -255,8 +255,7 @@ export class UserService {
     const userToUpdate = userData.users.find((u) => u.address === address);
     if (!userToUpdate) throw new NotFoundException('Address not found');
 
-    userToUpdate.label = dto.label;
-    await this.userRepo.save(userToUpdate);
+    await this.userRepo.update(...userToUpdate.setLabel(dto.label));
 
     return UserDtoMapper.mapUser(userData);
   }
@@ -279,10 +278,6 @@ export class UserService {
     }
 
     await this.userDataService.deactivateUserData(userData);
-
-    for (const user of userData.users) {
-      await this.userRepo.update(...user.deactivateUser('Manual user account deactivation'));
-    }
   }
 
   // --- VOLUMES --- //

@@ -251,7 +251,7 @@ export class UserV2Controller {
     return this.userService.deactivateUser(jwt.account, address);
   }
 
-  @Delete()
+  @Delete('account')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse()

@@ -151,6 +151,16 @@ export class User extends IEntity {
     return [this.id, update];
   }
 
+  setLabel(label: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      label,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get specifiedRef(): { usedRef: string; refProvision: number } {
     return this.wallet?.name === 'CakeWallet'
       ? { usedRef: '160-195', refProvision: 2 }
