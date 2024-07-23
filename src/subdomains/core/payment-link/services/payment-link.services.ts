@@ -20,11 +20,14 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
   ) {}
 
-  async get(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink | null> {
-    if (linkId) return this.paymentLinkRepo.getPaymentLinkById(userId, linkId);
-    if (linkExternalId) return this.paymentLinkRepo.getPaymentLinkByExternalId(userId, linkExternalId);
+  async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink | null> {
+    let link: PaymentLink;
+    if (linkId) link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId);
+    if (linkExternalId) link = await this.paymentLinkRepo.getPaymentLinkByExternalId(userId, linkExternalId);
 
-    return null;
+    if (!link) throw new NotFoundException('Payment link not found');
+
+    return link;
   }
 
   async getAll(userId: number): Promise<PaymentLink[]> {
@@ -34,7 +37,7 @@ export class PaymentLinkService {
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = dto.routeId
       ? await this.sellService.get(userId, dto.routeId)
-      : await this.sellService.getLastest(userId);
+      : await this.sellService.getLatest(userId);
 
     if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
@@ -70,8 +73,7 @@ export class PaymentLinkService {
     linkId?: number,
     linkExternalId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.get(userId, linkId, linkExternalId);
-    if (!paymentLink) throw new NotFoundException('Payment link not found');
+    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
     paymentLink.status = dto.status;
     await this.paymentLinkRepo.update(paymentLink.id, { status: paymentLink.status });
@@ -86,8 +88,7 @@ export class PaymentLinkService {
     linkId?: number,
     linkExternalId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.get(userId, linkId, linkExternalId);
-    if (!paymentLink) throw new NotFoundException('Payment link not found');
+    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
     paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto));
 
@@ -95,6 +96,8 @@ export class PaymentLinkService {
   }
 
   async cancelPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
-    return this.paymentLinkPaymentService.cancelPayment(userId, linkId, linkExternalId);
+    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
+
+    return this.paymentLinkPaymentService.cancelPayment(paymentLink);
   }
 }

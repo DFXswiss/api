@@ -95,15 +95,11 @@ export class PaymentLinkPaymentService {
     return this.save(dto, currency, paymentLink);
   }
 
-  async cancelPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
-    const payment = await this.getPaymentByLink(userId, linkId, linkExternalId);
+  async cancelPayment(paymentLink: PaymentLink): Promise<PaymentLink> {
+    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
+    if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const paymentLink = payment?.link;
-    const entity = paymentLink?.payments.find((p) => p.id === payment.id);
-
-    if (!entity) throw new NotFoundException('No pending payment found');
-
-    await this.paymentLinkPaymentRepo.save(entity.cancel());
+    await this.paymentLinkPaymentRepo.save(pendingPayment.cancel());
 
     return paymentLink;
   }
@@ -122,22 +118,6 @@ export class PaymentLinkPaymentService {
       asset: asset.name,
       method: asset.blockchain,
     };
-  }
-
-  private async getPaymentByLink(
-    userId: number,
-    linkId?: number,
-    linkExternalId?: string,
-  ): Promise<PaymentLinkPayment | null> {
-    if (linkId) return this.paymentLinkPaymentRepo.getPaymentByLinkId(userId, linkId, PaymentLinkPaymentStatus.PENDING);
-    if (linkExternalId)
-      return this.paymentLinkPaymentRepo.getPaymentByLinkExternalId(
-        userId,
-        linkExternalId,
-        PaymentLinkPaymentStatus.PENDING,
-      );
-
-    return null;
   }
 
   async getPaymentLinkForwardInfo(paymentLinkId: string): Promise<PaymentLinkForwardInfoDto> {
