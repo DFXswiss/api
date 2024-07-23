@@ -255,6 +255,12 @@ export class Configuration {
     apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
+  payment = {
+    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
+    evmSeed: process.env.PAYMENT_EVM_SEED,
+  };
+
   blockchain = {
     default: {
       user: process.env.NODE_USER,

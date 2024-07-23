@@ -47,6 +47,7 @@ export enum Process {
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
   SYNCHRONIZE_TRANSACTION_USER = 'SynchronizeTransactionUser',
   NETWORK_START_FEE = 'NetworkStartFee',
+  UPDATE_PAYMENT = 'UpdatePayment',
   LIMIT_REQUEST_SYNC = 'LimitRequestSync',
   TRADING_LOG = 'TradingLog',
   ASSET_DECIMALS = 'AssetDecimals',

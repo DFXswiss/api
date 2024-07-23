@@ -52,6 +52,11 @@ param dexWalletAddress string
 param utxoSpenderAddress string
 param btcOutWalletAddress string
 
+param paymentTimeout string
+param paymentTimeoutDelay string
+@secure()
+param paymentEvmSeed string
+
 @secure()
 param evmDepositSeed string
 param ethWalletAddress string
@@ -629,6 +634,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
           value: btcOutWalletAddress
+        }
+        {
+          name: 'PAYMENT_TIMEOUT'
+          value: paymentTimeout
+        }
+        {
+          name: 'PAYMENT_TIMEOUT_DELAY'
+          value: paymentTimeoutDelay
+        }
+        {
+          name: 'PAYMENT_EVM_SEED'
+          value: paymentEvmSeed
         }
         {
           name: 'EVM_DEPOSIT_SEED'
