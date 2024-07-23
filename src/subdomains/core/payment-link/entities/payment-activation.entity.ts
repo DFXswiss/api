@@ -31,7 +31,7 @@ export class PaymentActivation extends IEntity {
   @Column({ type: 'datetime2' })
   expiryDate: Date;
 
-  @ManyToOne(() => PaymentLinkPayment, (p) => p.activations)
+  @ManyToOne(() => PaymentLinkPayment, (p) => p.activations, { nullable: false })
   payment: PaymentLinkPayment;
 
   // --- ENTITY METHODS --- //

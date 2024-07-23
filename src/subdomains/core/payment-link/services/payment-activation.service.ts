@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { LnBitsTransactionWebhookDto, LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
@@ -37,7 +36,6 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly assetService: AssetService,
-    private readonly evmRegistryService: EvmRegistryService,
   ) {
     this.client = lightningService.getDefaultClient();
     this.paymentWebhookMessageQueue = new QueueHandler();
@@ -253,10 +251,7 @@ export class PaymentActivationService implements OnModuleInit {
     const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
     if (!asset) throw new NotFoundException(`Asset ${uniqueAssetName} not found`);
 
-    const evmService = this.evmRegistryService.getService(transferInfo.method);
-    if (!evmService) throw new NotFoundException(`EVM Service ${transferInfo.method} not found`);
-
-    const evmPaymentRequest = await evmService.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
+    const evmPaymentRequest = EvmUtil.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
 
     return {
       expiryDate: pendingPayment.expiryDate,
