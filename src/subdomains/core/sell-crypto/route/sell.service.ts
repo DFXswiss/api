@@ -53,16 +53,12 @@ export class SellService {
     return this.sellRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
-  async getLatest(userId: number): Promise<Sell | undefined> {
-    const sells = await this.sellRepo.find({
+  async getLatest(userId: number): Promise<Sell | null> {
+    return this.sellRepo.findOne({
       where: { user: { id: userId } },
       relations: { user: true },
       order: { created: 'DESC' },
     });
-
-    if (!sells) return;
-
-    return sells[0];
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {

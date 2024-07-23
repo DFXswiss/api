@@ -1,7 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 export enum PaymentActivationStatus {
@@ -12,6 +12,10 @@ export enum PaymentActivationStatus {
 }
 
 @Entity()
+@Index((activation: PaymentActivation) => [activation.method, activation.asset, activation.amount], {
+  unique: true,
+  where: `status = '${PaymentActivationStatus.PENDING}'`,
+})
 export class PaymentActivation extends IEntity {
   @Column()
   status: PaymentActivationStatus;

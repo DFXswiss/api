@@ -98,7 +98,7 @@
     "paymentTimeoutDelay": {
       "value": "xxx"
     },
-    "evmPaymentSeed": {
+    "paymentEvmSeed": {
       "value": "xxx"
     },
     "evmDepositSeed": {

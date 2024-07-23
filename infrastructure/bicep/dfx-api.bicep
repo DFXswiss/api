@@ -55,7 +55,7 @@ param btcOutWalletAddress string
 param paymentTimeout string
 param paymentTimeoutDelay string
 @secure()
-param evmPaymentSeed string
+param paymentEvmSeed string
 
 @secure()
 param evmDepositSeed string
@@ -644,8 +644,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentTimeoutDelay
         }
         {
-          name: 'EVM_PAYMENT_SEED'
-          value: evmPaymentSeed
+          name: 'PAYMENT_EVM_SEED'
+          value: paymentEvmSeed
         }
         {
           name: 'EVM_DEPOSIT_SEED'
