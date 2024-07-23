@@ -28,6 +28,9 @@ export class User extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   signature: string;
 
+  @Column({ length: 256, nullable: true })
+  label: string;
+
   @ManyToOne(() => Wallet)
   wallet: Wallet;
 
@@ -141,6 +144,16 @@ export class User extends IEntity {
     const update: Partial<User> = {
       status: UserStatus.ACTIVE,
       ref,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setLabel(label: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      label,
     };
 
     Object.assign(this, update);

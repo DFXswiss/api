@@ -14,7 +14,7 @@ module.exports = {
     node: true,
     jest: true,
   },
-  ignorePatterns: ['.eslintrc.js'],
+  ignorePatterns: ['.eslintrc.js', 'migration/*.js'],
   rules: {
     'no-return-await': 'off',
     'no-console': ['warn'],

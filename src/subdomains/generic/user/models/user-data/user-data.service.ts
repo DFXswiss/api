@@ -140,8 +140,8 @@ export class UserDataService {
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const userData = this.userDataRepo.create({
       ...dto,
-      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
-      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
+      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
+      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -274,6 +274,12 @@ export class UserDataService {
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
       if (!dto.language) throw new BadRequestException('Language not found');
+    }
+
+    // check currency
+    if (dto.currency) {
+      dto.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;

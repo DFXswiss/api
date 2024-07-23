@@ -23,6 +23,7 @@ import { AuthResponseDto } from '../auth/dto/auth-response.dto';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
@@ -134,16 +135,18 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
+  @ApiOperation({ deprecated: true })
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.deactivateUser(jwt.user);
+    return this.userService.deactivateUser(jwt.account, jwt.address ?? '');
   }
 
   @Delete('account')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
+  @ApiOperation({ deprecated: true })
   async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.deactivateUser(jwt.user, true);
+    return this.userService.deactivateUser(jwt.account);
   }
 
   // --- API KEYS --- //
@@ -226,6 +229,34 @@ export class UserV2Controller {
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
+  }
+
+  @Put('addresses/:address')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: UserV2Dto })
+  async updateAddress(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newAddress: UpdateAddressDto,
+    @Param('address') address: string,
+  ): Promise<UserV2Dto> {
+    return this.userService.updateAddress(jwt.account, address, newAddress);
+  }
+
+  @Delete('addresses/:address')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse()
+  async deleteAddress(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
+    return this.userService.deactivateUser(jwt.account, address);
+  }
+
+  @Delete('account')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse()
+  async deleteAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.deactivateUser(jwt.account);
   }
 
   @Get('ref')

@@ -186,8 +186,8 @@ export class AuthService {
       }
     }
 
-    const ipCountry = await this.geoLocationService.getCountry(userIp);
-    const language = await this.languageService.getLanguageByIpCountry(ipCountry);
+    const ipCountry = this.geoLocationService.getCountry(userIp);
+    const language = await this.languageService.getLanguageByCountry(ipCountry);
 
     const userData =
       (await this.userDataService
