@@ -1,3 +1,4 @@
+import { TransformFnParams } from 'class-transformer';
 import {
   registerDecorator,
   ValidationArguments,
@@ -5,16 +6,13 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-import * as libphonenumber from 'google-libphonenumber';
+import PhoneNumber from 'libphonenumber-js';
 
 @ValidatorConstraint({ name: 'IsDfxPhone' })
 export class IsDfxPhoneValidator implements ValidatorConstraintInterface {
   validate(phoneNumber: string) {
     try {
-      const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
-      return (
-        phoneNumber && phoneNumber.match(/^\+/) && phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))
-      );
+      return phoneNumber && phoneNumber.match(/^\+/) && PhoneNumber(phoneNumber)?.isValid();
     } catch (_) {
       return false;
     }
@@ -35,4 +33,8 @@ export function IsDfxPhone(validationOptions?: ValidationOptions) {
       validator: IsDfxPhoneValidator,
     });
   };
+}
+
+export function DfxPhoneTransform({ value }: TransformFnParams): string | undefined {
+  return PhoneNumber(value)?.number;
 }

@@ -107,7 +107,7 @@ export class SepaParser {
     chargeAmount: number;
     chargeCurrency: string;
   } {
-    if (!charges) return { chargeAmount: 0, chargeCurrency: Config.defaultCurrency };
+    if (!charges) return { chargeAmount: 0, chargeCurrency: Config.defaults.currency };
 
     charges = Array.isArray(charges) ? charges : [charges];
 

@@ -17,6 +17,7 @@ import {
   TransactionRequestType,
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import {
+  Chargeback,
   CreateAccount,
   CreateOrder,
   DeclineCategory,
@@ -59,6 +60,10 @@ export class SiftService {
 
   async updateAccount(data: CreateAccount): Promise<SiftResponse> {
     return this.send(EventType.UPDATE_ACCOUNT, data);
+  }
+
+  async createChargeback(data: Chargeback): Promise<SiftResponse> {
+    return this.send(EventType.CHARGEBACK, data);
   }
 
   async login(user: User, ip: string): Promise<SiftResponse> {

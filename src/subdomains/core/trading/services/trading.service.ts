@@ -25,12 +25,12 @@ export class TradingService {
     private readonly assetService: AssetService,
   ) {}
 
-  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo | undefined> {
+  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
     if (tradingRule.leftAsset.blockchain !== tradingRule.rightAsset.blockchain)
       throw new Error(`Blockchain mismatch in trading rule ${tradingRule.id}`);
 
     let tradingInfo = await this.getTradingInfo(tradingRule);
-    tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
+    if (tradingInfo.tradeRequired) tradingInfo = await this.calculateAmountForPriceImpact(tradingRule, tradingInfo);
 
     return tradingInfo;
   }
@@ -74,34 +74,36 @@ export class TradingService {
     const lowerCheckDeviation = currentPrice / lowerCheckPrice - 1;
     const upperCheckDeviation = currentPrice / upperCheckPrice - 1;
 
-    if (lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit) {
+    const result = {
+      price1: referencePrice.price,
+      price2: currentPrice,
+      price3: checkPrice.price,
+      poolFee: tradingRule.poolFee,
+    };
+
+    if (lowerDeviation < 0) {
       return {
-        price1: lowerTargetPrice,
-        price2: currentPrice,
+        ...result,
         priceImpact: lowerDeviation,
-        poolFee: tradingRule.poolFee,
         assetIn: tradingRule.leftAsset,
         assetOut: tradingRule.rightAsset,
-      };
-    } else if (upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit) {
-      return {
-        price1: upperTargetPrice,
-        price2: currentPrice,
-        priceImpact: upperDeviation,
-        poolFee: tradingRule.poolFee,
-        assetIn: tradingRule.rightAsset,
-        assetOut: tradingRule.leftAsset,
+        tradeRequired: lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit,
       };
     } else {
-      this.logger.verbose(
-        `No action required for trading rule ${tradingRule.id}: lower deviation is ${lowerDeviation} / ${lowerCheckDeviation}, upper deviation is ${upperDeviation} / ${upperCheckDeviation}`,
-      );
+      return {
+        ...result,
+        priceImpact: upperDeviation,
+        assetIn: tradingRule.rightAsset,
+        assetOut: tradingRule.leftAsset,
+        tradeRequired: upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit,
+      };
     }
   }
 
-  private async calculateAmountForPriceImpact(tradingInfo?: TradingInfo): Promise<TradingInfo | undefined> {
-    if (!tradingInfo) return;
-
+  private async calculateAmountForPriceImpact(
+    tradingRule: TradingRule,
+    tradingInfo: TradingInfo,
+  ): Promise<TradingInfo> {
     const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
@@ -165,11 +167,15 @@ export class TradingService {
 
     const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
     const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
-    if (swapFeeChf > estimatedProfitChf)
-      throw new Error(`Swap fee (${swapFeeChf} CHF) ist larger than estimated profit (${estimatedProfitChf} CHF)`);
+    if (swapFeeChf > estimatedProfitChf) {
+      tradingInfo.tradeRequired = false;
+      this.logger.info(
+        `Trading rule ${tradingRule.id} ignored: swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`,
+      );
+    }
 
     tradingInfo.amountIn = amountIn;
-    tradingInfo.amountOut = targetAmount;
+    tradingInfo.amountExpected = targetAmount;
 
     return tradingInfo;
   }

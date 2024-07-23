@@ -5,13 +5,15 @@ import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.d
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { KycLevel } from '../../user/models/user-data/user-data.entity';
-import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { LimitRequestDto } from '../dto/input/limit-request.dto';
-import { UpdateLimitRequestDto } from '../dto/input/update-limit-request.dto';
+import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
+import { UserDataService } from '../../../generic/user/models/user-data/user-data.service';
+import { WebhookService } from '../../../generic/user/services/webhook/webhook.service';
+import { LimitRequestDto, LimitRequestInternalDto } from '../dto/limit-request.dto';
+import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
+import { SupportIssueState } from '../entities/support-issue.entity';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
+import { SupportIssueRepository } from '../repositories/support-issue.repository';
 
 @Injectable()
 export class LimitRequestService {
@@ -23,32 +25,38 @@ export class LimitRequestService {
     private readonly storageService: DocumentStorageService,
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
+    private readonly supportIssueRepo: SupportIssueRepository,
   ) {}
 
-  async increaseLimit(dto: LimitRequestDto, kycHash: string, userDataId?: number): Promise<void> {
+  async increaseLimit(dto: LimitRequestDto, kycHash?: string, userDataId?: number): Promise<void> {
     // get user data
     const user = userDataId
       ? await this.userDataService.getUserData(userDataId)
       : await this.userDataService.getByKycHashOrThrow(kycHash);
 
-    if (user.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
-
-    // create entity
-    let entity = this.limitRequestRepo.create(dto);
-    entity.userData = user;
-
     // upload document proof
     if (dto.documentProof) {
       const { contentType, buffer } = Util.fromBase64(dto.documentProof);
 
-      entity.documentProofUrl = await this.storageService.uploadFile(
+      const documentProofUrl = await this.storageService.uploadFile(
         user.id,
         FileType.USER_NOTES,
         `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
         buffer,
         contentType as ContentType,
       );
+
+      await this.increaseLimitInternal({ ...dto, documentProofUrl }, user);
+    } else {
+      await this.increaseLimitInternal(dto, user);
     }
+  }
+
+  async increaseLimitInternal(dto: LimitRequestInternalDto, userData: UserData): Promise<LimitRequest> {
+    if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
+
+    // create entity
+    let entity = this.limitRequestRepo.create({ ...dto, userData });
 
     // save
     entity = await this.limitRequestRepo.save(entity);
@@ -72,19 +80,25 @@ export class LimitRequestService {
         },
       })
       .catch((error) => this.logger.error(`Failed to send limitRequest ${entity.id} created mail:`, error));
+
+    return entity;
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
     const entity = await this.limitRequestRepo.findOne({
       where: { id },
-      relations: { userData: true },
+      relations: { userData: true, supportIssue: true },
     });
     if (!entity) throw new NotFoundException('LimitRequest not found');
 
     const update = this.limitRequestRepo.create(dto);
 
-    if (LimitRequestAccepted(dto.decision) && dto.decision !== entity.decision)
-      await this.webhookService.kycChanged(entity.userData);
+    if (dto.decision !== entity.decision) {
+      await this.supportIssueRepo.update(entity.supportIssue.id, {
+        state: SupportIssueState.COMPLETED,
+      });
+      if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
+    }
 
     Util.removeNullFields(entity);
 

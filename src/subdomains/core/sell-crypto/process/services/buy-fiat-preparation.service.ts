@@ -3,6 +3,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -32,18 +33,21 @@ export class BuyFiatPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
+    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
     const entities = await this.buyFiatRepo.find({
-      where: {
-        amlCheck: IsNull(),
-        amlReason: IsNull(),
-        inputAmount: Not(IsNull()),
-        inputAsset: Not(IsNull()),
-        isComplete: false,
-      },
+      where: [
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          ...request,
+        },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+      ],
       relations: {
         cryptoInput: true,
         sell: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;
@@ -52,16 +56,13 @@ export class BuyFiatPreparationService {
       `AmlCheck for ${entities.length} buy-fiat transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
     );
 
-    // CHF/EUR Price
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
     for (const entity of entities) {
       try {
         if (!entity.cryptoInput.isConfirmed) continue;
 
-        const inputReferenceCurrency = entity.cryptoInput.asset;
+        const amlCheckBefore = entity.amlCheck;
 
-        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const inputReferenceCurrency = entity.cryptoInput.asset;
 
         const minVolume = await this.transactionHelper.getMinVolumeIn(
           entity.cryptoInput.asset,
@@ -105,12 +106,11 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(
-            inputReferenceAssetChfPrice,
             minVolume,
             last24hVolume,
             last7dVolume,
@@ -122,6 +122,8 @@ export class BuyFiatPreparationService {
         );
 
         await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+
+        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
@@ -150,8 +152,14 @@ export class BuyFiatPreparationService {
       try {
         const inputCurrency = entity.cryptoInput.asset;
 
-        const { fee } = await this.transactionHelper.getTxFeeInfos(
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
+
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+
+        const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
+          amountInChf,
           inputCurrency,
           inputCurrency,
           entity.sell.fiat,
@@ -159,11 +167,6 @@ export class BuyFiatPreparationService {
           FiatPaymentMethod.BANK,
           entity.user,
         );
-
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
-
-        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(

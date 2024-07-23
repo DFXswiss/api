@@ -191,11 +191,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.evmRegistryService.getClient(blockchain);
 
-    const tokenTransactions = await client.getERC20Transactions(client.dfxAddress, 0);
-    const recentTransactions = tokenTransactions.filter(
-      (tx) =>
-        new Date(+tx.timeStamp * 1000) > Util.minutesBefore(5, this.updateTimestamps.get(blockchain) ?? new Date(0)),
-    );
+    const currentBlockHeight = await client.getCurrentBlock();
+    const recentTransactions = await client.getERC20Transactions(client.dfxAddress, currentBlockHeight - 1200);
 
     // update all assets with missing cache or with recent transactions
     const assetsToUpdate = assets.filter(

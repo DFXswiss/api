@@ -12,6 +12,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { AccountMerge } from './models/account-merge/account-merge.entity';
 import { AccountMergeRepository } from './models/account-merge/account-merge.repository';
@@ -36,6 +37,7 @@ import { UserController, UserV2Controller } from './models/user/user.controller'
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
+import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
 import { WebhookNotificationService } from './services/webhook/webhook-notification.service';
 import { Webhook } from './services/webhook/webhook.entity';
@@ -49,11 +51,11 @@ import { WebhookService } from './services/webhook/webhook.service';
     NotificationModule,
     BlockchainModule,
     ReferralModule,
-    KycModule,
     forwardRef(() => PaymentModule),
     forwardRef(() => KycModule),
     BankModule,
     SiftModule,
+    SupportIssueModule,
   ],
   controllers: [
     UserV2Controller,
@@ -65,6 +67,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycClientController,
     KycController,
     UserDataRelationController,
+    WalletController,
   ],
   providers: [
     UserRepository,

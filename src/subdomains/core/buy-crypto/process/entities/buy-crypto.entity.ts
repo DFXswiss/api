@@ -9,6 +9,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -71,6 +72,9 @@ export class BuyCrypto extends IEntity {
 
   @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
   fee: BuyCryptoFee;
+
+  @ManyToOne(() => BankData, { nullable: true })
+  bankData: BankData;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -170,6 +174,10 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   chargebackIban: string;
+
+  @OneToOne(() => FiatOutput, { nullable: true })
+  @JoinColumn()
+  chargebackOutput: FiatOutput;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
@@ -413,7 +421,6 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
     last7dVolume: number,
@@ -424,12 +431,9 @@ export class BuyCrypto extends IEntity {
     instantBanks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
-    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
-
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,

@@ -10,7 +10,7 @@ import { QuestionType } from '../../enums/kyc.enum';
 export class FinancialService {
   constructor(private readonly i18n: I18nService) {}
 
-  getQuestions(lang: string = Config.defaultLanguage): KycFinancialQuestion[] {
+  getQuestions(lang: string = Config.defaults.language.toLowerCase()): KycFinancialQuestion[] {
     return FinancialQuestions.map((q) => ({
       key: q.key,
       type: q.type,

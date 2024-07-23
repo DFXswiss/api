@@ -19,7 +19,6 @@ export enum AmlError {
   INVALID_KYC_STATUS = 'InvalidKycStatus',
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
-  NO_VERIFIED_COUNTRY = 'NoVerifiedCountry',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
   IBAN_COUNTRY_NOT_ALLOWED = 'IbanCountryNotAllowed',
   NO_BANK_TX_VERIFICATION = 'NoBankTxVerification',
@@ -90,7 +89,6 @@ export const AmlErrorResult: {
   [AmlError.INVALID_KYC_STATUS]: null,
   [AmlError.INVALID_KYC_TYPE]: null,
   [AmlError.NO_VERIFIED_NAME]: null,
-  [AmlError.NO_VERIFIED_COUNTRY]: null,
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
@@ -112,13 +110,13 @@ export const AmlErrorResult: {
   },
   [AmlError.NAME_CHECK_WITH_BIRTHDAY]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.WEEKLY_LIMIT_REACHED]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
   [AmlError.YEARLY_LIMIT_WO_KYC_REACHED]: {
@@ -134,8 +132,8 @@ export const AmlErrorResult: {
   [AmlError.BANK_DATA_MISSING]: null,
   [AmlError.BANK_DATA_NOT_ACTIVE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
-    amlReason: AmlReason.IBAN_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
   [AmlError.BIC_BLACKLISTED]: null,
@@ -149,12 +147,12 @@ export const AmlErrorResult: {
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.SUSPICIOUS_MAIL]: {
     type: AmlErrorType.MULTI,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
 };

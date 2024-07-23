@@ -17,6 +17,7 @@ export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
+  DEACTIVATED = 'Deactivated',
 }
 
 @Entity()
@@ -26,6 +27,9 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   signature: string;
+
+  @Column({ length: 256, nullable: true })
+  label: string;
 
   @ManyToOne(() => Wallet)
   wallet: Wallet;
@@ -76,6 +80,9 @@ export class User extends IEntity {
   @Column({ nullable: true })
   approved: boolean;
 
+  @Column({ type: 'datetime2', nullable: true })
+  deactivationDate: Date;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
@@ -121,10 +128,11 @@ export class User extends IEntity {
   comment: string;
 
   //*** FACTORY METHODS ***//
-  blockUser(reason: string): UpdateResult<User> {
+  deactivateUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
-      status: UserStatus.BLOCKED,
+      status: UserStatus.DEACTIVATED,
       comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
+      deactivationDate: new Date(),
     };
 
     Object.assign(this, update);
@@ -143,14 +151,20 @@ export class User extends IEntity {
     return [this.id, update];
   }
 
+  setLabel(label: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      label,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get specifiedRef(): { usedRef: string; refProvision: number } {
     return this.wallet?.name === 'CakeWallet'
       ? { usedRef: '160-195', refProvision: 2 }
       : { usedRef: this.usedRef, refProvision: this.usedRef === '000-000' ? 0 : this.refFeePercent };
-  }
-
-  get isPaymentStatusEnabled(): boolean {
-    return this.status != UserStatus.BLOCKED;
   }
 
   get blockchains(): Blockchain[] {
@@ -160,5 +174,9 @@ export class User extends IEntity {
     };
 
     return customChains[this.wallet.name] ?? CryptoService.getBlockchainsBasedOn(this.address);
+  }
+
+  get isBlockedOrDeactivated(): boolean {
+    return [UserStatus.BLOCKED, UserStatus.DEACTIVATED].includes(this.status);
   }
 }

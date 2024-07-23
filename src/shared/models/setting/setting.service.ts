@@ -18,7 +18,10 @@ export class SettingService {
   }
 
   async set(key: string, value: string): Promise<void> {
-    await this.settingRepo.save({ key, value });
+    const entity = (await this.settingRepo.findOneBy({ key })) ?? this.settingRepo.create({ key });
+    entity.value = value;
+
+    await this.settingRepo.save(entity);
   }
 
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {
@@ -53,6 +56,9 @@ export class SettingService {
   }
 
   async setObj<T>(key: string, value: T): Promise<void> {
-    await this.settingRepo.save({ key, value: JSON.stringify(value) });
+    const entity = (await this.settingRepo.findOneBy({ key })) ?? this.settingRepo.create({ key });
+    entity.value = JSON.stringify(value);
+
+    await this.settingRepo.save(entity);
   }
 }

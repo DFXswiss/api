@@ -14,7 +14,7 @@ export enum CheckoutPaymentStatus {
   CAPTURED = 'Captured',
   PARTIALLY_REFUNDED = 'Partially Refunded',
   REFUNDED = 'Refunded',
-  REFUNDED_PENDING = 'Refunded Pending', //DFX custom status
+  REFUND_PENDING = 'Refund Pending', // DFX custom status
   DECLINED = 'Declined',
   CANCELED = 'Canceled',
   EXPIRED = 'Expired',
