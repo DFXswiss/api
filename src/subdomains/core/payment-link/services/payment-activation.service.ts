@@ -90,24 +90,13 @@ export class PaymentActivationService implements OnModuleInit {
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
     if (!Util.equalsIgnoreCase(cryptoInput.address?.address, this.walletAddress)) return;
 
-    const pendingPayments = await this.paymentLinkPaymentService.getPendingPaymentsByAsset(
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByAsset(
       cryptoInput.asset,
       cryptoInput.amount,
     );
 
-    if (!pendingPayments.length) {
-      this.logger.error(`EVM transaction ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
-      return;
-    }
-
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(
-      pendingPayments[0].uniqueId,
-    );
-
     if (!pendingPayment) {
-      this.logger.error(
-        `EVM transaction ${cryptoInput.id}: No pending payment found by unique id ${pendingPayments[0].uniqueId}`,
-      );
+      this.logger.error(`EVM transaction ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
       return;
     }
 
@@ -171,8 +160,9 @@ export class PaymentActivationService implements OnModuleInit {
     await this.paymentActivationRepo.save(activationToBeCompleted.complete());
 
     for (const pendingActivation of allPendingActivations) {
-      if (pendingActivation.id !== activationToBeCompleted.id)
+      if (pendingActivation.id !== activationToBeCompleted.id) {
         await this.paymentActivationRepo.save(pendingActivation.expire());
+      }
     }
 
     return this.paymentLinkPaymentService.complete(pendingPayment);

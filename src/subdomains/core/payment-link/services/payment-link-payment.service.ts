@@ -60,15 +60,17 @@ export class PaymentLinkPaymentService {
     });
   }
 
-  async getPendingPaymentsByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment[]> {
-    return this.paymentLinkPaymentRepo.find({
-      where: {
-        activations: { asset, amount },
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        link: true,
-      },
+  async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOneBy({
+      activations: { asset: { id: asset.id }, amount },
+      status: PaymentLinkPaymentStatus.PENDING,
+    });
+
+    if (!pendingPayment) return null;
+
+    return this.paymentLinkPaymentRepo.findOne({
+      where: { id: pendingPayment.id },
+      relations: { link: true },
     });
   }
 
