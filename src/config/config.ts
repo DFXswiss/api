@@ -258,7 +258,7 @@ export class Configuration {
   payment = {
     timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
-    paymentSeed: process.env.EVM_PAYMENT_SEED,
+    evmPaymentSeed: process.env.EVM_PAYMENT_SEED,
   };
 
   blockchain = {

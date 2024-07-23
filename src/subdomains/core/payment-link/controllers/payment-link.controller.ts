@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -25,6 +25,8 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
+  @ApiQuery({ name: 'id', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalId', description: 'External ID', required: false })
   async getAllPaymentLinks(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id: string,
@@ -51,6 +53,8 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkDto })
+  @ApiQuery({ name: 'id', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalId', description: 'External ID', required: false })
   async updatePaymentLink(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id: string,
@@ -67,6 +71,8 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: PaymentLinkDto })
+  @ApiQuery({ name: 'id', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalId', description: 'External ID', required: false })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id: string,
@@ -80,6 +86,8 @@ export class PaymentLinkController {
   @Delete('payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiQuery({ name: 'id', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalId', description: 'External ID', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id: string,

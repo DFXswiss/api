@@ -46,7 +46,7 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   onModuleInit() {
-    this.walletAddress = EvmUtil.createWallet({ seed: Config.payment.paymentSeed, index: 0 }).address;
+    this.walletAddress = EvmUtil.createWallet({ seed: Config.payment.evmPaymentSeed, index: 0 }).address;
   }
 
   async processPendingActivations(): Promise<void> {
