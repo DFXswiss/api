@@ -157,8 +157,11 @@ export class PaymentActivationService implements OnModuleInit {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`);
 
+    const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
+    if (secondsDiff < 1) throw new BadRequestException(`Payment ${pendingPayment.id} is expired`);
+
     return transferInfo.method === Blockchain.LIGHTNING
-      ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo)
+      ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo, secondsDiff)
       : this.createPaymentLinkEvmPayment(pendingPayment, transferInfo);
   }
 
@@ -176,8 +179,9 @@ export class PaymentActivationService implements OnModuleInit {
   private async createPaymentLinkLightningPayment(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
+    expirySec: number,
   ): Promise<LnurlpInvoiceDto> {
-    const walletPaymentParams = await this.getLightningPaymentParams(payment, transferInfo);
+    const walletPaymentParams = await this.getLightningPaymentParams(payment, transferInfo, expirySec);
 
     const lightningPayment = await this.client.getLnBitsWalletPayment(walletPaymentParams);
 
@@ -189,16 +193,14 @@ export class PaymentActivationService implements OnModuleInit {
   private async getLightningPaymentParams(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
+    expirySec: number,
   ): Promise<LnBitsWalletPaymentParamsDto> {
     const memo = `Payment ID: ${payment.link.externalId}/${payment.externalId}`;
-
-    const secondsDiff = Util.secondsDiff(new Date(), payment.expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException(`Payment ${payment.id} is expired`);
 
     return {
       amount: LightningHelper.btcToSat(transferInfo.amount),
       memo: memo,
-      expirySec: secondsDiff,
+      expirySec: expirySec,
       webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
     };
   }
@@ -218,9 +220,6 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<PaymentLinkEvmPaymentDto> {
-    const secondsDiff = Util.secondsDiff(new Date(), payment.expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException(`Payment ${payment.id} is expired`);
-
     const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
     const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
     if (!asset) throw new NotFoundException(`Asset ${uniqueAssetName} not found`);

@@ -20,7 +20,7 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
   ) {}
 
-  async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink | null> {
+  async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
     let link: PaymentLink;
     if (linkId) link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId);
     if (linkExternalId) link = await this.paymentLinkRepo.getPaymentLinkByExternalId(userId, linkExternalId);
