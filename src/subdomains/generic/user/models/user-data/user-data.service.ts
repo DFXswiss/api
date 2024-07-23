@@ -164,6 +164,15 @@ export class UserDataService {
       if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
     }
 
+    // If KYC level >= 50 and DFX-approval not complete, complete it.
+    if (userData.kycLevel >= KycLevel.LEVEL_50) {
+      const dfxApprovalCompleted = userData.hasCompletedStep(KycStepName.DFX_APPROVAL);
+      if (!dfxApprovalCompleted) {
+        const pendingDfxApproval = userData.getPendingStepWith(KycStepName.DFX_APPROVAL);
+        if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+      }
+    }
+
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
     if (userData.identificationType) dto.identificationType = userData.identificationType;
@@ -238,7 +247,7 @@ export class UserDataService {
   }
 
   async updateNationality(userData: UserData, nationality: KycNationalityData): Promise<UserData> {
-    const country = this.countryService.getCountry(nationality.country.id ?? userData?.nationality?.id);
+    const country = this.countryService.getCountry(nationality.country.id);
     if (!country) throw new BadRequestException('Country not found');
 
     return this.userDataRepo.save(Object.assign(userData, { nationality: country }));

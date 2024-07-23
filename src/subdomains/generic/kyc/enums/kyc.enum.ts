@@ -91,6 +91,7 @@ export enum KycStepStatus {
 export enum UrlType {
   BROWSER = 'Browser',
   API = 'API',
+  NONE = undefined,
 }
 
 export enum QuestionType {

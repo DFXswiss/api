@@ -60,6 +60,7 @@ export enum IdentCheckError {
   USER_DATA_BLOCKED = 'UserDataBlocked',
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
+  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
@@ -260,8 +261,8 @@ export class KycService {
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     const updatedUser = await this.userDataService.updateNationality(user, data);
-    user = updatedUser.nationality ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
 
+    user = updatedUser.internalReviewStep(kycStep);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -286,7 +287,7 @@ export class KycService {
       contentType as ContentType,
     );
 
-    user = user.completeStep(kycStep, data);
+    user = user.internalReviewStep(kycStep);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -349,7 +350,6 @@ export class KycService {
 
     let user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
-    const nationalityMatch = dto.userdata.nationality.value !== user.nationality?.symbol;
 
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
@@ -368,7 +368,7 @@ export class KycService {
         break;
 
       case IdentShortResult.SUCCESS:
-        user = nationalityMatch ? user.internalReviewStep(kycStep, dto) : user.failStep(kycStep, dto);
+        user = user.internalReviewStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep);
         break;
 
@@ -558,7 +558,7 @@ export class KycService {
         break;
 
       case KycStepName.DFX_APPROVAL:
-        kycStep.manualReview();
+        kycStep.internalReview();
         break;
     }
 
@@ -619,6 +619,9 @@ export class KycService {
       !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
+
+    if (entity.userData.nationality?.symbol !== result.userdata.nationality?.value)
+      errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);

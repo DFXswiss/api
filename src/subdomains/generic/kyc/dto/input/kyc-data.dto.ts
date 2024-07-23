@@ -114,8 +114,7 @@ export class KycCommercialRegisterData {
   @IsString()
   file: string;
 
-  @ApiPropertyOptional({ description: 'Name of the file' })
-  @ValidateIf((d: KycCommercialRegisterData) => d.file != null)
+  @ApiProperty({ description: 'Name of the file' })
   @IsNotEmpty()
   @IsString()
   fileName?: string;

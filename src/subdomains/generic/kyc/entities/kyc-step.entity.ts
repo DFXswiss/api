@@ -73,7 +73,7 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/document/${this.id}`, type: UrlType.API };
 
       case KycStepName.DFX_APPROVAL:
-        return { url: `${apiUrl}/approval/${this.id}`, type: UrlType.API };
+        return { url: `${apiUrl}/approval/${this.id}`, type: UrlType.NONE };
     }
   }
 
