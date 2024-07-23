@@ -49,6 +49,7 @@ export class PaymentActivationService implements OnModuleInit {
     this.walletAddress = EvmUtil.createWallet({ seed: Config.payment.evmPaymentSeed, index: 0 }).address;
   }
 
+  // --- HANDLE PENDING ACTIVATIONS --- //
   async processPendingActivations(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
@@ -60,29 +61,6 @@ export class PaymentActivationService implements OnModuleInit {
     for (const pendingPaymentActivation of pendingPaymentActivations) {
       await this.paymentActivationRepo.save(pendingPaymentActivation.expire());
     }
-  }
-
-  async savePaymentRequest(uniqueId: string, pr: string, transferInfo: TransferInfo): Promise<void> {
-    const paymentLinkPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!paymentLinkPayment) {
-      this.logger.error(`No pending payment found by unique id ${uniqueId}`);
-      return;
-    }
-
-    const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
-    const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
-
-    const newPaymentActivation = this.paymentActivationRepo.create({
-      status: PaymentActivationStatus.PENDING,
-      method: transferInfo.method,
-      asset: asset,
-      amount: transferInfo.amount,
-      paymentRequest: pr,
-      expiryDate: paymentLinkPayment.expiryDate,
-      payment: paymentLinkPayment,
-    });
-
-    await this.paymentActivationRepo.save(newPaymentActivation);
   }
 
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
@@ -119,30 +97,30 @@ export class PaymentActivationService implements OnModuleInit {
       return;
     }
 
-    const receviedAmount = LightningHelper.satToBtc(transactionWebhook.transaction.amount);
+    const receivedAmount = LightningHelper.satToBtc(transactionWebhook.transaction.amount);
 
-    await this.updatePendingPayments(pendingPayment, Blockchain.LIGHTNING, receviedAmount);
+    await this.updatePendingPayments(pendingPayment, Blockchain.LIGHTNING, receivedAmount);
   }
 
   private async updatePendingPayments(
     pendingPayment: PaymentLinkPayment,
     blockchain: Blockchain,
-    receviedAmount: number,
+    receivedAmount: number,
   ): Promise<PaymentLinkPayment> {
     const allPendingActivations = pendingPayment.activations.filter(
       (a) => a.status === PaymentActivationStatus.PENDING,
     );
 
     if (!allPendingActivations.length) {
-      this.logger.error(`${blockchain} transaction ${pendingPayment.uniqueId}: No pending activations`);
+      this.logger.error(`${blockchain} transaction ${pendingPayment.id}: No pending activations`);
       return;
     }
 
-    const pendingActivation = allPendingActivations.find((a) => a.method === blockchain && a.amount === receviedAmount);
+    const pendingActivation = allPendingActivations.find((a) => a.method === blockchain && a.amount === receivedAmount);
 
     if (!pendingActivation) {
       this.logger.error(
-        `${blockchain} transaction ${pendingPayment.uniqueId}: No pending ${blockchain} activation with amount ${receviedAmount}`,
+        `${blockchain} transaction ${pendingPayment.id}: No pending ${blockchain} activation with amount ${receivedAmount}`,
       );
       return;
     }
@@ -166,20 +144,22 @@ export class PaymentActivationService implements OnModuleInit {
     return this.paymentLinkPaymentService.complete(pendingPayment);
   }
 
+  // --- CREATE ACTIVATIONS --- //
   async createPaymentLinkRequest(
     uniqueId: string,
     transferInfo: TransferInfo,
   ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     if (await this.isDuplicate(transferInfo))
       throw new ConflictException(
-        `Payment ${uniqueId}: Duplicate method ${transferInfo.method} and amount ${transferInfo.amount}`,
+        `Duplicate method ${transferInfo.method}, amount ${transferInfo.amount} and asset ${transferInfo.asset}`,
       );
 
-    if (transferInfo.method === Blockchain.LIGHTNING) {
-      return this.createPaymentLinkLightningPayment(uniqueId, transferInfo);
-    }
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`);
 
-    return this.createPaymentLinkEvmPayment(uniqueId, transferInfo);
+    return transferInfo.method === Blockchain.LIGHTNING
+      ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo)
+      : this.createPaymentLinkEvmPayment(pendingPayment, transferInfo);
   }
 
   private async isDuplicate(transferInfo: TransferInfo): Promise<boolean> {
@@ -194,58 +174,52 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   private async createPaymentLinkLightningPayment(
-    uniqueId: string,
+    payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<LnurlpInvoiceDto> {
-    const walletPaymentParams = await this.getLightningPaymentParams(uniqueId, transferInfo);
+    const walletPaymentParams = await this.getLightningPaymentParams(payment, transferInfo);
 
     const lightningPayment = await this.client.getLnBitsWalletPayment(walletPaymentParams);
 
-    await this.savePaymentRequest(uniqueId, lightningPayment.pr, transferInfo);
+    await this.savePaymentRequest(payment, lightningPayment.pr, transferInfo);
 
     return lightningPayment;
   }
 
   private async getLightningPaymentParams(
-    uniqueId: string,
+    payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<LnBitsWalletPaymentParamsDto> {
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`);
+    const memo = `Payment ID: ${payment.link.externalId}/${payment.externalId}`;
 
-    const memo = `Payment ID: ${pendingPayment.link.externalId}/${pendingPayment.externalId}`;
-
-    const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException(`Payment ${pendingPayment.uniqueId} is expired`);
+    const secondsDiff = Util.secondsDiff(new Date(), payment.expiryDate);
+    if (secondsDiff < 1) throw new BadRequestException(`Payment ${payment.id} is expired`);
 
     return {
       amount: LightningHelper.btcToSat(transferInfo.amount),
       memo: memo,
       expirySec: secondsDiff,
-      webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${uniqueId}`,
+      webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
     };
   }
 
   private async createPaymentLinkEvmPayment(
-    uniqueId: string,
+    payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<PaymentLinkEvmPaymentDto> {
-    const evmPayment = await this.getPaymentLinkEvmPaymentInfo(uniqueId, transferInfo);
+    const evmPayment = await this.getPaymentLinkEvmPaymentInfo(payment, transferInfo);
 
-    await this.savePaymentRequest(uniqueId, evmPayment.uri, transferInfo);
+    await this.savePaymentRequest(payment, evmPayment.uri, transferInfo);
 
     return evmPayment;
   }
 
   private async getPaymentLinkEvmPaymentInfo(
-    uniqueId: string,
+    payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<PaymentLinkEvmPaymentDto> {
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`);
-
-    const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException(`Payment ${uniqueId} is expired`);
+    const secondsDiff = Util.secondsDiff(new Date(), payment.expiryDate);
+    if (secondsDiff < 1) throw new BadRequestException(`Payment ${payment.id} is expired`);
 
     const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
     const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
@@ -254,9 +228,26 @@ export class PaymentActivationService implements OnModuleInit {
     const evmPaymentRequest = EvmUtil.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
 
     return {
-      expiryDate: pendingPayment.expiryDate,
+      expiryDate: payment.expiryDate,
       blockchain: transferInfo.method,
       uri: evmPaymentRequest,
     };
+  }
+
+  private async savePaymentRequest(payment: PaymentLinkPayment, pr: string, transferInfo: TransferInfo): Promise<void> {
+    const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
+    const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
+
+    const newPaymentActivation = this.paymentActivationRepo.create({
+      status: PaymentActivationStatus.PENDING,
+      method: transferInfo.method,
+      asset: asset,
+      amount: transferInfo.amount,
+      paymentRequest: pr,
+      expiryDate: payment.expiryDate,
+      payment: payment,
+    });
+
+    await this.paymentActivationRepo.save(newPaymentActivation);
   }
 }
