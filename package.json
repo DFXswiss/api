@@ -17,7 +17,8 @@
     "test": "jest --silent",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "check": "npm run lint && npm run test"
+    "check": "npm run lint && npm run test",
+    "migration": "migration/generate.sh"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
