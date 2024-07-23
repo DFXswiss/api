@@ -530,7 +530,7 @@ export class KycService {
       const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
         userData.id,
-        `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
+        `${userData.organizationName.split(' ').join('') ?? ''}${result.identificationdocument.number.value}`,
       );
 
       if (existing) {
@@ -547,7 +547,9 @@ export class KycService {
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: result.identificationdocument.type.value,
-          identDocumentId: `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
+          identDocumentId: `${userData.organizationName.split(' ').join('') ?? ''}${
+            result.identificationdocument.number.value
+          }`,
         });
       }
     }
