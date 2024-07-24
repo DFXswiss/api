@@ -61,11 +61,11 @@ export class Util {
     return Math.min(...list.map((i) => i[key] as unknown as number));
   }
 
-  static minObj<T>(list: T[], key: KeyType<T, number>): T {
+  static minObj<T>(list: T[], key: KeyType<T, number | Date>): T {
     return list.reduce((i, j) => (i && j[key] >= i[key] ? i : j), undefined);
   }
 
-  static maxObj<T>(list: T[], key: KeyType<T, number>): T {
+  static maxObj<T>(list: T[], key: KeyType<T, number | Date>): T {
     return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 
@@ -404,6 +404,11 @@ export class Util {
     return this.createHash(JSON.stringify(data), algo, encoding);
   }
 
+  static createUniqueId(prefix: string, length = 6): string {
+    const hash = this.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
+    return `${prefix}_${hash.slice(0, length)}`;
+  }
+
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
     const sign = createSign(algo);
     sign.update(data);
@@ -475,5 +480,10 @@ export class Util {
         .join(separator),
     );
     return [headers].concat(values).join('\n');
+  }
+
+  static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
+    const enumKey = Object.keys(enumObj).find((k) => k.toLowerCase() === value?.toLowerCase());
+    return enumObj[enumKey as keyof T];
   }
 }

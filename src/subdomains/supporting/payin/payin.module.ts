@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { PaymentActivationModule } from 'src/subdomains/core/payment-link/payment-activation.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { DexModule } from '../dex/dex.module';
@@ -62,6 +63,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     NotificationModule,
     AlchemyModule,
     TransactionModule,
+    PaymentActivationModule,
   ],
   controllers: [],
   providers: [

@@ -6,14 +6,14 @@ export class UpdateBankDataDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  active: boolean;
+  active?: boolean;
 
   @IsOptional()
   @IsEnum(BankDataType)
-  type: BankDataType;
+  type?: BankDataType;
 }

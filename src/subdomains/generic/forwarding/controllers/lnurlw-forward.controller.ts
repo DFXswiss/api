@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { LnurlWithdrawRequestDto } from '../dto/lnurlw.dto';
+import { LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
 @ApiTags('LNURL')

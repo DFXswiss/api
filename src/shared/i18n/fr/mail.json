@@ -198,8 +198,7 @@
             "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
         },
         "retry": "Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]",
-        "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
-        "last_step": "Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui"
+        "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]"
     },
     "account_merge": {
         "request": {

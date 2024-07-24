@@ -64,6 +64,9 @@ export class Asset extends IEntity {
   instantSellable: boolean;
 
   @Column({ default: false })
+  paymentEnabled: boolean;
+
+  @Column({ default: false })
   ikna: boolean;
 
   @Column({ length: 256, default: Blockchain.DEFICHAIN })

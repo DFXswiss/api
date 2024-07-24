@@ -34,6 +34,9 @@ export class Wallet extends IEntity {
   name: string;
 
   @Column({ length: 256, nullable: true })
+  displayName: string;
+
+  @Column({ length: 256, nullable: true })
   masterKey: string;
 
   @Column({ default: false })

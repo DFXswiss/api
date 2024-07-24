@@ -172,4 +172,12 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsString()
   chargebackIban: string;
+
+  @IsOptional()
+  @IsInt()
+  bankDataId: number;
+
+  @IsOptional()
+  @IsBoolean()
+  bankDataActive: boolean;
 }

@@ -33,8 +33,27 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
 
-  defaultLanguage = 'en';
-  defaultCurrency = 'EUR';
+  defaults = {
+    currency: 'EUR',
+    language: 'EN',
+
+    specific: {
+      CH: { language: 'DE', currency: 'CHF' },
+      LI: { language: 'DE', currency: 'CHF' },
+      DE: { language: 'DE' },
+      AT: { language: 'DE' },
+      IT: { language: 'IT' },
+      FR: { language: 'FR' },
+    },
+
+    forCountry: (country?: string): { currency: string; language: string } => {
+      const specific = this.defaults.specific[country];
+      return {
+        currency: specific?.currency ?? this.defaults.currency,
+        language: specific?.language ?? this.defaults.language,
+      };
+    },
+  };
 
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
@@ -126,12 +145,12 @@ export class Configuration {
   };
 
   i18n: I18nOptions = {
-    fallbackLanguage: this.defaultLanguage,
+    fallbackLanguage: this.defaults.language.toLowerCase(),
     loaderOptions: {
       path: join(__dirname, '../shared/i18n/'),
       watch: true,
     },
-    resolvers: [{ resolve: () => this.defaultLanguage }],
+    resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
   };
 
   auth = {
@@ -234,6 +253,12 @@ export class Configuration {
 
   coinGecko = {
     apiKey: process.env.COIN_GECKO_API_KEY,
+  };
+
+  payment = {
+    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
+    evmSeed: process.env.PAYMENT_EVM_SEED,
   };
 
   blockchain = {

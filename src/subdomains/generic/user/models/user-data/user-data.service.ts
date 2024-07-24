@@ -24,6 +24,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -63,6 +64,7 @@ export class UserDataService {
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
     private readonly documentStorageService: DocumentStorageService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -138,8 +140,8 @@ export class UserDataService {
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const userData = this.userDataRepo.create({
       ...dto,
-      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
-      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
+      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
+      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -198,6 +200,10 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async getLastKycFileId(): Promise<number> {
+    return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
   }
 
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
@@ -279,6 +285,12 @@ export class UserDataService {
       if (!dto.language) throw new BadRequestException('Language not found');
     }
 
+    // check currency
+    if (dto.currency) {
+      dto.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!dto.currency) throw new BadRequestException('Currency not found');
+    }
+
     const mailChanged = dto.mail && dto.mail !== userData.mail;
     const phoneChanged = dto.phone && dto.phone !== userData.phone;
 
@@ -300,8 +312,9 @@ export class UserDataService {
     return { user: userData, isKnownUser };
   }
 
-  async blockUserData(userData: UserData): Promise<void> {
-    await this.userDataRepo.update(...userData.blockUserData());
+  async deactivateUserData(userData: UserData): Promise<void> {
+    await this.userDataRepo.update(...userData.deactivateUserData());
+    await this.kycAdminService.resetKyc(userData);
   }
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
@@ -560,7 +573,7 @@ export class UserDataService {
       .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
 
     // optional master updates
-    if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
+    if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.kycFileId = slave.kycFileId;

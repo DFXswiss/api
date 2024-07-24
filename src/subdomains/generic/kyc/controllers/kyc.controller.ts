@@ -30,6 +30,8 @@ import { Config, GetConfig } from 'src/config/config';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LimitRequestDto } from '../../../supporting/support-issue/dto/limit-request.dto';
+import { LimitRequestService } from '../../../supporting/support-issue/services/limit-request.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import {
@@ -39,7 +41,6 @@ import {
   KycPersonalData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
-import { LimitRequestDto } from '../dto/input/limit-request.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
@@ -47,7 +48,6 @@ import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { KycService } from '../services/kyc.service';
-import { LimitRequestService } from '../services/limit-request.service';
 import { TfaService } from '../services/tfa.service';
 
 const CodeHeaderName = 'x-kyc-code';

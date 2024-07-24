@@ -10,6 +10,7 @@ import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -33,6 +34,7 @@ import { ApiKeyDto } from './dto/api-key.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
@@ -54,6 +56,7 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -100,7 +103,9 @@ export class UserService {
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
       .andWhere('wallet.isKycClient = 0')
-      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
+      .andWhere('linkedUser.status NOT IN (:...userStatus)', {
+        userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
+      })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -114,8 +119,10 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
-      .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED] })
+      .andWhere('userData.status NOT IN (:...userDataStatus)', {
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      })
       .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
   }
@@ -154,16 +161,18 @@ export class UserService {
     let user = this.userRepo.create({ address, signature });
 
     user.ip = userIp;
-    user.ipCountry = await this.geoLocationService.getCountry(userIp);
+    user.ipCountry = this.geoLocationService.getCountry(userIp);
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
 
-    const language = await this.languageService.getLanguageByIpCountry(user.ipCountry);
+    const language = await this.languageService.getLanguageByCountry(user.ipCountry);
+    const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
     user.userData = await this.userDataService.createUserData({
       kycType: user.wallet.customKyc ?? KycType.DFX,
       language,
+      currency,
     });
     user = await this.userRepo.save(user);
 
@@ -236,23 +245,39 @@ export class UserService {
     return this.userRepo.save({ ...user, ...update });
   }
 
-  async blockUser(id: number, allUser = false): Promise<void> {
-    const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
-    if (!mainUser) throw new NotFoundException('User not found');
-    if (mainUser.userData.status === UserDataStatus.BLOCKED)
-      throw new BadRequestException('User Account already blocked');
-    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+  async updateAddress(userDataId: number, address: string, dto: UpdateAddressDto): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
 
-    if (!allUser) {
-      await this.userRepo.update(...mainUser.blockUser('Manual user block'));
+    const userToUpdate = userData.users.find((u) => u.address === address);
+    if (!userToUpdate) throw new NotFoundException('Address not found');
+
+    await this.userRepo.update(...userToUpdate.setLabel(dto.label));
+
+    return UserDtoMapper.mapUser(userData);
+  }
+
+  async deactivateUser(userDataId: number, address?: string): Promise<void> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true }, kycSteps: true },
+    });
+    if (!userData) throw new NotFoundException('User account not found');
+    if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
+
+    if (address) {
+      const user = userData.users.find((u) => u.address === address);
+      if (!user) throw new NotFoundException('Address not found');
+      if (user.isBlockedOrDeactivated) throw new BadRequestException('Address already deactivated');
+
+      await this.userRepo.update(...user.deactivateUser('Manual user deactivation'));
       return;
     }
 
-    await this.userDataService.blockUserData(mainUser.userData);
-
-    for (const user of mainUser.userData.users) {
-      await this.userRepo.update(...user.blockUser('Manual user account block'));
-    }
+    await this.userDataService.deactivateUserData(userData);
   }
 
   // --- VOLUMES --- //

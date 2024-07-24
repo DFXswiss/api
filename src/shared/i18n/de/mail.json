@@ -198,8 +198,7 @@
             "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
         },
         "retry": "Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]",
-        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
-        "last_step": "Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit"
+        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]"
     },
     "account_merge": {
         "request": {
