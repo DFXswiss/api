@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -255,11 +256,18 @@ export class BuyCryptoService {
         active: dto.bankDataActive,
       });
 
-    if (dto.chargebackAllowedDate && !entity.chargebackOutput)
-      update.chargebackOutput = await this.fiatOutputService.create({
-        buyCryptoId: entity.id,
-        type: 'BuyCryptoFail',
-      });
+    if (dto.chargebackAllowedDate) {
+      if (entity.bankTx && !entity.chargebackOutput)
+        update.chargebackOutput = await this.fiatOutputService.create({
+          buyCryptoId: entity.id,
+          type: 'BuyCryptoFail',
+        });
+
+      if (entity.checkoutTx) {
+        await this.refundBuyCryptoInternal(entity);
+        Object.assign(dto, { isComplete: true, chargebackDate: new Date() });
+      }
+    }
 
     Util.removeNullFields(entity);
     const fee = entity.fee;
@@ -314,7 +322,20 @@ export class BuyCryptoService {
 
   async refundBuyCrypto(buyCryptoId: number): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
+
+    await this.refundBuyCryptoInternal(buyCrypto);
+  }
+
+  async refundBuyCryptoInternal(buyCrypto: BuyCrypto): Promise<void> {
     if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
+    if (
+      [
+        CheckoutPaymentStatus.REFUNDED,
+        CheckoutPaymentStatus.REFUND_PENDING,
+        CheckoutPaymentStatus.PARTIALLY_REFUNDED,
+      ].includes(buyCrypto.checkoutTx.status)
+    )
+      throw new BadRequestException('CheckoutTx already refunded');
 
     const chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
 
