@@ -141,7 +141,7 @@ export class BuyFiatPreparationService {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: IsNull() },
+        cryptoInput: { paymentLinkPayment: { id: IsNull() } },
       },
       relations: {
         sell: true,
@@ -205,7 +205,7 @@ export class BuyFiatPreparationService {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: Not(IsNull()) },
+        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) } },
       },
       relations: {
         sell: true,
