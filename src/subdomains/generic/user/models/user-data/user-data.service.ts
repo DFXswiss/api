@@ -106,7 +106,7 @@ export class UserDataService {
   }
 
   async getDifferentUserWithSameIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
-    return this.userDataRepo.findOneBy({ id: Not(userDataId), identDocumentId });
+    return this.userDataRepo.findOneBy({ id: Not(userDataId), status: Not(UserDataStatus.MERGED), identDocumentId });
   }
 
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
