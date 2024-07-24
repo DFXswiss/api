@@ -182,6 +182,8 @@ export class UserDataService {
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
+    if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
+
     await this.userDataRepo.update(userData.id, dto);
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
