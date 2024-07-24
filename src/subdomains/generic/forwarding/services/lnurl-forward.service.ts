@@ -32,33 +32,36 @@ export class LnUrlForwardService {
 
   // --- LNURLp --- //
   async lnurlpForward(id: string): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto> {
-    if (id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX)) return this.createPaymentLinkPayRequest(id);
+    if (
+      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
+      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
+    )
+      return this.createPaymentLinkPayRequest(id);
 
     return this.createLnurlpPayRequest(id);
   }
 
-  private async createPaymentLinkPayRequest(paymentLinkId: string): Promise<PaymentLinkPayRequestDto> {
-    const paymentLinkPaymentInfo = await this.paymentLinkPaymentService.getPaymentLinkForwardInfo(paymentLinkId);
+  private async createPaymentLinkPayRequest(uniqueId: string): Promise<PaymentLinkPayRequestDto> {
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const metaPaymentLinkId = paymentLinkPaymentInfo.paymentLinkExternalId ?? paymentLinkPaymentInfo.paymentLinkId;
-    const metaPaymentLinkPaymentId =
-      paymentLinkPaymentInfo.paymentLinkPaymentExternalId ?? paymentLinkPaymentInfo.paymentLinkPaymentId;
+    const metaPaymentLinkId = pendingPayment.link.externalId ?? pendingPayment.link.id;
+    const metaPaymentLinkPaymentId = pendingPayment.externalId ?? pendingPayment.id;
 
     const metaData = `Payment to ${metaPaymentLinkId}: ${metaPaymentLinkPaymentId}`;
 
-    const transferAmounts = paymentLinkPaymentInfo.transferAmounts;
-    const btcTransferAmount = transferAmounts.find((ta) => ta.asset === 'BTC');
+    const btcTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'BTC');
     if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
 
     const msatsSendable = LightningHelper.btcToMsat(Util.round(btcTransferAmount.amount, 8));
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
-      callback: LightningHelper.createLnurlpCallbackUrl(paymentLinkPaymentInfo.paymentLinkUniqueId),
+      callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatsSendable,
       maxSendable: msatsSendable,
       metadata: `[["text/plain", "${metaData}"]]`,
-      transferAmounts: transferAmounts,
+      transferAmounts: pendingPayment.transferInfo,
     };
 
     return payRequest;

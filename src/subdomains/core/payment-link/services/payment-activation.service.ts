@@ -171,16 +171,16 @@ export class PaymentActivationService implements OnModuleInit {
     uniqueId: string,
     transferInfo: TransferInfo,
   ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    if (await this.isDuplicate(transferInfo))
-      throw new ConflictException(
-        `Duplicate method ${transferInfo.method}, amount ${transferInfo.amount} and asset ${transferInfo.asset}`,
-      );
+    if (await this.isDuplicate(transferInfo)) throw new ConflictException(`Duplicate payment request`);
 
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`);
+    if (!pendingPayment) throw new NotFoundException(`No pending payment found`);
+
+    if (pendingPayment.getTransferInfoFor(transferInfo.method, transferInfo.asset)?.amount !== transferInfo.amount)
+      throw new BadRequestException('Invalid payment request');
 
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException(`Payment ${pendingPayment.id} is expired`);
+    if (secondsDiff < 1) throw new BadRequestException(`Payment is expired`);
 
     return transferInfo.method === Blockchain.LIGHTNING
       ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo, secondsDiff)

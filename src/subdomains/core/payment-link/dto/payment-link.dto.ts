@@ -19,10 +19,12 @@ export enum PaymentLinkPaymentMode {
   MULTIPLE = 'Multiple',
 }
 
+export type TransferMethod = Blockchain;
+
 export interface TransferInfo {
   asset: string;
   amount: number;
-  method: Blockchain;
+  method: TransferMethod;
 }
 
 export interface PaymentLinkPayRequestDto {
@@ -38,16 +40,6 @@ export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;
   uri: string;
-}
-
-export interface PaymentLinkForwardInfoDto {
-  paymentLinkId: number;
-  paymentLinkUniqueId: string;
-  paymentLinkExternalId: string;
-  paymentLinkPaymentId: number;
-  paymentLinkPaymentUniqueId: string;
-  paymentLinkPaymentExternalId: string;
-  transferAmounts: TransferInfo[];
 }
 
 export class PaymentLinkPaymentDto {

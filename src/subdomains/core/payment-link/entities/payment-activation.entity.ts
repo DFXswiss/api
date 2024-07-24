@@ -1,7 +1,7 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { TransferMethod } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 export enum PaymentActivationStatus {
@@ -21,7 +21,7 @@ export class PaymentActivation extends IEntity {
   status: PaymentActivationStatus;
 
   @Column()
-  method: Blockchain;
+  method: TransferMethod;
 
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;

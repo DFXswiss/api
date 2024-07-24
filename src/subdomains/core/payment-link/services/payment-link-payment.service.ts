@@ -8,12 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
-import {
-  PaymentLinkForwardInfoDto,
-  PaymentLinkPaymentStatus,
-  PaymentLinkStatus,
-  TransferInfo,
-} from '../dto/payment-link.dto';
+import { PaymentLinkPaymentStatus, PaymentLinkStatus, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
@@ -120,30 +115,11 @@ export class PaymentLinkPaymentService {
     };
   }
 
-  async getPaymentLinkForwardInfo(paymentLinkId: string): Promise<PaymentLinkForwardInfoDto> {
-    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
-      where: {
-        link: { uniqueId: paymentLinkId },
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        link: true,
-      },
-    });
-    if (!pendingPayment) throw new NotFoundException(`No pending payment found by unique id ${paymentLinkId}`);
-
-    return {
-      paymentLinkId: pendingPayment.link.id,
-      paymentLinkUniqueId: pendingPayment.link.uniqueId,
-      paymentLinkExternalId: pendingPayment.link.externalId,
-      paymentLinkPaymentId: pendingPayment.id,
-      paymentLinkPaymentUniqueId: pendingPayment.uniqueId,
-      paymentLinkPaymentExternalId: pendingPayment.externalId,
-      transferAmounts: <TransferInfo[]>JSON.parse(pendingPayment.transferAmounts),
-    };
-  }
-
-  async save(dto: CreatePaymentLinkPaymentDto, currency: Fiat, paymentLink: PaymentLink): Promise<PaymentLinkPayment> {
+  private async save(
+    dto: CreatePaymentLinkPaymentDto,
+    currency: Fiat,
+    paymentLink: PaymentLink,
+  ): Promise<PaymentLinkPayment> {
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
