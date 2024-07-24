@@ -16,6 +16,7 @@ import { Transaction } from '../../../supporting/payment/entities/transaction.en
 import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
 
 @Entity()
@@ -263,6 +264,52 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  setPaymentLinkPayment(
+    amountInEur: number,
+    amountInChf: number,
+    totalFee: number,
+    totalFeeAmountChf: number,
+    outputReferenceAmount: number,
+    outputReferenceAsset: Fiat,
+    outputAmount: number,
+    outputAsset: Fiat,
+    priceSteps: PriceStep[],
+  ): UpdateResult<BuyFiat> {
+    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
+    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
+    const update: Partial<BuyFiat> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
+        : {
+            absoluteFeeAmount: 0,
+            minFeeAmount: 0,
+            minFeeAmountFiat: 0,
+            blockchainFee: 0,
+            percentFee: feeRate,
+            percentFeeAmount: totalFee,
+            totalFeeAmount: totalFee,
+            totalFeeAmountChf,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef: '000-000',
+            refProvision: 0,
+            refFactor: 0,
+            usedFees: null,
+            outputAmount,
+            outputReferenceAmount,
+            outputAsset,
+            outputReferenceAsset,
+            priceSteps: this.priceSteps,
+          };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
@@ -382,6 +429,10 @@ export class BuyFiat extends IEntity {
 
   set priceStepsObject(priceSteps: PriceStep[]) {
     this.priceSteps = JSON.stringify(priceSteps);
+  }
+
+  get paymentLinkPayment(): PaymentLinkPayment | undefined {
+    return this.cryptoInput?.paymentLinkPayment;
   }
 }
 
