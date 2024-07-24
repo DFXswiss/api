@@ -50,13 +50,13 @@ export class LnUrlForwardService {
     const btcTransferAmount = transferAmounts.find((ta) => ta.asset === 'BTC');
     if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
 
-    const satsSendable = LightningHelper.btcToSat(Util.round(btcTransferAmount.amount, 8));
+    const msatsSendable = LightningHelper.btcToMsat(Util.round(btcTransferAmount.amount, 8));
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(paymentLinkPaymentInfo.paymentLinkUniqueId),
-      minSendable: satsSendable,
-      maxSendable: satsSendable,
+      minSendable: msatsSendable,
+      maxSendable: msatsSendable,
       metadata: `[["text/plain", "${metaData}"]]`,
       transferAmounts: transferAmounts,
     };
