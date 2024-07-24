@@ -109,7 +109,7 @@ export class PaymentActivationService implements OnModuleInit {
       return;
     }
 
-    const receivedAmount = LightningHelper.satToBtc(transactionWebhook.transaction.amount);
+    const receivedAmount = LightningHelper.msatToBtc(transactionWebhook.transaction.amount);
 
     const pendingActivationData = this.getPendingActivation(pendingPayment, Blockchain.LIGHTNING, receivedAmount);
     if (!pendingActivationData) return;
