@@ -76,7 +76,19 @@ export class PaymentActivationService implements OnModuleInit {
       return;
     }
 
-    return this.updatePendingPayments(pendingPayment, cryptoInput.asset.blockchain, cryptoInput.amount);
+    const pendingActivationData = this.getPendingActivation(
+      pendingPayment,
+      cryptoInput.asset.blockchain,
+      cryptoInput.amount,
+    );
+
+    if (!pendingActivationData) return;
+
+    return this.doUpdateStatus(
+      pendingActivationData.pendingActivation,
+      pendingActivationData.allPendingActivations,
+      pendingPayment,
+    );
   }
 
   private processLightningTransactionMessageQueue(transactionWebhook: LnBitsTransactionWebhookDto) {
@@ -99,14 +111,24 @@ export class PaymentActivationService implements OnModuleInit {
 
     const receivedAmount = LightningHelper.satToBtc(transactionWebhook.transaction.amount);
 
-    await this.updatePendingPayments(pendingPayment, Blockchain.LIGHTNING, receivedAmount);
+    const pendingActivationData = this.getPendingActivation(pendingPayment, Blockchain.LIGHTNING, receivedAmount);
+    if (!pendingActivationData) return;
+
+    const pendingActivation = pendingActivationData.pendingActivation;
+
+    if (pendingActivation.paymentRequest !== transactionWebhook.transaction?.bolt11) {
+      this.logger.error(`Lightning transaction: Invalid invoice received`);
+      return;
+    }
+
+    await this.doUpdateStatus(pendingActivation, pendingActivationData.allPendingActivations, pendingPayment);
   }
 
-  private async updatePendingPayments(
+  private getPendingActivation(
     pendingPayment: PaymentLinkPayment,
     blockchain: Blockchain,
     receivedAmount: number,
-  ): Promise<PaymentLinkPayment> {
+  ): { pendingActivation: PaymentActivation; allPendingActivations: PaymentActivation[] } | undefined {
     const allPendingActivations = pendingPayment.activations.filter(
       (a) => a.status === PaymentActivationStatus.PENDING,
     );
@@ -125,7 +147,7 @@ export class PaymentActivationService implements OnModuleInit {
       return;
     }
 
-    return this.doUpdateStatus(pendingActivation, allPendingActivations, pendingPayment);
+    return { pendingActivation, allPendingActivations };
   }
 
   private async doUpdateStatus(
