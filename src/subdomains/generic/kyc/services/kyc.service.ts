@@ -7,18 +7,12 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import {
-  KycIdentificationType,
-  KycLevel,
-  UserData,
-  UserDataStatus,
-} from '../../user/models/user-data/user-data.entity';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -122,7 +116,11 @@ export class KycService {
     if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
 
     const entities = await this.kycStepRepo.find({
-      where: { name: KycStepName.IDENT, status: KycStepStatus.INTERNAL_REVIEW },
+      where: {
+        name: KycStepName.IDENT,
+        status: KycStepStatus.INTERNAL_REVIEW,
+        userData: { nationality: Not(IsNull()) },
+      },
       relations: { userData: { kycSteps: true } },
     });
 
@@ -260,7 +258,7 @@ export class KycService {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    const updatedUser = await this.userDataService.updateNationality(user, data);
+    const updatedUser = await this.userDataService.updateUserDataInternal(user, data);
 
     user = updatedUser.internalReviewStep(kycStep);
     await this.createStepLog(user, kycStep);
@@ -576,7 +574,6 @@ export class KycService {
       result.identificationdocument?.type?.value &&
       result.identificationdocument?.number?.value
     ) {
-      const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
         userData.id,
         `${userData.organizationName ?? ''}${result.identificationdocument.number.value}`,
@@ -586,18 +583,6 @@ export class KycService {
         await this.accountMergeService.sendMergeRequest(existing, userData);
 
         return userData;
-      } else if (nationality) {
-        return this.userDataService.updateUserDataInternal(userData, {
-          kycLevel: KycLevel.LEVEL_30,
-          birthday: new Date(result.userdata.birthday.value),
-          nationality,
-          verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
-          identificationType,
-          bankTransactionVerification:
-            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
-          identDocumentType: result.identificationdocument.type.value,
-          identDocumentId: result.identificationdocument.number.value,
-        });
       }
     }
 

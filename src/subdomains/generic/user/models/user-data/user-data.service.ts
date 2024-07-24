@@ -21,7 +21,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { KycNationalityData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
@@ -246,13 +245,6 @@ export class UserDataService {
     return this.userDataRepo.save(Object.assign(userData, data));
   }
 
-  async updateNationality(userData: UserData, nationality: KycNationalityData): Promise<UserData> {
-    const country = this.countryService.getCountry(nationality.country.id);
-    if (!country) throw new BadRequestException('Country not found');
-
-    return this.userDataRepo.save(Object.assign(userData, { nationality: country }));
-  }
-
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
@@ -396,7 +388,7 @@ export class UserDataService {
     if (dto.nationality || dto.identDocumentId) {
       const existing = await this.userDataRepo.findOneBy({
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
-        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId ?? '',
       });
       if (existing && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');

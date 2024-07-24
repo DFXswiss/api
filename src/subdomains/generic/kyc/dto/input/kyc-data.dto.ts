@@ -105,7 +105,7 @@ export class KycNationalityData {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  country: Country;
+  nationality: Country;
 }
 
 export class KycCommercialRegisterData {
