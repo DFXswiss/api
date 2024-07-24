@@ -279,7 +279,7 @@ export class KycService {
 
     // upload commercial register extract
     const { contentType, buffer } = Util.fromBase64(data.file);
-    await this.storageService.uploadFile(
+    const url = await this.storageService.uploadFile(
       user.id,
       FileType.COMMERCIAL_REGISTER,
       `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`,
@@ -287,7 +287,7 @@ export class KycService {
       contentType as ContentType,
     );
 
-    user = user.internalReviewStep(kycStep);
+    user = user.internalReviewStep(kycStep, url);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 

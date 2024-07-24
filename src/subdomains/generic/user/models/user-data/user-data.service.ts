@@ -168,7 +168,7 @@ export class UserDataService {
     if (userData.kycLevel >= KycLevel.LEVEL_50) {
       const dfxApprovalCompleted = userData.hasCompletedStep(KycStepName.DFX_APPROVAL);
       if (!dfxApprovalCompleted) {
-        const pendingDfxApproval = userData.getPendingStepWith(KycStepName.DFX_APPROVAL);
+        const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
         if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
       }
     }

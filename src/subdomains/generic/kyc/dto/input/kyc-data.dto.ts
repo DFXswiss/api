@@ -117,5 +117,5 @@ export class KycCommercialRegisterData {
   @ApiProperty({ description: 'Name of the file' })
   @IsNotEmpty()
   @IsString()
-  fileName?: string;
+  fileName: string;
 }
