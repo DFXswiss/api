@@ -1,4 +1,4 @@
-import { LnurlPayRequestDto } from '../lnurlp.dto';
+import { LnurlPayRequestDto } from '../../../../../integration/lightning/dto/lnurlp.dto';
 
 const defaultLnurlpRequest: Partial<LnurlPayRequestDto> = {
   tag: 'payRequest',

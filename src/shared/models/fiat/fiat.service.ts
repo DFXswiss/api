@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
 import { Fiat } from './fiat.entity';
 
@@ -32,5 +33,10 @@ export class FiatService {
   async updatePrice(fiatId: number, chfPrice: number) {
     await this.fiatRepo.update(fiatId, { approxPriceChf: chfPrice });
     this.fiatRepo.invalidateCache();
+  }
+
+  async getFiatByCountry(country: string): Promise<Fiat> {
+    const { currency } = Config.defaults.forCountry(country);
+    return this.fiatRepo.findOne({ where: { name: currency } });
   }
 }

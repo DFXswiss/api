@@ -106,7 +106,7 @@ export class UserDataService {
   }
 
   async getDifferentUserWithSameIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
-    return this.userDataRepo.findOneBy({ id: Not(userDataId), identDocumentId });
+    return this.userDataRepo.findOneBy({ id: Not(userDataId), status: Not(UserDataStatus.MERGED), identDocumentId });
   }
 
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
@@ -140,8 +140,8 @@ export class UserDataService {
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const userData = this.userDataRepo.create({
       ...dto,
-      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
-      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
+      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
+      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -181,6 +181,8 @@ export class UserDataService {
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
+
+    if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
 
     await this.userDataRepo.update(userData.id, dto);
 
@@ -274,6 +276,12 @@ export class UserDataService {
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
       if (!dto.language) throw new BadRequestException('Language not found');
+    }
+
+    // check currency
+    if (dto.currency) {
+      dto.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;

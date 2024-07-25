@@ -36,6 +36,7 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 ormconfig.json
+dev-data-source.ts
 .env
 placeholder.env
 placeholder.env

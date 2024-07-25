@@ -1,3 +1,4 @@
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
@@ -15,6 +16,7 @@ export class UserDtoMapper {
       mail: userData.mail,
       phone: userData.phone,
       language: LanguageDtoMapper.entityToDto(userData.language),
+      currency: FiatDtoMapper.toDto(userData.currency),
       tradingLimit: userData.tradingLimit,
       kyc: {
         hash: userData.kycHash,
@@ -33,7 +35,8 @@ export class UserDtoMapper {
 
   private static mapAddress(user: User): UserAddressDto {
     const dto: UserAddressDto = {
-      wallet: user.wallet.name,
+      wallet: user.wallet.displayName ?? user.wallet.name,
+      label: user.label,
       address: user.address,
       blockchains: user.blockchains,
       volumes: this.mapVolumes(user),

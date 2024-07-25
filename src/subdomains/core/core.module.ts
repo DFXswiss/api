@@ -3,6 +3,7 @@ import { BuyCryptoModule } from './buy-crypto/buy-crypto.module';
 import { HistoryModule } from './history/history.module';
 import { LiquidityManagementModule } from './liquidity-management/liquidity-management.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { PaymentLinkModule } from './payment-link/payment-link.module';
 import { ReferralModule } from './referral/referral.module';
 import { SellCryptoModule } from './sell-crypto/sell-crypto.module';
 import { StatisticModule } from './statistic/statistic.module';
@@ -18,6 +19,7 @@ import { TradingModule } from './trading/trading.module';
     StatisticModule,
     LiquidityManagementModule,
     TradingModule,
+    PaymentLinkModule,
   ],
   controllers: [],
   providers: [],

@@ -92,6 +92,15 @@
     "btcOutWalletAddress": {
       "value": "xxx"
     },
+    "paymentTimeout": {
+      "value": "xxx"
+    },
+    "paymentTimeoutDelay": {
+      "value": "xxx"
+    },
+    "paymentEvmSeed": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },

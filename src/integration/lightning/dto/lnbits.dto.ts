@@ -8,3 +8,39 @@ export interface LnBitsInvoiceDto {
   payment_hash: string;
   payment_request: string;
 }
+
+export interface LnBitsWalletPaymentParamsDto {
+  amount: number;
+  memo: string;
+  expirySec: number;
+  webhook: string;
+}
+
+export interface LnBitsWalletPaymentDto {
+  payment_hash: string;
+  payment_request: string;
+  checking_id: string;
+  lnurl_response: string;
+}
+
+export interface LnBitsTransactionDto {
+  checking_id: string;
+  pending: boolean;
+  amount: number;
+  fee: number;
+  memo: string;
+  time: number;
+  bolt11: string;
+  preimage: string;
+  payment_hash: string;
+  expiry: number;
+  extra: any;
+  wallet_id: string;
+  webhook: string;
+  webhook_status: string;
+}
+
+export interface LnBitsTransactionWebhookDto {
+  uniqueId: string;
+  transaction: LnBitsTransactionDto;
+}

@@ -136,7 +136,11 @@ export class KycService {
 
         if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
           entity.ignored();
-        } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
+        } else if (
+          errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) &&
+          errors.length === 1 &&
+          entity.userData.accountType === AccountType.PERSONAL
+        ) {
           entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
           entity.complete();
         } else if (errors.length === 0) {
