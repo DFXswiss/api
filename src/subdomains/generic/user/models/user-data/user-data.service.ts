@@ -106,7 +106,7 @@ export class UserDataService {
   }
 
   async getDifferentUserWithSameIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
-    return this.userDataRepo.findOneBy({ id: Not(userDataId), identDocumentId });
+    return this.userDataRepo.findOneBy({ id: Not(userDataId), status: Not(UserDataStatus.MERGED), identDocumentId });
   }
 
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
@@ -190,6 +190,8 @@ export class UserDataService {
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
+
+    if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
 
     await this.userDataRepo.update(userData.id, dto);
 

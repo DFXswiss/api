@@ -2,7 +2,12 @@ import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../dto/payment-link.dto';
+import {
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  TransferInfo,
+  TransferMethod,
+} from '../dto/payment-link.dto';
 import { PaymentActivation } from './payment-activation.entity';
 import { PaymentLink } from './payment-link.entity';
 
@@ -61,5 +66,13 @@ export class PaymentLinkPayment extends IEntity {
     this.status = PaymentLinkPaymentStatus.EXPIRED;
 
     return this;
+  }
+
+  get transferInfo(): TransferInfo[] {
+    return JSON.parse(this.transferAmounts);
+  }
+
+  getTransferInfoFor(method: TransferMethod, asset: string): TransferInfo | undefined {
+    return this.transferInfo.find((i) => i.method === method && i.asset === asset);
   }
 }

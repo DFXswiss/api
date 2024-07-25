@@ -591,10 +591,10 @@ export class KycService {
       result.identificationdocument?.type?.value &&
       result.identificationdocument?.number?.value
     ) {
-      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
-        userData.id,
-        `${userData.organizationName.split(' ').join('') ?? ''}${result.identificationdocument.number.value}`,
-      );
+      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${
+        result.identificationdocument.number.value
+      }`;
+      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
 
       if (existing) {
         await this.accountMergeService.sendMergeRequest(existing, userData);
@@ -609,9 +609,7 @@ export class KycService {
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: result.identificationdocument.type.value,
-          identDocumentId: `${userData.organizationName.split(' ').join('') ?? ''}${
-            result.identificationdocument.number.value
-          }`,
+          identDocumentId,
         });
       }
     }

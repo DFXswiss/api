@@ -76,12 +76,17 @@ export class BankDataService {
         relations: { userData: true },
       });
 
-      if (!entity.userData.verifiedName)
-        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
-
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
-      if (errors.length === 0) {
+      if (
+        errors.length === 0 ||
+        (errors.length === 1 &&
+          errors.includes(BankDataVerificationError.VERIFIED_NAME_MISSING) &&
+          (!existing || Util.isSameName(entity.name, existing.name)))
+      ) {
+        if (!entity.userData.verifiedName)
+          await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
         if (existing) {
           const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
           await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
