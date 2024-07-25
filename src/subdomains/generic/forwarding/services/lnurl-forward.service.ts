@@ -48,18 +48,16 @@ export class LnUrlForwardService {
     const metaPaymentLinkId = pendingPayment.link.externalId ?? pendingPayment.link.id;
     const metaPaymentLinkPaymentId = pendingPayment.externalId ?? pendingPayment.id;
 
-    const metaData = `Payment to ${metaPaymentLinkId}: ${metaPaymentLinkPaymentId}`;
+    const metaData = `Payment ${metaPaymentLinkPaymentId} to ${metaPaymentLinkId}`;
 
-    const btcTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'BTC');
-    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
-
-    const msatsSendable = LightningHelper.btcToMsat(Util.round(btcTransferAmount.amount, 8));
+    const satTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'MSAT');
+    if (!satTransferAmount) throw new NotFoundException('No BTC transfer amount found');
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
-      minSendable: msatsSendable,
-      maxSendable: msatsSendable,
+      minSendable: satTransferAmount.amount,
+      maxSendable: satTransferAmount.amount,
       metadata: `[["text/plain", "${metaData}"]]`,
       transferAmounts: pendingPayment.transferInfo,
     };
@@ -95,7 +93,7 @@ export class LnUrlForwardService {
     const method = Util.toEnum(Blockchain, params.method);
 
     return {
-      asset: params.asset ?? 'BTC',
+      asset: params.asset ?? 'MSAT',
       amount: params.amount ? Number(params.amount) : 0,
       method: method ?? Blockchain.LIGHTNING,
     };

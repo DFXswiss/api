@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -99,20 +101,29 @@ export class PaymentLinkPaymentService {
     return paymentLink;
   }
 
-  private async createTransferAmounts(currency: Fiat, amount: number): Promise<TransferInfo[]> {
+  private async createTransferInfo(currency: Fiat, amount: number): Promise<TransferInfo[]> {
     const paymentAssets = await this.assetService.getPaymentAssets();
 
-    return Promise.all(paymentAssets.map((asset) => this.getTransferAmount(currency, asset, amount)));
+    return Promise.all(paymentAssets.map((asset) => this.getTransferInfo(currency, asset, amount)));
   }
 
-  private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<TransferInfo> {
-    const price = await this.pricingService.getPrice(asset, currency, false);
-
+  private async getTransferInfo(currency: Fiat, asset: Asset, amount: number): Promise<TransferInfo> {
     return {
-      amount: asset.name == 'ZCHF' ? amount : price.invert().convert(amount) / 0.98,
-      asset: asset.name,
+      amount: await this.getTransferAmount(currency, asset, amount),
+      asset: asset.name === 'BTC' && asset.blockchain === Blockchain.LIGHTNING ? 'MSAT' : asset.name,
       method: asset.blockchain,
     };
+  }
+
+  private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<number> {
+    if (asset.name === 'ZCHF') return amount;
+
+    const price = await this.pricingService.getPrice(asset, currency, false);
+    const transferAmount = price.invert().convert(amount) / (1 - Config.payment.fee);
+
+    return asset.blockchain === Blockchain.LIGHTNING
+      ? LightningHelper.btcToMsat(transferAmount)
+      : Util.round(transferAmount, 8);
   }
 
   private async save(
@@ -127,7 +138,7 @@ export class PaymentLinkPaymentService {
       mode: dto.mode,
       currency,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
-      transferAmounts: await this.createTransferAmounts(currency, dto.amount).then(JSON.stringify),
+      transferAmounts: await this.createTransferInfo(currency, dto.amount).then(JSON.stringify),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
     });
