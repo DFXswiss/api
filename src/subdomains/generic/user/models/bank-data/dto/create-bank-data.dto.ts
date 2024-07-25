@@ -6,7 +6,7 @@ import { BankDataType } from '../bank-data.entity';
 export class CreateBankDataDto {
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.trimAll)
   iban: string;
 
   @IsOptional()

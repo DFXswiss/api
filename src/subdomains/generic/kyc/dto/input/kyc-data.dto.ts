@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { Util } from 'src/shared/utils/util';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
 
@@ -19,6 +20,7 @@ export class KycContactData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
+  @Transform(Util.trim)
   mail: string;
 }
 
@@ -26,21 +28,25 @@ export class KycAddress {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   street: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.trim)
   houseNumber?: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   city: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   zip: string;
 
   @ApiProperty({ type: EntityDto })
@@ -59,11 +65,13 @@ export class KycPersonalData {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   firstName: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   lastName: string;
 
   @ApiProperty()
@@ -83,6 +91,7 @@ export class KycPersonalData {
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   organizationName?: string;
 
   @ApiPropertyOptional({ type: KycAddress })
