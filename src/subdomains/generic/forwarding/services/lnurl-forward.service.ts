@@ -96,7 +96,7 @@ export class LnUrlForwardService {
 
     return {
       asset: params.asset ?? 'BTC',
-      amount: params.amount ?? 0,
+      amount: params.amount ? Number(params.amount) : 0,
       method: method ?? Blockchain.LIGHTNING,
     };
   }
