@@ -45,10 +45,7 @@ export class LnUrlForwardService {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const metaPaymentLinkId = pendingPayment.link.externalId ?? pendingPayment.link.id;
-    const metaPaymentLinkPaymentId = pendingPayment.externalId ?? pendingPayment.id;
-
-    const metaData = `Payment ${metaPaymentLinkPaymentId} to ${metaPaymentLinkId}`;
+    const metaData = `Payment ${pendingPayment.metaId} to ${pendingPayment.link.metaId}`;
 
     const satTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'MSAT');
     if (!satTransferAmount) throw new NotFoundException('No BTC transfer amount found');
