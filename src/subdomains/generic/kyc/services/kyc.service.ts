@@ -14,12 +14,18 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { IsNull, LessThan, Not } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import {
+  KycIdentificationType,
+  KycLevel,
+  UserData,
+  UserDataStatus,
+} from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -594,6 +600,19 @@ export class KycService {
         await this.accountMergeService.sendMergeRequest(existing, userData);
 
         return userData;
+      } else {
+        return this.userDataService.updateUserDataInternal(userData, {
+          kycLevel: KycLevel.LEVEL_30,
+          birthday: new Date(result.userdata.birthday.value),
+          verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
+          identificationType,
+          bankTransactionVerification:
+            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
+          identDocumentType: result.identificationdocument.type.value,
+          identDocumentId: `${userData.organizationName.split(' ').join('') ?? ''}${
+            result.identificationdocument.number.value
+          }`,
+        });
       }
     }
 
