@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -15,6 +15,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { LessThan } from 'typeorm';
 import { PayInWebHookService } from '../../../supporting/payin/services/payin-webhhook.service';
 import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation, PaymentActivationStatus } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
@@ -171,8 +172,6 @@ export class PaymentActivationService implements OnModuleInit {
     uniqueId: string,
     transferInfo: TransferInfo,
   ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    if (await this.isDuplicate(transferInfo)) throw new ConflictException(`Duplicate payment request`);
-
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException(`No pending payment found`);
 
@@ -182,20 +181,27 @@ export class PaymentActivationService implements OnModuleInit {
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
     if (secondsDiff < 1) throw new BadRequestException(`Payment is expired`);
 
+    const existingPaymentRequest = await this.getExistingPaymentRequest(transferInfo);
+    if (existingPaymentRequest) return existingPaymentRequest;
+
     return transferInfo.method === Blockchain.LIGHTNING
       ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo, secondsDiff)
       : this.createPaymentLinkEvmPayment(pendingPayment, transferInfo);
   }
 
-  private async isDuplicate(transferInfo: TransferInfo): Promise<boolean> {
-    return this.paymentActivationRepo.exists({
-      where: {
-        status: PaymentActivationStatus.PENDING,
-        amount: transferInfo.amount,
-        method: transferInfo.method,
-        asset: { uniqueName: `${transferInfo.method}/${transferInfo.asset}` },
-      },
-    });
+  private async getExistingPaymentRequest(
+    transferInfo: TransferInfo,
+  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto | undefined> {
+    return this.paymentActivationRepo
+      .findOne({
+        where: {
+          status: PaymentActivationStatus.PENDING,
+          amount: transferInfo.amount,
+          method: transferInfo.method,
+          asset: { uniqueName: `${transferInfo.method}/${transferInfo.asset}` },
+        },
+      })
+      .then((pa) => PaymentRequestMapper.toPaymentRequest(pa));
   }
 
   private async createPaymentLinkLightningPayment(
