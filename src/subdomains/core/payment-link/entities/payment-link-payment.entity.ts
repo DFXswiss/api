@@ -75,4 +75,8 @@ export class PaymentLinkPayment extends IEntity {
   getTransferInfoFor(method: TransferMethod, asset: string): TransferInfo | undefined {
     return this.transferInfo.find((i) => i.method === method && i.asset === asset);
   }
+
+  get metaId(): string {
+    return this.externalId ?? `${this.id}`;
+  }
 }

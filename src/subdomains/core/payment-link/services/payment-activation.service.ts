@@ -203,25 +203,28 @@ export class PaymentActivationService implements OnModuleInit {
     transferInfo: TransferInfo,
     expirySec: number,
   ): Promise<LnurlpInvoiceDto> {
-    const walletPaymentParams = await this.getLightningPaymentParams(payment, transferInfo, expirySec);
+    const walletPaymentParams = this.getLightningPaymentParams(payment, transferInfo, expirySec);
 
     const lightningPayment = await this.client.getLnBitsWalletPayment(walletPaymentParams);
 
-    await this.savePaymentRequest(payment, lightningPayment.pr, transferInfo);
+    const updatedInfo: TransferInfo = {
+      asset: 'BTC',
+      amount: LightningHelper.msatToBtc(transferInfo.amount),
+      method: transferInfo.method,
+    };
+    await this.savePaymentRequest(payment, lightningPayment.pr, updatedInfo);
 
     return lightningPayment;
   }
 
-  private async getLightningPaymentParams(
+  private getLightningPaymentParams(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
-  ): Promise<LnBitsWalletPaymentParamsDto> {
-    const memo = `Payment ID: ${payment.link.externalId}/${payment.externalId}`;
-
+  ): LnBitsWalletPaymentParamsDto {
     return {
-      amount: LightningHelper.btcToSat(transferInfo.amount),
-      memo: memo,
+      amount: LightningHelper.msatToSat(transferInfo.amount),
+      memo: `Payment ID: ${payment.link.metaId}/${payment.metaId}`,
       expirySec: expirySec,
       webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
     };

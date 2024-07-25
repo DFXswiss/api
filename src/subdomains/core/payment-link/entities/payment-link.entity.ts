@@ -26,4 +26,8 @@ export class PaymentLink extends IEntity {
   get currentPayment(): PaymentLinkPayment | undefined {
     return Util.maxObj(this.payments, 'updated');
   }
+
+  get metaId(): string {
+    return this.externalId ?? `${this.id}`;
+  }
 }
