@@ -51,7 +51,7 @@ export class UserAddressDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   explorerUrl?: string;
 
   @ApiProperty({ enum: Blockchain, isArray: true })
