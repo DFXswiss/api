@@ -7,6 +7,6 @@ export class UpdateAddressDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.trimAll)
+  @Transform(Util.trim)
   label?: string;
 }
