@@ -226,7 +226,7 @@ export class PaymentActivationService implements OnModuleInit {
   ): Promise<string> {
     const walletPaymentParams = {
       amount: LightningHelper.btcToSat(transferInfo.amount),
-      memo: `Payment ID: ${payment.link.metaId}/${payment.metaId}`,
+      memo: payment.requestMemo,
       expirySec: expirySec,
       webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
     };

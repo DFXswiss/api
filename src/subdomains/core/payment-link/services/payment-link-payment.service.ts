@@ -107,7 +107,7 @@ export class PaymentLinkPaymentService {
     const info = await Promise.all(paymentAssets.map((asset) => this.getTransferInfo(currency, asset, amount)));
     const btcTransfer = info.find((i) => i.method === Blockchain.LIGHTNING && i.asset === 'BTC');
     if (btcTransfer) {
-      info.push({
+      info.unshift({
         amount: LightningHelper.btcToMsat(btcTransfer.amount),
         asset: 'MSAT',
         method: Blockchain.LIGHTNING,

@@ -79,4 +79,8 @@ export class PaymentLinkPayment extends IEntity {
   get metaId(): string {
     return this.externalId ?? `${this.id}`;
   }
+
+  get requestMemo(): string {
+    return `Payment ${this.metaId} to ${this.link.metaId}`;
+  }
 }
