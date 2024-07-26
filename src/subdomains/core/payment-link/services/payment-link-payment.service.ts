@@ -126,7 +126,7 @@ export class PaymentLinkPaymentService {
   }
 
   private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<number> {
-    if (asset.name === 'ZCHF' && currency.name === 'CHF') return amount;
+    if (currency.name === 'CHF' && asset.name === 'ZCHF') return amount;
 
     const price = await this.pricingService.getPrice(asset, currency, false);
     return price.invert().convert(amount / (1 - Config.payment.fee), 8);
