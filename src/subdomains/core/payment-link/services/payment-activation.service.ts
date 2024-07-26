@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { LnBitsTransactionWebhookDto, LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
+import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -182,17 +182,14 @@ export class PaymentActivationService implements OnModuleInit {
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
     if (secondsDiff < 1) throw new BadRequestException('Payment is expired');
 
-    const existingActivation = await this.getExistingActivation(transferInfo);
+    let activation = await this.getExistingActivation(transferInfo);
 
-    if (existingActivation) {
-      if (existingActivation.payment.id !== pendingPayment.id) throw new ConflictException('Duplicate payment request');
+    if (activation && activation.payment.id !== pendingPayment.id)
+      throw new ConflictException('Duplicate payment request');
 
-      return PaymentRequestMapper.toPaymentRequest(existingActivation);
-    }
+    if (!activation) activation = await this.createNewPaymentLinkRequest(pendingPayment, transferInfo, secondsDiff);
 
-    return transferInfo.method === Blockchain.LIGHTNING
-      ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo, secondsDiff)
-      : this.createPaymentLinkEvmPayment(pendingPayment, transferInfo);
+    return PaymentRequestMapper.toPaymentRequest(activation);
   }
 
   private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
@@ -209,60 +206,45 @@ export class PaymentActivationService implements OnModuleInit {
     });
   }
 
-  private async createPaymentLinkLightningPayment(
+  private async createNewPaymentLinkRequest(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
-  ): Promise<LnurlpInvoiceDto> {
-    const walletPaymentParams = this.getLightningPaymentParams(payment, transferInfo, expirySec);
+  ) {
+    const request =
+      transferInfo.method === Blockchain.LIGHTNING
+        ? await this.createLightningRequest(payment, transferInfo, expirySec)
+        : await this.createEvmRequest(transferInfo);
 
-    const lightningPayment = await this.client.getLnBitsWalletPayment(walletPaymentParams);
-
-    await this.savePaymentRequest(payment, lightningPayment.pr, transferInfo);
-
-    return lightningPayment;
+    return this.savePaymentRequest(payment, request, transferInfo);
   }
 
-  private getLightningPaymentParams(
+  private async createLightningRequest(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
-  ): LnBitsWalletPaymentParamsDto {
-    return {
+  ): Promise<string> {
+    const walletPaymentParams = {
       amount: LightningHelper.btcToSat(transferInfo.amount),
       memo: `Payment ID: ${payment.link.metaId}/${payment.metaId}`,
       expirySec: expirySec,
       webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
     };
+
+    return this.client.getLnBitsWalletPayment(walletPaymentParams).then((r) => r.pr);
   }
 
-  private async createPaymentLinkEvmPayment(
-    payment: PaymentLinkPayment,
-    transferInfo: TransferInfo,
-  ): Promise<PaymentLinkEvmPaymentDto> {
-    const evmPayment = await this.getPaymentLinkEvmPaymentInfo(payment, transferInfo);
-
-    await this.savePaymentRequest(payment, evmPayment.uri, transferInfo);
-
-    return evmPayment;
-  }
-
-  private async getPaymentLinkEvmPaymentInfo(
-    payment: PaymentLinkPayment,
-    transferInfo: TransferInfo,
-  ): Promise<PaymentLinkEvmPaymentDto> {
+  private async createEvmRequest(transferInfo: TransferInfo): Promise<string> {
     const asset = await this.getAssetByInfo(transferInfo);
 
-    const evmPaymentRequest = EvmUtil.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
-
-    return {
-      expiryDate: payment.expiryDate,
-      blockchain: transferInfo.method,
-      uri: evmPaymentRequest,
-    };
+    return EvmUtil.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
   }
 
-  private async savePaymentRequest(payment: PaymentLinkPayment, pr: string, transferInfo: TransferInfo): Promise<void> {
+  private async savePaymentRequest(
+    payment: PaymentLinkPayment,
+    pr: string,
+    transferInfo: TransferInfo,
+  ): Promise<PaymentActivation> {
     const asset = await this.getAssetByInfo(transferInfo);
 
     const newPaymentActivation = this.paymentActivationRepo.create({
@@ -275,7 +257,7 @@ export class PaymentActivationService implements OnModuleInit {
       payment: payment,
     });
 
-    await this.paymentActivationRepo.save(newPaymentActivation);
+    return this.paymentActivationRepo.save(newPaymentActivation);
   }
 
   private async getAssetByInfo(transferInfo: TransferInfo): Promise<Asset> {
