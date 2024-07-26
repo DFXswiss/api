@@ -4,11 +4,7 @@ import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkEvmPaymentDto } from './payment-link.dto';
 
 export class PaymentRequestMapper {
-  static toPaymentRequest(
-    paymentActivation?: PaymentActivation,
-  ): LnurlpInvoiceDto | PaymentLinkEvmPaymentDto | undefined {
-    if (!paymentActivation) return;
-
+  static toPaymentRequest(paymentActivation?: PaymentActivation): LnurlpInvoiceDto | PaymentLinkEvmPaymentDto {
     return paymentActivation.method === Blockchain.LIGHTNING
       ? this.toLnurlpInvoice(paymentActivation)
       : this.toPaymentLinkEvmPayment(paymentActivation);

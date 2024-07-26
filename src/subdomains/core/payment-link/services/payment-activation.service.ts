@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -173,35 +173,39 @@ export class PaymentActivationService implements OnModuleInit {
     transferInfo: TransferInfo,
   ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(`No pending payment found`);
+    if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
     if (pendingPayment.getTransferInfoFor(transferInfo.method, transferInfo.asset)?.amount !== transferInfo.amount)
       throw new BadRequestException('Invalid payment request');
 
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException(`Payment is expired`);
+    if (secondsDiff < 1) throw new BadRequestException('Payment is expired');
 
-    const existingPaymentRequest = await this.getExistingPaymentRequest(transferInfo);
-    if (existingPaymentRequest) return existingPaymentRequest;
+    const existingActivation = await this.getExistingActivation(transferInfo);
+
+    if (existingActivation) {
+      if (existingActivation.payment.id !== pendingPayment.id) throw new ConflictException('Duplicate payment request');
+
+      return PaymentRequestMapper.toPaymentRequest(existingActivation);
+    }
 
     return transferInfo.method === Blockchain.LIGHTNING
       ? this.createPaymentLinkLightningPayment(pendingPayment, transferInfo, secondsDiff)
       : this.createPaymentLinkEvmPayment(pendingPayment, transferInfo);
   }
 
-  private async getExistingPaymentRequest(
-    transferInfo: TransferInfo,
-  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto | undefined> {
-    return this.paymentActivationRepo
-      .findOne({
-        where: {
-          status: PaymentActivationStatus.PENDING,
-          amount: transferInfo.amount,
-          method: transferInfo.method,
-          asset: { uniqueName: `${transferInfo.method}/${transferInfo.asset}` },
-        },
-      })
-      .then((pa) => PaymentRequestMapper.toPaymentRequest(pa));
+  private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
+    return this.paymentActivationRepo.findOne({
+      where: {
+        status: PaymentActivationStatus.PENDING,
+        amount: transferInfo.amount,
+        method: transferInfo.method,
+        asset: { uniqueName: `${transferInfo.method}/${transferInfo.asset}` },
+      },
+      relations: {
+        payment: true,
+      },
+    });
   }
 
   private async createPaymentLinkLightningPayment(
