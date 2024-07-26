@@ -104,26 +104,32 @@ export class PaymentLinkPaymentService {
   private async createTransferInfo(currency: Fiat, amount: number): Promise<TransferInfo[]> {
     const paymentAssets = await this.assetService.getPaymentAssets();
 
-    return Promise.all(paymentAssets.map((asset) => this.getTransferInfo(currency, asset, amount)));
+    const info = await Promise.all(paymentAssets.map((asset) => this.getTransferInfo(currency, asset, amount)));
+    const btcTransfer = info.find((i) => i.method === Blockchain.LIGHTNING && i.asset === 'BTC');
+    if (btcTransfer) {
+      info.push({
+        amount: LightningHelper.btcToMsat(btcTransfer.amount),
+        asset: 'MSAT',
+        method: Blockchain.LIGHTNING,
+      });
+    }
+
+    return info;
   }
 
   private async getTransferInfo(currency: Fiat, asset: Asset, amount: number): Promise<TransferInfo> {
     return {
       amount: await this.getTransferAmount(currency, asset, amount),
-      asset: asset.name === 'BTC' && asset.blockchain === Blockchain.LIGHTNING ? 'MSAT' : asset.name,
+      asset: asset.name,
       method: asset.blockchain,
     };
   }
 
   private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<number> {
-    if (asset.name === 'ZCHF') return amount;
+    if (asset.name === 'ZCHF' && currency.name === 'CHF') return amount;
 
     const price = await this.pricingService.getPrice(asset, currency, false);
-    const transferAmount = price.invert().convert(amount) / (1 - Config.payment.fee);
-
-    return asset.blockchain === Blockchain.LIGHTNING
-      ? LightningHelper.btcToMsat(transferAmount)
-      : Util.round(transferAmount, 8);
+    return price.invert().convert(amount / (1 - Config.payment.fee), 8);
   }
 
   private async save(
