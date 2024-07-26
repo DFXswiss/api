@@ -12,6 +12,12 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
   return asset.type === AssetType.COIN ? explorerUrl : `${explorerUrl}/${assetPaths(asset) ?? ''}`;
 }
 
+export function addressExplorerUrl(blockchain: Blockchain, address: string): string | undefined {
+  const baseUrl = BlockchainExplorerUrls[blockchain];
+  const addressPath = addressPaths(blockchain);
+  return baseUrl && addressPath ? `${baseUrl}/${addressPath}/${address}` : undefined;
+}
+
 // --- HELPERS --- //
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
@@ -67,5 +73,27 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
+  }
+}
+
+function addressPaths(blockchain: Blockchain): string | undefined {
+  switch (blockchain) {
+    case Blockchain.LIGHTNING:
+    case Blockchain.MONERO:
+      return undefined;
+
+    case Blockchain.DEFICHAIN:
+    case Blockchain.BITCOIN:
+    case Blockchain.ETHEREUM:
+    case Blockchain.BINANCE_SMART_CHAIN:
+    case Blockchain.OPTIMISM:
+    case Blockchain.ARBITRUM:
+    case Blockchain.POLYGON:
+    case Blockchain.BASE:
+    case Blockchain.HAQQ:
+    case Blockchain.LIQUID:
+    case Blockchain.ARWEAVE:
+    case Blockchain.CARDANO:
+      return 'address';
   }
 }

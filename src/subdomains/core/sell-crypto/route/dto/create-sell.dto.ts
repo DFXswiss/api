@@ -20,7 +20,7 @@ export class CreateSellDto {
   @IsNotEmpty()
   @IsString()
   @IsDfxIban(IbanType.SELL)
-  @Transform(Util.trim)
+  @Transform(Util.trimAll)
   iban: string;
 
   // TODO: remove

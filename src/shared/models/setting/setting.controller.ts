@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiOkResponse,
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
-import { InfoBannerDto } from './dto/info-banner.dto';
+import { InfoBannerDto, InfoBannerSetting } from './dto/info-banner.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
@@ -18,7 +18,8 @@ export class SettingController {
   @Get('infoBanner')
   @ApiOkResponse({ type: InfoBannerDto })
   async getInfoBanner(): Promise<InfoBannerDto> {
-    return this.settingService.getObj('infoBanner', undefined);
+    const banner = await this.settingService.getObj<InfoBannerSetting>('infoBanner', undefined);
+    if (banner && new Date() > new Date(banner.from) && new Date() < new Date(banner.to)) return banner.content;
   }
 
   // --- ADMIN --- //

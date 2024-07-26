@@ -13,3 +13,9 @@ export class InfoBannerDto {
   @ApiProperty()
   it: string;
 }
+
+export interface InfoBannerSetting {
+  from: string;
+  to: string;
+  content: InfoBannerDto;
+}
