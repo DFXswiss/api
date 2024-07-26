@@ -165,6 +165,9 @@ export class TradingService {
         );
     }
 
+    tradingInfo.amountIn = amountIn;
+    tradingInfo.amountExpected = targetAmount;
+
     const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
     const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
     if (swapFeeChf > estimatedProfitChf) {
@@ -174,8 +177,16 @@ export class TradingService {
       );
     }
 
-    tradingInfo.amountIn = amountIn;
-    tradingInfo.amountExpected = targetAmount;
+    const approximateAmountOut =
+      tradingRule.leftAsset.id === tradingInfo.assetIn.id
+        ? amountIn / tradingInfo.price1
+        : amountIn * tradingInfo.price1;
+    if (Math.abs(targetAmount / approximateAmountOut - 1) > 0.1) {
+      tradingInfo.tradeRequired = false;
+      this.logger.error(
+        `Estimated output amount ${targetAmount} is out of range, approximate amount is ${approximateAmountOut}`,
+      );
+    }
 
     return tradingInfo;
   }

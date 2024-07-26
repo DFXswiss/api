@@ -7,6 +7,7 @@ import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
@@ -213,7 +214,7 @@ export class PaymentActivationService implements OnModuleInit {
     transferInfo: TransferInfo,
     expirySec: number,
   ): Promise<LnurlpInvoiceDto> {
-    const walletPaymentParams = await this.getLightningPaymentParams(payment, transferInfo, expirySec);
+    const walletPaymentParams = this.getLightningPaymentParams(payment, transferInfo, expirySec);
 
     const lightningPayment = await this.client.getLnBitsWalletPayment(walletPaymentParams);
 
@@ -222,16 +223,14 @@ export class PaymentActivationService implements OnModuleInit {
     return lightningPayment;
   }
 
-  private async getLightningPaymentParams(
+  private getLightningPaymentParams(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
-  ): Promise<LnBitsWalletPaymentParamsDto> {
-    const memo = `Payment ID: ${payment.link.externalId}/${payment.externalId}`;
-
+  ): LnBitsWalletPaymentParamsDto {
     return {
       amount: LightningHelper.btcToSat(transferInfo.amount),
-      memo: memo,
+      memo: `Payment ID: ${payment.link.metaId}/${payment.metaId}`,
       expirySec: expirySec,
       webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
     };
@@ -252,9 +251,7 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<PaymentLinkEvmPaymentDto> {
-    const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
-    const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
-    if (!asset) throw new NotFoundException(`Asset ${uniqueAssetName} not found`);
+    const asset = await this.getAssetByInfo(transferInfo);
 
     const evmPaymentRequest = EvmUtil.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
 
@@ -266,8 +263,7 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   private async savePaymentRequest(payment: PaymentLinkPayment, pr: string, transferInfo: TransferInfo): Promise<void> {
-    const uniqueAssetName = `${transferInfo.method}/${transferInfo.asset}`;
-    const asset = await this.assetService.getAssetByUniqueName(uniqueAssetName);
+    const asset = await this.getAssetByInfo(transferInfo);
 
     const newPaymentActivation = this.paymentActivationRepo.create({
       status: PaymentActivationStatus.PENDING,
@@ -280,5 +276,14 @@ export class PaymentActivationService implements OnModuleInit {
     });
 
     await this.paymentActivationRepo.save(newPaymentActivation);
+  }
+
+  private async getAssetByInfo(transferInfo: TransferInfo): Promise<Asset> {
+    const uniqueName = `${transferInfo.method}/${transferInfo.asset}`;
+
+    const asset = await this.assetService.getAssetByUniqueName(uniqueName);
+    if (!asset) throw new NotFoundException(`Asset ${uniqueName} not found`);
+
+    return asset;
   }
 }

@@ -23,7 +23,7 @@ export class GetSellPaymentInfoDto {
   @IsNotEmpty()
   @IsString()
   @IsDfxIban(IbanType.SELL)
-  @Transform(Util.trim)
+  @Transform(Util.trimAll)
   iban: string;
 
   @ApiProperty({ type: EntityDto, description: 'Source asset' })

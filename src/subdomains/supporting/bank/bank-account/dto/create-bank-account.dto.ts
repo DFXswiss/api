@@ -10,6 +10,6 @@ export class CreateBankAccountDto extends UpdateBankAccountDto {
   @IsNotEmpty()
   @IsString()
   @IsDfxIban(IbanType.BOTH)
-  @Transform(Util.trim)
+  @Transform(Util.trimAll)
   iban: string;
 }

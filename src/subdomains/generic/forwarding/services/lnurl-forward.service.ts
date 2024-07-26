@@ -45,21 +45,16 @@ export class LnUrlForwardService {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const metaPaymentLinkId = pendingPayment.link.externalId ?? pendingPayment.link.id;
-    const metaPaymentLinkPaymentId = pendingPayment.externalId ?? pendingPayment.id;
+    const metaData = `Payment ${pendingPayment.metaId} to ${pendingPayment.link.metaId}`;
 
-    const metaData = `Payment to ${metaPaymentLinkId}: ${metaPaymentLinkPaymentId}`;
-
-    const btcTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'BTC');
-    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
-
-    const msatsSendable = LightningHelper.btcToMsat(Util.round(btcTransferAmount.amount, 8));
+    const mSatTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'MSAT');
+    if (!mSatTransferAmount) throw new NotFoundException('No BTC transfer amount found');
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
-      minSendable: msatsSendable,
-      maxSendable: msatsSendable,
+      minSendable: mSatTransferAmount.amount,
+      maxSendable: mSatTransferAmount.amount,
       metadata: `[["text/plain", "${metaData}"]]`,
       transferAmounts: pendingPayment.transferInfo,
     };
@@ -92,12 +87,16 @@ export class LnUrlForwardService {
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {
-    const method = Util.toEnum(Blockchain, params.method);
+    const isMsat = !params.asset || params.asset === 'MSAT';
+
+    const amount = params.amount ? Number(params.amount) : 0;
+    const asset = isMsat ? 'BTC' : params.asset;
+    const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
-      asset: params.asset ?? 'BTC',
-      amount: params.amount ? Number(params.amount) : 0,
-      method: method ?? Blockchain.LIGHTNING,
+      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
+      asset: asset,
+      method: method,
     };
   }
 
