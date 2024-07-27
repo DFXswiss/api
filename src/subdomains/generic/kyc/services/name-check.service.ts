@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
 import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
@@ -41,20 +43,50 @@ export class NameCheckService implements OnModuleInit {
     // const sanctionData = this.sanctionData.filter((data) =>
     //   this.isSanctionedData(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
     // );
-    const sanctionData = await this.dilisenseService.getRiskData(
-      bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
-        ? bankData.userData.verifiedName
-        : bankData.name,
+
+    // Personal name check
+    if (bankData.userData.accountType === AccountType.PERSONAL) {
+      const sanctionData = await this.dilisenseService.getRiskData(
+        bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
+          ? bankData.userData.verifiedName
+          : bankData.name,
+        bankData.userData.birthday,
+      );
+
+      return this.classifyRiskData(sanctionData, bankData);
+    }
+
+    // Business name check
+    const personalSanctionData = await this.dilisenseService.getRiskData(
+      `${bankData.userData.firstname} ${bankData.userData.surname}`,
       bankData.userData.birthday,
     );
 
+    const businessSanctionData = await this.dilisenseService.getRiskData(bankData.userData.organizationName);
+
+    const riskStatus = [
+      await this.classifyRiskData(personalSanctionData, bankData),
+      await this.classifyRiskData(businessSanctionData, bankData, 'Business'),
+    ];
+
+    if (riskStatus.some((r) => r === RiskStatus.SANCTIONED) || riskStatus[1] === RiskStatus.MATCH_WITHOUT_BIRTHDAY)
+      return RiskStatus.SANCTIONED;
+    if (riskStatus[0] === RiskStatus.MATCH_WITHOUT_BIRTHDAY) return RiskStatus.MATCH_WITHOUT_BIRTHDAY;
+    return RiskStatus.NOT_SANCTIONED;
+  }
+
+  private async classifyRiskData(
+    sanctionData: DilisenseApiData,
+    bankData: BankData,
+    comment = '',
+  ): Promise<RiskStatus> {
     if (sanctionData.total_hits == 0) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED);
+      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED, comment);
       return RiskStatus.NOT_SANCTIONED;
     }
 
     if (sanctionData.found_records.every((s) => !s.date_of_birth?.length)) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.MATCH_WITHOUT_BIRTHDAY);
+      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.MATCH_WITHOUT_BIRTHDAY, comment);
       return RiskStatus.MATCH_WITHOUT_BIRTHDAY;
     }
 
@@ -63,6 +95,7 @@ export class NameCheckService implements OnModuleInit {
         bankData,
         JSON.stringify(sanction),
         !sanction.date_of_birth?.length ? RiskStatus.MATCH_WITHOUT_BIRTHDAY : RiskStatus.SANCTIONED,
+        comment,
       );
     }
 
@@ -95,7 +128,12 @@ export class NameCheckService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  private async createNameCheckLog(bankData: BankData, result: string, riskRate: RiskStatus): Promise<void> {
+  private async createNameCheckLog(
+    bankData: BankData,
+    result: string,
+    riskRate: RiskStatus,
+    comment?: string,
+  ): Promise<void> {
     const existing = await this.nameCheckLogRepo.findOne({
       where: { userData: { id: bankData.userData.id }, result },
       relations: { userData: true, bankData: true },
@@ -109,7 +147,7 @@ export class NameCheckService implements OnModuleInit {
       bankData,
       riskEvaluationDate: existing?.riskEvaluationDate,
       riskEvaluation: existing?.riskEvaluation,
-      comment: existing?.comment,
+      comment: [existing?.comment, comment].join(';'),
     });
 
     await this.nameCheckLogRepo.save(entity);
