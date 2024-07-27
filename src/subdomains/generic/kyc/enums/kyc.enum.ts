@@ -1,11 +1,20 @@
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import { KycIdentificationType, UserData } from '../../user/models/user-data/user-data.entity';
+import {
+  KycIdentificationType,
+  LegalEntity,
+  SignatoryPower,
+  UserData,
+} from '../../user/models/user-data/user-data.entity';
 
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
+  LEGAL_ENTITY = 'AccountType',
+  STOCK_REGISTER = 'StockRegister',
   NATIONALITY_DATA = 'NationalityData',
   COMMERCIAL_REGISTER = 'CommercialRegister',
+  SIGNATORY_POWER = 'SignatoryPower',
+  AUTHORITY = 'Authority',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
   DOCUMENT_UPLOAD = 'DocumentUpload',
@@ -17,24 +26,19 @@ export function getKycStepIndex(stepName: KycStepName): number {
 }
 
 export function requiredKycSteps(userData: UserData): KycStepName[] {
-  return userData.accountType === AccountType.BUSINESS
-    ? [
-        KycStepName.CONTACT_DATA,
-        KycStepName.PERSONAL_DATA,
-        KycStepName.NATIONALITY_DATA,
-        KycStepName.COMMERCIAL_REGISTER,
-        KycStepName.IDENT,
-        KycStepName.FINANCIAL_DATA,
-        KycStepName.DFX_APPROVAL,
-      ]
-    : [
-        KycStepName.CONTACT_DATA,
-        KycStepName.PERSONAL_DATA,
-        KycStepName.NATIONALITY_DATA,
-        KycStepName.IDENT,
-        KycStepName.FINANCIAL_DATA,
-        KycStepName.DFX_APPROVAL,
-      ];
+  return [
+    KycStepName.CONTACT_DATA,
+    KycStepName.PERSONAL_DATA,
+    userData.accountType === AccountType.BUSINESS ? KycStepName.LEGAL_ENTITY : null,
+    userData.legalEntity === LegalEntity.PUBLIC_LIMITED_COMPANY ? KycStepName.STOCK_REGISTER : null,
+    KycStepName.NATIONALITY_DATA,
+    userData.accountType !== AccountType.PERSONAL ? KycStepName.COMMERCIAL_REGISTER : null,
+    userData.accountType === AccountType.BUSINESS ? KycStepName.SIGNATORY_POWER : null,
+    userData.signatoryPower !== SignatoryPower.SINGLE ? KycStepName.AUTHORITY : null,
+    KycStepName.IDENT,
+    KycStepName.FINANCIAL_DATA,
+    KycStepName.DFX_APPROVAL,
+  ].filter(Boolean) as KycStepName[];
 }
 
 export enum KycStepType {

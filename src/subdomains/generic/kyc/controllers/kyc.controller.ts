@@ -30,18 +30,22 @@ import { Config, GetConfig } from 'src/config/config';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { LimitRequestDto } from '../../../supporting/support-issue/dto/limit-request.dto';
 import { LimitRequestService } from '../../../supporting/support-issue/services/limit-request.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import {
-  KycCommercialRegisterData,
   KycContactData,
+  KycFileData,
+  KycLegalEntityData,
   KycNationalityData,
   KycPersonalData,
+  KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
+import { FileType } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
@@ -142,6 +146,29 @@ export class KycController {
     return this.kycService.updatePersonalData(code, +id, data);
   }
 
+  @Put('data/legal/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateLegalEntityData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycLegalEntityData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateLegalEntityData(code, +id, data);
+  }
+
+  @Put('data/stock/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateStockRegisterData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    data.fileName = `${Util.isoDateTime(new Date())}_stock-register_user-upload_${data.fileName}`;
+    return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
+  }
+
   @Put('data/nationality/:id')
   @ApiOkResponse({ type: KycResultDto })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -159,9 +186,33 @@ export class KycController {
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycCommercialRegisterData,
+    @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    return this.kycService.updateCommercialRegisterData(code, +id, data);
+    data.fileName = `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`;
+    return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+  }
+
+  @Put('data/signatory/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateSignatoryPowerData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycSignatoryPowerData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateSignatoryPowerData(code, +id, data);
+  }
+
+  @Put('data/authority/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateAuthorityData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    data.fileName = `${Util.isoDateTime(new Date())}_authority_user-upload_${data.fileName}`;
+    return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
   }
 
   @Get('data/financial/:id')
