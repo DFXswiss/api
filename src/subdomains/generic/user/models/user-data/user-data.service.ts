@@ -166,12 +166,9 @@ export class UserDataService {
     }
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
-    if (userData.kycLevel >= KycLevel.LEVEL_50) {
-      const dfxApprovalCompleted = userData.hasCompletedStep(KycStepName.DFX_APPROVAL);
-      if (!dfxApprovalCompleted) {
-        const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-        if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
-      }
+    if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
+      const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
+      if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
     }
 
     // Columns are not updatable
@@ -403,9 +400,9 @@ export class UserDataService {
     if (dto.nationality || dto.identDocumentId) {
       const existing = await this.userDataRepo.findOneBy({
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
-        identDocumentId: dto.identDocumentId ?? userData.identDocumentId ?? '',
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
       });
-      if (existing && userData.id !== existing.id)
+      if (existing?.identDocumentId && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
   }
