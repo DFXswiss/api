@@ -9,7 +9,7 @@ import {
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
-  LEGAL_ENTITY = 'AccountType',
+  LEGAL_ENTITY = 'LegalEntity',
   STOCK_REGISTER = 'StockRegister',
   NATIONALITY_DATA = 'NationalityData',
   COMMERCIAL_REGISTER = 'CommercialRegister',
@@ -32,9 +32,11 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     userData.accountType === AccountType.BUSINESS ? KycStepName.LEGAL_ENTITY : null,
     userData.legalEntity === LegalEntity.PUBLIC_LIMITED_COMPANY ? KycStepName.STOCK_REGISTER : null,
     KycStepName.NATIONALITY_DATA,
-    userData.accountType !== AccountType.PERSONAL ? KycStepName.COMMERCIAL_REGISTER : null,
+    [AccountType.BUSINESS, AccountType.BUSINESS].includes(userData.accountType)
+      ? KycStepName.COMMERCIAL_REGISTER
+      : null,
     userData.accountType === AccountType.BUSINESS ? KycStepName.SIGNATORY_POWER : null,
-    userData.signatoryPower !== SignatoryPower.SINGLE ? KycStepName.AUTHORITY : null,
+    [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
     KycStepName.DFX_APPROVAL,
