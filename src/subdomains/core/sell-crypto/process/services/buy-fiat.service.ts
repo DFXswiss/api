@@ -289,7 +289,7 @@ export class BuyFiatService {
         bankTx: true,
         sell: { user: true },
         fiatOutput: { bankTx: true },
-        transaction: true,
+        bankData: true,
       },
       order: { id: 'DESC' },
     });
