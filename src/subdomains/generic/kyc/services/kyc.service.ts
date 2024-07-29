@@ -266,13 +266,18 @@ export class KycService {
     return KycStepMapper.toKycResult(kycStep);
   }
 
-  async updateUserDataInternal(kycHash: string, stepId: number, data: Partial<UserData>): Promise<KycResultDto> {
+  async updateUserData(
+    kycHash: string,
+    stepId: number,
+    data: Partial<UserData>,
+    requiresInternalReview: boolean,
+  ): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     user = await this.userDataService.updateUserDataInternal(user, data);
 
-    user = user.completeStep(kycStep, data);
+    user = requiresInternalReview ? user.internalReviewStep(kycStep) : user.completeStep(kycStep, data);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
