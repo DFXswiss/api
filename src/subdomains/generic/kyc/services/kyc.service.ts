@@ -31,14 +31,7 @@ import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
-import {
-  KycContactData,
-  KycFileData,
-  KycLegalEntityData,
-  KycNationalityData,
-  KycPersonalData,
-  KycSignatoryPowerData,
-} from '../dto/input/kyc-data.dto';
+import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
@@ -273,26 +266,13 @@ export class KycService {
     return KycStepMapper.toKycResult(kycStep);
   }
 
-  async updateLegalEntityData(kycHash: string, stepId: number, data: KycLegalEntityData): Promise<KycResultDto> {
+  async updateUserDataInternal(kycHash: string, stepId: number, data: Partial<UserData>): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     user = await this.userDataService.updateUserDataInternal(user, data);
 
     user = user.completeStep(kycStep, data);
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
-
-    return KycStepMapper.toKycResult(kycStep);
-  }
-
-  async updateNationalityData(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
-
-    const updatedUser = await this.userDataService.updateUserDataInternal(user, data);
-
-    user = updatedUser.internalReviewStep(kycStep);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -314,19 +294,6 @@ export class KycService {
     );
 
     user = user.internalReviewStep(kycStep, url);
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
-
-    return KycStepMapper.toKycResult(kycStep);
-  }
-
-  async updateSignatoryPowerData(kycHash: string, stepId: number, data: KycSignatoryPowerData): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
-
-    user = await this.userDataService.updateUserDataInternal(user, data);
-
-    user = user.internalReviewStep(kycStep);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 

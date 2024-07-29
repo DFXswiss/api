@@ -154,7 +154,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycLegalEntityData,
   ): Promise<KycResultDto> {
-    return this.kycService.updateLegalEntityData(code, +id, data);
+    return this.kycService.updateUserDataInternal(code, +id, data);
   }
 
   @Put('data/stock/:id')
@@ -177,7 +177,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycNationalityData,
   ): Promise<KycResultDto> {
-    return this.kycService.updateNationalityData(code, +id, data);
+    return this.kycService.updateUserDataInternal(code, +id, data);
   }
 
   @Put('data/commercial/:id')
@@ -200,7 +200,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycResultDto> {
-    return this.kycService.updateSignatoryPowerData(code, +id, data);
+    return this.kycService.updateUserDataInternal(code, +id, data);
   }
 
   @Put('data/authority/:id')
