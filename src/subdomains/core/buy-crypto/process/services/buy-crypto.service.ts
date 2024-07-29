@@ -610,16 +610,15 @@ export class BuyCryptoService {
           transaction: true,
         },
       ],
-      relations: [
-        'bankTx',
-        'buy',
-        'buy.user',
-        'cryptoInput',
-        'checkoutTx',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'chargebackBankTx',
-      ],
+      relations: {
+        bankTx: true,
+        buy: { user: true },
+        cryptoInput: true,
+        checkoutTx: true,
+        cryptoRoute: { user: true },
+        chargebackBankTx: true,
+        bankData: true,
+      },
       order: { id: 'DESC' },
     });
   }
