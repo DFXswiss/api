@@ -277,7 +277,7 @@ export class KycService {
 
     user = await this.userDataService.updateUserDataInternal(user, data);
 
-    user = requiresInternalReview ? user.internalReviewStep(kycStep) : user.completeStep(kycStep, data);
+    user = requiresInternalReview ? user.internalReviewStep(kycStep, data) : user.completeStep(kycStep, data);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -471,7 +471,7 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
-      if (nextLevel) {
+      if (nextLevel && nextLevel > user.kycLevel) {
         user.setKycLevel(nextLevel);
         await this.kycNotificationService.kycChanged(user, nextLevel);
       }
@@ -502,19 +502,19 @@ export class KycService {
 
     switch (nextStep) {
       case KycStepName.CONTACT_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.PERSONAL_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
       case KycStepName.LEGAL_ENTITY:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.STOCK_REGISTER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.NATIONALITY_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.COMMERCIAL_REGISTER:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
