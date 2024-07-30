@@ -402,7 +402,7 @@ export class UserDataService {
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
         identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
       });
-      if (existing?.identDocumentId && userData.id !== existing.id)
+      if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
   }
