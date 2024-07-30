@@ -8,7 +8,9 @@ export enum FileType {
   USER_NOTES = 'UserNotes',
   TRANSACTION_NOTES = 'TransactionNotes',
   SUPPORT_ISSUE = 'SupportIssue',
+  STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
+  AUTHORITY = 'Authority',
 }
 
 export enum ContentType {

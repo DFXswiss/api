@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
 
@@ -100,6 +101,20 @@ export class KycInputDataDto extends KycPersonalData {
   mail: string;
 }
 
+export class KycLegalEntityData {
+  @ApiProperty({ enum: LegalEntity })
+  @IsNotEmpty()
+  @IsEnum(LegalEntity)
+  legalEntity: LegalEntity;
+}
+
+export class KycSignatoryPowerData {
+  @ApiProperty({ enum: SignatoryPower })
+  @IsNotEmpty()
+  @IsEnum(SignatoryPower)
+  signatoryPower: SignatoryPower;
+}
+
 export class KycNationalityData {
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
@@ -108,7 +123,7 @@ export class KycNationalityData {
   nationality: Country;
 }
 
-export class KycCommercialRegisterData {
+export class KycFileData {
   @ApiProperty({ description: 'Base64 encoded file' })
   @IsNotEmpty()
   @IsString()

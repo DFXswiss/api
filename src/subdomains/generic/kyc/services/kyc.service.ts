@@ -31,12 +31,7 @@ import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
-import {
-  KycCommercialRegisterData,
-  KycContactData,
-  KycNationalityData,
-  KycPersonalData,
-} from '../dto/input/kyc-data.dto';
+import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
@@ -271,33 +266,34 @@ export class KycService {
     return KycStepMapper.toKycResult(kycStep);
   }
 
-  async updateNationalityData(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycResultDto> {
+  async updateUserData(
+    kycHash: string,
+    stepId: number,
+    data: Partial<UserData>,
+    requiresInternalReview: boolean,
+  ): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    const updatedUser = await this.userDataService.updateUserDataInternal(user, data);
+    user = await this.userDataService.updateUserDataInternal(user, data);
 
-    user = updatedUser.internalReviewStep(kycStep);
+    user = requiresInternalReview ? user.internalReviewStep(kycStep, data) : user.completeStep(kycStep, data);
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return KycStepMapper.toKycResult(kycStep);
   }
 
-  async updateCommercialRegisterData(
-    kycHash: string,
-    stepId: number,
-    data: KycCommercialRegisterData,
-  ): Promise<KycResultDto> {
+  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    // upload commercial register extract
+    // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
     const url = await this.storageService.uploadFile(
       user.id,
-      FileType.COMMERCIAL_REGISTER,
-      `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`,
+      fileType,
+      data.fileName,
       buffer,
       contentType as ContentType,
     );
@@ -475,7 +471,7 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
-      if (nextLevel) {
+      if (nextLevel && nextLevel > user.kycLevel) {
         user.setKycLevel(nextLevel);
         await this.kycNotificationService.kycChanged(user, nextLevel);
       }
@@ -511,10 +507,22 @@ export class KycService {
       case KycStepName.PERSONAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
+      case KycStepName.LEGAL_ENTITY:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+
+      case KycStepName.STOCK_REGISTER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+
       case KycStepName.NATIONALITY_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.COMMERCIAL_REGISTER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.SIGNATORY_POWER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.AUTHORITY:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
