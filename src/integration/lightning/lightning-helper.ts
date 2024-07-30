@@ -95,6 +95,10 @@ export class LightningHelper {
     return lnurlDecode(lnurl);
   }
 
+  static createLnurlMetadata(memo: string): string {
+    return `[["text/plain", "${memo}"]]`;
+  }
+
   // --- SIGNATURE VERIFICATION --- //
   static getPublicKeyOfSignature(message: string, signature: string): string {
     const messageHash = this.getMessageHash(message);

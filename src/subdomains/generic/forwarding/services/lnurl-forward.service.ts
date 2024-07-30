@@ -53,7 +53,7 @@ export class LnUrlForwardService {
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: mSatTransferAmount.amount,
       maxSendable: mSatTransferAmount.amount,
-      metadata: `[["text/plain", "${pendingPayment.requestMemo}"]]`,
+      metadata: LightningHelper.createLnurlMetadata(pendingPayment.requestMemo),
       transferAmounts: pendingPayment.transferInfo,
     };
 

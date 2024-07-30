@@ -61,6 +61,22 @@ export enum KycIdentificationType {
   MANUAL = 'Manual',
 }
 
+export enum LegalEntity {
+  PUBLIC_LIMITED_COMPANY = 'PublicLimitedCompany',
+  LIMITED_LIABILITY_COMPANY = 'LimitedLiabilityCompany',
+  ASSOCIATION = 'Association',
+  FOUNDATION = 'Foundation',
+  LIFE_INSURANCE = 'LifeInsurance',
+  TRUST = 'Trust',
+  OTHER = 'Other',
+}
+
+export enum SignatoryPower {
+  SINGLE = 'Single',
+  DOUBLE = 'Double',
+  NONE = 'None',
+}
+
 export enum RiskState {
   A = 'a',
   B = 'b',
@@ -184,6 +200,12 @@ export class UserData extends IEntity {
   currency: Fiat;
 
   // --- KYC --- //
+
+  @Column({ length: 256, nullable: true })
+  legalEntity: LegalEntity;
+
+  @Column({ length: 256, nullable: true })
+  signatoryPower: SignatoryPower;
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
