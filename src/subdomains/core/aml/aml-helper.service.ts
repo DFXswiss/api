@@ -83,6 +83,7 @@ export class AmlHelperService {
 
       if (
         entity.userData.hasSuspiciousMail &&
+        entity.user.wallet.amlRule !== AmlRule.RULE_5 &&
         entity.userData.status === UserDataStatus.NA &&
         (entity.checkoutTx || (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
       )

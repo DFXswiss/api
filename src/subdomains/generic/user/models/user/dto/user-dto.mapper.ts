@@ -1,3 +1,4 @@
+import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -38,6 +39,7 @@ export class UserDtoMapper {
       wallet: user.wallet.displayName ?? user.wallet.name,
       label: user.label,
       address: user.address,
+      explorerUrl: addressExplorerUrl(user.blockchains[0], user.address),
       blockchains: user.blockchains,
       volumes: this.mapVolumes(user),
       refCode: user.ref,

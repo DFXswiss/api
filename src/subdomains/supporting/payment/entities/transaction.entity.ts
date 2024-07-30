@@ -18,6 +18,7 @@ import { TransactionRequest } from './transaction-request.entity';
 export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',
   BUY_FIAT = 'BuyFiat',
+  BUY_FIAT_OUTPUT = 'BuyFiatOutput',
   CRYPTO_CRYPTO = 'CryptoCrypto',
   INTERNAL = 'Internal',
   BANK_TX_RETURN = 'BankTxReturn',

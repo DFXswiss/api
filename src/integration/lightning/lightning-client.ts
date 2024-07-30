@@ -135,13 +135,15 @@ export class LightningClient {
   }
 
   async getLnBitsWalletPayment(walletPaymentParams: LnBitsWalletPaymentParamsDto): Promise<LnurlpInvoiceDto> {
+    const metadata = LightningHelper.createLnurlMetadata(walletPaymentParams.memo);
+
     return this.http
       .post<LnBitsWalletPaymentDto>(
         `${Config.blockchain.lightning.lnbits.apiUrl}/payments`,
         {
           out: false,
           amount: walletPaymentParams.amount,
-          memo: walletPaymentParams.memo,
+          description_hash: Util.createHash(metadata),
           expiry: walletPaymentParams.expirySec,
           webhook: walletPaymentParams.webhook,
         },

@@ -10,7 +10,7 @@ export class CreateBuyDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsDfxIban(IbanType.BUY)
-  @Transform(Util.trim)
+  @Transform(Util.trimAll)
   iban?: string;
 
   @ApiProperty({ type: EntityDto })

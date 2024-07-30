@@ -139,7 +139,7 @@ export class Util {
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[ç]/g, 'c')
+      .replace(/[çč]/g, 'c')
       .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '')
       .replace(/[-‘`´']/g, ' ');
@@ -453,8 +453,12 @@ export class Util {
     return `${mailSplit[0].slice(0, visibleLength)}***@${mailSplit[1]}`;
   }
 
-  static trim({ value }: TransformFnParams): string | undefined {
+  static trimAll({ value }: TransformFnParams): string | undefined {
     return value?.split(' ').join('');
+  }
+
+  static trim({ value }: TransformFnParams): string | undefined {
+    return value?.trim();
   }
 
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {

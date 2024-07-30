@@ -259,6 +259,7 @@ export class Configuration {
     timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    fee: 0.02,
   };
 
   blockchain = {
