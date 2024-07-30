@@ -165,6 +165,12 @@ export class UserDataService {
       if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
     }
 
+    // If KYC level >= 50 and DFX-approval not complete, complete it.
+    if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
+      const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
+      if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+    }
+
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
     if (userData.identificationType) dto.identificationType = userData.identificationType;
@@ -396,7 +402,7 @@ export class UserDataService {
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
         identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
       });
-      if (existing && userData.id !== existing.id)
+      if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
   }

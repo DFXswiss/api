@@ -1,19 +1,46 @@
-import { KycIdentificationType } from '../../user/models/user-data/user-data.entity';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
+import {
+  KycIdentificationType,
+  LegalEntity,
+  SignatoryPower,
+  UserData,
+} from '../../user/models/user-data/user-data.entity';
 
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
+  LEGAL_ENTITY = 'LegalEntity',
+  STOCK_REGISTER = 'StockRegister',
+  NATIONALITY_DATA = 'NationalityData',
+  COMMERCIAL_REGISTER = 'CommercialRegister',
+  SIGNATORY_POWER = 'SignatoryPower',
+  AUTHORITY = 'Authority',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
   DOCUMENT_UPLOAD = 'DocumentUpload',
+  DFX_APPROVAL = 'DfxApproval',
 }
 
 export function getKycStepIndex(stepName: KycStepName): number {
   return Object.values(KycStepName).indexOf(stepName);
 }
 
-export function requiredKycSteps(): KycStepName[] {
-  return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
+export function requiredKycSteps(userData: UserData): KycStepName[] {
+  return [
+    KycStepName.CONTACT_DATA,
+    KycStepName.PERSONAL_DATA,
+    userData.accountType === AccountType.BUSINESS ? KycStepName.LEGAL_ENTITY : null,
+    userData.legalEntity === LegalEntity.PUBLIC_LIMITED_COMPANY ? KycStepName.STOCK_REGISTER : null,
+    KycStepName.NATIONALITY_DATA,
+    [AccountType.BUSINESS, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
+      ? KycStepName.COMMERCIAL_REGISTER
+      : null,
+    userData.accountType === AccountType.BUSINESS ? KycStepName.SIGNATORY_POWER : null,
+    [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
+    KycStepName.IDENT,
+    KycStepName.FINANCIAL_DATA,
+    KycStepName.DFX_APPROVAL,
+  ].filter(Boolean) as KycStepName[];
 }
 
 export enum KycStepType {
@@ -70,6 +97,7 @@ export enum KycStepStatus {
 export enum UrlType {
   BROWSER = 'Browser',
   API = 'API',
+  NONE = 'None',
 }
 
 export enum QuestionType {

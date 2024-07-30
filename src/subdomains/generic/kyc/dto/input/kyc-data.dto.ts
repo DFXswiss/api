@@ -13,6 +13,7 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
 
@@ -107,4 +108,38 @@ export class KycInputDataDto extends KycPersonalData {
   @IsNotEmpty()
   @IsEmail()
   mail: string;
+}
+
+export class KycLegalEntityData {
+  @ApiProperty({ enum: LegalEntity })
+  @IsNotEmpty()
+  @IsEnum(LegalEntity)
+  legalEntity: LegalEntity;
+}
+
+export class KycSignatoryPowerData {
+  @ApiProperty({ enum: SignatoryPower })
+  @IsNotEmpty()
+  @IsEnum(SignatoryPower)
+  signatoryPower: SignatoryPower;
+}
+
+export class KycNationalityData {
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  nationality: Country;
+}
+
+export class KycFileData {
+  @ApiProperty({ description: 'Base64 encoded file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the file' })
+  @IsNotEmpty()
+  @IsString()
+  fileName: string;
 }

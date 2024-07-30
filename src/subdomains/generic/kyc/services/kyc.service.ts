@@ -15,7 +15,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -31,7 +31,7 @@ import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
-import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
+import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
@@ -62,6 +62,7 @@ export enum IdentCheckError {
   USER_DATA_BLOCKED = 'UserDataBlocked',
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
+  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
@@ -123,7 +124,11 @@ export class KycService {
     if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
 
     const entities = await this.kycStepRepo.find({
-      where: { name: KycStepName.IDENT, status: KycStepStatus.INTERNAL_REVIEW },
+      where: {
+        name: KycStepName.IDENT,
+        status: KycStepStatus.INTERNAL_REVIEW,
+        userData: { nationality: Not(IsNull()) },
+      },
       relations: { userData: { kycSteps: true } },
     });
 
@@ -256,6 +261,45 @@ export class KycService {
       await this.createStepLog(user, kycStep);
     }
 
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toKycResult(kycStep);
+  }
+
+  async updateUserData(
+    kycHash: string,
+    stepId: number,
+    data: Partial<UserData>,
+    requiresInternalReview: boolean,
+  ): Promise<KycResultDto> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    user = await this.userDataService.updateUserDataInternal(user, data);
+
+    user = requiresInternalReview ? user.internalReviewStep(kycStep, data) : user.completeStep(kycStep, data);
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toKycResult(kycStep);
+  }
+
+  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycResultDto> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    const url = await this.storageService.uploadFile(
+      user.id,
+      fileType,
+      data.fileName,
+      buffer,
+      contentType as ContentType,
+    );
+
+    user = user.internalReviewStep(kycStep, url);
+    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return KycStepMapper.toKycResult(kycStep);
@@ -427,7 +471,7 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
-      if (nextLevel) {
+      if (nextLevel && nextLevel > user.kycLevel) {
         user.setKycLevel(nextLevel);
         await this.kycNotificationService.kycChanged(user, nextLevel);
       }
@@ -449,7 +493,7 @@ export class KycService {
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
   }> {
-    const missingSteps = requiredKycSteps().filter((rs) => !user.hasDoneStep(rs));
+    const missingSteps = requiredKycSteps(user).filter((rs) => !user.hasDoneStep(rs));
 
     const nextStep = missingSteps[0];
 
@@ -463,6 +507,24 @@ export class KycService {
       case KycStepName.PERSONAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
+      case KycStepName.LEGAL_ENTITY:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+
+      case KycStepName.STOCK_REGISTER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+
+      case KycStepName.NATIONALITY_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
+
+      case KycStepName.COMMERCIAL_REGISTER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.SIGNATORY_POWER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.AUTHORITY:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
       case KycStepName.IDENT:
         return {
           nextStep: {
@@ -470,10 +532,12 @@ export class KycService {
             type: await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
-          nextLevel: KycLevel.LEVEL_20,
         };
 
       case KycStepName.FINANCIAL_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.DFX_APPROVAL:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
@@ -515,6 +579,10 @@ export class KycService {
 
         if (!user.getStepsWith(KycStepName.IDENT).length) await this.kycNotificationService.sendIdentStartedMail(user);
         break;
+
+      case KycStepName.DFX_APPROVAL:
+        kycStep.internalReview();
+        break;
     }
 
     return kycStep;
@@ -531,7 +599,6 @@ export class KycService {
       result.identificationdocument?.type?.value &&
       result.identificationdocument?.number?.value
     ) {
-      const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
       const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${
         result.identificationdocument.number.value
       }`;
@@ -541,11 +608,10 @@ export class KycService {
         await this.accountMergeService.sendMergeRequest(existing, userData);
 
         return userData;
-      } else if (nationality) {
+      } else {
         return this.userDataService.updateUserDataInternal(userData, {
           kycLevel: KycLevel.LEVEL_30,
           birthday: new Date(result.userdata.birthday.value),
-          nationality,
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
@@ -574,6 +640,9 @@ export class KycService {
       !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
+
+    if (entity.userData.nationality?.symbol !== result.userdata.nationality?.value)
+      errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
