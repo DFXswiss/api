@@ -28,7 +28,7 @@ import { DepositService } from '../../../supporting/address-pool/deposit/deposit
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { ConfirmSellDto } from './dto/confirm-sell.dto';
+import { ConfirmDto } from './dto/confirm.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -186,7 +186,7 @@ export class SellService {
   }
 
   // --- CONFIRMATION --- //
-  async confirmSell(request: TransactionRequest, dto: ConfirmSellDto): Promise<BuyFiatExtended> {
+  async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
     try {
       const route = await this.sellRepo.findOne({
         where: { id: request.routeId },

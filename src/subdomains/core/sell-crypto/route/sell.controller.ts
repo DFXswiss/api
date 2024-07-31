@@ -32,7 +32,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { ConfirmSellDto } from './dto/confirm-sell.dto';
+import { ConfirmDto } from './dto/confirm.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
@@ -165,7 +165,7 @@ export class SellController {
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: ConfirmSellDto,
+    @Body() dto: ConfirmDto,
   ): Promise<TransactionDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
