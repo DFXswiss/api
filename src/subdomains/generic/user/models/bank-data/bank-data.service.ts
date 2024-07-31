@@ -11,6 +11,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -31,6 +32,7 @@ export class BankDataService {
     private readonly bankDataRepo: BankDataRepository,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly nameCheckService: NameCheckService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -63,6 +65,9 @@ export class BankDataService {
     if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
       if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
+      if (entity.type === BankDataType.IDENT) await this.nameCheckService.closeAndRefreshRiskStatus(entity);
+
       return;
     }
     try {
@@ -71,12 +76,20 @@ export class BankDataService {
         relations: { userData: true },
       });
 
-      if (!entity.userData.verifiedName)
+      if (!entity.userData.verifiedName && entity.type === BankDataType.BANK_IN)
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
-      if (errors.length === 0) {
+      if (
+        errors.length === 0 ||
+        (errors.length === 1 &&
+          errors.includes(BankDataVerificationError.VERIFIED_NAME_MISSING) &&
+          (!existing || Util.isSameName(entity.name, existing.name)))
+      ) {
+        if (!entity.userData.verifiedName)
+          await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
         if (existing) {
           const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
           await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
@@ -169,11 +182,11 @@ export class BankDataService {
       .getOne();
   }
 
-  async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
+  async getVerifiedBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
       .find({
-        where: { iban, userData: { id: userDataId } },
+        where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
         relations: { userData: true },
       })
       .then((b) => b.filter((b) => b.active)[0] ?? b[0]);

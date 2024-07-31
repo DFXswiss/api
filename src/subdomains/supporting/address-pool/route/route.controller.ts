@@ -29,6 +29,6 @@ export class RouteController {
       this.buyController.getAllBuy(jwt),
       this.sellController.getAllSell(jwt),
       this.swapController.getAllSwap(jwt),
-    ]).then(([buy, sell, crypto]) => ({ buy, sell, crypto }));
+    ]).then(([buy, sell, swap]) => ({ buy, sell, swap, crypto: swap }));
   }
 }

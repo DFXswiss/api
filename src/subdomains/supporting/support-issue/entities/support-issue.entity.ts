@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { SupportMessage } from './support-message.entity';
 
@@ -51,6 +52,10 @@ export class SupportIssue extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
+
+  @OneToOne(() => LimitRequest, { nullable: true })
+  @JoinColumn()
+  limitRequest: LimitRequest;
 
   set additionalInformation(info: object) {
     this.information = JSON.stringify(info);

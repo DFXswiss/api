@@ -40,7 +40,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BUY_CRYPTO_RETURN]: TransactionTypeInternal.BUY_CRYPTO_RETURN,
   [BankTxType.BANK_TX_RETURN]: TransactionTypeInternal.BANK_TX_RETURN,
   [BankTxType.BUY_CRYPTO]: TransactionTypeInternal.BUY_CRYPTO,
-  [BankTxType.BUY_FIAT]: TransactionTypeInternal.BUY_FIAT,
+  [BankTxType.BUY_FIAT]: TransactionTypeInternal.BUY_FIAT_OUTPUT,
   [BankTxType.BANK_TX_REPEAT]: TransactionTypeInternal.BANK_TX_REPEAT,
   [BankTxType.BANK_TX_RETURN_CHARGEBACK]: null,
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: null,

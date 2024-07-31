@@ -57,6 +57,24 @@ export class KycStep extends IEntity {
       case KycStepName.PERSONAL_DATA:
         return { url: `${apiUrl}/data/personal/${this.id}`, type: UrlType.API };
 
+      case KycStepName.LEGAL_ENTITY:
+        return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
+
+      case KycStepName.STOCK_REGISTER:
+        return { url: `${apiUrl}/data/stock/${this.id}`, type: UrlType.API };
+
+      case KycStepName.NATIONALITY_DATA:
+        return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
+
+      case KycStepName.COMMERCIAL_REGISTER:
+        return { url: `${apiUrl}/data/commercial/${this.id}`, type: UrlType.API };
+
+      case KycStepName.SIGNATORY_POWER:
+        return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
+
+      case KycStepName.AUTHORITY:
+        return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
+
       case KycStepName.IDENT:
         return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
 
@@ -65,6 +83,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.DOCUMENT_UPLOAD:
         return { url: `${apiUrl}/document/${this.id}`, type: UrlType.API };
+
+      case KycStepName.DFX_APPROVAL:
+        return { url: '', type: UrlType.NONE };
     }
   }
 

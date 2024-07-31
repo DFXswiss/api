@@ -9,6 +9,7 @@ import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/addres
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
+import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-output.module';
 import { FiatPayInModule } from 'src/subdomains/supporting/fiat-payin/fiat-payin.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
@@ -65,6 +66,7 @@ import { SwapService } from './routes/swap/swap.service';
     AmlModule,
     FiatPayInModule,
     SiftModule,
+    FiatOutputModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [

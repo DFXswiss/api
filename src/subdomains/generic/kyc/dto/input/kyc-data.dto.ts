@@ -13,13 +13,15 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
-import { IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
 
 export class KycContactData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
+  @Transform(Util.trim)
   mail: string;
 }
 
@@ -27,21 +29,25 @@ export class KycAddress {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   street: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.trim)
   houseNumber?: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   city: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   zip: string;
 
   @ApiProperty({ type: EntityDto })
@@ -60,18 +66,20 @@ export class KycPersonalData {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   firstName: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   lastName: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @IsDfxPhone()
-  @Transform(Util.trim)
+  @Transform(DfxPhoneTransform)
   phone: string;
 
   @ApiProperty({ type: KycAddress })
@@ -84,6 +92,7 @@ export class KycPersonalData {
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   organizationName?: string;
 
   @ApiPropertyOptional({ type: KycAddress })
@@ -99,4 +108,38 @@ export class KycInputDataDto extends KycPersonalData {
   @IsNotEmpty()
   @IsEmail()
   mail: string;
+}
+
+export class KycLegalEntityData {
+  @ApiProperty({ enum: LegalEntity })
+  @IsNotEmpty()
+  @IsEnum(LegalEntity)
+  legalEntity: LegalEntity;
+}
+
+export class KycSignatoryPowerData {
+  @ApiProperty({ enum: SignatoryPower })
+  @IsNotEmpty()
+  @IsEnum(SignatoryPower)
+  signatoryPower: SignatoryPower;
+}
+
+export class KycNationalityData {
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  nationality: Country;
+}
+
+export class KycFileData {
+  @ApiProperty({ description: 'Base64 encoded file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the file' })
+  @IsNotEmpty()
+  @IsString()
+  fileName: string;
 }

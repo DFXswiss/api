@@ -21,6 +21,9 @@ export class Asset extends IEntity {
   @Column({ nullable: true })
   chainId: string;
 
+  @Column({ type: 'int', nullable: true })
+  decimals: number;
+
   @Column({ length: 256 })
   name: string;
 
@@ -59,6 +62,9 @@ export class Asset extends IEntity {
 
   @Column({ default: true })
   instantSellable: boolean;
+
+  @Column({ default: false })
+  paymentEnabled: boolean;
 
   @Column({ default: false })
   ikna: boolean;

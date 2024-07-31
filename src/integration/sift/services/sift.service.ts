@@ -17,6 +17,7 @@ import {
   TransactionRequestType,
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import {
+  Chargeback,
   CreateAccount,
   CreateOrder,
   DeclineCategory,
@@ -59,6 +60,10 @@ export class SiftService {
 
   async updateAccount(data: CreateAccount): Promise<SiftResponse> {
     return this.send(EventType.UPDATE_ACCOUNT, data);
+  }
+
+  async createChargeback(data: Chargeback): Promise<SiftResponse> {
+    return this.send(EventType.CHARGEBACK, data);
   }
 
   async login(user: User, ip: string): Promise<SiftResponse> {
@@ -141,9 +146,11 @@ export class SiftService {
     const paymentMethod = isBuyCrypto
       ? this.createPaymentMethod(SiftPaymentMethodMap[tx.paymentMethodIn], tx.bankTx ?? tx.checkoutTx)
       : this.createPaymentMethod(PaymentType.CREDIT_CARD, tx);
+    const ip = isBuyCrypto ? undefined : tx.ip;
 
     const data: Transaction = {
       $user_id: user.id.toString(),
+      $ip: ip,
       $transaction_id: tx.transaction.id.toString(),
       $transaction_type: TransactionType.BUY,
       $time: tx.updated.getTime(),

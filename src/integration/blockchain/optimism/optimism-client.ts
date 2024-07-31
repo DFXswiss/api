@@ -1,10 +1,9 @@
 import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
-import { BigNumber, Contract, ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
@@ -13,6 +12,7 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
   l1GasPrice: BigNumber;
   l1GasUsed: BigNumber;
   l1FeeScalar: number;
+  l1Fee: BigNumber;
 }
 
 export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
@@ -65,44 +65,32 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
-    const l1Contract = this.getERC20ContractForDexL1(l1Token.chainId);
-    const l2Contract = this.getERC20ContractForDex(l2Token.chainId);
-
-    const l1Decimals = await l1Contract.decimals();
-    const l2Decimals = await l2Contract.decimals();
-
-    if (l1Decimals !== l2Decimals) {
+    if (l1Token.decimals !== l2Token.decimals) {
       throw new Error(
-        `Cannot bridge/deposit Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Decimals}`,
+        `Cannot bridge/deposit Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Token.decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Token.decimals}`,
       );
     }
 
     const response = await this.#crossChainMessenger.depositERC20(
       l1Token.chainId,
       l2Token.chainId,
-      EvmUtil.toWeiAmount(amount, l1Decimals),
+      EvmUtil.toWeiAmount(amount, l1Token.decimals),
     );
 
     return response.hash;
   }
 
   async withdrawTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
-    const l1Contract = this.getERC20ContractForDexL1(l1Token.chainId);
-    const l2Contract = this.getERC20ContractForDex(l2Token.chainId);
-
-    const l1Decimals = await l1Contract.decimals();
-    const l2Decimals = await l2Contract.decimals();
-
-    if (l1Decimals !== l2Decimals) {
+    if (l1Token.decimals !== l2Token.decimals) {
       throw new Error(
-        `Cannot bridge/withdraw Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Decimals}`,
+        `Cannot bridge/withdraw Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Token.decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Token.decimals}`,
       );
     }
 
     const response = await this.#crossChainMessenger.withdrawERC20(
       l1Token.chainId,
       l2Token.chainId,
-      EvmUtil.toWeiAmount(amount, l1Decimals),
+      EvmUtil.toWeiAmount(amount, l1Token.decimals),
     );
 
     return response.hash;
@@ -180,23 +168,16 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
-    const gasPrice = await this.provider.getGasPrice();
-
     const receipt = await this.l2Provider.getTransactionReceipt(txHash);
 
-    const { gasUsed, l1GasPrice, l1GasUsed, l1FeeScalar } = receipt as OptimismTransactionReceipt;
+    const { gasUsed, effectiveGasPrice, l1Fee } = receipt as OptimismTransactionReceipt;
 
-    const actualL1Fee = EvmUtil.fromWeiAmount(l1GasUsed.mul(l1GasPrice)) * l1FeeScalar;
-    const actualL2Fee = EvmUtil.fromWeiAmount(gasUsed.mul(gasPrice));
+    const l2Fee = gasUsed.mul(effectiveGasPrice);
 
-    return actualL1Fee + actualL2Fee;
+    return EvmUtil.fromWeiAmount(l1Fee.add(l2Fee));
   }
 
   //*** HELPER METHODS ***//
-
-  private getERC20ContractForDexL1(chainId: string): Contract {
-    return new ethers.Contract(chainId, ERC20_ABI, this.#l1Wallet);
-  }
 
   private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
     return asL2Provider(this.provider);

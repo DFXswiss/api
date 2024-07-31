@@ -57,7 +57,7 @@ export class BscStrategy extends EvmStrategy {
 
   private async getTransactionsAndCreatePayIns(addresses: string[], lastCheckedBlockHeight: number): Promise<void> {
     const log = this.createNewLogObject();
-    const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     for (const address of addresses) {
       const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, lastCheckedBlockHeight + 1);

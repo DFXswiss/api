@@ -25,7 +25,11 @@ export class AssetService {
     return this.assetRepo.save(entity);
   }
 
-  async getAllAsset(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
+  async getAllAssets() {
+    return this.assetRepo.findCached('all');
+  }
+
+  async getAllBlockchainAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
     search.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
     !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
@@ -33,7 +37,7 @@ export class AssetService {
     return this.assetRepo.findCachedBy(JSON.stringify(search), search);
   }
 
-  async getActiveAsset(): Promise<Asset[]> {
+  async getActiveAssets(): Promise<Asset[]> {
     return this.assetRepo.findBy([
       { buyable: true },
       { sellable: true },
@@ -41,7 +45,12 @@ export class AssetService {
       { instantSellable: true },
       { cardBuyable: true },
       { cardSellable: true },
+      { paymentEnabled: true },
     ]);
+  }
+
+  async getPaymentAssets(): Promise<Asset[]> {
+    return this.assetRepo.findBy({ paymentEnabled: true });
   }
 
   async getAssetById(id: number): Promise<Asset> {

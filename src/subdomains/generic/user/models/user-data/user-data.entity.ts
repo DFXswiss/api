@@ -61,6 +61,22 @@ export enum KycIdentificationType {
   MANUAL = 'Manual',
 }
 
+export enum LegalEntity {
+  PUBLIC_LIMITED_COMPANY = 'PublicLimitedCompany',
+  LIMITED_LIABILITY_COMPANY = 'LimitedLiabilityCompany',
+  ASSOCIATION = 'Association',
+  FOUNDATION = 'Foundation',
+  LIFE_INSURANCE = 'LifeInsurance',
+  TRUST = 'Trust',
+  OTHER = 'Other',
+}
+
+export enum SignatoryPower {
+  SINGLE = 'Single',
+  DOUBLE = 'Double',
+  NONE = 'None',
+}
+
 export enum RiskState {
   A = 'a',
   B = 'b',
@@ -84,6 +100,7 @@ export enum UserDataStatus {
   BLOCKED = 'Blocked',
   MERGED = 'Merged',
   KYC_ONLY = 'KycOnly',
+  DEACTIVATED = 'Deactivated',
 }
 
 @Entity()
@@ -102,6 +119,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
+
+  @Column({ type: 'datetime2', nullable: true })
+  deactivationDate: Date;
 
   // --- PERSONAL DATA --- //
   @Column({ length: 256, nullable: true })
@@ -180,6 +200,12 @@ export class UserData extends IEntity {
   currency: Fiat;
 
   // --- KYC --- //
+
+  @Column({ length: 256, nullable: true })
+  legalEntity: LegalEntity;
+
+  @Column({ length: 256, nullable: true })
+  signatoryPower: SignatoryPower;
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
@@ -287,6 +313,10 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   totpSecret: string;
 
+  // Point of Sale
+  @Column({ default: false })
+  paymentLinksAllowed: boolean;
+
   // References
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
@@ -318,15 +348,28 @@ export class UserData extends IEntity {
     ];
   }
 
-  blockUserData(): UpdateResult<UserData> {
+  deactivateUserData(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      status: UserDataStatus.BLOCKED,
-      kycLevel: KycLevel.TERMINATED,
+      status: UserDataStatus.DEACTIVATED,
+      kycLevel: Math.min(this.kycLevel, KycLevel.LEVEL_20),
+      deactivationDate: new Date(),
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  reactivateUserData(): Partial<UserData> {
+    return {
+      status:
+        this.users.length === 0
+          ? UserDataStatus.KYC_ONLY
+          : this.users.some((u) => u.status === UserStatus.ACTIVE)
+          ? UserDataStatus.ACTIVE
+          : UserDataStatus.NA,
+      deactivationDate: null,
+    };
   }
 
   addFee(feeId: number): UpdateResult<UserData> {
@@ -457,6 +500,14 @@ export class UserData extends IEntity {
 
   get isBlocked(): boolean {
     return UserDataStatus.BLOCKED === this.status || this.kycLevel < 0;
+  }
+
+  get isDeactivated(): boolean {
+    return this.status === UserDataStatus.DEACTIVATED;
+  }
+
+  get isBlockedOrDeactivated(): boolean {
+    return this.isBlocked || this.isDeactivated;
   }
 
   get address() {

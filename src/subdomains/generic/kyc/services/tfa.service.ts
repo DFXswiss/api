@@ -1,4 +1,11 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -30,7 +37,10 @@ export class TfaService {
 
   private secretCache: Map<number, SecretCacheEntry> = new Map();
 
-  constructor(private readonly tfaRepo: TfaLogRepository, private readonly userDataService: UserDataService) {}
+  constructor(
+    private readonly tfaRepo: TfaLogRepository,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
+  ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock()

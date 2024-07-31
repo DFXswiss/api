@@ -14,6 +14,7 @@ import {
 import { Observable, Subject, filter, map } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { AlchemyAssetTransfersDto } from '../dto/alchemy-asset-transfers.dto';
@@ -113,7 +114,7 @@ export class AlchemyService {
 
   async syncTransactions(syncTransactions: AlchemySyncTransactionsDto) {
     const blockchain = syncTransactions.blockchain;
-    const chainId = AlchemyNetworkMapper.getChainId(blockchain);
+    const chainId = EvmUtil.getChainId(blockchain);
 
     const categories = this.getNativeCoinCategories(chainId);
     categories.push(...this.getERC20Categories(chainId));

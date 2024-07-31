@@ -192,4 +192,17 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsString()
   amlResponsible: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDate: Date;
+
+  @IsOptional()
+  @IsInt()
+  bankDataId: number;
+
+  @IsOptional()
+  @IsBoolean()
+  bankDataActive: boolean;
 }

@@ -3,12 +3,14 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -32,18 +34,21 @@ export class BuyFiatPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
+    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
     const entities = await this.buyFiatRepo.find({
-      where: {
-        amlCheck: IsNull(),
-        amlReason: IsNull(),
-        inputAmount: Not(IsNull()),
-        inputAsset: Not(IsNull()),
-        isComplete: false,
-      },
+      where: [
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          ...request,
+        },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+      ],
       relations: {
         cryptoInput: true,
         sell: true,
         transaction: { user: { wallet: true, userData: { users: true } } },
+        bankData: true,
       },
     });
     if (entities.length === 0) return;
@@ -52,16 +57,13 @@ export class BuyFiatPreparationService {
       `AmlCheck for ${entities.length} buy-fiat transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
     );
 
-    // CHF/EUR Price
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
     for (const entity of entities) {
       try {
         if (!entity.cryptoInput.isConfirmed) continue;
 
-        const inputReferenceCurrency = entity.cryptoInput.asset;
+        const amlCheckBefore = entity.amlCheck;
 
-        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const inputReferenceCurrency = entity.cryptoInput.asset;
 
         const minVolume = await this.transactionHelper.getMinVolumeIn(
           entity.cryptoInput.asset,
@@ -105,12 +107,11 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(
-            inputReferenceAssetChfPrice,
             minVolume,
             last24hVolume,
             last7dVolume,
@@ -122,6 +123,8 @@ export class BuyFiatPreparationService {
         );
 
         await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+
+        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
@@ -138,8 +141,13 @@ export class BuyFiatPreparationService {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
+        cryptoInput: { paymentLinkPayment: { id: IsNull() } },
       },
-      relations: { sell: true, cryptoInput: true, transaction: { user: { wallet: true, userData: true } } },
+      relations: {
+        sell: true,
+        cryptoInput: true,
+        transaction: { user: { wallet: true, userData: true } },
+      },
     });
 
     // CHF/EUR Price
@@ -150,8 +158,14 @@ export class BuyFiatPreparationService {
       try {
         const inputCurrency = entity.cryptoInput.asset;
 
-        const { fee } = await this.transactionHelper.getTxFeeInfos(
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
+
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+
+        const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
+          amountInChf,
           inputCurrency,
           inputCurrency,
           entity.sell.fiat,
@@ -159,11 +173,6 @@ export class BuyFiatPreparationService {
           FiatPaymentMethod.BANK,
           entity.user,
         );
-
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
-
-        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
@@ -185,6 +194,76 @@ export class BuyFiatPreparationService {
         await this.buyFiatService.updateRefVolume([entity.usedRef]);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async fillPaymentLinkPayments(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: CheckStatus.PASS,
+        isComplete: false,
+        percentFee: IsNull(),
+        inputReferenceAmount: Not(IsNull()),
+        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) } },
+      },
+      relations: {
+        sell: true,
+        cryptoInput: { paymentLinkPayment: true },
+        transaction: { user: { wallet: true, userData: true } },
+      },
+    });
+
+    // CHF/EUR Price
+    const fiatEur = await this.fiatService.getFiatByName('EUR');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+
+    for (const entity of entities) {
+      try {
+        const inputCurrency = entity.cryptoInput.asset;
+        const outputReferenceCurrency = entity.paymentLinkPayment.currency;
+        const outputCurrency = entity.sell.fiat;
+        const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
+
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
+        const outputReferencePrice = await this.pricingService.getPrice(outputReferenceCurrency, outputCurrency, false);
+        const referencePrice = Price.create(
+          inputCurrency.name,
+          outputReferenceCurrency.name,
+          entity.inputReferenceAmount / entity.outputReferenceAmount,
+        );
+
+        const priceStep = PriceStep.create(
+          'Payment',
+          inputCurrency.name,
+          outputReferenceCurrency.name,
+          entity.inputAmount / outputReferenceAmount,
+        );
+
+        const totalFee = entity.inputReferenceAmount - referencePrice.invert().convert(entity.outputReferenceAmount);
+
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+
+        await this.buyFiatRepo.update(
+          ...entity.setPaymentLinkPayment(
+            eurPrice.convert(entity.inputAmount, 2),
+            amountInChf,
+            totalFee,
+            chfPrice.convert(totalFee, 5),
+            outputReferenceAmount,
+            outputReferenceCurrency,
+            outputReferencePrice.convert(outputReferenceAmount, 2),
+            outputCurrency,
+            [priceStep, ...outputReferencePrice.steps],
+          ),
+        );
+
+        if (entity.amlCheck === CheckStatus.FAIL) return;
+
+        await this.buyFiatService.updateSellVolume([entity.sell?.id]);
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} fill paymentLinkPayments:`, e);
       }
     }
   }

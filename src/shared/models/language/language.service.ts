@@ -19,17 +19,8 @@ export class LanguageService {
     return this.languageRepo.findOneCachedBy(symbol, { symbol });
   }
 
-  async getLanguageByIpCountry(ipCountry: string): Promise<Language> {
-    const symbol = this.ipCountryToLanguage[ipCountry] ?? Config.defaultLanguage.toUpperCase();
-    return this.languageRepo.findOne({ where: { symbol } });
+  async getLanguageByCountry(country: string): Promise<Language> {
+    const { language } = Config.defaults.forCountry(country);
+    return this.languageRepo.findOne({ where: { symbol: language } });
   }
-
-  ipCountryToLanguage: { [key: string]: string } = {
-    DE: 'DE',
-    AT: 'DE',
-    CH: 'DE',
-    LI: 'DE',
-    IT: 'IT',
-    FR: 'FR',
-  };
 }

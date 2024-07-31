@@ -9,6 +9,7 @@ import { FeeRequest } from '../services/fee.service';
 export enum FeeType {
   BASE = 'Base',
   DISCOUNT = 'Discount',
+  RELATIVE_DISCOUNT = 'RelativeDiscount',
   ADDITION = 'Addition',
   CUSTOM = 'Custom',
   SPECIAL = 'Special',

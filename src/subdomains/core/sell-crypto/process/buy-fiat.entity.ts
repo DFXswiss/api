@@ -9,13 +9,14 @@ import { MailTranslationKey } from 'src/subdomains/supporting/notification/facto
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
 
 @Entity()
@@ -35,6 +36,9 @@ export class BuyFiat extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx: BankTx;
+
+  @ManyToOne(() => BankData, { nullable: true })
+  bankData: BankData;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -131,6 +135,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   mailReturnSendDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDate: Date;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
@@ -257,6 +264,52 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  setPaymentLinkPayment(
+    amountInEur: number,
+    amountInChf: number,
+    totalFee: number,
+    totalFeeAmountChf: number,
+    outputReferenceAmount: number,
+    outputReferenceAsset: Fiat,
+    outputAmount: number,
+    outputAsset: Fiat,
+    priceSteps: PriceStep[],
+  ): UpdateResult<BuyFiat> {
+    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
+    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
+    const update: Partial<BuyFiat> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
+        : {
+            absoluteFeeAmount: 0,
+            minFeeAmount: 0,
+            minFeeAmountFiat: 0,
+            blockchainFee: 0,
+            percentFee: feeRate,
+            percentFeeAmount: totalFee,
+            totalFeeAmount: totalFee,
+            totalFeeAmountChf,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef: '000-000',
+            refProvision: 0,
+            refFactor: 0,
+            usedFees: null,
+            outputAmount,
+            outputReferenceAmount,
+            outputAsset,
+            outputReferenceAsset,
+            priceSteps: this.priceSteps,
+          };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
@@ -274,7 +327,6 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
     last7dVolume: number,
@@ -283,12 +335,9 @@ export class BuyFiat extends IEntity {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
-    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
-
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
       minVolume,
-      amountInChf,
       last24hVolume,
       last7dVolume,
       last30dVolume,
@@ -336,6 +385,7 @@ export class BuyFiat extends IEntity {
       cryptoReturnDate: null,
       mailReturnSendDate: null,
       comment: null,
+      chargebackAllowedDate: null,
     };
 
     Object.assign(this, update);
@@ -380,6 +430,10 @@ export class BuyFiat extends IEntity {
   set priceStepsObject(priceSteps: PriceStep[]) {
     this.priceSteps = JSON.stringify(priceSteps);
   }
+
+  get paymentLinkPayment(): PaymentLinkPayment | undefined {
+    return this.cryptoInput?.paymentLinkPayment;
+  }
 }
 
 export const BuyFiatAmlReasonPendingStates = [
@@ -389,6 +443,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.ASSET_KYC_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

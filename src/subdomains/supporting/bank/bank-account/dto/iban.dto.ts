@@ -13,6 +13,6 @@ export class CreateIbanDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsDfxIban(IbanType.BOTH)
-  @Transform(Util.trim)
+  @Transform(Util.trimAll)
   iban: string;
 }

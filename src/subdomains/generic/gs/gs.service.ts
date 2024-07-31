@@ -15,10 +15,10 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
+import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
 import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
-import { LimitRequestService } from '../kyc/services/limit-request.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';

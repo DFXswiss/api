@@ -238,9 +238,9 @@ export class MailFactory {
         return [
           {
             url:
-              specialTag?.tag === 'url' && element.params?.url
+              specialTag?.tag === 'url'
                 ? {
-                    link: element.params.url,
+                    link: element.params?.url ?? specialTag.value,
                     text: specialTag.value,
                     textSuffix: specialTag.textSuffix,
                   }

@@ -1,6 +1,6 @@
-import { Body, Controller, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -8,7 +8,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueType } from './entities/support-issue.entity';
+import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
 import { SupportIssueService } from './services/support-issue.service';
 
@@ -21,20 +21,6 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<void> {
-    return this.supportIssueService.createIssue(jwt.account, dto);
-  }
-
-  @Post('transaction')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiOperation({ deprecated: true })
-  async createTransactionIssue(
-    @GetJwt() jwt: JwtPayload,
-    @Query('id') transactionId: string,
-    @Body() dto: CreateSupportIssueDto,
-  ): Promise<void> {
-    dto.type = SupportIssueType.TRANSACTION_ISSUE;
-    dto.transaction = { id: +transactionId };
     return this.supportIssueService.createIssue(jwt.account, dto);
   }
 

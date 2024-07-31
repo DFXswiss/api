@@ -200,9 +200,11 @@ export class TransactionDtoMapper {
   }
 
   private static mapFees(entity: BuyCryptoExtended | BuyFiatExtended): FeeDto {
-    const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
-
     if (entity.percentFee == null) return null;
+
+    const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
+    const networkStartFee = (entity instanceof BuyCrypto && entity.networkStartFeeAmount) || 0;
+    const blockchainFee = entity.blockchainFee ?? 0;
 
     return {
       rate: entity.percentFee,
@@ -214,14 +216,11 @@ export class TransactionDtoMapper {
         entity.minFeeAmount != null
           ? Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : null,
-      network:
-        entity.blockchainFee != null
-          ? Util.roundReadable(entity.blockchainFee * referencePrice, isFiat(entity.inputAssetEntity))
-          : 0,
+      network: Util.roundReadable(blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)),
       dfx:
         entity.totalFeeAmount != null
           ? Util.roundReadable(
-              (entity.totalFeeAmount - (entity.blockchainFee ?? 0)) * referencePrice,
+              (entity.totalFeeAmount - (blockchainFee + networkStartFee)) * referencePrice,
               isFiat(entity.inputAssetEntity),
             )
           : null,
@@ -229,10 +228,7 @@ export class TransactionDtoMapper {
         entity.totalFeeAmount != null
           ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
           : null,
-      networkStart:
-        entity instanceof BuyCrypto && entity.networkStartFeeAmount
-          ? Util.roundReadable(entity.networkStartFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
-          : 0,
+      networkStart: Util.roundReadable(networkStartFee * referencePrice, isFiat(entity.inputAssetEntity)),
     };
   }
 }

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
@@ -44,8 +45,14 @@ export class UserAddressDto {
   @ApiProperty()
   wallet: string;
 
+  @ApiPropertyOptional()
+  label?: string;
+
   @ApiProperty()
   address: string;
+
+  @ApiPropertyOptional()
+  explorerUrl?: string;
 
   @ApiProperty({ enum: Blockchain, isArray: true })
   blockchains: Blockchain[];
@@ -89,6 +96,9 @@ export class UserV2Dto {
 
   @ApiProperty({ type: LanguageDto })
   language: LanguageDto;
+
+  @ApiProperty({ type: FiatDto })
+  currency: FiatDto;
 
   @ApiProperty({ type: TradingLimit })
   tradingLimit: TradingLimit;

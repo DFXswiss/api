@@ -12,6 +12,7 @@ export enum RiskEvaluation {
   CONFIRMED = 'Confirmed',
   IGNORED = 'Ignored',
   NOT_MATCHING = 'NotMatching',
+  CANCELED = 'Canceled',
 }
 
 @ChildEntity()

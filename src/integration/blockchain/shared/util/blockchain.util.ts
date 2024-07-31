@@ -8,10 +8,14 @@ export function txExplorerUrl(blockchain: Blockchain, txId: string): string | un
 }
 
 export function assetExplorerUrl(asset: Asset): string | undefined {
-  if (asset.type === AssetType.COIN) return undefined;
+  const explorerUrl = BlockchainExplorerUrls[asset.blockchain];
+  return asset.type === AssetType.COIN ? explorerUrl : `${explorerUrl}/${assetPaths(asset) ?? ''}`;
+}
 
-  const assetPath = assetPaths(asset);
-  return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
+export function addressExplorerUrl(blockchain: Blockchain, address: string): string | undefined {
+  const baseUrl = BlockchainExplorerUrls[blockchain];
+  const addressPath = addressPaths(blockchain);
+  return baseUrl && addressPath ? `${baseUrl}/${addressPath}/${address}` : undefined;
 }
 
 // --- HELPERS --- //
@@ -69,5 +73,27 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
+  }
+}
+
+function addressPaths(blockchain: Blockchain): string | undefined {
+  switch (blockchain) {
+    case Blockchain.LIGHTNING:
+    case Blockchain.MONERO:
+      return undefined;
+
+    case Blockchain.DEFICHAIN:
+    case Blockchain.BITCOIN:
+    case Blockchain.ETHEREUM:
+    case Blockchain.BINANCE_SMART_CHAIN:
+    case Blockchain.OPTIMISM:
+    case Blockchain.ARBITRUM:
+    case Blockchain.POLYGON:
+    case Blockchain.BASE:
+    case Blockchain.HAQQ:
+    case Blockchain.LIQUID:
+    case Blockchain.ARWEAVE:
+    case Blockchain.CARDANO:
+      return 'address';
   }
 }

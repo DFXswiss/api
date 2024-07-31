@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { UpdateTradingRuleDto } from '../dto/update-trading-rule.dto';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingRule } from '../entities/trading-rule.entity';
@@ -20,6 +20,18 @@ export class TradingRuleService {
   constructor(private readonly tradingService: TradingService) {}
 
   // --- PUBLIC API --- //
+
+  async getCurrentTradingOrders(): Promise<TradingOrder[]> {
+    const lastTradingOrderIds = await this.orderRepo
+      .createQueryBuilder('tradingOrder')
+      .select('MAX(tradingOrder.id)', 'tradingOrderId')
+      .innerJoin('tradingOrder.tradingRule', 'tradingRule')
+      .groupBy('tradingOrder.tradingRuleId')
+      .getRawMany<{ tradingOrderId: number }>()
+      .then((t) => t.map((t) => t.tradingOrderId));
+
+    return this.orderRepo.findBy({ id: In(lastTradingOrderIds) });
+  }
 
   async updateTradingRule(id: number, dto: UpdateTradingRuleDto): Promise<void> {
     const tradingRule = await this.ruleRepo.findOneBy({ id });
@@ -72,8 +84,10 @@ export class TradingRuleService {
       const tradingInfo = await this.tradingService.createTradingInfo(rule);
 
       if (tradingInfo) {
-        rule.processing();
-        await this.ruleRepo.save(rule);
+        if (tradingInfo.tradeRequired) {
+          rule.processing();
+          await this.ruleRepo.save(rule);
+        }
 
         const order = TradingOrder.create(rule, tradingInfo);
         await this.orderRepo.save(order);

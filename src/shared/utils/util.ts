@@ -61,11 +61,11 @@ export class Util {
     return Math.min(...list.map((i) => i[key] as unknown as number));
   }
 
-  static minObj<T>(list: T[], key: KeyType<T, number>): T {
+  static minObj<T>(list: T[], key: KeyType<T, number | Date>): T {
     return list.reduce((i, j) => (i && j[key] >= i[key] ? i : j), undefined);
   }
 
-  static maxObj<T>(list: T[], key: KeyType<T, number>): T {
+  static maxObj<T>(list: T[], key: KeyType<T, number | Date>): T {
     return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 
@@ -139,7 +139,7 @@ export class Util {
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[ç]/g, 'c')
+      .replace(/[çč]/g, 'c')
       .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '')
       .replace(/[-‘`´']/g, ' ');
@@ -404,6 +404,11 @@ export class Util {
     return this.createHash(JSON.stringify(data), algo, encoding);
   }
 
+  static createUniqueId(prefix: string, length = 6): string {
+    const hash = this.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
+    return `${prefix}_${hash.slice(0, length)}`;
+  }
+
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
     const sign = createSign(algo);
     sign.update(data);
@@ -448,8 +453,12 @@ export class Util {
     return `${mailSplit[0].slice(0, visibleLength)}***@${mailSplit[1]}`;
   }
 
-  static trim({ value }: TransformFnParams): string | undefined {
+  static trimAll({ value }: TransformFnParams): string | undefined {
     return value?.split(' ').join('');
+  }
+
+  static trim({ value }: TransformFnParams): string | undefined {
+    return value?.trim();
   }
 
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
@@ -475,5 +484,10 @@ export class Util {
         .join(separator),
     );
     return [headers].concat(values).join('\n');
+  }
+
+  static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
+    const enumKey = Object.keys(enumObj).find((k) => k.toLowerCase() === value?.toLowerCase());
+    return enumObj[enumKey as keyof T];
   }
 }

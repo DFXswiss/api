@@ -1,8 +1,10 @@
+import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
-import { User, UserStatus } from '../user.entity';
+import { User } from '../user.entity';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
@@ -15,6 +17,7 @@ export class UserDtoMapper {
       mail: userData.mail,
       phone: userData.phone,
       language: LanguageDtoMapper.entityToDto(userData.language),
+      currency: FiatDtoMapper.toDto(userData.currency),
       tradingLimit: userData.tradingLimit,
       kyc: {
         hash: userData.kycHash,
@@ -23,7 +26,7 @@ export class UserDtoMapper {
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
-        .filter((u) => u.status !== UserStatus.BLOCKED && !u.wallet.isKycClient)
+        .filter((u) => !u.isBlockedOrDeactivated && !u.wallet.isKycClient)
         .map((u) => this.mapAddress(u)),
       activeAddress: activeUser && this.mapAddress(activeUser),
     };
@@ -33,8 +36,10 @@ export class UserDtoMapper {
 
   private static mapAddress(user: User): UserAddressDto {
     const dto: UserAddressDto = {
-      wallet: user.wallet.name,
+      wallet: user.wallet.displayName ?? user.wallet.name,
+      label: user.label,
       address: user.address,
+      explorerUrl: addressExplorerUrl(user.blockchains[0], user.address),
       blockchains: user.blockchains,
       volumes: this.mapVolumes(user),
       refCode: user.ref,
