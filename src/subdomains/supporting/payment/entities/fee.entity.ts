@@ -100,7 +100,7 @@ export class Fee extends IEntity {
   //*** FACTORY METHODS ***//
 
   increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
-    this.verifyForUser(accountType, wallet);
+    this.verifyForUser(accountType ?? AccountType.PERSONAL, wallet);
 
     const update: Partial<Fee> = {
       usages: this.usages + 1,
