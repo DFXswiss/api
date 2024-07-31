@@ -231,13 +231,13 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsBoolean()
-  paymentLinksAllowed: boolean;
+  paymentLinksAllowed?: boolean;
 
   @IsOptional()
   @IsEnum(LegalEntity)
-  legalEntity: LegalEntity;
+  legalEntity?: LegalEntity;
 
   @IsOptional()
   @IsEnum(SignatoryPower)
-  signatoryPower: SignatoryPower;
+  signatoryPower?: SignatoryPower;
 }
