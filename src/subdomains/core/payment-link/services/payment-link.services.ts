@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -8,17 +8,36 @@ import { PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
+import { DepositAddressCacheEntry, PaymentActivationService } from './payment-activation.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
-export class PaymentLinkService {
+export class PaymentLinkService implements OnModuleInit {
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentActivationService: PaymentActivationService,
     private readonly sellService: SellService,
   ) {}
+
+  async onModuleInit() {
+    const depositAddressCacheEntries = await this.paymentLinkRepo
+      .find({
+        relations: {
+          route: { deposit: true },
+        },
+      })
+      .then((pl) =>
+        pl.map<DepositAddressCacheEntry>((pl) => ({
+          depositAddress: pl.route.deposit.address,
+          linkUniqueId: pl.uniqueId,
+        })),
+      );
+
+    this.paymentActivationService.addDepositAddresses(depositAddressCacheEntries);
+  }
 
   async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
     let link: PaymentLink;
@@ -60,6 +79,11 @@ export class PaymentLinkService {
     });
 
     await this.paymentLinkRepo.save(paymentLink);
+
+    this.paymentActivationService.addDepositAddress({
+      depositAddress: paymentLink.route.deposit.address,
+      linkUniqueId: paymentLink.uniqueId,
+    });
 
     dto.payment &&
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));

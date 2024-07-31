@@ -29,6 +29,11 @@ export class Configuration {
   environment = process.env.ENVIRONMENT as Environment;
   network = process.env.NETWORK as NetworkName;
 
+  dfx = {
+    signingPrivKey: process.env.DFX_SIGNING_PRIV_KEY?.split('<br>').join('\n'),
+    signingPubKey: process.env.DFX_SIGNING_PUB_KEY?.split('<br>').join('\n'),
+  };
+
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
@@ -260,6 +265,11 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     fee: 0.02,
+
+    walletAccount: (accountIndex: number): WalletAccount => ({
+      seed: this.payment.evmSeed,
+      index: accountIndex,
+    }),
   };
 
   blockchain = {

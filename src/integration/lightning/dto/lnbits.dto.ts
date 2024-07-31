@@ -14,6 +14,10 @@ export interface LnBitsWalletPaymentParamsDto {
   memo: string;
   expirySec: number;
   webhook: string;
+  extra: {
+    link: string;
+    signature: string;
+  };
 }
 
 export interface LnBitsWalletPaymentDto {
@@ -34,7 +38,12 @@ export interface LnBitsTransactionDto {
   preimage: string;
   payment_hash: string;
   expiry: number;
-  extra: any;
+  extra: {
+    tag: string;
+    link: string;
+    extra: string;
+    signature: string;
+  };
   wallet_id: string;
   webhook: string;
   webhook_status: string;
@@ -42,5 +51,9 @@ export interface LnBitsTransactionDto {
 
 export interface LnBitsTransactionWebhookDto {
   uniqueId: string;
-  transaction: LnBitsTransactionDto;
+  transaction: {
+    paymentHash: string;
+    amount: number;
+    lnurlp: string;
+  };
 }

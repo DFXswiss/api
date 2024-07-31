@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -17,5 +17,13 @@ export class DepositController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async createDeposits(@Body() dto: CreateDepositDto): Promise<void> {
     await this.depositService.createDeposits(dto);
+  }
+
+  @Put('updateLightningDepositWebhook')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateLightningDepositWebhook(): Promise<void> {
+    await this.depositService.updateLightningDepositWebhook();
   }
 }

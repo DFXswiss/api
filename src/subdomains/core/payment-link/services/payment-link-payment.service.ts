@@ -26,7 +26,8 @@ export class PaymentLinkPaymentService {
     private readonly pricingService: PricingService,
   ) {}
 
-  async processPendingPayments() {
+  // --- HANDLE PENDING PAYMENTS --- //
+  async processPendingPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
     const pendingPaymentLinkPayments = await this.paymentLinkPaymentRepo.findBy({
