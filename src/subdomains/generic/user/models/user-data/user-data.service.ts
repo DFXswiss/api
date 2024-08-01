@@ -133,7 +133,6 @@ export class UserDataService {
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
-      .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
       .getOne();
   }
 
