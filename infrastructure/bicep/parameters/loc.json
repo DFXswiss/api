@@ -32,6 +32,12 @@
     "dbCapacity": {
       "value": 5
     },
+    "dfxSigningPrivKey": {
+      "value": "xxx"
+    },
+    "dfxSigningPubKey": {
+      "value": "xxx"
+    },
     "mailUser": {
       "value": "xxx"
     },

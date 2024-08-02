@@ -20,6 +20,11 @@ param dbCapacity int
 @secure()
 param jwtSecret string = newGuid()
 
+@secure()
+param dfxSigningPrivKey string
+@secure()
+param dfxSigningPubKey string
+
 param mailUser string
 @secure()
 param mailPass string
@@ -526,6 +531,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SQL_MIGRATE'
           value: 'true'
+        }
+        {
+          name: 'DFX_SIGNING_PRIV_KEY'
+          value: dfxSigningPrivKey
+        }
+        {
+          name: 'DFX_SIGNING_PUB_KEY'
+          value: dfxSigningPubKey
         }
         {
           name: 'MAIL_USER'

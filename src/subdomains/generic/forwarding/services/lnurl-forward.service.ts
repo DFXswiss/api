@@ -35,8 +35,9 @@ export class LnUrlForwardService {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
-    )
+    ) {
       return this.createPaymentLinkPayRequest(id);
+    }
 
     return this.createLnurlpPayRequest(id);
   }

@@ -59,16 +59,24 @@ export class PaymentLinkPaymentService {
   }
 
   async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
-    const pendingPayment = await this.paymentLinkPaymentRepo.findOneBy({
-      activations: { asset: { id: asset.id }, amount },
-      status: PaymentLinkPaymentStatus.PENDING,
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        activations: { asset: { id: asset.id }, amount },
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: {
+        activations: true,
+      },
     });
 
     if (!pendingPayment) return null;
 
     return this.paymentLinkPaymentRepo.findOne({
       where: { id: pendingPayment.id },
-      relations: { link: true },
+      relations: {
+        link: true,
+        activations: true,
+      },
     });
   }
 

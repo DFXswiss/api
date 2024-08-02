@@ -13,7 +13,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
-import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentLinkEvmPaymentDto, PaymentLinkPaymentMode, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation, PaymentActivationStatus } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -119,6 +119,17 @@ export class PaymentActivationService implements OnModuleInit {
     allPendingActivations: PaymentActivation[],
     pendingPayment: PaymentLinkPayment,
   ): Promise<PaymentLinkPayment> {
+    await this.doUpdatePaymentActivationStatus(activationToBeCompleted, allPendingActivations);
+
+    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) return pendingPayment;
+
+    return this.doUpdatePaymentLinkStatus(pendingPayment);
+  }
+
+  private async doUpdatePaymentActivationStatus(
+    activationToBeCompleted: PaymentActivation,
+    allPendingActivations: PaymentActivation[],
+  ): Promise<void> {
     await this.paymentActivationRepo.save(activationToBeCompleted.complete());
 
     for (const pendingActivation of allPendingActivations) {
@@ -126,7 +137,9 @@ export class PaymentActivationService implements OnModuleInit {
         await this.paymentActivationRepo.save(pendingActivation.expire());
       }
     }
+  }
 
+  private async doUpdatePaymentLinkStatus(pendingPayment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
     return this.paymentLinkPaymentService.complete(pendingPayment);
   }
 
