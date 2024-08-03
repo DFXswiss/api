@@ -39,11 +39,11 @@ export class KycNotificationService {
         status: KycStepStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         userData: {
-          kycLevel: MoreThanOrEqual(0),
+          kycLevel: MoreThanOrEqual(0) && LessThan(50),
           status: In([UserDataStatus.NA, UserDataStatus.ACTIVE, UserDataStatus.KYC_ONLY]),
         },
       },
-      relations: ['userData'],
+      relations: { userData: true },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
