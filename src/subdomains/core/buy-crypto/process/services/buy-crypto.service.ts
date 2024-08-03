@@ -269,6 +269,8 @@ export class BuyCryptoService {
       }
     }
 
+    if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
 

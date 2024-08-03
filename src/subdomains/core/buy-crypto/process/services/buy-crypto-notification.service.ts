@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -30,6 +31,7 @@ export class BuyCryptoNotificationService {
       await this.paymentCompleted();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
+      await this.chargebackNotPossible();
     } catch (e) {
       this.logger.error('Error during buy-crypto notification:', e);
     }
@@ -128,7 +130,7 @@ export class BuyCryptoNotificationService {
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
-        { ...search, chargebackBankTx: Not(IsNull()) },
+        { ...search, chargebackBankTx: Not(IsNull()), chargebackIban: Not(IsNull()) },
         { ...search, chargebackCryptoTxId: Not(IsNull()) },
         { ...search, checkoutTx: Not(IsNull()) },
       ],
@@ -266,6 +268,52 @@ export class BuyCryptoNotificationService {
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
         this.logger.error(`Failed to send buy-crypto pending mail ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private async chargebackNotPossible(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        mailSendDate: IsNull(),
+        outputAmount: IsNull(),
+        chargebackIban: IsNull(),
+        bankTx: Not(IsNull()),
+        amlReason: Not(IsNull()),
+        amlCheck: CheckStatus.FAIL,
+      },
+      relations: { transaction: { user: { userData: true } }, bankData: true },
+    });
+
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackNotPossible' email(s)`);
+
+    for (const entity of entities) {
+      try {
+        if (IbanTools.validateIBAN(entity.bankData.iban.split(';')[0]).valid) continue;
+        if (entity.userData.mail) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            context: MailContext.BUY_CRYPTO_CHARGEBACK_NOT_POSSIBLE,
+            input: {
+              userData: entity.userData,
+              title: `${MailTranslationKey.CHARGEBACK_NOT_POSSIBLE}.title`,
+              salutation: {
+                key: `${MailTranslationKey.CHARGEBACK_NOT_POSSIBLE}.salutation`,
+              },
+              suffix: [
+                { key: `${MailTranslationKey.CHARGEBACK_NOT_POSSIBLE}.message` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
+            },
+          });
+        }
+
+        await this.buyCryptoRepo.update(...entity.confirmSentMail());
+      } catch (e) {
+        this.logger.error(`Failed to send buy-crypto chargebackNotPossible mail ${entity.id}:`, e);
       }
     }
   }

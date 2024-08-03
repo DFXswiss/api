@@ -576,7 +576,6 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
-  AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN,
   AmlReason.ASSET_KYC_NEEDED,
 ];
 

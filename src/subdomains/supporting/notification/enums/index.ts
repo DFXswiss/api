@@ -15,6 +15,7 @@ export enum MailContext {
   BUY_CRYPTO_PENDING = 'BuyCryptoPending',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
   BUY_CRYPTO_COMPLETED = 'BuyCryptoCompleted',
+  BUY_CRYPTO_CHARGEBACK_NOT_POSSIBLE = 'BuyCryptoChargebackNotPossible',
   BUY_FIAT = 'BuyFiat',
   BUY_FIAT_PENDING = 'BuyFiatPending',
   BUY_FIAT_RETURN = 'BuyFiatReturn',

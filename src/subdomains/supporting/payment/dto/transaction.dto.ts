@@ -62,7 +62,6 @@ export const TransactionReasonMapper: {
   [AmlReason.NA]: null,
   [AmlReason.MANUAL_CHECK]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
-  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: TransactionReason.UNKNOWN,
   [AmlReason.DAILY_LIMIT]: TransactionReason.DAILY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
