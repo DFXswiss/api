@@ -15,7 +15,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { IsNull, LessThan, Not } from 'typeorm';
+import { LessThan } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -40,7 +40,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { KycStep } from '../entities/kyc-step.entity';
+import { KycStep, KycStepNationalityData } from '../entities/kyc-step.entity';
 import {
   KycLogType,
   KycStepName,
@@ -127,7 +127,7 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: KycStepStatus.INTERNAL_REVIEW,
-        userData: { nationality: Not(IsNull()) },
+        userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
       relations: { userData: { kycSteps: true } },
     });
@@ -266,16 +266,24 @@ export class KycService {
     return KycStepMapper.toKycResult(kycStep);
   }
 
-  async updateUserData(
+  async updateKycStep(
     kycHash: string,
     stepId: number,
     data: Partial<UserData>,
     requiresInternalReview: boolean,
+    updateUserData: boolean,
   ): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    user = await this.userDataService.updateUserDataInternal(user, data);
+    if (data.nationality) {
+      const nationality = await this.countryService.getCountry(data.nationality.id);
+      if (!nationality) throw new BadRequestException('Nationality not found');
+
+      data.nationality.symbol = nationality.symbol;
+    }
+
+    if (updateUserData) user = await this.userDataService.updateUserDataInternal(user, data);
 
     user = requiresInternalReview ? user.internalReviewStep(kycStep, data) : user.completeStep(kycStep, data);
     await this.createStepLog(user, kycStep);
@@ -629,6 +637,9 @@ export class KycService {
 
   private getIdentCheckErrors(entity: KycStep, result: IdentResultDto): IdentCheckError[] {
     const errors = [];
+    const nationalityStepResult = entity.userData.kycSteps
+      .find((k) => k.name === KycStepName.NATIONALITY_DATA && k.status === KycStepStatus.COMPLETED)
+      .getResult<KycStepNationalityData>();
 
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
     if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(IdentCheckError.USER_DATA_BLOCKED);
@@ -641,7 +652,7 @@ export class KycService {
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (entity.userData.nationality?.symbol !== result.userdata.nationality?.value)
+    if (nationalityStepResult.nationality.symbol !== result.userdata.nationality?.value)
       errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
