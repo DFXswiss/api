@@ -243,21 +243,28 @@ export class TransactionHelper implements OnModuleInit {
     dateFrom: Date,
     dateTo: Date,
     users?: User[],
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
     if (!users?.length) return price.convert(inputAmount);
 
-    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users);
+    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, type);
 
     return price.convert(inputAmount) + previousVolume;
   }
 
-  async getVolumeSince(dateFrom: Date, dateTo: Date, users: User[]): Promise<number> {
+  async getVolumeSince(
+    dateFrom: Date,
+    dateTo: Date,
+    users: User[],
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
       dateFrom,
       dateTo,
+      type,
     );
     const buyFiatVolume = await this.buyFiatService.getUserVolume(
       users.map((u) => u.id),

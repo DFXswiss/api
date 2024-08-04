@@ -92,13 +92,14 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
+        const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
           entity.userData.users,
+          'checkoutTx',
         );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
@@ -133,7 +134,7 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             minVolume,
             last24hVolume,
-            last7dVolume,
+            last7dCheckoutVolume,
             last30dVolume,
             last365dVolume,
             bankData,

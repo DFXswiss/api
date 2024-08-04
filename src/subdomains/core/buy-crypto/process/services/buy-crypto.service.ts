@@ -409,8 +409,13 @@ export class BuyCryptoService {
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
   }
 
-  async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
-    return this.buyCryptoRepo
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
+    const request = this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.bankTx', 'bankTx')
@@ -425,17 +430,22 @@ export class BuyCryptoService {
             .orWhere('cryptoRoute.userId IN (:...userIds)', { userIds }),
         ),
       )
-      .andWhere(
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
+
+    if (!type) {
+      request.andWhere(
         new Brackets((query) =>
           query
             .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
             .orWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
             .orWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
         ),
-      )
-      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume ?? 0);
+      );
+    } else {
+      request.andWhere(`${type}.created BETWEEN :dateFrom AND :dateTo`, { dateFrom, dateTo });
+    }
+
+    return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }
 
   async getRefTransactions(

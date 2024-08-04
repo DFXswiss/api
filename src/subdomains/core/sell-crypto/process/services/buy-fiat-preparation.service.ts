@@ -80,15 +80,6 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          Util.daysBefore(7, entity.transaction.created),
-          Util.daysAfter(7, entity.transaction.created),
-          entity.userData.users,
-        );
-
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
@@ -111,15 +102,7 @@ export class BuyFiatPreparationService {
         if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
-          ...entity.amlCheckAndFillUp(
-            minVolume,
-            last24hVolume,
-            last7dVolume,
-            last30dVolume,
-            last365dVolume,
-            bankData,
-            blacklist,
-          ),
+          ...entity.amlCheckAndFillUp(minVolume, last24hVolume, last30dVolume, last365dVolume, bankData, blacklist),
         );
 
         await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
