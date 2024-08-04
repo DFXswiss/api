@@ -611,6 +611,7 @@ export class KycService {
         result.identificationdocument.number.value
       }`;
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
+      const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
 
       if (existing) {
         await this.accountMergeService.sendMergeRequest(existing, userData);
@@ -626,6 +627,7 @@ export class KycService {
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: result.identificationdocument.type.value,
           identDocumentId,
+          nationality,
         });
       }
     }
