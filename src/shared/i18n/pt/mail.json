@@ -142,15 +142,6 @@
                 "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
                 "line5": ""
             },
-            "chargeback_not_possible_no_iban": {
-                "title": "Chargeback not possible",
-                "salutation": "Your chargeback is not possible",
-                "line1": "Thank you for your trust in DFX.",
-                "line2": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.",
-                "line3": "Please get in touch with our support team.",
-                "line4": "You can contact support via [url:https://services.dfx.swiss/support].",
-                "line5": ""
-            },
             "asset_kyc_needed": {
                 "title": "Verification (KYC) required",
                 "salutation": "Verification (KYC) is required to execute your pending transaction",
@@ -160,6 +151,11 @@
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
             }
+        },
+        "chargeback_not_possible": {
+            "title": "Chargeback not possible",
+            "salutation": "Your chargeback is not possible",
+            "message": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.<br>Please get in touch with our support team.<br>You can contact support via [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",
         "blockchain": "Blockchain",

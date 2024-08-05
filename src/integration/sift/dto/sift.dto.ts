@@ -988,7 +988,6 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: DeclineCategory.INVALID,
   [AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: DeclineCategory.INVALID,
   [AmlReason.BANK_NOT_ALLOWED]: DeclineCategory.RISKY,
-  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: DeclineCategory.OTHER,
   [AmlReason.COUNTRY_NOT_ALLOWED]: DeclineCategory.RISKY,
   [AmlReason.DAILY_LIMIT]: DeclineCategory.OTHER,
   [AmlReason.FEE_TOO_HIGH]: DeclineCategory.OTHER,

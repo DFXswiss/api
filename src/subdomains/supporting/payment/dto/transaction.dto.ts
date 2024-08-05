@@ -63,7 +63,6 @@ export const TransactionReasonMapper: {
   [AmlReason.NA]: null,
   [AmlReason.MANUAL_CHECK]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
-  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: TransactionReason.UNKNOWN,
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DEACTIVATED]: TransactionReason.USER_DEACTIVATED,
