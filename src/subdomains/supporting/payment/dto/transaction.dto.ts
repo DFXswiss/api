@@ -46,6 +46,7 @@ export enum TransactionReason {
   CHF_ABROAD_NOT_ALLOWED = 'ChfAbroadNotAllowed',
   ASSET_KYC_NEEDED = 'AssetKycNeeded',
   CARD_NAME_MISMATCH = 'CardNameMismatch',
+  USER_DEACTIVATED = 'UserDeactivated',
 }
 
 export const KycRequiredReason = [
@@ -62,6 +63,9 @@ export const TransactionReasonMapper: {
   [AmlReason.NA]: null,
   [AmlReason.MANUAL_CHECK]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DEACTIVATED]: TransactionReason.USER_DEACTIVATED,
   [AmlReason.DAILY_LIMIT]: TransactionReason.DAILY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,

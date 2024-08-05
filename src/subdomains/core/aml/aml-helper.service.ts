@@ -33,7 +33,10 @@ export class AmlHelperService {
     const errors = [];
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
-    if (entity.user.isBlockedOrDeactivated) errors.push(AmlError.INVALID_USER_STATUS);
+    if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
+    if (entity.user.isDeactivated) errors.push(AmlError.USER_DEACTIVATED);
+    if (entity.userData.isBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
+    if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);

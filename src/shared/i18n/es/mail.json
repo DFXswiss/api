@@ -73,7 +73,8 @@
                 "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada",
                 "chf_abroad_tx": "No se pueden pagar CHF a IBAN extranjeros",
                 "asset_kyc_needed": "Se requiere KYC para el activo depositado",
-                "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX"
+                "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX",
+                "user_deactivated": "Tu dirección de blockchain vinculada ha sido eliminada irrevocablemente por ti. Puede seguir utilizando DFX con otras direcciones de blockchain"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },

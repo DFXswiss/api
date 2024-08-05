@@ -277,7 +277,8 @@ export class BuyCryptoService {
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
     const forceUpdate: Partial<BuyCrypto> = {
-      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) &&
+      ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
+        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
       !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
