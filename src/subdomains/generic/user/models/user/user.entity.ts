@@ -177,7 +177,7 @@ export class User extends IEntity {
   }
 
   get isBlockedOrDeactivated(): boolean {
-    return [UserStatus.BLOCKED, UserStatus.DEACTIVATED].includes(this.status);
+    return this.isBlocked || this.isDeactivated;
   }
 
   get isBlocked(): boolean {
