@@ -46,11 +46,27 @@ export class PaymentLinkService implements OnModuleInit {
 
     if (!link) throw new NotFoundException('Payment link not found');
 
+    if (!link.payments) link.payments = [];
+
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(link.uniqueId);
+    if (pendingPayment) link.payments.push(pendingPayment);
+
     return link;
   }
 
   async getAll(userId: number): Promise<PaymentLink[]> {
-    return this.paymentLinkRepo.getAllPaymentLinks(userId);
+    const allPaymentLinks = await this.paymentLinkRepo.getAllPaymentLinks(userId);
+
+    for (const paymentLink of allPaymentLinks) {
+      const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(paymentLink.uniqueId);
+
+      if (pendingPayment) {
+        paymentLink.payments = [];
+        paymentLink.payments.push(pendingPayment);
+      }
+    }
+
+    return allPaymentLinks;
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
