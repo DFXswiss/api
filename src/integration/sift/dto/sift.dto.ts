@@ -1008,6 +1008,9 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.CHF_ABROAD_TX]: DeclineCategory.INVALID,
   [AmlReason.ASSET_KYC_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.CARD_NAME_MISMATCH]: DeclineCategory.OTHER,
+  [AmlReason.USER_BLOCKED]: DeclineCategory.OTHER,
+  [AmlReason.USER_DATA_BLOCKED]: DeclineCategory.OTHER,
+  [AmlReason.USER_DEACTIVATED]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

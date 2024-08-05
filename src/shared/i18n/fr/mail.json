@@ -73,7 +73,8 @@
                 "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné",
                 "chf_abroad_tx": "Il n'est pas possible de verser des CHF à des IBAN étrangers",
                 "asset_kyc_needed": "KYC est requis pour l'actif déposé",
-                "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX"
+                "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX",
+                "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
