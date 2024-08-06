@@ -135,7 +135,10 @@ export class KycService {
     for (const entity of entities) {
       try {
         const result = entity.getResult<IdentResultDto>();
-        const errors = this.getIdentCheckErrors(entity, result);
+        const nationality = result.userdata?.nationality?.value
+          ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
+          : null;
+        const errors = this.getIdentCheckErrors(entity, result, nationality);
 
         entity.comment = errors.join(';');
 
@@ -157,7 +160,7 @@ export class KycService {
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
         if (entity.isCompleted) {
-          entity.userData = await this.completeIdent(result, entity.userData);
+          entity.userData = await this.completeIdent(result, entity.userData, nationality);
 
           if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
             await this.bankDataService.createBankData(entity.userData, {
@@ -595,7 +598,7 @@ export class KycService {
 
   // --- HELPER METHODS --- //
 
-  async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
+  async completeIdent(result: IdentResultDto, userData: UserData, nationality?: Country): Promise<UserData> {
     const identificationType = getIdentificationType(result.identificationprocess?.companyid);
     if (
       result.userdata?.birthday?.value &&
@@ -608,7 +611,6 @@ export class KycService {
         result.identificationdocument.number.value
       }`;
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
-      const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
 
       if (existing) {
         await this.accountMergeService.sendMergeRequest(existing, userData);
@@ -634,7 +636,7 @@ export class KycService {
     return userData;
   }
 
-  private getIdentCheckErrors(entity: KycStep, result: IdentResultDto): IdentCheckError[] {
+  private getIdentCheckErrors(entity: KycStep, result: IdentResultDto, nationality?: Country): IdentCheckError[] {
     const errors = [];
     const nationalityStepResult = entity.userData.kycSteps
       .find((k) => k.name === KycStepName.NATIONALITY_DATA && k.status === KycStepStatus.COMPLETED)
@@ -651,8 +653,7 @@ export class KycService {
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (nationalityStepResult.nationality.symbol !== result.userdata.nationality?.value)
-      errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
+    if (nationalityStepResult.nationality.id !== nationality?.id) errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
