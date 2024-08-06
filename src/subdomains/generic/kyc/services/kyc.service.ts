@@ -271,7 +271,6 @@ export class KycService {
     stepId: number,
     data: Partial<UserData>,
     requiresInternalReview: boolean,
-    updateUserData: boolean,
   ): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -279,11 +278,9 @@ export class KycService {
     if (data.nationality) {
       const nationality = await this.countryService.getCountry(data.nationality.id);
       if (!nationality) throw new BadRequestException('Nationality not found');
-
-      data.nationality.symbol = nationality.symbol;
+    } else {
+      user = await this.userDataService.updateUserDataInternal(user, data);
     }
-
-    if (updateUserData) user = await this.userDataService.updateUserDataInternal(user, data);
 
     user = requiresInternalReview ? user.internalReviewStep(kycStep, data) : user.completeStep(kycStep, data);
     await this.createStepLog(user, kycStep);
@@ -617,7 +614,7 @@ export class KycService {
         await this.accountMergeService.sendMergeRequest(existing, userData);
 
         return userData;
-      } else {
+      } else if (nationality) {
         return this.userDataService.updateUserDataInternal(userData, {
           kycLevel: KycLevel.LEVEL_30,
           birthday: new Date(result.userdata.birthday.value),
