@@ -9,10 +9,6 @@ import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
 
-export interface KycStepNationalityData {
-  nationality: { id: number; symbol: string };
-}
-
 @Entity()
 @Index((s: KycStep) => [s.userData, s.name, s.type, s.sequenceNumber], { unique: true })
 export class KycStep extends IEntity {

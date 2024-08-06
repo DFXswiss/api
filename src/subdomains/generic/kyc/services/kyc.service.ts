@@ -10,6 +10,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { IEntity } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -40,7 +41,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { KycStep, KycStepNationalityData } from '../entities/kyc-step.entity';
+import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
   KycStepName,
@@ -638,9 +639,10 @@ export class KycService {
 
   private getIdentCheckErrors(entity: KycStep, result: IdentResultDto, nationality?: Country): IdentCheckError[] {
     const errors = [];
-    const nationalityStepResult = entity.userData.kycSteps
-      .find((k) => k.name === KycStepName.NATIONALITY_DATA && k.status === KycStepStatus.COMPLETED)
-      .getResult<KycStepNationalityData>();
+    const nationalityStepResult = entity.userData
+      .getStepsWith(KycStepName.NATIONALITY_DATA)
+      .find((s) => s.isCompleted)
+      .getResult<{ nationality: IEntity }>();
 
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
     if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(IdentCheckError.USER_DATA_BLOCKED);
@@ -653,7 +655,8 @@ export class KycService {
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (nationalityStepResult.nationality.id !== nationality?.id) errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
+    if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id)
+      errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
