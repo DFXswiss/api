@@ -25,7 +25,7 @@ export enum AmlReason {
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   USER_BLOCKED = 'UserBlocked',
   USER_DATA_BLOCKED = 'UserDataBlocked',
-  USER_DEACTIVATED = 'UserDeactivated',
+  USER_DELETED = 'UserDeleted',
 }
 
 export const KycAmlReasons = [
