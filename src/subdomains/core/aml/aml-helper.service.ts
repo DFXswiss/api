@@ -66,7 +66,7 @@ export class AmlHelperService {
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.active === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if (!bankData.active || bankData.manualCheck === false) {
+      } else if ((!bankData.active && !bankData.manualCheck) || bankData.manualCheck === false) {
         errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
       } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
