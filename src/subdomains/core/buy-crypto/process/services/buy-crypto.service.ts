@@ -269,13 +269,16 @@ export class BuyCryptoService {
       }
     }
 
+    if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
 
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
     const forceUpdate: Partial<BuyCrypto> = {
-      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) &&
+      ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
+        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
       !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
@@ -409,8 +412,13 @@ export class BuyCryptoService {
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
   }
 
-  async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
-    return this.buyCryptoRepo
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
+    const request = this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.bankTx', 'bankTx')
@@ -425,17 +433,25 @@ export class BuyCryptoService {
             .orWhere('cryptoRoute.userId IN (:...userIds)', { userIds }),
         ),
       )
-      .andWhere(
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
+
+    if (!type) {
+      request.andWhere(
         new Brackets((query) =>
           query
             .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
             .orWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
             .orWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
         ),
-      )
-      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume ?? 0);
+      );
+    } else {
+      request.andWhere(`${type}.${type !== 'checkoutTx' ? 'created' : 'requestedOn'} BETWEEN :dateFrom AND :dateTo`, {
+        dateFrom,
+        dateTo,
+      });
+    }
+
+    return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }
 
   async getRefTransactions(

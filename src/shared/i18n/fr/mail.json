@@ -73,7 +73,8 @@
                 "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné",
                 "chf_abroad_tx": "Il n'est pas possible de verser des CHF à des IBAN étrangers",
                 "asset_kyc_needed": "KYC est requis pour l'actif déposé",
-                "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX"
+                "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX",
+                "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -141,15 +142,6 @@
                 "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
                 "line5": ""
             },
-            "chargeback_not_possible_no_iban": {
-                "title": "La rétrofacturation n'est pas possible",
-                "salutation": "Votre rétrofacturation n'est pas possible",
-                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
-                "line2": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.",
-                "line3": "Veuillez contacter notre équipe d'assistance.",
-                "line4": "Vous pouvez contacter l'assistance via [url:https://services.dfx.swiss/support].",
-                "line5": ""
-            },
             "asset_kyc_needed": {
                 "title": "Vérification (KYC) requise",
                 "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours.",
@@ -159,6 +151,11 @@
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas procéder à la vérification, le bien sera restitué automatiquement après deux jours."
             }
+        },
+        "chargeback_not_possible": {
+            "title": "La rétrofacturation n'est pas possible",
+            "salutation": "Votre rétrofacturation n'est pas possible",
+            "message": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.<br>Veuillez contacter notre équipe d'assistance.<br>Vous pouvez contacter l'assistance via [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
         "blockchain": "Blockchain",

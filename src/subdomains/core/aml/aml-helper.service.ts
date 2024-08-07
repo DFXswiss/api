@@ -22,7 +22,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -33,7 +33,10 @@ export class AmlHelperService {
     const errors = [];
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
-    if (entity.user.isBlockedOrDeactivated) errors.push(AmlError.INVALID_USER_STATUS);
+    if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
+    if (entity.user.isDeleted) errors.push(AmlError.USER_DELETED);
+    if (entity.userData.isBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
+    if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
@@ -63,7 +66,7 @@ export class AmlHelperService {
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.active === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if (!bankData.active) {
+      } else if (!bankData.active || bankData.manualCheck === false) {
         errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
       } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
@@ -113,7 +116,7 @@ export class AmlHelperService {
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
         case AmlRule.RULE_4:
-          if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+          if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
       }
 
@@ -136,7 +139,11 @@ export class AmlHelperService {
         }
       } else if (entity.checkoutTx) {
         // checkout
-        if (entity.checkoutTx.cardName && !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName))
+        if (
+          !bankData.manualCheck &&
+          entity.checkoutTx.cardName &&
+          !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName)
+        )
           errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
@@ -148,7 +155,7 @@ export class AmlHelperService {
           )
         )
           errors.push(AmlError.CARD_BLACKLISTED);
-        if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+        if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
@@ -178,7 +185,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -197,7 +204,7 @@ export class AmlHelperService {
       entity,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,

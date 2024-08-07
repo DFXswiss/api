@@ -17,7 +17,6 @@ export enum KycStepName {
   AUTHORITY = 'Authority',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
-  DOCUMENT_UPLOAD = 'DocumentUpload',
   DFX_APPROVAL = 'DfxApproval',
 }
 
@@ -48,8 +47,6 @@ export enum KycStepType {
   AUTO = 'Auto',
   VIDEO = 'Video',
   MANUAL = 'Manual',
-  // document
-  // TODO
 }
 
 export enum KycLogType {

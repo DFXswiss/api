@@ -17,7 +17,7 @@ export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
-  DEACTIVATED = 'Deactivated',
+  DELETED = 'Deleted',
 }
 
 @Entity()
@@ -128,9 +128,9 @@ export class User extends IEntity {
   comment: string;
 
   //*** FACTORY METHODS ***//
-  deactivateUser(reason: string): UpdateResult<User> {
+  deleteUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
-      status: UserStatus.DEACTIVATED,
+      status: UserStatus.DELETED,
       comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
       deactivationDate: new Date(),
     };
@@ -176,7 +176,15 @@ export class User extends IEntity {
     return customChains[this.wallet.name] ?? CryptoService.getBlockchainsBasedOn(this.address);
   }
 
-  get isBlockedOrDeactivated(): boolean {
-    return [UserStatus.BLOCKED, UserStatus.DEACTIVATED].includes(this.status);
+  get isBlockedOrDeleted(): boolean {
+    return this.isBlocked || this.isDeleted;
+  }
+
+  get isBlocked(): boolean {
+    return this.status === UserStatus.BLOCKED;
+  }
+
+  get isDeleted(): boolean {
+    return this.status === UserStatus.DELETED;
   }
 }
