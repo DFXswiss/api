@@ -55,9 +55,8 @@ export class AuthController {
 
   @Get('mail/redirect')
   @ApiExcludeEndpoint()
-  async redirectMail(@Query('code') code: string, @Res() res: Response, @RealIP() ip: string): Promise<void> {
-    const redirectUri = await this.authService.completeSignInByMail(code, ip);
-    res.redirect(redirectUri);
+  async redirectMail(@Query('code') code: string, @RealIP() ip: string): Promise<string> {
+    return this.authService.completeSignInByMail(code, ip);
   }
 
   @Get('mail/confirm')
