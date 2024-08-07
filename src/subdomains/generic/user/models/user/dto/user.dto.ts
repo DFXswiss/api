@@ -27,8 +27,8 @@ export class TradingLimit {
 }
 
 export class UserDto {
-  @ApiProperty({ enum: AccountType })
-  accountType: AccountType;
+  @ApiPropertyOptional({ enum: AccountType })
+  accountType?: AccountType;
 
   @ApiProperty()
   wallet: string;

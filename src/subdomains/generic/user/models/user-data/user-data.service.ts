@@ -205,7 +205,8 @@ export class UserDataService {
   }
 
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
-    const isPersonalAccount = (data.accountType ?? userData.accountType) === AccountType.PERSONAL;
+    const isPersonalAccount =
+      (data.accountType ?? userData.accountType ?? AccountType.PERSONAL) === AccountType.PERSONAL;
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
