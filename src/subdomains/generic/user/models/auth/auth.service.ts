@@ -202,7 +202,7 @@ export class AuthService {
 
     // create random key
     const key = randomUUID();
-    const loginUrl = `${Config.url()}/auth/mail/redirect?code=${key}`;
+    const loginUrl = `${Config.frontend.services}/login?code=${key}`;
 
     this.mailKeyList.set(key, {
       created: new Date(),
