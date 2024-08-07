@@ -11,10 +11,7 @@ import {
   Put,
   Query,
   Res,
-  UploadedFile,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -264,18 +261,6 @@ export class KycController {
     const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
     this.allowFrameIntegration(res);
     res.redirect(307, redirectUri);
-  }
-
-  @Put('document/:id')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOkResponse({ type: KycResultDto })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async uploadDocument(
-    @Headers(CodeHeaderName) code: string,
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ): Promise<KycResultDto> {
-    return this.kycService.uploadDocument(code, +id, file);
   }
 
   // --- 2FA --- //

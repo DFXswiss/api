@@ -413,30 +413,6 @@ export class KycService {
     return `${Config.frontend.services}/kyc/redirect?${search.toString()}`;
   }
 
-  async uploadDocument(kycHash: string, stepId: number, document: Express.Multer.File): Promise<KycResultDto> {
-    const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
-
-    const url = await this.storageService.uploadFile(
-      user.id,
-      FileType.USER_NOTES,
-      document.filename,
-      document.buffer,
-      document.mimetype as ContentType,
-      {
-        document: document.mimetype.toString(),
-        creationTime: new Date().toISOString(),
-        fileName: document.filename,
-      },
-    );
-
-    if (url) user.completeStep(kycStep, url);
-
-    await this.updateProgress(user, false);
-
-    return KycStepMapper.toKycResult(kycStep);
-  }
-
   // --- STEPPING METHODS --- //
   async getOrCreateStep(
     kycHash: string,
