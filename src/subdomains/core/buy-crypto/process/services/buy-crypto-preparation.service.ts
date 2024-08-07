@@ -93,7 +93,7 @@ export class BuyCryptoPreparationService {
         );
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.checkoutTx ? entity.inputReferenceAmount : 0,
           inputReferenceCurrency,
           false,
           Util.daysBefore(7, entity.transaction.created),

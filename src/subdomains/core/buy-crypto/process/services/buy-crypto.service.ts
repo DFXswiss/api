@@ -442,7 +442,10 @@ export class BuyCryptoService {
         ),
       );
     } else {
-      request.andWhere(`${type}.created BETWEEN :dateFrom AND :dateTo`, { dateFrom, dateTo });
+      request.andWhere(`${type}.${type !== 'checkoutTx' ? 'created' : 'requestedOn'} BETWEEN :dateFrom AND :dateTo`, {
+        dateFrom,
+        dateTo,
+      });
     }
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
