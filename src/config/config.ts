@@ -517,8 +517,7 @@ export class Configuration {
   url(version: Version = this.defaultVersion): string {
     const versionString = `v${version}`;
     return this.environment === Environment.LOC
-      ? //    ? `http://localhost:${this.port}/${versionString}`
-        `https://69a6-84-140-201-44.ngrok-free.app/${versionString}`
+      ? `http://localhost:${this.port}/${versionString}`
       : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
