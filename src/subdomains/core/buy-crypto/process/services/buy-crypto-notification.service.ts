@@ -289,7 +289,7 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        if (IbanTools.validateIBAN(entity.bankData.iban.split(';')[0]).valid) continue;
+        if (entity.bankData && IbanTools.validateIBAN(entity.bankData.iban.split(';')[0]).valid) continue;
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
