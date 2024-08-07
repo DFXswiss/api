@@ -423,7 +423,7 @@ export class BuyCrypto extends IEntity {
   amlCheckAndFillUp(
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -435,7 +435,7 @@ export class BuyCrypto extends IEntity {
       this,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,

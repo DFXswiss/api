@@ -22,7 +22,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -116,7 +116,7 @@ export class AmlHelperService {
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
         case AmlRule.RULE_4:
-          if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+          if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
       }
 
@@ -155,7 +155,7 @@ export class AmlHelperService {
           )
         )
           errors.push(AmlError.CARD_BLACKLISTED);
-        if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+        if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
@@ -185,7 +185,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -204,7 +204,7 @@ export class AmlHelperService {
       entity,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,
