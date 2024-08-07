@@ -62,9 +62,9 @@ export class AuthController {
 
   @Get('mail/confirm')
   @ApiExcludeEndpoint()
-  async executeMerge(@Query('code') code: string, @Res() res: Response): Promise<void> {
+  async executeMerge(@Query('code') code: string): Promise<string> {
     const { master } = await this.mergeService.executeMerge(code);
-    res.redirect(master.kycUrl);
+    return master.kycUrl;
   }
 
   @Get('signMessage')
