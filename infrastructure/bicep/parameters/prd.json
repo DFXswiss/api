@@ -32,12 +32,6 @@
     "dbCapacity": {
       "value": 50
     },
-    "dfxSigningPrivKey": {
-      "value": "xxx"
-    },
-    "dfxSigningPubKey": {
-      "value": "xxx"
-    },
     "mailUser": {
       "value": "xxx"
     },
@@ -225,6 +219,12 @@
       "value": "xxx"
     },
     "lightningApiCertificate": {
+      "value": "xxx"
+    },
+    "lightningSigningPrivKey": {
+      "value": "xxx"
+    },
+    "lightningSigningPubKey": {
       "value": "xxx"
     },
     "lightningLnbitsApiKey": {

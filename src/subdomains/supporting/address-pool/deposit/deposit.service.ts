@@ -75,7 +75,7 @@ export class DepositService {
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
   }
 
-  private async createBitcoinDeposits(blockchain: Blockchain, count: number) {
+  private async createBitcoinDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const client = this.btcInpClient;
     const label = Util.isoDate(new Date());
     const type = AddressType.P2SH_SEGWIT;
@@ -87,7 +87,7 @@ export class DepositService {
     }
   }
 
-  private async createEvmDeposits(blockchain: Blockchain, count: number) {
+  private async createEvmDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
     const nextDepositIndex = await this.getNextDepositIndex(CryptoService.EthereumBasedChains);
@@ -104,11 +104,15 @@ export class DepositService {
       );
     }
 
-    addresses.push(await this.saveEvmDeposit(Config.payment.walletAccount(0), applicableChains, 0));
+    addresses.push(this.createPaymentAddress(0));
 
     for (const chain of applicableChains) {
       await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
     }
+  }
+
+  private createPaymentAddress(accountIndex: number): string {
+    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: accountIndex }).address;
   }
 
   private async saveEvmDeposit(
@@ -159,7 +163,7 @@ export class DepositService {
       const linkId = depositLink.id;
 
       const uniqueId = Util.createUniqueId('deposit');
-      const uniqueIdSignature = Util.createSign(uniqueId, Config.dfx.signingPrivKey);
+      const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
 
       const lnurlpLinkUpdate: LnurlpLinkUpdateDto = {
         description: depositLink.description,
@@ -167,7 +171,7 @@ export class DepositService {
         max: depositLink.max,
         currency: depositLink.currency,
         comment_chars: depositLink.comment_chars,
-        webhook_url: `${Config.url()}/paymentWebhook/lnurlpDeposit/${uniqueId}`,
+        webhook_url: `${Config.url()}/payIn/lnurlpDeposit/${uniqueId}`,
         webhook_headers: `{ "Deposit-Signature": "${uniqueIdSignature}" }`,
         webhook_body: depositLink.webhook_body,
         success_text: depositLink.success_text,

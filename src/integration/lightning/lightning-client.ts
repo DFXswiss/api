@@ -188,7 +188,7 @@ export class LightningClient {
     if (!description) throw new Error('Description is undefined');
 
     const uniqueId = Util.createUniqueId('deposit');
-    const uniqueIdSignature = Util.createSign(uniqueId, Config.dfx.signingPrivKey);
+    const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
 
     const newLnurlpLinkDto: LnurlpLinkDto = {
       description: description,
@@ -196,7 +196,7 @@ export class LightningClient {
       max: 100000000,
       comment_chars: 0,
       fiat_base_multiplier: 100,
-      webhook_url: `${Config.url()}/paymentWebhook/lnurlpDeposit/${uniqueId}`,
+      webhook_url: `${Config.url()}/payIn/lnurlpDeposit/${uniqueId}`,
       webhook_headers: `{ "Deposit-Signature": "${uniqueIdSignature}" }`,
     };
 

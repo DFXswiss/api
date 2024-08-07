@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -8,11 +8,11 @@ import { PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
-import { DepositAddressCacheEntry, PaymentActivationService } from './payment-activation.service';
+import { PaymentActivationService } from './payment-activation.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
-export class PaymentLinkService implements OnModuleInit {
+export class PaymentLinkService {
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
@@ -21,23 +21,6 @@ export class PaymentLinkService implements OnModuleInit {
     private readonly paymentActivationService: PaymentActivationService,
     private readonly sellService: SellService,
   ) {}
-
-  async onModuleInit() {
-    const depositAddressCacheEntries = await this.paymentLinkRepo
-      .find({
-        relations: {
-          route: { deposit: true },
-        },
-      })
-      .then((pl) =>
-        pl.map<DepositAddressCacheEntry>((pl) => ({
-          depositAddress: pl.route.deposit.address,
-          linkUniqueId: pl.uniqueId,
-        })),
-      );
-
-    this.paymentActivationService.addDepositAddresses(depositAddressCacheEntries);
-  }
 
   async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
     let link: PaymentLink;
@@ -48,8 +31,8 @@ export class PaymentLinkService implements OnModuleInit {
 
     if (!link.payments) link.payments = [];
 
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(link.uniqueId);
-    if (pendingPayment) link.payments.push(pendingPayment);
+    const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
+    if (mostRecentPayment) link.payments.push(mostRecentPayment);
 
     return link;
   }
@@ -58,12 +41,10 @@ export class PaymentLinkService implements OnModuleInit {
     const allPaymentLinks = await this.paymentLinkRepo.getAllPaymentLinks(userId);
 
     for (const paymentLink of allPaymentLinks) {
-      const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(paymentLink.uniqueId);
+      if (!paymentLink.payments) paymentLink.payments = [];
 
-      if (pendingPayment) {
-        paymentLink.payments = [];
-        paymentLink.payments.push(pendingPayment);
-      }
+      const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(paymentLink.uniqueId);
+      if (mostRecentPayment) paymentLink.payments.push(mostRecentPayment);
     }
 
     return allPaymentLinks;
@@ -96,11 +77,6 @@ export class PaymentLinkService implements OnModuleInit {
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    this.paymentActivationService.addDepositAddress({
-      depositAddress: paymentLink.route.deposit.address,
-      linkUniqueId: paymentLink.uniqueId,
-    });
-
     dto.payment &&
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
@@ -130,7 +106,7 @@ export class PaymentLinkService implements OnModuleInit {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
-    paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto));
+    paymentLink.payments = [await this.paymentLinkPaymentService.createPayment(paymentLink, dto)];
 
     return paymentLink;
   }

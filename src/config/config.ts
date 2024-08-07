@@ -29,11 +29,6 @@ export class Configuration {
   environment = process.env.ENVIRONMENT as Environment;
   network = process.env.NETWORK as NetworkName;
 
-  dfx = {
-    signingPrivKey: process.env.DFX_SIGNING_PRIV_KEY?.split('<br>').join('\n'),
-    signingPubKey: process.env.DFX_SIGNING_PUB_KEY?.split('<br>').join('\n'),
-  };
-
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
@@ -265,11 +260,6 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     fee: 0.02,
-
-    walletAccount: (accountIndex: number): WalletAccount => ({
-      seed: this.payment.evmSeed,
-      index: accountIndex,
-    }),
   };
 
   blockchain = {
@@ -369,6 +359,8 @@ export class Configuration {
         lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
         lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
         lnurlwApiUrl: process.env.LIGHTNING_LNBITS_LNURLW_API_URL,
+        signingPrivKey: process.env.LIGHTNING_SIGNING_PRIV_KEY?.split('<br>').join('\n'),
+        signingPubKey: process.env.LIGHTNING_SIGNING_PUB_KEY?.split('<br>').join('\n'),
       },
       lnd: {
         apiUrl: process.env.LIGHTNING_LND_API_URL,
@@ -525,7 +517,8 @@ export class Configuration {
   url(version: Version = this.defaultVersion): string {
     const versionString = `v${version}`;
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${versionString}`
+      ? //    ? `http://localhost:${this.port}/${versionString}`
+        `https://69a6-84-140-201-44.ngrok-free.app/${versionString}`
       : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 

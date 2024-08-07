@@ -54,7 +54,7 @@ export class LightningStrategy extends RegisterStrategy {
     return {
       address: BlockchainAddress.create(this.getAddress(transactionWebhook), this.blockchain),
       txId: transactionWebhook.transaction.paymentHash,
-      txType: null,
+      txType: transactionWebhook.transaction.txType,
       blockHeight: null,
       amount: LightningHelper.msatToBtc(transactionWebhook.transaction.amount),
       asset,

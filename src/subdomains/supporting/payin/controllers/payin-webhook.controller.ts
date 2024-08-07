@@ -7,8 +7,8 @@ import { LnurlpTransactionDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { Util } from 'src/shared/utils/util';
 import { PayInWebHookService } from '../services/payin-webhhook.service';
 
-@ApiTags('Payment Webhook')
-@Controller('paymentWebhook')
+@ApiTags('Pay-In')
+@Controller('payIn')
 export class PayInWebhookController {
   constructor(private readonly payInWebHookService: PayInWebHookService) {}
 
@@ -19,7 +19,7 @@ export class PayInWebhookController {
     @Param('uniqueId') uniqueId: string,
     @Body() transaction: LnurlpTransactionDto,
   ): Promise<void> {
-    if (!Util.verifySign(uniqueId, Config.dfx.signingPubKey, depositSignature ?? ''))
+    if (!Util.verifySign(uniqueId, Config.blockchain.lightning.lnbits.signingPubKey, depositSignature ?? ''))
       throw new ForbiddenException('Access denied');
 
     return this.payInWebHookService.processLightningTransaction(
@@ -32,7 +32,7 @@ export class PayInWebhookController {
   async payment(@Param('uniqueId') uniqueId: string, @Body() transaction: LnBitsTransactionDto): Promise<void> {
     const paymentSignature = transaction.extra?.signature;
 
-    if (!Util.verifySign(uniqueId, Config.dfx.signingPubKey, paymentSignature ?? ''))
+    if (!Util.verifySign(uniqueId, Config.blockchain.lightning.lnbits.signingPubKey, paymentSignature ?? ''))
       throw new ForbiddenException('Access denied');
 
     return this.payInWebHookService.processLightningTransaction(

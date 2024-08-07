@@ -53,7 +53,7 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: true,
+        link: { route: { deposit: true } },
       },
     });
   }
@@ -77,6 +77,23 @@ export class PaymentLinkPaymentService {
         link: true,
         activations: true,
       },
+    });
+  }
+
+  async getMostRecentPayment(uniqueId: string): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: [
+        {
+          link: { uniqueId: uniqueId },
+        },
+        {
+          uniqueId: uniqueId,
+        },
+      ],
+      relations: {
+        link: true,
+      },
+      order: { updated: 'DESC' },
     });
   }
 

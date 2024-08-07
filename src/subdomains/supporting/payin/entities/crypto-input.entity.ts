@@ -41,6 +41,8 @@ export enum PayInStatus {
 
 export enum PayInType {
   PERMIT_TRANSFER = 'PermitTransfer',
+  DEPOSIT = 'Deposit',
+  PAYMENT = 'Payment',
 }
 
 @Entity()

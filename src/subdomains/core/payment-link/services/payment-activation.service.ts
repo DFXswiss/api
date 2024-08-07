@@ -11,7 +11,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { PaymentLinkEvmPaymentDto, PaymentLinkPaymentMode, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
@@ -20,11 +20,6 @@ import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
-export interface DepositAddressCacheEntry {
-  depositAddress: string;
-  linkUniqueId?: string;
-}
-
 @Injectable()
 export class PaymentActivationService implements OnModuleInit {
   private readonly logger = new DfxLogger(PaymentActivationService);
@@ -32,7 +27,6 @@ export class PaymentActivationService implements OnModuleInit {
   private readonly client: LightningClient;
 
   private evmDepositAddress: string;
-  private depositAddressCache: Map<string, Set<string>>;
 
   constructor(
     readonly lightningService: LightningService,
@@ -41,35 +35,10 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly assetService: AssetService,
   ) {
     this.client = lightningService.getDefaultClient();
-
-    this.depositAddressCache = new Map();
   }
 
   onModuleInit() {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
-
-    this.addDepositAddress({ depositAddress: this.evmDepositAddress });
-  }
-
-  addDepositAddress(cacheEntry: DepositAddressCacheEntry) {
-    const depositAddress = cacheEntry.depositAddress.toUpperCase();
-
-    const linkUniqueIds = this.depositAddressCache.get(depositAddress) ?? new Set();
-    if (cacheEntry.linkUniqueId) linkUniqueIds.add(cacheEntry.linkUniqueId);
-
-    this.depositAddressCache.set(depositAddress, linkUniqueIds);
-  }
-
-  addDepositAddresses(cacheEntries: DepositAddressCacheEntry[]) {
-    cacheEntries.forEach((ce) => this.addDepositAddress(ce));
-  }
-
-  private isDepositAddress(address: string): boolean {
-    return this.depositAddressCache.has(address?.toUpperCase());
-  }
-
-  private findDepositAddressByLinkUniqueId(linkUniqueId: string): string | undefined {
-    return [...this.depositAddressCache].find(([_k, v]) => v.has(linkUniqueId))?.[0];
   }
 
   // --- HANDLE PENDING ACTIVATIONS --- //
@@ -87,7 +56,7 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (!this.isDepositAddress(cryptoInput.address?.address)) return;
+    if (cryptoInput.txType !== PayInType.PAYMENT) return;
 
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByAsset(
       cryptoInput.asset,
@@ -229,13 +198,13 @@ export class PaymentActivationService implements OnModuleInit {
     if (!lnurlpAddress) throw new BadRequestException('Deposit LNURLp Address not found');
 
     const uniqueId = payment.uniqueId;
-    const uniqueIdSignature = Util.createSign(uniqueId, Config.dfx.signingPrivKey);
+    const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
 
     const walletPaymentParams: LnBitsWalletPaymentParamsDto = {
       amount: LightningHelper.btcToSat(transferInfo.amount),
       memo: payment.requestMemo,
       expirySec: expirySec,
-      webhook: `${Config.url()}/paymentWebhook/lnurlpPayment/${uniqueId}`,
+      webhook: `${Config.url()}/payIn/lnurlpPayment/${uniqueId}`,
       extra: {
         link: lnurlpAddress,
         signature: uniqueIdSignature,
@@ -247,14 +216,7 @@ export class PaymentActivationService implements OnModuleInit {
 
   private async getDepositLnurlpAddress(pendingPayment: PaymentLinkPayment): Promise<string | undefined> {
     try {
-      const depositAddress = this.findDepositAddressByLinkUniqueId(pendingPayment.link.uniqueId);
-
-      if (!depositAddress) {
-        this.logger.error(
-          `Lightning transaction: Deposit address not found for payment link ${pendingPayment.link.uniqueId}`,
-        );
-        return;
-      }
+      const depositAddress = pendingPayment.link.route.deposit.address;
 
       if (!depositAddress.startsWith('LNURL')) {
         this.logger.error(
