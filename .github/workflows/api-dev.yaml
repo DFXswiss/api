@@ -23,6 +23,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Clear npm cache
+        run: |
+          npm cache clean --force
+
       - name: Install packages
         uses: nick-fields/retry@v3
         with:
@@ -35,6 +39,10 @@ jobs:
       - name: Build code
         run: |
           npm run build
+
+      - name: Run tests
+        run: |
+          npm run test
 
       - name: Run linter
         run: |
