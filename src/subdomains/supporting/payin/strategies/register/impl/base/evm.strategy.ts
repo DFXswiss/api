@@ -46,7 +46,7 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     this.addressWebhookMessageQueue
       .handle<void>(async () => this.processWebhookTransactions(dto))
       .catch((e) => {
-        this.logger.error('Error while process new payin entries', e);
+        this.logger.error('Error while processing new pay-in entries:', e);
       });
   }
 
