@@ -84,6 +84,6 @@ export class AccountMergeService {
   }
 
   private buildConfirmationUrl(code: string): string {
-    return `${Config.frontend.services}/kyc?confirm-code=${code}`;
+    return `${Config.frontend.services}/kyc?merge-code=${code}`;
   }
 }

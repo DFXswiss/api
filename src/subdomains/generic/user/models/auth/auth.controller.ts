@@ -14,6 +14,7 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
+import { RedirectUrlDto } from './dto/redirect-url.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 
 @ApiTags('Auth')
@@ -62,9 +63,10 @@ export class AuthController {
 
   @Get('mail/confirm')
   @ApiExcludeEndpoint()
-  async executeMerge(@Query('code') code: string): Promise<string> {
+  @ApiOkResponse({ type: RedirectUrlDto })
+  async executeMerge(@Query('code') code: string): Promise<RedirectUrlDto> {
     const { master } = await this.mergeService.executeMerge(code);
-    return master.kycUrl;
+    return { redirectUrl: master.kycUrl };
   }
 
   @Get('signMessage')
