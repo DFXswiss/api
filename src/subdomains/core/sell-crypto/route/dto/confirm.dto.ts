@@ -44,7 +44,7 @@ export class PermitDto {
   deadline: string;
 }
 
-export class ConfirmSellDto {
+export class ConfirmDto {
   @ApiProperty({ type: PermitDto })
   @IsNotEmpty()
   @ValidateNested()
