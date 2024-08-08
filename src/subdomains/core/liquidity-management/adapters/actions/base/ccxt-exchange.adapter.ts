@@ -84,7 +84,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const balance = await this.exchangeService.getBalance(token);
     if (order.amount > balance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance of ${token} (${order.amount} > ${balance})`,
+        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, requested: ${order.amount})`,
       );
 
     try {
@@ -161,7 +161,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const sourceBalance = await this.exchangeService.getBalance(token);
     if (minAmount > sourceBalance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance of ${token} (${minAmount} > ${sourceBalance})`,
+        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${sourceBalance}, requested: ${minAmount})`,
       );
 
     const amount = Math.min(sourceBalance, maxAmount);

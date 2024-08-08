@@ -57,11 +57,35 @@ export class PaymentLinkService {
       ? await this.sellService.get(userId, dto.routeId)
       : await this.sellService.getLatest(userId);
 
+    if (dto.externalId) {
+      const exists = await this.paymentLinkRepo.existsBy({
+        externalId: dto.externalId,
+        route: { user: { id: userId } },
+      });
+      if (exists) throw new ConflictException('Payment link already exists');
+    }
+
     return this.createForRoute(route, dto.externalId, dto.payment);
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
     const route = await this.sellService.getById(+dto.routeId);
+
+    const existingLinks = await this.paymentLinkRepo.find({
+      where: {
+        externalId: dto.externalId,
+        route: { id: +dto.routeId },
+      },
+      relations: { payments: true },
+    });
+    if (existingLinks.length) {
+      const matchingLink = existingLinks.find(
+        (l) => l.payments[0]?.amount === +dto.amount && l.payments[0]?.currency.name === dto.currency,
+      );
+      if (matchingLink) return matchingLink;
+
+      throw new ConflictException('Payment link already exists');
+    }
 
     const payment: CreatePaymentLinkPaymentDto = {
       mode: PaymentLinkPaymentMode.SINGLE,
@@ -74,18 +98,14 @@ export class PaymentLinkService {
     return this.createForRoute(route, dto.externalId, payment);
   }
 
-  private async createForRoute(route: Sell, externalId?: string, payment?: CreatePaymentLinkPaymentDto) {
+  private async createForRoute(
+    route: Sell,
+    externalId?: string,
+    payment?: CreatePaymentLinkPaymentDto,
+  ): Promise<PaymentLink> {
     if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
-
-    if (externalId) {
-      const exists = await this.paymentLinkRepo.existsBy({
-        externalId: externalId,
-        route: { user: { id: route.user.id } },
-      });
-      if (exists) throw new ConflictException('Payment link already exists');
-    }
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
