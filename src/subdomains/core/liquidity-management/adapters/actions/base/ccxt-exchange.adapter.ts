@@ -101,7 +101,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async trade(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
+    const { tradeAsset, minTradeAmount } = this.parseTradeParams(order.action.paramMap);
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
@@ -115,7 +115,18 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
 
     try {
-      return await this.exchangeService.buy(tradeAsset, asset, amount);
+      try {
+        return await this.exchangeService.buy(tradeAsset, asset, amount);
+      } catch (e) {
+        if (e.message?.includes('not enough balance') && minTradeAmount != null) {
+          const availableBalance = await this.exchangeService.getBalance(tradeAsset);
+          if (availableBalance >= minTradeAmount) {
+            return await this.exchangeService.sell(tradeAsset, asset, availableBalance);
+          }
+        }
+
+        throw e;
+      }
     } catch (e) {
       if (e.message?.includes('not enough balance')) {
         throw new OrderNotProcessableException(e.message);
@@ -281,12 +292,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseTradeParams(params: Record<string, unknown>): { tradeAsset: string } {
-    const tradeAsset = params.tradeAsset as string;
+  private parseTradeParams(params: Record<string, unknown>): { tradeAsset: string; minTradeAmount: number } {
+    const tradeAsset = params.tradeAsset as string | undefined;
+    const minTradeAmount = params.minTradeAmount as number | undefined;
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.trade(...) command are invalid.`);
 
-    return { tradeAsset };
+    return { tradeAsset, minTradeAmount };
   }
 
   private validateTransferParams(params: Record<string, unknown>): boolean {
