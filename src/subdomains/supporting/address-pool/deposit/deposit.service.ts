@@ -6,7 +6,6 @@ import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-
 import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
@@ -99,9 +98,11 @@ export class DepositService {
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
 
-      addresses.push(
-        await this.saveEvmDeposit(Config.blockchain.evm.walletAccount(accountIndex), applicableChains, accountIndex),
-      );
+      const wallet = EvmUtil.createWallet(Config.blockchain.evm.walletAccount(accountIndex));
+      const deposit = Deposit.create(wallet.address, applicableChains, accountIndex);
+      await this.depositRepo.save(deposit);
+
+      addresses.push(deposit.address);
     }
 
     addresses.push(this.createPaymentAddress(0));
@@ -113,22 +114,6 @@ export class DepositService {
 
   private createPaymentAddress(accountIndex: number): string {
     return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: accountIndex }).address;
-  }
-
-  private async saveEvmDeposit(
-    walletAccount: WalletAccount,
-    applicableChains: Blockchain[],
-    accountIndex: number,
-  ): Promise<string> {
-    const wallet = EvmUtil.createWallet(walletAccount);
-
-    const deposit = await this.depositRepo.findOneBy({ address: wallet.address });
-
-    if (!deposit) {
-      await this.depositRepo.save(Deposit.create(wallet.address, applicableChains, accountIndex));
-    }
-
-    return wallet.address;
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number) {
