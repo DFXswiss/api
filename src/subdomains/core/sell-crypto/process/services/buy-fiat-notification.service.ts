@@ -105,13 +105,13 @@ export class BuyFiatNotificationService {
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_FIAT_RETURN,
             input: {
               userData: entity.userData,
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url },
@@ -174,7 +174,7 @@ export class BuyFiatNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_FIAT_PENDING,
             input: {
               userData: entity.userData,
@@ -182,7 +182,7 @@ export class BuyFiatNotificationService {
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
-              suffix: [
+              texts: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
