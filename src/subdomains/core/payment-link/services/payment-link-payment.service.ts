@@ -20,7 +20,7 @@ export class PaymentLinkPaymentService {
   static readonly PREFIX_UNIQUE_ID = 'plp';
 
   constructor(
-    private paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
+    private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
@@ -53,7 +53,7 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: { route: { deposit: true } },
+        link: { route: { deposit: true, user: { userData: true } } },
       },
     });
   }

@@ -80,6 +80,6 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get requestMemo(): string {
-    return `Payment ${this.metaId} to ${this.link.metaId}`;
+    return this.link.route.userData?.verifiedName ?? `Payment ${this.metaId} to ${this.link.metaId}`;
   }
 }
