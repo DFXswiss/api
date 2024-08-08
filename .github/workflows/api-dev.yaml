@@ -8,7 +8,7 @@ on:
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-dev
   AZURE_WEBAPP_PACKAGE_PATH: '.'
-  NODE_VERSION: '16.x'
+  NODE_VERSION: '20.x'
 
 jobs:
   build-and-deploy:
@@ -22,10 +22,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Clear npm cache
-        run: |
-          npm cache clean --force
 
       - name: Install packages
         uses: nick-fields/retry@v3
