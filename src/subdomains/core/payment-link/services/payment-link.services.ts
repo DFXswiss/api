@@ -1,14 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
+import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
+import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkStatus } from '../dto/payment-link.dto';
+import { PaymentLinkPaymentMode, PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
-import { PaymentActivationService } from './payment-activation.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
@@ -18,8 +20,8 @@ export class PaymentLinkService {
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly paymentActivationService: PaymentActivationService,
     private readonly sellService: SellService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
@@ -55,21 +57,39 @@ export class PaymentLinkService {
       ? await this.sellService.get(userId, dto.routeId)
       : await this.sellService.getLatest(userId);
 
+    return this.createForRoute(route, dto.externalId, dto.payment);
+  }
+
+  async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
+    const route = await this.sellService.getById(+dto.routeId);
+
+    const payment: CreatePaymentLinkPaymentDto = {
+      mode: PaymentLinkPaymentMode.SINGLE,
+      amount: +dto.amount,
+      externalId: dto.externalId,
+      currency: await this.fiatService.getFiatByName(dto.currency),
+      expiryDate: dto.expiryDate,
+    };
+
+    return this.createForRoute(route, dto.externalId, payment);
+  }
+
+  private async createForRoute(route: Sell, externalId?: string, payment?: CreatePaymentLinkPaymentDto) {
     if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
 
-    if (dto.externalId) {
+    if (externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
-        externalId: dto.externalId,
-        route: { user: { id: userId } },
+        externalId: externalId,
+        route: { user: { id: route.user.id } },
       });
       if (exists) throw new ConflictException('Payment link already exists');
     }
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
-      externalId: dto.externalId,
+      externalId: externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
       payments: [],
@@ -77,8 +97,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    dto.payment &&
-      paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
+    payment && paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, payment));
 
     return paymentLink;
   }

@@ -42,7 +42,7 @@ export class LnUrlForwardService {
     return this.createLnurlpPayRequest(id);
   }
 
-  private async createPaymentLinkPayRequest(uniqueId: string): Promise<PaymentLinkPayRequestDto> {
+  async createPaymentLinkPayRequest(uniqueId: string): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
