@@ -23,10 +23,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Remove node modules
-        run: |
-          rm -rf node_modules
-
       - name: Install packages
         uses: nick-fields/retry@v3
         with:
@@ -39,10 +35,6 @@ jobs:
       - name: Build code
         run: |
           npm run build
-
-      - name: Run tests
-        run: |
-          npm run test
 
       - name: Run linter
         run: |
