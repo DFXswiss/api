@@ -23,6 +23,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Remove node modules
+        run: |
+          rm -rf node_modules
+
       - name: Install packages
         uses: nick-fields/retry@v3
         with:
