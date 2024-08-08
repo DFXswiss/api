@@ -359,6 +359,8 @@ export class Configuration {
         lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
         lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
         lnurlwApiUrl: process.env.LIGHTNING_LNBITS_LNURLW_API_URL,
+        signingPrivKey: process.env.LIGHTNING_SIGNING_PRIV_KEY?.split('<br>').join('\n'),
+        signingPubKey: process.env.LIGHTNING_SIGNING_PUB_KEY?.split('<br>').join('\n'),
       },
       lnd: {
         apiUrl: process.env.LIGHTNING_LND_API_URL,

@@ -113,6 +113,10 @@ param bscScanApiKey string
 @secure()
 param lightningApiCertificate string
 @secure()
+param lightningSigningPrivKey string
+@secure()
+param lightningSigningPubKey string
+@secure()
 param lightningLnbitsApiKey string
 @secure()
 param lightningLndAdminMacaroon string
@@ -806,6 +810,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIGHTNING_API_CERTIFICATE'
           value: lightningApiCertificate
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PRIV_KEY'
+          value: lightningSigningPrivKey
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PUB_KEY'
+          value: lightningSigningPubKey
         }
         {
           name: 'LIGHTNING_LNBITS_API_URL'

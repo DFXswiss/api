@@ -26,7 +26,8 @@ export class PaymentLinkPaymentService {
     private readonly pricingService: PricingService,
   ) {}
 
-  async processPendingPayments() {
+  // --- HANDLE PENDING PAYMENTS --- //
+  async processPendingPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
     const pendingPaymentLinkPayments = await this.paymentLinkPaymentRepo.findBy({
@@ -52,22 +53,47 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: true,
+        link: { route: { deposit: true } },
       },
     });
   }
 
   async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
-    const pendingPayment = await this.paymentLinkPaymentRepo.findOneBy({
-      activations: { asset: { id: asset.id }, amount },
-      status: PaymentLinkPaymentStatus.PENDING,
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        activations: { asset: { id: asset.id }, amount },
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: {
+        activations: true,
+      },
     });
 
     if (!pendingPayment) return null;
 
     return this.paymentLinkPaymentRepo.findOne({
       where: { id: pendingPayment.id },
-      relations: { link: true },
+      relations: {
+        link: true,
+        activations: true,
+      },
+    });
+  }
+
+  async getMostRecentPayment(uniqueId: string): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: [
+        {
+          link: { uniqueId: uniqueId },
+        },
+        {
+          uniqueId: uniqueId,
+        },
+      ],
+      relations: {
+        link: true,
+      },
+      order: { updated: 'DESC' },
     });
   }
 

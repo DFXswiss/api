@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbits.dto';
+import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -10,12 +10,10 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
-import { PayInWebHookService } from '../../../supporting/payin/services/payin-webhhook.service';
-import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentLinkEvmPaymentDto, PaymentLinkPaymentMode, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation, PaymentActivationStatus } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -28,27 +26,19 @@ export class PaymentActivationService implements OnModuleInit {
 
   private readonly client: LightningClient;
 
-  private walletAddress: string;
-
-  private readonly paymentWebhookMessageQueue: QueueHandler;
+  private evmDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
-    readonly payInWebHookService: PayInWebHookService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly assetService: AssetService,
   ) {
     this.client = lightningService.getDefaultClient();
-    this.paymentWebhookMessageQueue = new QueueHandler();
-
-    payInWebHookService
-      .getLightningTransactionWebhookObservable()
-      .subscribe((transaction) => this.processLightningTransactionMessageQueue(transaction));
   }
 
   onModuleInit() {
-    this.walletAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
+    this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
   }
 
   // --- HANDLE PENDING ACTIVATIONS --- //
@@ -66,7 +56,7 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (!Util.equalsIgnoreCase(cryptoInput.address?.address, this.walletAddress)) return;
+    if (cryptoInput.txType !== PayInType.PAYMENT) return;
 
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByAsset(
       cryptoInput.asset,
@@ -74,7 +64,7 @@ export class PaymentActivationService implements OnModuleInit {
     );
 
     if (!pendingPayment) {
-      this.logger.error(`EVM transaction ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
+      this.logger.error(`CryptoInput ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
       return;
     }
 
@@ -93,37 +83,33 @@ export class PaymentActivationService implements OnModuleInit {
     );
   }
 
-  private processLightningTransactionMessageQueue(transactionWebhook: LnBitsTransactionWebhookDto) {
-    this.paymentWebhookMessageQueue
-      .handle<void>(async () => this.processLightningTransaction(transactionWebhook))
-      .catch((e) => {
-        this.logger.error('Error while processing transaction data', e);
-      });
+  private async doUpdateStatus(
+    activationToBeCompleted: PaymentActivation,
+    allPendingActivations: PaymentActivation[],
+    pendingPayment: PaymentLinkPayment,
+  ): Promise<PaymentLinkPayment> {
+    await this.doUpdatePaymentActivationStatus(activationToBeCompleted, allPendingActivations);
+
+    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) return pendingPayment;
+
+    return this.doUpdatePaymentLinkStatus(pendingPayment);
   }
 
-  private async processLightningTransaction(transactionWebhook: LnBitsTransactionWebhookDto): Promise<void> {
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(
-      transactionWebhook.uniqueId,
-    );
+  private async doUpdatePaymentActivationStatus(
+    activationToBeCompleted: PaymentActivation,
+    allPendingActivations: PaymentActivation[],
+  ): Promise<void> {
+    await this.paymentActivationRepo.save(activationToBeCompleted.complete());
 
-    if (!pendingPayment) {
-      this.logger.error(`Lightning transaction: No pending payment found by unique id ${transactionWebhook.uniqueId}`);
-      return;
+    for (const pendingActivation of allPendingActivations) {
+      if (pendingActivation.id !== activationToBeCompleted.id) {
+        await this.paymentActivationRepo.save(pendingActivation.expire());
+      }
     }
+  }
 
-    const receivedAmount = LightningHelper.msatToBtc(transactionWebhook.transaction.amount);
-
-    const pendingActivationData = this.getPendingActivation(pendingPayment, Blockchain.LIGHTNING, receivedAmount);
-    if (!pendingActivationData) return;
-
-    const pendingActivation = pendingActivationData.pendingActivation;
-
-    if (pendingActivation.paymentRequest !== transactionWebhook.transaction?.bolt11) {
-      this.logger.error(`Lightning transaction: Invalid invoice received`);
-      return;
-    }
-
-    await this.doUpdateStatus(pendingActivation, pendingActivationData.allPendingActivations, pendingPayment);
+  private async doUpdatePaymentLinkStatus(pendingPayment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+    return this.paymentLinkPaymentService.complete(pendingPayment);
   }
 
   private getPendingActivation(
@@ -150,22 +136,6 @@ export class PaymentActivationService implements OnModuleInit {
     }
 
     return { pendingActivation, allPendingActivations };
-  }
-
-  private async doUpdateStatus(
-    activationToBeCompleted: PaymentActivation,
-    allPendingActivations: PaymentActivation[],
-    pendingPayment: PaymentLinkPayment,
-  ): Promise<PaymentLinkPayment> {
-    await this.paymentActivationRepo.save(activationToBeCompleted.complete());
-
-    for (const pendingActivation of allPendingActivations) {
-      if (pendingActivation.id !== activationToBeCompleted.id) {
-        await this.paymentActivationRepo.save(pendingActivation.expire());
-      }
-    }
-
-    return this.paymentLinkPaymentService.complete(pendingPayment);
   }
 
   // --- CREATE ACTIVATIONS --- //
@@ -210,7 +180,7 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
-  ) {
+  ): Promise<PaymentActivation> {
     const request =
       transferInfo.method === Blockchain.LIGHTNING
         ? await this.createLightningRequest(payment, transferInfo, expirySec)
@@ -224,20 +194,52 @@ export class PaymentActivationService implements OnModuleInit {
     transferInfo: TransferInfo,
     expirySec: number,
   ): Promise<string> {
-    const walletPaymentParams = {
+    const lnurlpAddress = await this.getDepositLnurlpAddress(payment);
+    if (!lnurlpAddress) throw new BadRequestException('Deposit LNURLp Address not found');
+
+    const uniqueId = payment.uniqueId;
+    const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
+
+    const walletPaymentParams: LnBitsWalletPaymentParamsDto = {
       amount: LightningHelper.btcToSat(transferInfo.amount),
       memo: payment.requestMemo,
       expirySec: expirySec,
-      webhook: `${Config.url()}/paymentWebhook/transaction-webhook/${payment.uniqueId}`,
+      webhook: `${Config.url()}/payIn/lnurlpPayment/${uniqueId}`,
+      extra: {
+        link: lnurlpAddress,
+        signature: uniqueIdSignature,
+      },
     };
 
     return this.client.getLnBitsWalletPayment(walletPaymentParams).then((r) => r.pr);
   }
 
+  private async getDepositLnurlpAddress(pendingPayment: PaymentLinkPayment): Promise<string | undefined> {
+    try {
+      const depositAddress = pendingPayment.link.route.deposit.address;
+
+      if (!depositAddress.startsWith('LNURL')) {
+        this.logger.error(
+          `Lightning transaction: Deposit address ${depositAddress} is not a LNURL address for payment link ${pendingPayment.link.uniqueId}`,
+        );
+        return;
+      }
+
+      const decodedDepositAddress = LightningHelper.decodeLnurl(depositAddress);
+      const paths = decodedDepositAddress.split('/');
+      return paths[paths.length - 1];
+    } catch (e) {
+      this.logger.error(
+        `Lightning transaction: Cannot get LNURLp address for payment link ${pendingPayment.link.id}`,
+        e,
+      );
+    }
+  }
+
   private async createEvmRequest(transferInfo: TransferInfo): Promise<string> {
     const asset = await this.getAssetByInfo(transferInfo);
 
-    return EvmUtil.getPaymentRequest(this.walletAddress, asset, transferInfo.amount);
+    return EvmUtil.getPaymentRequest(this.evmDepositAddress, asset, transferInfo.amount);
   }
 
   private async savePaymentRequest(

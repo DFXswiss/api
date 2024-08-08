@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import {
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
@@ -41,11 +41,10 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ length: 'MAX' })
   transferAmounts: string;
 
-  @OneToOne(() => CryptoInput, { nullable: true })
-  @JoinColumn()
+  @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
   cryptoInput: CryptoInput;
 
-  @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true, eager: true })
+  @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
 
   // --- ENTITY METHODS --- //

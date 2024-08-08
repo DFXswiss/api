@@ -8,6 +8,7 @@ import { PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
+import { PaymentActivationService } from './payment-activation.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class PaymentLinkService {
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentActivationService: PaymentActivationService,
     private readonly sellService: SellService,
   ) {}
 
@@ -27,11 +29,25 @@ export class PaymentLinkService {
 
     if (!link) throw new NotFoundException('Payment link not found');
 
+    if (!link.payments) link.payments = [];
+
+    const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
+    if (mostRecentPayment) link.payments.push(mostRecentPayment);
+
     return link;
   }
 
   async getAll(userId: number): Promise<PaymentLink[]> {
-    return this.paymentLinkRepo.getAllPaymentLinks(userId);
+    const allPaymentLinks = await this.paymentLinkRepo.getAllPaymentLinks(userId);
+
+    for (const paymentLink of allPaymentLinks) {
+      if (!paymentLink.payments) paymentLink.payments = [];
+
+      const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(paymentLink.uniqueId);
+      if (mostRecentPayment) paymentLink.payments.push(mostRecentPayment);
+    }
+
+    return allPaymentLinks;
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -90,7 +106,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
-    paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto));
+    paymentLink.payments = [await this.paymentLinkPaymentService.createPayment(paymentLink, dto)];
 
     return paymentLink;
   }
