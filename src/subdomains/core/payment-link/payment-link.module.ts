@@ -9,8 +9,8 @@ import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentActivationModule } from './payment-activation.module';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
-import { PaymentCronService } from './services/payment-cron.services';
-import { PaymentLinkService } from './services/payment-link.services';
+import { PaymentCronService } from './services/payment-cron.service';
+import { PaymentLinkService } from './services/payment-link.service';
 
 @Module({
   imports: [

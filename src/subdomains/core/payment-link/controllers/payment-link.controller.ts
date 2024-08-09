@@ -20,7 +20,7 @@ import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
-import { PaymentLinkService } from '../services/payment-link.services';
+import { PaymentLinkService } from '../services/payment-link.service';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')
