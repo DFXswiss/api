@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { PaymentLinkPaymentMode } from './payment-link.dto';
+import { PaymentLinkPaymentMode } from '../enums';
 
 export class CreatePaymentLinkPaymentDto {
   @ApiProperty({ enum: PaymentLinkPaymentMode })

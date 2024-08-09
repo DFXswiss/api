@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
-import { PaymentLinkStatus } from '../dto/payment-link.dto';
+import { PaymentLinkStatus } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 @Entity()

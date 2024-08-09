@@ -13,11 +13,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
-import { PaymentLinkEvmPaymentDto, PaymentLinkPaymentMode, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
-import { PaymentActivation, PaymentActivationStatus } from '../entities/payment-activation.entity';
+import { PaymentActivation } from '../entities/payment-activation.entity';
+import { PaymentLinkPaymentQuote } from '../entities/payment-link-payment-quote.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentActivationStatus, PaymentLinkPaymentMode } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
+import { PaymentLinkPaymentQuoteService } from './payment-link-payment-quote.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
 @Injectable()
@@ -32,6 +35,7 @@ export class PaymentActivationService implements OnModuleInit {
     readonly lightningService: LightningService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService,
     private readonly assetService: AssetService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -139,15 +143,22 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   // --- CREATE ACTIVATIONS --- //
-  async createPaymentLinkRequest(
+  async createPaymentActivationRequest(
     uniqueId: string,
     transferInfo: TransferInfo,
   ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException('No pending payment found');
+    if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
 
-    if (pendingPayment.getTransferInfoFor(transferInfo.method, transferInfo.asset)?.amount !== transferInfo.amount)
-      throw new BadRequestException('Invalid payment request');
+    if (transferInfo.quoteUniqueId) {
+      transferInfo.amount = await this.getAmountFromQuote(transferInfo);
+    } else {
+      const actualQuote = await this.getActualQuote(pendingPayment.id, transferInfo);
+      if (!actualQuote)
+        throw new NotFoundException(
+          `Actual quote not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
+        );
+    }
 
     const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
     if (secondsDiff < 1) throw new BadRequestException('Payment is expired');
@@ -157,9 +168,34 @@ export class PaymentActivationService implements OnModuleInit {
     if (activation && activation.payment.id !== pendingPayment.id)
       throw new ConflictException('Duplicate payment request');
 
-    if (!activation) activation = await this.createNewPaymentLinkRequest(pendingPayment, transferInfo, secondsDiff);
+    if (!activation)
+      activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, secondsDiff);
 
     return PaymentRequestMapper.toPaymentRequest(activation);
+  }
+
+  private async getAmountFromQuote(transferInfo: TransferInfo): Promise<number> {
+    const actualQuote = await this.paymentLinkPaymentQuoteService.getActualQuote(transferInfo.quoteUniqueId);
+    if (!actualQuote) throw new NotFoundException(`Actual quote not found by id ${transferInfo.quoteUniqueId}`);
+
+    const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
+    if (!transferAmountAsset)
+      throw new NotFoundException(
+        `Transfer amount not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
+      );
+
+    return transferAmountAsset.amount;
+  }
+
+  private async getActualQuote(
+    paymentId: number,
+    transferInfo: TransferInfo,
+  ): Promise<PaymentLinkPaymentQuote | undefined> {
+    const actualQuotes = await this.paymentLinkPaymentQuoteService.getActualQuotes(paymentId);
+
+    return actualQuotes.find((aq) =>
+      aq.isTransferAmountAsset(transferInfo.method, transferInfo.asset, transferInfo.amount),
+    );
   }
 
   private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
@@ -176,7 +212,7 @@ export class PaymentActivationService implements OnModuleInit {
     });
   }
 
-  private async createNewPaymentLinkRequest(
+  private async createNewPaymentActivationRequest(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
@@ -186,7 +222,7 @@ export class PaymentActivationService implements OnModuleInit {
         ? await this.createLightningRequest(payment, transferInfo, expirySec)
         : await this.createEvmRequest(transferInfo);
 
-    return this.savePaymentRequest(payment, request, transferInfo);
+    return this.savePaymentActivationRequest(payment, request, transferInfo);
   }
 
   private async createLightningRequest(
@@ -242,7 +278,7 @@ export class PaymentActivationService implements OnModuleInit {
     return EvmUtil.getPaymentRequest(this.evmDepositAddress, asset, transferInfo.amount);
   }
 
-  private async savePaymentRequest(
+  private async savePaymentActivationRequest(
     payment: PaymentLinkPayment,
     pr: string,
     transferInfo: TransferInfo,

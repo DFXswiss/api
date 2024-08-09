@@ -7,9 +7,9 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkPaymentMode, PaymentLinkStatus } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { PaymentLinkPaymentMode, PaymentLinkStatus } from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 
