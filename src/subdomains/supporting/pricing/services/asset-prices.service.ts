@@ -27,7 +27,7 @@ export class AssetPricesService {
     const usd = await this.fiatService.getFiatByName('USD');
     const chf = await this.fiatService.getFiatByName('CHF');
 
-    const assets = await this.assetService.getActiveAssets();
+    const assets = await this.assetService.getPricedAssets();
 
     const assetsToUpdate = assets.filter((a) => a.type !== AssetType.CUSTOM);
 
