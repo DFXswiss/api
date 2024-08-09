@@ -258,6 +258,7 @@ export class Configuration {
   payment = {
     timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
+    quoteTimeout: +(process.env.PAYMENT_QUOTE_TIMEOUT ?? 300),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     fee: 0.02,
   };

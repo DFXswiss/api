@@ -7,6 +7,7 @@ import {
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
+import { PaymentLinkPaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-link-payment-quote.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
@@ -25,6 +26,7 @@ export class LnUrlForwardService {
   constructor(
     lightningService: LightningService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -46,7 +48,9 @@ export class LnUrlForwardService {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const mSatTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'MSAT');
+    const actualQuote = await this.paymentLinkPaymentQuoteService.createQuote(pendingPayment);
+
+    const mSatTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'MSAT');
     if (!mSatTransferAmount) throw new NotFoundException('No BTC transfer amount found');
 
     const payRequest: PaymentLinkPayRequestDto = {
@@ -55,7 +59,8 @@ export class LnUrlForwardService {
       minSendable: mSatTransferAmount.amount,
       maxSendable: mSatTransferAmount.amount,
       metadata: LightningHelper.createLnurlMetadata(pendingPayment.requestMemo),
-      transferAmounts: pendingPayment.transferInfo,
+      quoteId: actualQuote.uniqueId,
+      transferAmounts: actualQuote.transferAmountsAsObj,
     };
 
     return payRequest;
@@ -75,7 +80,7 @@ export class LnUrlForwardService {
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
       const transferInfo = this.getPaymentTransferInfo(params);
-      return this.paymentActivationService.createPaymentLinkRequest(id, transferInfo);
+      return this.paymentActivationService.createPaymentActivationRequest(id, transferInfo);
     }
 
     return this.createLnurlpInvoice(id, params);
@@ -93,9 +98,10 @@ export class LnUrlForwardService {
     const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
-      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
-      asset: asset,
       method: method,
+      asset: asset,
+      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
+      quoteUniqueId: params.quote,
     };
   }
 
