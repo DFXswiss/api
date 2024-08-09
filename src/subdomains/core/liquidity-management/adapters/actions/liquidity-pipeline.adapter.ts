@@ -11,11 +11,11 @@ import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
  * @note
  * commands should be lower-case
  */
-export enum LiquidityManagementAdapterCommands {
+export enum LiquidityPipelineAdapterCommands {
   BUY = 'buy',
 }
 
-export class LiquidityManagementAdapter extends LiquidityActionAdapter {
+export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
   constructor(
@@ -26,12 +26,12 @@ export class LiquidityManagementAdapter extends LiquidityActionAdapter {
   ) {
     super(system);
 
-    this.commands.set(LiquidityManagementAdapterCommands.BUY, this.buy.bind(this));
+    this.commands.set(LiquidityPipelineAdapterCommands.BUY, this.buy.bind(this));
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     switch (order.action.command) {
-      case LiquidityManagementAdapterCommands.BUY:
+      case LiquidityPipelineAdapterCommands.BUY:
         return this.checkBuyCompletion(order);
 
       default:
@@ -41,11 +41,11 @@ export class LiquidityManagementAdapter extends LiquidityActionAdapter {
 
   validateParams(command: string, params: Record<string, unknown>): boolean {
     switch (command) {
-      case LiquidityManagementAdapterCommands.BUY:
+      case LiquidityPipelineAdapterCommands.BUY:
         return this.validateBuyParams(params);
 
       default:
-        throw new Error(`Command ${command} not supported by LiquidityManagementAdapter`);
+        throw new Error(`Command ${command} not supported by LiquidityPipelineAdapter`);
     }
   }
 
@@ -62,7 +62,7 @@ export class LiquidityManagementAdapter extends LiquidityActionAdapter {
     if (!balance || !requested)
       throw new Error(`Error (${previousOrder?.errorMessage}) of previous order ${order.previousOrderId} is invalid`);
 
-    const amount = +requested - +balance;
+    const amount = +requested;
 
     const pipelineId = await this.liquidityManagementService.buyLiquidity(assetId, amount, true);
     return pipelineId.toString();
@@ -100,7 +100,7 @@ export class LiquidityManagementAdapter extends LiquidityActionAdapter {
   private parseBuyParams(params: Record<string, unknown>): { assetId: number } {
     const assetId = params.assetId as number | undefined;
 
-    if (!assetId) throw new Error(`Params provided to LiquidityManagementAdapter.buy(...) command are invalid.`);
+    if (!assetId) throw new Error(`Params provided to LiquidityPipelineAdapter.buy(...) command are invalid.`);
 
     return { assetId };
   }
