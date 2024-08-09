@@ -392,6 +392,9 @@
     "limitRequestSupportMail": {
       "value": "xxx"
     },
+    "limitRequestSupportStaffMail": {
+      "value": "xxx"
+    },
     "limitRequestSupportName": {
       "value": "xxx"
     },

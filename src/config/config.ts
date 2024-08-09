@@ -189,6 +189,7 @@ export class Configuration {
     limitRequest: {
       mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
       mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
+      mailAddressSupportStaff: process.env.LIMIT_REQUEST_SUPPORT_STAFF_MAIL,
       mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
     },
     blackSquad: {

@@ -215,6 +215,7 @@ param servicesUrl string
 
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
+param limitRequestSupportStaffMail string
 param limitRequestSupportName string
 
 param azureSubscriptionId string
@@ -1050,6 +1051,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIMIT_REQUEST_SUPPORT_MAIL'
           value: limitRequestSupportMail
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_MAIL'
+          value: limitRequestSupportStaffMail
         }
         {
           name: 'LIMIT_REQUEST_SUPPORT_NAME'
