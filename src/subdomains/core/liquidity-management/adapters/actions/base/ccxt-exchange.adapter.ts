@@ -115,9 +115,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
 
     try {
+      return await this.exchangeService.buy(tradeAsset, asset, amount);
+    } catch (e) {
       try {
-        return await this.exchangeService.buy(tradeAsset, asset, amount);
-      } catch (e) {
+        // try to sell min amount
         if (e.message?.includes('not enough balance') && minTradeAmount != null) {
           const availableBalance = await this.exchangeService.getBalance(tradeAsset);
           if (availableBalance >= minTradeAmount) {
@@ -126,17 +127,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         }
 
         throw e;
-      }
-    } catch (e) {
-      if (e.message?.includes('not enough balance')) {
-        throw new OrderNotProcessableException(e.message);
-      }
+      } catch (e) {
+        if (e.message?.includes('not enough balance')) {
+          throw new OrderNotProcessableException(e.message);
+        }
 
-      if (e.message?.includes('Illegal characters found')) {
-        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${asset}: ${e.message}`);
-      }
+        if (e.message?.includes('Illegal characters found')) {
+          throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${asset}: ${e.message}`);
+        }
 
-      throw e;
+        throw e;
+      }
     }
   }
 
