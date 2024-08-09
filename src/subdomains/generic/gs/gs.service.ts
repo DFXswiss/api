@@ -135,7 +135,7 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<File[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<File[]> {
     return [
       ...(await this.documentStorageService.listUserFiles(userDataId)),
       ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),

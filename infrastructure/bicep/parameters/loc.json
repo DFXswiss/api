@@ -221,6 +221,12 @@
     "lightningApiCertificate": {
       "value": "xxx"
     },
+    "lightningSigningPrivKey": {
+      "value": "xxx"
+    },
+    "lightningSigningPubKey": {
+      "value": "xxx"
+    },
     "lightningLnbitsApiKey": {
       "value": "xxx"
     },
@@ -384,6 +390,9 @@
       "value": "xxx"
     },
     "limitRequestSupportMail": {
+      "value": "xxx"
+    },
+    "limitRequestSupportStaffMail": {
       "value": "xxx"
     },
     "limitRequestSupportName": {

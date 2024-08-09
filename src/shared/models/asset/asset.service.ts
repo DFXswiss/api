@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Util } from 'src/shared/utils/util';
-import { FindOptionsWhere, In, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 
@@ -37,16 +37,8 @@ export class AssetService {
     return this.assetRepo.findCachedBy(JSON.stringify(search), search);
   }
 
-  async getActiveAssets(): Promise<Asset[]> {
-    return this.assetRepo.findBy([
-      { buyable: true },
-      { sellable: true },
-      { instantBuyable: true },
-      { instantSellable: true },
-      { cardBuyable: true },
-      { cardSellable: true },
-      { paymentEnabled: true },
-    ]);
+  async getPricedAssets(): Promise<Asset[]> {
+    return this.assetRepo.findBy({ priceRule: Not(IsNull()) });
   }
 
   async getPaymentAssets(): Promise<Asset[]> {

@@ -6,6 +6,7 @@ export enum LiquidityManagementContext {
   ARBITRUM = 'Arbitrum',
   OPTIMISM = 'Optimism',
   BINANCE = 'Binance',
+  KRAKEN = 'Kraken',
   BANK = 'Bank',
 }
 
@@ -18,6 +19,7 @@ export enum LiquidityManagementSystem {
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
   POLYGON_L2_BRIDGE = 'PolygonL2Bridge',
   BASE_L2_BRIDGE = 'BaseL2Bridge',
+  LIQUIDITY_PIPELINE = 'LiquidityPipeline',
 }
 
 export enum LiquidityManagementRuleStatus {

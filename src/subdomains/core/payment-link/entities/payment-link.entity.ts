@@ -1,5 +1,4 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkStatus } from '../dto/payment-link.dto';
@@ -7,10 +6,10 @@ import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 @Entity()
 export class PaymentLink extends IEntity {
-  @OneToMany(() => PaymentLinkPayment, (payment) => payment.link, { nullable: true, eager: true })
+  @OneToMany(() => PaymentLinkPayment, (payment) => payment.link, { nullable: true })
   payments: PaymentLinkPayment[];
 
-  @ManyToOne(() => Sell)
+  @ManyToOne(() => Sell, { nullable: false })
   route: Sell;
 
   @Column({ length: 256, nullable: false, unique: true })
@@ -23,10 +22,6 @@ export class PaymentLink extends IEntity {
   status: PaymentLinkStatus;
 
   // --- ENTITY METHODS --- //
-  get currentPayment(): PaymentLinkPayment | undefined {
-    return Util.maxObj(this.payments, 'updated');
-  }
-
   get metaId(): string {
     return this.externalId ?? `${this.id}`;
   }
