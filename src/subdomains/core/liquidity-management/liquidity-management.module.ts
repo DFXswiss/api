@@ -11,6 +11,7 @@ import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
+import { LiquidityManagementAdapter } from './adapters/actions/liquidity-management.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from './adapters/actions/polygon-l2-bridge.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
@@ -81,6 +82,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BaseL2BridgeAdapter,
     BinanceAdapter,
     KrakenAdapter,
+    LiquidityManagementAdapter,
   ],
   exports: [LiquidityManagementService, LiquidityManagementBalanceService],
 })

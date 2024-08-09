@@ -4,6 +4,7 @@ import { BaseL2BridgeAdapter } from '../adapters/actions/base-l2-bridge.adapter'
 import { BinanceAdapter } from '../adapters/actions/binance.adapter';
 import { DfxDexAdapter } from '../adapters/actions/dfx-dex.adapter';
 import { KrakenAdapter } from '../adapters/actions/kraken.adapter';
+import { LiquidityManagementAdapter } from '../adapters/actions/liquidity-management.adapter';
 import { OptimismL2BridgeAdapter } from '../adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from '../adapters/actions/polygon-l2-bridge.adapter';
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
@@ -22,6 +23,7 @@ export class LiquidityActionIntegrationFactory {
     readonly baseL2BridgeAdapter: BaseL2BridgeAdapter,
     readonly krakenAdapter: KrakenAdapter,
     readonly binanceAdapter: BinanceAdapter,
+    readonly liquidityManagementAdapter: LiquidityManagementAdapter,
   ) {
     this.adapters.set(LiquidityManagementSystem.DFX_DEX, dfxDexAdapter);
     this.adapters.set(LiquidityManagementSystem.ARBITRUM_L2_BRIDGE, arbitrumL2BridgeAdapter);
@@ -30,6 +32,7 @@ export class LiquidityActionIntegrationFactory {
     this.adapters.set(LiquidityManagementSystem.BASE_L2_BRIDGE, baseL2BridgeAdapter);
     this.adapters.set(LiquidityManagementSystem.KRAKEN, krakenAdapter);
     this.adapters.set(LiquidityManagementSystem.BINANCE, binanceAdapter);
+    this.adapters.set(LiquidityManagementSystem.LIQUIDITY_MANAGEMENT, liquidityManagementAdapter);
   }
 
   getIntegration(action: LiquidityManagementAction): LiquidityActionIntegration {
