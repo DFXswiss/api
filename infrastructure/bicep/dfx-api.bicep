@@ -1053,7 +1053,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: limitRequestSupportMail
         }
         {
-          name: 'LIMIT_REQUEST_SUPPORT_MAIL'
+          name: 'LIMIT_REQUEST_SUPPORT_STAFF_MAIL'
           value: limitRequestSupportStaffMail
         }
         {
