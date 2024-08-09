@@ -13,7 +13,7 @@ import { PaymentLink } from './payment-link.entity';
 
 @Entity()
 export class PaymentLinkPayment extends IEntity {
-  @ManyToOne(() => PaymentLink, (p) => p.payments)
+  @ManyToOne(() => PaymentLink, (p) => p.payments, { nullable: false })
   @Index({ unique: true, where: `status = '${PaymentLinkPaymentStatus.PENDING}'` })
   link: PaymentLink;
 
@@ -80,6 +80,6 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get requestMemo(): string {
-    return this.link.route.userData?.verifiedName ?? `Payment ${this.metaId} to ${this.link.metaId}`;
+    return this.link.route.userData.verifiedName ?? `Payment ${this.metaId} to ${this.link.metaId}`;
   }
 }

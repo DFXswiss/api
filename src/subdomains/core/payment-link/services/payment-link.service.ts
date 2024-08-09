@@ -69,8 +69,6 @@ export class PaymentLinkService {
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
-    const route = await this.sellService.getById(+dto.routeId);
-
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
         externalId: dto.externalId,
@@ -95,6 +93,8 @@ export class PaymentLinkService {
       expiryDate: dto.expiryDate,
     };
 
+    const route = await this.sellService.getById(+dto.routeId);
+
     return this.createForRoute(route, dto.externalId, payment);
   }
 
@@ -109,7 +109,7 @@ export class PaymentLinkService {
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
-      externalId: externalId,
+      externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
       payments: [],

@@ -37,6 +37,6 @@ export class Sell extends DepositRoute {
   // --- ENTITY METHODS --- //
 
   get userData(): UserData {
-    return this.user?.userData;
+    return this.user.userData;
   }
 }

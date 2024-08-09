@@ -5,7 +5,7 @@ import { LnurlpTransactionDto } from './lnurlp.dto';
 export class LnBitsWebhookMapper {
   static mapDepositTransaction(uniqueId: string, transaction: LnurlpTransactionDto): LnBitsTransactionWebhookDto {
     return {
-      uniqueId: uniqueId,
+      uniqueId,
       transaction: {
         txType: PayInType.DEPOSIT,
         paymentHash: transaction.payment_hash,
@@ -17,7 +17,7 @@ export class LnBitsWebhookMapper {
 
   static mapPaymentTransaction(uniqueId: string, transaction: LnBitsTransactionDto): LnBitsTransactionWebhookDto {
     return {
-      uniqueId: uniqueId,
+      uniqueId,
       transaction: {
         txType: PayInType.PAYMENT,
         paymentHash: transaction.payment_hash,

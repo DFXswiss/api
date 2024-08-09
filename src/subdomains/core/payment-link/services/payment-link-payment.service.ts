@@ -44,11 +44,11 @@ export class PaymentLinkPaymentService {
     return this.paymentLinkPaymentRepo.findOne({
       where: [
         {
-          link: { uniqueId: uniqueId },
+          link: { uniqueId },
           status: PaymentLinkPaymentStatus.PENDING,
         },
         {
-          uniqueId: uniqueId,
+          uniqueId,
           status: PaymentLinkPaymentStatus.PENDING,
         },
       ],

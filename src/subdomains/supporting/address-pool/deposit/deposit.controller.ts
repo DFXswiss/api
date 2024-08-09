@@ -19,7 +19,7 @@ export class DepositController {
     await this.depositService.createDeposits(dto);
   }
 
-  @Put('updateLightningDepositWebhook')
+  @Put('lightningWebhook')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
