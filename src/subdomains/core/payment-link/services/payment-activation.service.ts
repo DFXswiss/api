@@ -1,4 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -11,14 +19,13 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPaymentQuote } from '../entities/payment-link-payment-quote.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
-import { PaymentActivationStatus, PaymentLinkPaymentMode } from '../enums';
+import { PaymentActivationStatus } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentQuoteService } from './payment-link-payment-quote.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
@@ -31,11 +38,13 @@ export class PaymentActivationService implements OnModuleInit {
 
   private evmDepositAddress: string;
 
+  @Inject() private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService;
+  @Inject(forwardRef(() => PaymentLinkPaymentService))
+  private readonly paymentLinkPaymentService: PaymentLinkPaymentService;
+
   constructor(
     readonly lightningService: LightningService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
-    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService,
     private readonly assetService: AssetService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -59,64 +68,7 @@ export class PaymentActivationService implements OnModuleInit {
     }
   }
 
-  async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (cryptoInput.txType !== PayInType.PAYMENT) return;
-
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByAsset(
-      cryptoInput.asset,
-      cryptoInput.amount,
-    );
-
-    if (!pendingPayment) {
-      this.logger.error(`CryptoInput ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
-      return;
-    }
-
-    const pendingActivationData = this.getPendingActivation(
-      pendingPayment,
-      cryptoInput.asset.blockchain,
-      cryptoInput.amount,
-    );
-
-    if (!pendingActivationData) return;
-
-    return this.doUpdateStatus(
-      pendingActivationData.pendingActivation,
-      pendingActivationData.allPendingActivations,
-      pendingPayment,
-    );
-  }
-
-  private async doUpdateStatus(
-    activationToBeCompleted: PaymentActivation,
-    allPendingActivations: PaymentActivation[],
-    pendingPayment: PaymentLinkPayment,
-  ): Promise<PaymentLinkPayment> {
-    await this.doUpdatePaymentActivationStatus(activationToBeCompleted, allPendingActivations);
-
-    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) return pendingPayment;
-
-    return this.doUpdatePaymentLinkStatus(pendingPayment);
-  }
-
-  private async doUpdatePaymentActivationStatus(
-    activationToBeCompleted: PaymentActivation,
-    allPendingActivations: PaymentActivation[],
-  ): Promise<void> {
-    await this.paymentActivationRepo.save(activationToBeCompleted.complete());
-
-    for (const pendingActivation of allPendingActivations) {
-      if (pendingActivation.id !== activationToBeCompleted.id) {
-        await this.paymentActivationRepo.save(pendingActivation.expire());
-      }
-    }
-  }
-
-  private async doUpdatePaymentLinkStatus(pendingPayment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
-    return this.paymentLinkPaymentService.complete(pendingPayment);
-  }
-
-  private getPendingActivation(
+  getPendingActivation(
     pendingPayment: PaymentLinkPayment,
     blockchain: Blockchain,
     receivedAmount: number,
@@ -140,6 +92,19 @@ export class PaymentActivationService implements OnModuleInit {
     }
 
     return { pendingActivation, allPendingActivations };
+  }
+
+  async updatePaymentActivationStatus(
+    activationToBeCompleted: PaymentActivation,
+    allPendingActivations: PaymentActivation[],
+  ): Promise<void> {
+    await this.paymentActivationRepo.save(activationToBeCompleted.complete());
+
+    for (const pendingActivation of allPendingActivations) {
+      if (pendingActivation.id !== activationToBeCompleted.id) {
+        await this.paymentActivationRepo.save(pendingActivation.expire());
+      }
+    }
   }
 
   // --- CREATE ACTIVATIONS --- //
@@ -305,5 +270,15 @@ export class PaymentActivationService implements OnModuleInit {
     if (!asset) throw new NotFoundException(`Asset ${uniqueName} not found`);
 
     return asset;
+  }
+
+  async cancel(paymentId: number): Promise<void> {
+    const pendingPayments = await this.paymentActivationRepo.find({
+      where: { payment: { id: paymentId }, status: PaymentActivationStatus.PENDING },
+    });
+
+    for (const pendingPayment of pendingPayments) {
+      await this.paymentActivationRepo.save(pendingPayment.cancel());
+    }
   }
 }

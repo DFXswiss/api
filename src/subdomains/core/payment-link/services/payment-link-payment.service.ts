@@ -1,19 +1,37 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
+import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
+import { PaymentActivationService } from './payment-activation.service';
+import { PaymentLinkPaymentQuoteService } from './payment-link-payment-quote.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
+  private readonly logger = new DfxLogger(PaymentLinkPaymentService);
+
   static readonly PREFIX_UNIQUE_ID = 'plp';
+
+  @Inject() private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService;
+  @Inject(forwardRef(() => PaymentActivationService))
+  private readonly paymentActivationService: PaymentActivationService;
 
   constructor(
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
@@ -118,6 +136,9 @@ export class PaymentLinkPaymentService {
 
     await this.paymentLinkPaymentRepo.save(pendingPayment.cancel());
 
+    await this.paymentLinkPaymentQuoteService.cancel(pendingPayment.id);
+    await this.paymentActivationService.cancel(pendingPayment.id);
+
     return paymentLink;
   }
 
@@ -140,7 +161,40 @@ export class PaymentLinkPaymentService {
     return this.paymentLinkPaymentRepo.save(payment);
   }
 
-  async complete(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
-    return this.paymentLinkPaymentRepo.save(payment.complete());
+  async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
+    if (cryptoInput.txType !== PayInType.PAYMENT) return;
+
+    const pendingPayment = await this.getPendingPaymentByAsset(cryptoInput.asset, cryptoInput.amount);
+
+    if (!pendingPayment) {
+      this.logger.error(`CryptoInput ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
+      return;
+    }
+
+    const pendingActivationData = this.paymentActivationService.getPendingActivation(
+      pendingPayment,
+      cryptoInput.asset.blockchain,
+      cryptoInput.amount,
+    );
+
+    if (!pendingActivationData) return;
+
+    return this.doUpdateStatus(
+      pendingActivationData.pendingActivation,
+      pendingActivationData.allPendingActivations,
+      pendingPayment,
+    );
+  }
+
+  private async doUpdateStatus(
+    activationToBeCompleted: PaymentActivation,
+    allPendingActivations: PaymentActivation[],
+    pendingPayment: PaymentLinkPayment,
+  ): Promise<PaymentLinkPayment> {
+    await this.paymentActivationService.updatePaymentActivationStatus(activationToBeCompleted, allPendingActivations);
+
+    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) return pendingPayment;
+
+    return this.paymentLinkPaymentRepo.save(pendingPayment.complete());
   }
 }
