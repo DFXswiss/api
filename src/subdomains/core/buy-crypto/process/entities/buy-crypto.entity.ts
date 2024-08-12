@@ -173,6 +173,9 @@ export class BuyCrypto extends IEntity {
   chargebackAllowedDate: Date;
 
   @Column({ length: 256, nullable: true })
+  chargebackAllowedBy: string;
+
+  @Column({ length: 256, nullable: true })
   chargebackIban: string;
 
   @OneToOne(() => FiatOutput, { nullable: true })
