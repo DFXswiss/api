@@ -1,15 +1,23 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -27,6 +35,7 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { RefundCryptoInputDto } from '../dto/refund-crypto-input.dto';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 
 @Injectable()
@@ -164,7 +173,8 @@ export class BuyFiatService {
     };
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
-    if (dto.amlCheck) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(dto.amlCheck))
+      await this.payInService.updateForwardConfirmation(entity.cryptoInput.id, entity.amlCheck === CheckStatus.PASS);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
@@ -225,6 +235,54 @@ export class BuyFiatService {
 
     // TODO add fiatFiatUpdate here
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
+  }
+
+  async refundBuyFiat(buyFiatId: number, dto: RefundCryptoInputDto): Promise<void> {
+    const buyFiat = await this.buyFiatRepo.findOne({ where: { id: buyFiatId }, relations: { cryptoInput: true } });
+
+    await this.refundBuyFiatInternal(
+      buyFiat,
+      { refundUserId: dto.refundUser.id, refundAddress: buyFiat.chargebackAddress },
+      dto.chargebackAmount,
+    );
+  }
+
+  async refundBuyFiatInternal(
+    buyFiat: BuyFiat,
+    chargebackDto: TransactionRefundDto,
+    chargebackAmount?: number,
+  ): Promise<void> {
+    if (!chargebackDto.refundAddress && !chargebackDto.refundUserId)
+      throw new BadRequestException('You have to define a chargebackAddress');
+
+    const refundUser = chargebackDto.refundUserId
+      ? await this.userService.getUser(chargebackDto.refundUserId, { userData: true })
+      : await this.userService.getUserByAddress(chargebackDto.refundAddress, { userData: true });
+
+    if (buyFiat.userData.id !== refundUser.userData.id)
+      throw new ForbiddenException('You can only refund to your own addresses');
+    if (!refundUser.blockchains.includes(buyFiat.cryptoInput.asset.blockchain))
+      throw new BadRequestException('You can only refund to a address on the origin blockchain');
+    if (buyFiat.chargebackAllowedDate || buyFiat.chargebackDate || buyFiat.chargebackTxId)
+      throw new BadRequestException('Transaction is already returned');
+    if (buyFiat.amlCheck !== CheckStatus.FAIL || buyFiat.outputAmount)
+      throw new BadRequestException('Only failed transactions are refundable');
+    if (chargebackAmount && chargebackAmount > buyFiat.inputAmount)
+      throw new BadRequestException('You can not refund more than the input amount');
+
+    if (chargebackAmount)
+      await this.payInService.returnPayIn(
+        buyFiat.cryptoInput,
+        PayInPurpose.BUY_FIAT,
+        refundUser.address ?? buyFiat.chargebackAddress,
+        buyFiat.sell,
+        chargebackAmount,
+      );
+
+    await this.buyFiatRepo.update(buyFiat.id, {
+      chargebackDate: chargebackAmount ? new Date() : null,
+      chargebackAddress: refundUser.address ?? buyFiat.chargebackAddress,
+    });
   }
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {

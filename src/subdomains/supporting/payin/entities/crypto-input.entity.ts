@@ -5,7 +5,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -88,6 +87,9 @@ export class CryptoInput extends IEntity {
   @Column({ nullable: false, type: 'float' })
   amount: number;
 
+  @Column({ nullable: true, type: 'float' })
+  chargebackAmount: number;
+
   @Column({ type: 'float', nullable: true })
   forwardFeeAmount: number;
 
@@ -97,8 +99,8 @@ export class CryptoInput extends IEntity {
   @Column({ default: false })
   isConfirmed: boolean;
 
-  @Column({ length: 256, nullable: true })
-  amlCheck: CheckStatus;
+  @Column({ nullable: true })
+  isForwardConfirmed: boolean;
 
   @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
@@ -191,14 +193,15 @@ export class CryptoInput extends IEntity {
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
     route: DepositRouteType,
-    amlCheck: CheckStatus,
+    chargebackAmount: number,
   ): this {
     this.purpose = purpose;
     this.route = route;
-    this.amlCheck = amlCheck;
     this.status = PayInStatus.TO_RETURN;
     this.sendType = PayInSendType.RETURN;
     this.destinationAddress = returnAddress;
+    this.isForwardConfirmed = false;
+    this.chargebackAmount = chargebackAmount;
 
     return this;
   }

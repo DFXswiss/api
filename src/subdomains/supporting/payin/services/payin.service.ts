@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -6,12 +6,10 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -96,19 +94,27 @@ export class PayInService {
     await this.payInRepository.save(payIn);
   }
 
-  async updateAmlCheck(payInId: number, amlCheck: CheckStatus): Promise<void> {
-    await this.payInRepository.update(payInId, { amlCheck });
+  async updateForwardConfirmation(payInId: number, forwardConfirmation: boolean): Promise<void> {
+    await this.payInRepository.update(payInId, { isForwardConfirmed: forwardConfirmation });
   }
 
   async returnPayIn(
     payIn: CryptoInput,
     purpose: PayInPurpose,
-    returnAddress: BlockchainAddress,
+    returnAddress: string,
     route: Staking | Sell | Swap,
+    chargebackAmount: number,
   ): Promise<void> {
-    const amlCheck = route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
-    payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
+    if (payIn.isForwardConfirmed) throw new BadRequestException('CryptoInput already forwarded');
 
+    payIn.triggerReturn(
+      purpose,
+      BlockchainAddress.create(returnAddress, payIn.asset.blockchain),
+      route,
+      chargebackAmount,
+    );
+
+    // Remove that?
     if (payIn.transaction)
       await this.transactionService.update(payIn.transaction.id, {
         type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
@@ -163,15 +169,12 @@ export class PayInService {
   //*** HELPER METHODS ***//
 
   private async forwardPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
-      where: {
-        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-        sendType: PayInSendType.FORWARD,
-        outTxId: IsNull(),
-        amlCheck: CheckStatus.PASS,
-        asset: Not(IsNull()),
-      },
-      relations: ['route', 'asset'],
+    const payIns = await this.payInRepository.findBy({
+      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+      sendType: PayInSendType.FORWARD,
+      outTxId: IsNull(),
+      isForwardConfirmed: true,
+      asset: Not(IsNull()),
     });
 
     if (payIns.length === 0) return;
@@ -189,15 +192,13 @@ export class PayInService {
   }
 
   private async returnPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
-      where: {
-        status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-        sendType: PayInSendType.RETURN,
-        returnTxId: IsNull(),
-        amlCheck: CheckStatus.PASS,
-        asset: Not(IsNull()),
-      },
-      relations: ['route', 'asset'],
+    const payIns = await this.payInRepository.findBy({
+      status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+      sendType: PayInSendType.RETURN,
+      returnTxId: IsNull(),
+      isForwardConfirmed: false,
+      asset: Not(IsNull()),
+      chargebackAmount: Not(IsNull()),
     });
 
     if (payIns.length === 0) return;
@@ -215,12 +216,9 @@ export class PayInService {
   }
 
   private async checkConfirmations(): Promise<void> {
-    const payIns = await this.payInRepository.find({
-      where: {
-        isConfirmed: false,
-        status: Not(PayInStatus.FAILED),
-      },
-      relations: ['route', 'asset'],
+    const payIns = await this.payInRepository.findBy({
+      isConfirmed: false,
+      status: Not(PayInStatus.FAILED),
     });
 
     if (payIns.length === 0) return;

@@ -105,7 +105,11 @@ export class BuyFiatPreparationService {
           ...entity.amlCheckAndFillUp(minVolume, last24hVolume, last30dVolume, last365dVolume, bankData, blacklist),
         );
 
-        await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+        if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+          await this.payInService.updateForwardConfirmation(
+            entity.cryptoInput.id,
+            entity.amlCheck === CheckStatus.PASS,
+          );
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 

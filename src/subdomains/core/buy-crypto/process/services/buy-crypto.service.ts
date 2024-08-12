@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -18,6 +19,8 @@ import { Util } from 'src/shared/utils/util';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
+import { TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { RefundCryptoInputDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -28,7 +31,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -264,7 +267,7 @@ export class BuyCryptoService {
         });
 
       if (entity.checkoutTx) {
-        await this.refundBuyCryptoInternal(entity);
+        await this.refundCheckoutTx(entity);
         Object.assign(dto, { isComplete: true, chargebackDate: new Date() });
       }
     }
@@ -295,8 +298,8 @@ export class BuyCryptoService {
       }),
     );
 
-    if (entity.cryptoInput && dto.amlCheck)
-      await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+    if (entity.cryptoInput && [CheckStatus.PASS, CheckStatus.FAIL].includes(dto.amlCheck))
+      await this.payInService.updateForwardConfirmation(entity.cryptoInput.id, entity.amlCheck === CheckStatus.PASS);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
@@ -323,14 +326,25 @@ export class BuyCryptoService {
     return entity;
   }
 
-  async refundBuyCrypto(buyCryptoId: number): Promise<void> {
-    const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
+  async refundBuyCrypto(buyCryptoId: number, dto: RefundCryptoInputDto): Promise<void> {
+    const buyCrypto = await this.buyCryptoRepo.findOne({
+      where: { id: buyCryptoId },
+      relations: { checkoutTx: true, cryptoInput: true },
+    });
 
-    await this.refundBuyCryptoInternal(buyCrypto);
+    if (!buyCrypto.checkoutTx && !buyCrypto.cryptoInput)
+      throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
+
+    buyCrypto.checkoutTx
+      ? await this.refundCheckoutTx(buyCrypto)
+      : await this.refundCryptoInput(
+          buyCrypto,
+          { refundUserId: dto.refundUser.id, refundAddress: buyCrypto.chargebackIban },
+          dto.chargebackAmount,
+        );
   }
 
-  async refundBuyCryptoInternal(buyCrypto: BuyCrypto): Promise<void> {
-    if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
+  async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {
     if (
       [
         CheckoutPaymentStatus.REFUNDED,
@@ -346,6 +360,44 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(buyCrypto.id, {
       chargebackDate: new Date(),
       chargebackRemittanceInfo: chargebackRemittanceInfo.reference,
+    });
+  }
+
+  async refundCryptoInput(
+    buyCrypto: BuyCrypto,
+    chargebackDto: TransactionRefundDto,
+    chargebackAmount?: number,
+  ): Promise<void> {
+    if (!chargebackDto.refundAddress && !chargebackDto.refundUserId)
+      throw new BadRequestException('You have to define a chargebackAddress');
+
+    const refundUser = chargebackDto.refundUserId
+      ? await this.userService.getUser(chargebackDto.refundUserId, { userData: true })
+      : await this.userService.getUserByAddress(chargebackDto.refundAddress, { userData: true });
+
+    if (buyCrypto.userData.id !== refundUser.userData.id)
+      throw new ForbiddenException('You can only refund to your own addresses');
+    if (!refundUser.blockchains.includes(buyCrypto.cryptoInput.asset.blockchain))
+      throw new BadRequestException('You can only refund to a address on the origin blockchain');
+    if (buyCrypto.chargebackAllowedDate || buyCrypto.chargebackDate || buyCrypto.chargebackIban)
+      throw new BadRequestException('Transaction is already returned');
+    if (buyCrypto.amlCheck !== CheckStatus.FAIL || buyCrypto.outputAmount)
+      throw new BadRequestException('Only failed transactions are refundable');
+    if (chargebackAmount && chargebackAmount > buyCrypto.inputAmount)
+      throw new BadRequestException('You can not refund more than the input amount');
+
+    if (chargebackAmount)
+      await this.payInService.returnPayIn(
+        buyCrypto.cryptoInput,
+        PayInPurpose.BUY_CRYPTO,
+        refundUser.address ?? buyCrypto.chargebackIban,
+        buyCrypto.cryptoRoute,
+        chargebackAmount,
+      );
+
+    await this.buyCryptoRepo.update(buyCrypto.id, {
+      chargebackDate: chargebackAmount ? new Date() : null,
+      chargebackIban: refundUser.address ?? buyCrypto.chargebackIban,
     });
   }
 

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -142,12 +141,7 @@ export class StakingService {
         relations: { user: { userData: true } },
       });
 
-      await this.payInService.returnPayIn(
-        payIn,
-        PayInPurpose.STAKING,
-        BlockchainAddress.create(staking.user.address, payIn.address.blockchain),
-        staking,
-      );
+      await this.payInService.returnPayIn(payIn, PayInPurpose.STAKING, staking.user.address, staking, payIn.amount);
     }
   }
 }

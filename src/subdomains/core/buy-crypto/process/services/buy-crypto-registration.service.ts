@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
@@ -77,16 +76,6 @@ export class BuyCryptoRegistrationService {
           if (result === ValidationError.PAY_IN_TOO_SMALL) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
             continue;
-          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
-            if (cryptoRoute.asset.blockchain === payIn.address.blockchain) {
-              await this.payInService.returnPayIn(
-                payIn,
-                PayInPurpose.BUY_CRYPTO,
-                BlockchainAddress.create(cryptoRoute.user.address, payIn.address.blockchain),
-                cryptoRoute,
-              );
-              continue;
-            }
           }
 
           await this.buyCryptoService.createFromCryptoInput(payIn, cryptoRoute);

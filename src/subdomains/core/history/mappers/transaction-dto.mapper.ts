@@ -116,7 +116,7 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
-      date: buyFiat.outputDate ?? buyFiat.cryptoReturnDate ?? buyFiat.updated,
+      date: buyFiat.outputDate ?? buyFiat.chargebackDate ?? buyFiat.updated,
       externalTransactionId: buyFiat.transaction.externalId,
     };
 
@@ -289,7 +289,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         return { state: TransactionState.AML_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.cryptoReturnDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
         return { state: TransactionState.FAILED, reason };
 
       case CheckStatus.PASS:

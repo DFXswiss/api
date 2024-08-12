@@ -144,7 +144,11 @@ export class BuyCryptoPreparationService {
           ),
         );
 
-        if (entity.cryptoInput) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+        if (entity.cryptoInput && [CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+          await this.payInService.updateForwardConfirmation(
+            entity.cryptoInput.id,
+            entity.amlCheck === CheckStatus.PASS,
+          );
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 

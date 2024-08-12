@@ -128,10 +128,13 @@ export class BuyFiat extends IEntity {
 
   // Fail
   @Column({ length: 256, nullable: true })
-  cryptoReturnTxId: string;
+  chargebackTxId: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  cryptoReturnDate: Date;
+  chargebackDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAddress: string;
 
   @Column({ type: 'datetime2', nullable: true })
   mailReturnSendDate: Date;
@@ -380,8 +383,8 @@ export class BuyFiat extends IEntity {
       usedBank: null,
       instantSepa: null,
       remittanceInfo: null,
-      cryptoReturnTxId: null,
-      cryptoReturnDate: null,
+      chargebackTxId: null,
+      chargebackDate: null,
       mailReturnSendDate: null,
       comment: null,
       chargebackAllowedDate: null,

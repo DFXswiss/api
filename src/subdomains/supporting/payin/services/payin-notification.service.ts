@@ -5,7 +5,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -35,7 +34,7 @@ export class PayInNotificationService {
         mailReturnSendDate: IsNull(),
         recipientMail: IsNull(),
         returnTxId: Not(IsNull()),
-        amlCheck: CheckStatus.PASS,
+        isForwardConfirmed: false,
       },
       relations: ['route', 'route.user', 'route.user.userData'],
     });

@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -88,14 +87,6 @@ export class BuyFiatRegistrationService {
 
           if (result === ValidationError.PAY_IN_TOO_SMALL) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
-            continue;
-          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
-            await this.payInService.returnPayIn(
-              payIn,
-              PayInPurpose.BUY_FIAT,
-              BlockchainAddress.create(sellRoute.user.address, payIn.asset.blockchain),
-              sellRoute,
-            );
             continue;
           }
 
