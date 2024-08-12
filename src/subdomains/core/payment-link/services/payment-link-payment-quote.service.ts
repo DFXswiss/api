@@ -9,7 +9,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LessThan } from 'typeorm';
-import { TransferAmount, TransferAmountAsset } from '../dto/payment-link.dto';
+import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPaymentQuote } from '../entities/payment-link-payment-quote.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLinkPaymentQuoteStatus } from '../enums';
@@ -50,7 +50,13 @@ export class PaymentLinkPaymentQuoteService {
     }
   }
 
-  async getActualQuote(uniqueId: string): Promise<PaymentLinkPaymentQuote | null> {
+  async getActualQuote(paymentId: number, transferInfo: TransferInfo): Promise<PaymentLinkPaymentQuote | undefined> {
+    return transferInfo.quoteUniqueId
+      ? this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined
+      : this.getActualQuoteByPaymentId(paymentId, transferInfo);
+  }
+
+  private async getActualQuoteByUniqueId(uniqueId: string): Promise<PaymentLinkPaymentQuote | null> {
     return this.paymentLinkPaymentQuoteRepo.findOne({
       where: {
         uniqueId: uniqueId,
@@ -59,13 +65,28 @@ export class PaymentLinkPaymentQuoteService {
     });
   }
 
-  async getActualQuotes(paymentId: number): Promise<PaymentLinkPaymentQuote[]> {
-    return this.paymentLinkPaymentQuoteRepo.find({
+  private async getActualQuoteByPaymentId(
+    paymentId: number,
+    transferInfo: TransferInfo,
+  ): Promise<PaymentLinkPaymentQuote | undefined> {
+    const actualQuotes = await this.paymentLinkPaymentQuoteRepo.find({
       where: {
         payment: { id: paymentId },
         status: PaymentLinkPaymentQuoteStatus.ACTUAL,
       },
     });
+
+    return actualQuotes.find((aq) =>
+      aq.isTransferAmountAsset(transferInfo.method, transferInfo.asset, transferInfo.amount),
+    );
+  }
+
+  async getAmountFromQuote(
+    actualQuote: PaymentLinkPaymentQuote,
+    transferInfo: TransferInfo,
+  ): Promise<number | undefined> {
+    const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
+    return transferAmountAsset?.amount;
   }
 
   async createQuote(payment: PaymentLinkPayment): Promise<PaymentLinkPaymentQuote> {

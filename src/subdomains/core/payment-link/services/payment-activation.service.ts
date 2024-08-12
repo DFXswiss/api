@@ -23,7 +23,6 @@ import { LessThan } from 'typeorm';
 import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation } from '../entities/payment-activation.entity';
-import { PaymentLinkPaymentQuote } from '../entities/payment-link-payment-quote.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentActivationStatus } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
@@ -115,17 +114,23 @@ export class PaymentActivationService implements OnModuleInit {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
 
+    const actualQuote = await this.paymentLinkPaymentQuoteService.getActualQuote(pendingPayment.id, transferInfo);
+    if (!actualQuote) throw new NotFoundException(`Actual quote not found for payment ${uniqueId}`);
+
     if (transferInfo.quoteUniqueId) {
-      transferInfo.amount = await this.getAmountFromQuote(transferInfo);
-    } else {
-      const actualQuote = await this.getActualQuote(pendingPayment.id, transferInfo);
-      if (!actualQuote)
+      const transferAmount = await this.paymentLinkPaymentQuoteService.getAmountFromQuote(actualQuote, transferInfo);
+
+      if (!transferAmount)
         throw new NotFoundException(
-          `Actual quote not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
+          `Transfer amount not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
         );
+
+      transferInfo.amount = transferAmount;
     }
 
-    const secondsDiff = Util.secondsDiff(new Date(), pendingPayment.expiryDate);
+    const expiryDate = new Date(Math.min(pendingPayment.expiryDate.getTime(), actualQuote.expiryDate.getTime()));
+
+    const secondsDiff = Util.secondsDiff(new Date(), expiryDate);
     if (secondsDiff < 1) throw new BadRequestException('Payment is expired');
 
     let activation = await this.getExistingActivation(transferInfo);
@@ -137,30 +142,6 @@ export class PaymentActivationService implements OnModuleInit {
       activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, secondsDiff);
 
     return PaymentRequestMapper.toPaymentRequest(activation);
-  }
-
-  private async getAmountFromQuote(transferInfo: TransferInfo): Promise<number> {
-    const actualQuote = await this.paymentLinkPaymentQuoteService.getActualQuote(transferInfo.quoteUniqueId);
-    if (!actualQuote) throw new NotFoundException(`Actual quote not found by id ${transferInfo.quoteUniqueId}`);
-
-    const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
-    if (!transferAmountAsset)
-      throw new NotFoundException(
-        `Transfer amount not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
-      );
-
-    return transferAmountAsset.amount;
-  }
-
-  private async getActualQuote(
-    paymentId: number,
-    transferInfo: TransferInfo,
-  ): Promise<PaymentLinkPaymentQuote | undefined> {
-    const actualQuotes = await this.paymentLinkPaymentQuoteService.getActualQuotes(paymentId);
-
-    return actualQuotes.find((aq) =>
-      aq.isTransferAmountAsset(transferInfo.method, transferInfo.asset, transferInfo.amount),
-    );
   }
 
   private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
