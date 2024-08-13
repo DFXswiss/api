@@ -130,18 +130,20 @@ export class Util {
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
-      .replace(/[ìíîy]/g, 'i')
-      .replace(/[úûùü]/g, 'u')
-      .replace(/[áâåàä]/g, 'a')
-      .replace(/[éèê]/g, 'e')
-      .replace(/[öó]/g, 'o')
+      .replace(/[ýÿ]/g, 'y')
+      .replace(/[ìíîïyī]/g, 'i')
+      .replace(/[ùúûüū]/g, 'u')
+      .replace(/[àáâăåäãā]/g, 'a')
+      .replace(/[èéêëė]/g, 'e')
+      .replace(/[òóôöõō]/g, 'o')
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[çč]/g, 'c')
-      .replace(/[ß]/g, 'ss')
+      .replace(/[çčć]/g, 'c')
+      .replace(/[ßșš]/g, 's')
       .replace(/ss/g, 's')
+      .replace(/[žż]/g, 'z')
       .replace(/[\.]/g, '')
       .replace(/[-‘`´']/g, ' ');
   }

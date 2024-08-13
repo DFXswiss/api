@@ -193,11 +193,11 @@ export class BuyCryptoBatchService {
       try {
         const inputBatchLength = batch.transactions.length;
 
-        await this.optimizeByPayoutFee(batch);
+        const purchaseFee = await this.optimizeByLiquidity(batch);
 
         if (batch.transactions.length === 0) continue;
 
-        const purchaseFee = await this.optimizeByLiquidity(batch);
+        await this.optimizeByPayoutFee(batch);
         await this.optimizeByPurchaseFee(batch, purchaseFee);
 
         if (inputBatchLength !== batch.transactions.length) {

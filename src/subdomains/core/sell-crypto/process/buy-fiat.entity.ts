@@ -139,6 +139,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
 
+  @Column({ length: 256, nullable: true })
+  chargebackAllowedBy: string;
+
   // Pass
   @Column({ type: 'datetime2', nullable: true })
   priceDefinitionAllowedDate: Date;
