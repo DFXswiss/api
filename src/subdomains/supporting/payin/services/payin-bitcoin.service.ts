@@ -4,6 +4,7 @@ import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
+import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
 
 @Injectable()
@@ -27,11 +28,11 @@ export class PayInBitcoinService extends PayInJellyfishService {
     return this.client.getTx(outTxId);
   }
 
-  async sendUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+  async sendUtxo(input: CryptoInput, type: SendType): Promise<{ outTxId: string; feeAmount: number }> {
     return this.client.send(
       input.destinationAddress.address,
       input.inTxId,
-      input.amount,
+      type === SendType.RETURN ? input.chargebackAmount : input.amount,
       input.txSequence,
       await this.feeService.getRecommendedFeeRate(),
     );

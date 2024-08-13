@@ -34,7 +34,7 @@ export class MoneroStrategy extends SendStrategy {
       try {
         this.designateSend(payIn, type);
 
-        const { txid, fee } = await this.payInMoneroService.sendTransfer(payIn);
+        const { txid, fee } = await this.payInMoneroService.sendTransfer(payIn, type);
         this.updatePayInWithSendData(payIn, type, txid, fee);
 
         await this.payInRepo.save(payIn);

@@ -7,6 +7,7 @@ import {
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
+import { SendType } from '../strategies/send/impl/base/send.strategy';
 
 @Injectable()
 export class PayInMoneroService {
@@ -28,7 +29,10 @@ export class PayInMoneroService {
     return this.client.getTransfers(MoneroTransactionType.in, startBlockHeight);
   }
 
-  async sendTransfer(payIn: CryptoInput): Promise<MoneroTransferDto> {
-    return this.client.sendTransfer(payIn.address.address, payIn.amount);
+  async sendTransfer(payIn: CryptoInput, type: SendType): Promise<MoneroTransferDto> {
+    return this.client.sendTransfer(
+      payIn.address.address,
+      type === SendType.RETURN ? payIn.chargebackAmount : payIn.amount,
+    );
   }
 }

@@ -46,7 +46,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
         CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
 
         this.designateSend(payIn, type);
-        const { outTxId, feeAmount } = await this.bitcoinService.sendUtxo(payIn);
+        const { outTxId, feeAmount } = await this.bitcoinService.sendUtxo(payIn, type);
         this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
         await this.payInRepo.save(payIn);
