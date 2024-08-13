@@ -130,8 +130,8 @@ export class PaymentActivationService implements OnModuleInit {
 
     const expiryDate = new Date(Math.min(pendingPayment.expiryDate.getTime(), actualQuote.expiryDate.getTime()));
 
-    const secondsDiff = Util.secondsDiff(new Date(), expiryDate);
-    if (secondsDiff < 1) throw new BadRequestException('Payment is expired');
+    const expirySec = Util.secondsDiff(new Date(), expiryDate);
+    if (expirySec < 1) throw new BadRequestException('Payment is expired');
 
     let activation = await this.getExistingActivation(transferInfo);
 
@@ -139,7 +139,7 @@ export class PaymentActivationService implements OnModuleInit {
       throw new ConflictException('Duplicate payment request');
 
     if (!activation)
-      activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, secondsDiff);
+      activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
 
     return PaymentRequestMapper.toPaymentRequest(activation);
   }
@@ -162,13 +162,14 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
+    expiryDate: Date,
   ): Promise<PaymentActivation> {
     const request =
       transferInfo.method === Blockchain.LIGHTNING
         ? await this.createLightningRequest(payment, transferInfo, expirySec)
         : await this.createEvmRequest(transferInfo);
 
-    return this.savePaymentActivationRequest(payment, request, transferInfo);
+    return this.savePaymentActivationRequest(payment, request, transferInfo, expiryDate);
   }
 
   private async createLightningRequest(
@@ -228,6 +229,7 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     pr: string,
     transferInfo: TransferInfo,
+    expiryDate: Date,
   ): Promise<PaymentActivation> {
     const asset = await this.getAssetByInfo(transferInfo);
 
@@ -237,7 +239,7 @@ export class PaymentActivationService implements OnModuleInit {
       asset: asset,
       amount: transferInfo.amount,
       paymentRequest: pr,
-      expiryDate: payment.expiryDate,
+      expiryDate: expiryDate,
       payment: payment,
     });
 

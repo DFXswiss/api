@@ -1,12 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
@@ -16,7 +18,7 @@ import { PaymentLinkPaymentQuoteStatus } from '../enums';
 import { PaymentLinkPaymentQuoteRepository } from '../repositories/payment-link-payment-quote.repository';
 
 @Injectable()
-export class PaymentLinkPaymentQuoteService {
+export class PaymentLinkPaymentQuoteService implements OnModuleInit {
   private readonly logger = new DfxLogger(PaymentLinkPaymentQuoteService);
 
   static readonly PREFIX_UNIQUE_ID = 'plq';
@@ -28,14 +30,20 @@ export class PaymentLinkPaymentQuoteService {
     Blockchain.OPTIMISM,
     Blockchain.BASE,
     Blockchain.POLYGON,
-    Blockchain.MONERO,
   ];
+
+  private evmDepositAddress: string;
 
   constructor(
     private paymentLinkPaymentQuoteRepo: PaymentLinkPaymentQuoteRepository,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
+    private readonly payoutService: PayoutService,
   ) {}
+
+  onModuleInit() {
+    this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
+  }
 
   async processActualQuotes(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
@@ -74,6 +82,7 @@ export class PaymentLinkPaymentQuoteService {
         payment: { id: paymentId },
         status: PaymentLinkPaymentQuoteStatus.ACTUAL,
       },
+      order: { expiryDate: 'DESC' },
     });
 
     return actualQuotes.find((aq) =>
@@ -162,9 +171,15 @@ export class PaymentLinkPaymentQuoteService {
     const transferAmount = await this.getTransferAmount(currency, asset, amount);
     if (!transferAmount) return;
 
+    const fee =
+      asset.blockchain !== Blockchain.LIGHTNING
+        ? await this.payoutService.estimateFee(asset, this.evmDepositAddress, amount, asset)
+        : undefined;
+
     return {
       asset: asset.name,
       amount: transferAmount,
+      fee: fee?.amount,
     };
   }
 

@@ -20,7 +20,10 @@ export interface TransferAmount {
 export interface TransferAmountAsset {
   asset: string;
   amount: number;
+  fee?: number;
 }
+
+export type CurrencyAmountAsset = TransferAmountAsset;
 
 export interface PaymentLinkPayRequestDto {
   tag: string;
@@ -29,6 +32,7 @@ export interface PaymentLinkPayRequestDto {
   maxSendable: number;
   metadata: string;
   quoteId: string;
+  currencyAmount: CurrencyAmountAsset;
   transferAmounts: TransferAmount[];
 }
 

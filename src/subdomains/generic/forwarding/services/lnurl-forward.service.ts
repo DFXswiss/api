@@ -60,6 +60,10 @@ export class LnUrlForwardService {
       maxSendable: mSatTransferAmount.amount,
       metadata: LightningHelper.createLnurlMetadata(pendingPayment.requestMemo),
       quoteId: actualQuote.uniqueId,
+      currencyAmount: {
+        asset: pendingPayment.currency.name,
+        amount: pendingPayment.amount,
+      },
       transferAmounts: actualQuote.transferAmountsAsObj,
     };
 

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { PaymentActivation } from './entities/payment-activation.entity';
 import { PaymentLinkPaymentQuote } from './entities/payment-link-payment-quote.entity';
@@ -19,6 +20,7 @@ import { PaymentLinkPaymentService } from './services/payment-link-payment.servi
     SharedModule,
     LightningModule,
     PricingModule,
+    PayoutModule,
   ],
   controllers: [],
   providers: [
