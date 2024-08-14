@@ -108,8 +108,8 @@ export class LiquidityManagementPipelineService {
           order: { id: 'DESC' },
         });
 
-        if (lastOrder?.action.id === pipeline.currentAction.id) {
-          // check running order
+        // check running order
+        if (lastOrder) {
           if (
             lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
             lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
@@ -127,15 +127,18 @@ export class LiquidityManagementPipelineService {
               await this.handlePipelineFail(pipeline, lastOrder);
               continue;
             }
-
-            this.logger.verbose(
-              `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
-            );
+          } else {
+            // order still running
+            continue;
           }
-        } else {
-          // start new order
-          await this.placeLiquidityOrder(pipeline, lastOrder);
         }
+
+        // start new order
+        this.logger.verbose(
+          `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
+        );
+
+        await this.placeLiquidityOrder(pipeline, lastOrder);
       } catch (e) {
         this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);
         continue;

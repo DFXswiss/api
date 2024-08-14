@@ -57,8 +57,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
 
     // get amount from previous order
     const previousOrder = order.previousOrderId && (await this.orderRepo.findOneBy({ id: order.previousOrderId }));
-    const [_, balance, requested] =
-      /balance: (\d+(?:\.\d+)?), requested: (\d+(?:\.\d+)?)/.exec(previousOrder?.errorMessage ?? '') ?? [];
+    const [_, balance, requested] = /\(balance: (.*), requested: (.*)\)/.exec(previousOrder?.errorMessage ?? '') ?? [];
 
     if (!balance || !requested)
       throw new Error(`Error (${previousOrder?.errorMessage}) of previous order ${order.previousOrderId} is invalid`);
