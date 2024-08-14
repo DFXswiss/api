@@ -10,7 +10,7 @@ export enum PaymentLinkPaymentStatus {
   EXPIRED = 'Expired',
 }
 
-export enum PaymentLinkPaymentQuoteStatus {
+export enum PaymentQuoteStatus {
   ACTUAL = 'Actual',
   CANCELLED = 'Cancelled',
   EXPIRED = 'Expired',

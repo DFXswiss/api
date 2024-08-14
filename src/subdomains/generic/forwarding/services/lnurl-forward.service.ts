@@ -7,9 +7,9 @@ import {
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
-import { PaymentLinkPaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-link-payment-quote.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
+import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
 import { LnurlWithdrawRequestDto, LnurlwInvoiceDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
@@ -26,7 +26,7 @@ export class LnUrlForwardService {
   constructor(
     lightningService: LightningService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService,
+    private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -48,7 +48,7 @@ export class LnUrlForwardService {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const actualQuote = await this.paymentLinkPaymentQuoteService.createQuote(pendingPayment);
+    const actualQuote = await this.paymentQuoteService.createQuote(pendingPayment);
 
     const mSatTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'MSAT');
     if (!mSatTransferAmount) throw new NotFoundException('No BTC transfer amount found');
@@ -60,7 +60,7 @@ export class LnUrlForwardService {
       maxSendable: mSatTransferAmount.amount,
       metadata: LightningHelper.createLnurlMetadata(pendingPayment.requestMemo),
       quoteId: actualQuote.uniqueId,
-      currencyAmount: {
+      requestedAmount: {
         asset: pendingPayment.currency.name,
         amount: pendingPayment.amount,
       },

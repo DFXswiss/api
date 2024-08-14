@@ -26,8 +26,8 @@ import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentActivationStatus } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
-import { PaymentLinkPaymentQuoteService } from './payment-link-payment-quote.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
+import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentActivationService implements OnModuleInit {
@@ -37,13 +37,12 @@ export class PaymentActivationService implements OnModuleInit {
 
   private evmDepositAddress: string;
 
-  @Inject() private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService;
-  @Inject(forwardRef(() => PaymentLinkPaymentService))
-  private readonly paymentLinkPaymentService: PaymentLinkPaymentService;
-
   constructor(
     readonly lightningService: LightningService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
+    @Inject(forwardRef(() => PaymentLinkPaymentService))
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -114,11 +113,11 @@ export class PaymentActivationService implements OnModuleInit {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
 
-    const actualQuote = await this.paymentLinkPaymentQuoteService.getActualQuote(pendingPayment.id, transferInfo);
+    const actualQuote = await this.paymentQuoteService.getActualQuote(pendingPayment.id, transferInfo);
     if (!actualQuote) throw new NotFoundException(`Actual quote not found for payment ${uniqueId}`);
 
     if (transferInfo.quoteUniqueId) {
-      const transferAmount = await this.paymentLinkPaymentQuoteService.getAmountFromQuote(actualQuote, transferInfo);
+      const transferAmount = await this.paymentQuoteService.getAmountFromQuote(actualQuote, transferInfo);
 
       if (!transferAmount)
         throw new NotFoundException(

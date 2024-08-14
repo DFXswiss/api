@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -8,18 +9,17 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
-import { PaymentLinkPaymentQuote } from '../entities/payment-link-payment-quote.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
-import { PaymentLinkPaymentQuoteStatus } from '../enums';
-import { PaymentLinkPaymentQuoteRepository } from '../repositories/payment-link-payment-quote.repository';
+import { PaymentQuote } from '../entities/payment-quote.entity';
+import { PaymentQuoteStatus } from '../enums';
+import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
-export class PaymentLinkPaymentQuoteService implements OnModuleInit {
-  private readonly logger = new DfxLogger(PaymentLinkPaymentQuoteService);
+export class PaymentQuoteService implements OnModuleInit {
+  private readonly logger = new DfxLogger(PaymentQuoteService);
 
   static readonly PREFIX_UNIQUE_ID = 'plq';
 
@@ -35,10 +35,10 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
   private evmDepositAddress: string;
 
   constructor(
-    private paymentLinkPaymentQuoteRepo: PaymentLinkPaymentQuoteRepository,
+    private paymentQuoteRepo: PaymentQuoteRepository,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
-    private readonly payoutService: PayoutService,
+    private readonly evmGasPriceService: EvmGasPriceService,
   ) {}
 
   onModuleInit() {
@@ -48,27 +48,27 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
   async processActualQuotes(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
-    const actualPaymentLinkQuotes = await this.paymentLinkPaymentQuoteRepo.findBy({
-      status: PaymentLinkPaymentQuoteStatus.ACTUAL,
+    const actualPaymentLinkQuotes = await this.paymentQuoteRepo.findBy({
+      status: PaymentQuoteStatus.ACTUAL,
       expiryDate: LessThan(maxDate),
     });
 
     for (const actualPaymentLinkQuote of actualPaymentLinkQuotes) {
-      await this.paymentLinkPaymentQuoteRepo.save(actualPaymentLinkQuote.expire());
+      await this.paymentQuoteRepo.save(actualPaymentLinkQuote.expire());
     }
   }
 
-  async getActualQuote(paymentId: number, transferInfo: TransferInfo): Promise<PaymentLinkPaymentQuote | undefined> {
+  async getActualQuote(paymentId: number, transferInfo: TransferInfo): Promise<PaymentQuote | undefined> {
     return transferInfo.quoteUniqueId
       ? this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined
       : this.getActualQuoteByPaymentId(paymentId, transferInfo);
   }
 
-  private async getActualQuoteByUniqueId(uniqueId: string): Promise<PaymentLinkPaymentQuote | null> {
-    return this.paymentLinkPaymentQuoteRepo.findOne({
+  private async getActualQuoteByUniqueId(uniqueId: string): Promise<PaymentQuote | null> {
+    return this.paymentQuoteRepo.findOne({
       where: {
         uniqueId: uniqueId,
-        status: PaymentLinkPaymentQuoteStatus.ACTUAL,
+        status: PaymentQuoteStatus.ACTUAL,
       },
     });
   }
@@ -76,11 +76,11 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
   private async getActualQuoteByPaymentId(
     paymentId: number,
     transferInfo: TransferInfo,
-  ): Promise<PaymentLinkPaymentQuote | undefined> {
-    const actualQuotes = await this.paymentLinkPaymentQuoteRepo.find({
+  ): Promise<PaymentQuote | undefined> {
+    const actualQuotes = await this.paymentQuoteRepo.find({
       where: {
         payment: { id: paymentId },
-        status: PaymentLinkPaymentQuoteStatus.ACTUAL,
+        status: PaymentQuoteStatus.ACTUAL,
       },
       order: { expiryDate: 'DESC' },
     });
@@ -90,24 +90,21 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
     );
   }
 
-  async getAmountFromQuote(
-    actualQuote: PaymentLinkPaymentQuote,
-    transferInfo: TransferInfo,
-  ): Promise<number | undefined> {
+  async getAmountFromQuote(actualQuote: PaymentQuote, transferInfo: TransferInfo): Promise<number | undefined> {
     const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
     return transferAmountAsset?.amount;
   }
 
-  async createQuote(payment: PaymentLinkPayment): Promise<PaymentLinkPaymentQuote> {
-    const quote = this.paymentLinkPaymentQuoteRepo.create({
-      uniqueId: Util.createUniqueId(PaymentLinkPaymentQuoteService.PREFIX_UNIQUE_ID),
-      status: PaymentLinkPaymentQuoteStatus.ACTUAL,
+  async createQuote(payment: PaymentLinkPayment): Promise<PaymentQuote> {
+    const quote = this.paymentQuoteRepo.create({
+      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID),
+      status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(payment).then(JSON.stringify),
       expiryDate: Util.secondsAfter(Config.payment.quoteTimeout),
       payment: payment,
     });
 
-    return this.paymentLinkPaymentQuoteRepo.save(quote);
+    return this.paymentQuoteRepo.save(quote);
   }
 
   private async createTransferAmounts(payment: PaymentLinkPayment): Promise<TransferAmount[]> {
@@ -115,26 +112,33 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
 
     const paymentAssetMap = await this.createOrderedPaymentAssetMap();
 
-    for (const paymentAssetMapEntry of paymentAssetMap.entries()) {
-      const blockchain = paymentAssetMapEntry[0];
-      const assets = paymentAssetMapEntry[1];
-
-      const transferAmount: TransferAmount = {
-        method: blockchain,
-        assets: [],
-      };
-
-      for (const asset of assets) {
-        const transferAmountAsset = await this.getTransferAmountAsset(payment.currency, asset, payment.amount);
-        if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
-      }
-
-      if (blockchain === Blockchain.LIGHTNING) this.addMsatAsset(transferAmount);
+    for (const [blockchain, assets] of paymentAssetMap.entries()) {
+      const transferAmount =
+        blockchain === Blockchain.LIGHTNING
+          ? await this.createLightningTransferAmount(assets, payment)
+          : await this.createEvmTransferAmount(blockchain, assets, payment);
 
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
 
     return transferAmounts;
+  }
+
+  private async createLightningTransferAmount(assets: Asset[], payment: PaymentLinkPayment): Promise<TransferAmount> {
+    const transferAmount: TransferAmount = {
+      method: Blockchain.LIGHTNING,
+      gasPrice: undefined,
+      assets: [],
+    };
+
+    for (const asset of assets) {
+      const transferAmountAsset = await this.getTransferAmountAsset(payment.currency, asset, payment.amount);
+      if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+    }
+
+    this.addMsatAsset(transferAmount);
+
+    return transferAmount;
   }
 
   private addMsatAsset(transferAmount: TransferAmount) {
@@ -146,6 +150,29 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
         amount: LightningHelper.btcToMsat(btcAsset.amount),
       });
     }
+  }
+
+  private async createEvmTransferAmount(
+    blockchain: Blockchain,
+    assets: Asset[],
+    payment: PaymentLinkPayment,
+  ): Promise<TransferAmount> {
+    const gasPrice = this.evmGasPriceService.getGasPrice(blockchain);
+
+    const transferAmount: TransferAmount = {
+      method: blockchain,
+      gasPrice: gasPrice,
+      assets: [],
+    };
+
+    if (gasPrice) {
+      for (const asset of assets) {
+        const transferAmountAsset = await this.getTransferAmountAsset(payment.currency, asset, payment.amount);
+        if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+      }
+    }
+
+    return transferAmount;
   }
 
   private async createOrderedPaymentAssetMap(): Promise<Map<Blockchain, Asset[]>> {
@@ -171,15 +198,9 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
     const transferAmount = await this.getTransferAmount(currency, asset, amount);
     if (!transferAmount) return;
 
-    const fee =
-      asset.blockchain !== Blockchain.LIGHTNING
-        ? await this.payoutService.estimateFee(asset, this.evmDepositAddress, amount, asset)
-        : undefined;
-
     return {
       asset: asset.name,
       amount: transferAmount,
-      fee: fee?.amount,
     };
   }
 
@@ -195,12 +216,12 @@ export class PaymentLinkPaymentQuoteService implements OnModuleInit {
   }
 
   async cancel(paymentId: number): Promise<void> {
-    const actualQuotes = await this.paymentLinkPaymentQuoteRepo.find({
-      where: { payment: { id: paymentId }, status: PaymentLinkPaymentQuoteStatus.ACTUAL },
+    const actualQuotes = await this.paymentQuoteRepo.find({
+      where: { payment: { id: paymentId }, status: PaymentQuoteStatus.ACTUAL },
     });
 
     for (const actualQuote of actualQuotes) {
-      await this.paymentLinkPaymentQuoteRepo.save(actualQuote.cancel());
+      await this.paymentQuoteRepo.save(actualQuote.cancel());
     }
   }
 }

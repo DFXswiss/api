@@ -4,8 +4,8 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../enums';
 import { PaymentActivation } from './payment-activation.entity';
-import { PaymentLinkPaymentQuote } from './payment-link-payment-quote.entity';
 import { PaymentLink } from './payment-link.entity';
+import { PaymentQuote } from './payment-quote.entity';
 
 @Entity()
 export class PaymentLinkPayment extends IEntity {
@@ -40,8 +40,8 @@ export class PaymentLinkPayment extends IEntity {
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
 
-  @OneToMany(() => PaymentLinkPaymentQuote, (quote) => quote.payment, { nullable: true })
-  quotes: PaymentLinkPaymentQuote[];
+  @OneToMany(() => PaymentQuote, (quote) => quote.payment, { nullable: true })
+  quotes: PaymentQuote[];
 
   // --- ENTITY METHODS --- //
 

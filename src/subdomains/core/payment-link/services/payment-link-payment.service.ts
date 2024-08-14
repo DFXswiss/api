@@ -21,7 +21,7 @@ import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
-import { PaymentLinkPaymentQuoteService } from './payment-link-payment-quote.service';
+import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -29,12 +29,11 @@ export class PaymentLinkPaymentService {
 
   static readonly PREFIX_UNIQUE_ID = 'plp';
 
-  @Inject() private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService;
-  @Inject(forwardRef(() => PaymentActivationService))
-  private readonly paymentActivationService: PaymentActivationService;
-
   constructor(
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
+    private readonly paymentQuoteService: PaymentQuoteService,
+    @Inject(forwardRef(() => PaymentActivationService))
+    private readonly paymentActivationService: PaymentActivationService,
     private readonly fiatService: FiatService,
   ) {}
 
@@ -136,7 +135,7 @@ export class PaymentLinkPaymentService {
 
     await this.paymentLinkPaymentRepo.save(pendingPayment.cancel());
 
-    await this.paymentLinkPaymentQuoteService.cancel(pendingPayment.id);
+    await this.paymentQuoteService.cancel(pendingPayment.id);
     await this.paymentActivationService.cancel(pendingPayment.id);
 
     return paymentLink;

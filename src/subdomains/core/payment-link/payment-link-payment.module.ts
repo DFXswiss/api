@@ -1,36 +1,36 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { PaymentActivation } from './entities/payment-activation.entity';
-import { PaymentLinkPaymentQuote } from './entities/payment-link-payment-quote.entity';
 import { PaymentLinkPayment } from './entities/payment-link-payment.entity';
+import { PaymentQuote } from './entities/payment-quote.entity';
 import { PaymentActivationRepository } from './repositories/payment-activation.repository';
-import { PaymentLinkPaymentQuoteRepository } from './repositories/payment-link-payment-quote.repository';
 import { PaymentLinkPaymentRepository } from './repositories/payment-link-payment.repository';
+import { PaymentQuoteRepository } from './repositories/payment-quote.repository';
 import { PaymentActivationService } from './services/payment-activation.service';
-import { PaymentLinkPaymentQuoteService } from './services/payment-link-payment-quote.service';
 import { PaymentLinkPaymentService } from './services/payment-link-payment.service';
+import { PaymentQuoteService } from './services/payment-quote.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PaymentLinkPayment, PaymentLinkPaymentQuote, PaymentActivation]),
+    TypeOrmModule.forFeature([PaymentLinkPayment, PaymentQuote, PaymentActivation]),
     SharedModule,
+    BlockchainModule,
     LightningModule,
     PricingModule,
-    PayoutModule,
   ],
   controllers: [],
   providers: [
     PaymentLinkPaymentRepository,
-    PaymentLinkPaymentQuoteRepository,
+    PaymentQuoteRepository,
     PaymentActivationRepository,
     PaymentLinkPaymentService,
-    PaymentLinkPaymentQuoteService,
+    PaymentQuoteService,
     PaymentActivationService,
   ],
-  exports: [PaymentLinkPaymentService, PaymentLinkPaymentQuoteService, PaymentActivationService],
+  exports: [PaymentLinkPaymentService, PaymentQuoteService, PaymentActivationService],
 })
 export class PaymentLinkPaymentModule {}

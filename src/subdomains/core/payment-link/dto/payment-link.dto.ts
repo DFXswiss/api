@@ -14,16 +14,16 @@ export interface TransferInfo {
 
 export interface TransferAmount {
   method: TransferMethod;
+  gasPrice: number;
   assets: TransferAmountAsset[];
 }
 
 export interface TransferAmountAsset {
   asset: string;
   amount: number;
-  fee?: number;
 }
 
-export type CurrencyAmountAsset = TransferAmountAsset;
+export type RequestedAmountAsset = TransferAmountAsset;
 
 export interface PaymentLinkPayRequestDto {
   tag: string;
@@ -32,7 +32,7 @@ export interface PaymentLinkPayRequestDto {
   maxSendable: number;
   metadata: string;
   quoteId: string;
-  currencyAmount: CurrencyAmountAsset;
+  requestedAmount: RequestedAmountAsset;
   transferAmounts: TransferAmount[];
 }
 
