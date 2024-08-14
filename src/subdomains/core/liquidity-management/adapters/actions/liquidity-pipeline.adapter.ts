@@ -62,7 +62,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
     if (!balance || !requested)
       throw new Error(`Error (${previousOrder?.errorMessage}) of previous order ${order.previousOrderId} is invalid`);
 
-    const amount = +requested;
+    const amount = +requested - +balance;
 
     const pipelineId = await this.liquidityManagementService.buyLiquidity(assetId, amount, true);
     return pipelineId.toString();
