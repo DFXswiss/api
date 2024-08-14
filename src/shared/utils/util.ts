@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
+import { BinaryLike, createHash, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 
@@ -130,17 +130,20 @@ export class Util {
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
-      .replace(/[ìíîy]/g, 'i')
-      .replace(/[úûùü]/g, 'u')
-      .replace(/[áâåàä]/g, 'a')
-      .replace(/[éèê]/g, 'e')
-      .replace(/[öó]/g, 'o')
+      .replace(/[ýÿ]/g, 'y')
+      .replace(/[ìíîïyī]/g, 'i')
+      .replace(/[ùúûüū]/g, 'u')
+      .replace(/[àáâăåäãā]/g, 'a')
+      .replace(/[èéêëė]/g, 'e')
+      .replace(/[òóôöõō]/g, 'o')
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[çč]/g, 'c')
-      .replace(/[ß]/g, 's')
+      .replace(/[çčć]/g, 'c')
+      .replace(/[ßșš]/g, 's')
+      .replace(/ss/g, 's')
+      .replace(/[žż]/g, 'z')
       .replace(/[\.]/g, '')
       .replace(/[-‘`´']/g, ' ');
   }
@@ -409,10 +412,27 @@ export class Util {
     return `${prefix}_${hash.slice(0, length)}`;
   }
 
-  static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
+  static createSign(
+    data: BinaryLike,
+    key: KeyLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'base64',
+  ): string {
     const sign = createSign(algo);
     sign.update(data);
-    return sign.sign(key, 'base64');
+    return sign.sign(key, encoding);
+  }
+
+  static verifySign(
+    data: BinaryLike,
+    key: KeyLike,
+    signature: string,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'base64',
+  ): boolean {
+    const verify = createVerify(algo);
+    verify.update(data);
+    return verify.verify(key, signature, encoding);
   }
 
   static async retry<T>(

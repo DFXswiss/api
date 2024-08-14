@@ -180,4 +180,8 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsBoolean()
   bankDataActive: boolean;
+
+  @IsOptional()
+  @IsString()
+  chargebackAllowedBy: string;
 }

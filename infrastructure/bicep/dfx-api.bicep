@@ -113,6 +113,10 @@ param bscScanApiKey string
 @secure()
 param lightningApiCertificate string
 @secure()
+param lightningSigningPrivKey string
+@secure()
+param lightningSigningPubKey string
+@secure()
 param lightningLnbitsApiKey string
 @secure()
 param lightningLndAdminMacaroon string
@@ -211,6 +215,7 @@ param servicesUrl string
 
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
+param limitRequestSupportStaffMail string
 param limitRequestSupportName string
 
 param azureSubscriptionId string
@@ -808,6 +813,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: lightningApiCertificate
         }
         {
+          name: 'LIGHTNING_SIGNING_PRIV_KEY'
+          value: lightningSigningPrivKey
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PUB_KEY'
+          value: lightningSigningPubKey
+        }
+        {
           name: 'LIGHTNING_LNBITS_API_URL'
           value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/api/v1'
         }
@@ -1038,6 +1051,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIMIT_REQUEST_SUPPORT_MAIL'
           value: limitRequestSupportMail
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_STAFF_MAIL'
+          value: limitRequestSupportStaffMail
         }
         {
           name: 'LIMIT_REQUEST_SUPPORT_NAME'

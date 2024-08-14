@@ -6,6 +6,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
@@ -13,9 +14,10 @@ import { CheckStatus } from '../../aml/enums/check-status.enum';
 interface PaymentData {
   lastOutputDates: LastOutputDates;
   incomplete: IncompleteTransactions;
-  bankTxWithoutType: number;
   freeDeposit: { blockchain: string; count: number }[];
   unhandledCryptoInputs: number;
+  bankTxWithoutType: number;
+  bankTxGsType: number;
 }
 
 interface LastOutputDates {
@@ -55,6 +57,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       lastOutputDates: await this.getLastOutputDates(),
       incomplete: await this.getIncompleteTransactions(),
       bankTxWithoutType: await this.repos.bankTx.countBy({ type: IsNull() }),
+      bankTxGsType: await this.repos.bankTx.countBy({ type: BankTxType.GSHEET }),
       freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
         .select('deposit.blockchains, COUNT(deposit.blockchains) as count')

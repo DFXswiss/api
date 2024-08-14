@@ -11,7 +11,7 @@ export class PaymentLinkDtoMapper {
       routeId: paymentLink.route.id,
       externalId: paymentLink.externalId,
       status: paymentLink.status,
-      payment: PaymentLinkDtoMapper.toPaymentDto(paymentLink.currentPayment),
+      payment: PaymentLinkDtoMapper.toPaymentDto(paymentLink.payments?.[0]),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),
       lnurl: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
     };

@@ -39,11 +39,14 @@ export class LiquidityManagementPipelineService {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     await this.checkRunningOrders();
-
     await this.startNewPipelines();
-    await this.checkRunningPipelines();
 
-    await this.startNewOrders();
+    let hasWaitingOrders = true;
+    for (let i = 0; i < 5 && hasWaitingOrders; i++) {
+      await this.checkRunningPipelines();
+
+      hasWaitingOrders = await this.startNewOrders();
+    }
   }
 
   //*** PUBLIC API ***//
@@ -105,8 +108,8 @@ export class LiquidityManagementPipelineService {
           order: { id: 'DESC' },
         });
 
-        if (lastOrder?.action.id === pipeline.currentAction.id) {
-          // check running order
+        // check running order
+        if (lastOrder) {
           if (
             lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
             lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
@@ -124,15 +127,18 @@ export class LiquidityManagementPipelineService {
               await this.handlePipelineFail(pipeline, lastOrder);
               continue;
             }
-
-            this.logger.verbose(
-              `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
-            );
+          } else {
+            // order still running
+            continue;
           }
-        } else {
-          // start new order
-          await this.placeLiquidityOrder(pipeline, lastOrder);
         }
+
+        // start new order
+        this.logger.verbose(
+          `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
+        );
+
+        await this.placeLiquidityOrder(pipeline, lastOrder);
       } catch (e) {
         this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);
         continue;
@@ -150,7 +156,9 @@ export class LiquidityManagementPipelineService {
     await this.orderRepo.save(order);
   }
 
-  private async startNewOrders(): Promise<void> {
+  private async startNewOrders(): Promise<boolean> {
+    let hasFinishedOrders = false;
+
     const newOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.CREATED });
 
     for (const order of newOrders) {
@@ -170,9 +178,13 @@ export class LiquidityManagementPipelineService {
           await this.orderRepo.save(order);
         }
 
+        hasFinishedOrders = true;
+
         this.logger.warn(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
+
+    return hasFinishedOrders;
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {

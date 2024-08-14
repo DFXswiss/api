@@ -114,7 +114,7 @@ export enum UserDataStatus {
 export class UserData extends IEntity {
   private readonly logger = new DfxLogger(UserData);
 
-  @Column({ default: AccountType.PERSONAL, length: 256 })
+  @Column({ nullable: true, length: 256 })
   accountType: AccountType;
 
   @Column({ length: 256, default: UserDataStatus.NA })
@@ -672,7 +672,7 @@ export class UserData extends IEntity {
 
   get requiredKycFields(): string[] {
     return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      this.accountType === AccountType.PERSONAL
+      !this.accountType || this.accountType === AccountType.PERSONAL
         ? []
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
