@@ -123,7 +123,11 @@ export class LiquidityManagementPipelineService {
               continue;
             }
 
-            if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
+            if (
+              [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
+                pipeline.status,
+              )
+            ) {
               await this.handlePipelineFail(pipeline, lastOrder);
               continue;
             }
@@ -279,14 +283,21 @@ export class LiquidityManagementPipelineService {
     order: LiquidityManagementOrder,
   ): [string, MailRequest] {
     const { id, type, targetAmount, rule } = pipeline;
-    const errorMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${rule.id}) failed. Pipeline ID: ${id}`;
+    const errorMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${
+      rule.id
+    }) ${pipeline.status.toLowerCase()}. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
       context: MailContext.LIQUIDITY_MANAGEMENT,
       input: {
         subject: 'Liquidity management pipeline FAIL',
-        errors: [errorMessage, `Error: ${order.errorMessage}`],
+        errors: [
+          errorMessage,
+          pipeline.status === LiquidityManagementPipelineStatus.FAILED
+            ? `Error: ${order.errorMessage}`
+            : 'Maximum order count reached',
+        ],
       },
     };
 
