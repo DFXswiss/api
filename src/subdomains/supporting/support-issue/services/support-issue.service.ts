@@ -126,7 +126,10 @@ export class SupportIssueService {
   async getUserSupportTickets(
     userDataId: number,
   ): Promise<{ supportIssues: SupportIssue[]; supportMessages: SupportMessage[] }> {
-    const supportIssues = await this.supportIssueRepo.findBy({ userData: { id: userDataId } });
+    const supportIssues = await this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true },
+    });
     return {
       supportIssues,
       supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
