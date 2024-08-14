@@ -108,31 +108,29 @@ export class LiquidityManagementPipelineService {
           order: { id: 'DESC' },
         });
 
-        if (lastOrder?.action.id === pipeline.currentAction.id) {
-          // check running order
-          if (
-            lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
-            lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
-            lastOrder.status === LiquidityManagementOrderStatus.NOT_PROCESSABLE
-          ) {
-            pipeline.continue(lastOrder.status);
-            await this.pipelineRepo.save(pipeline);
+        // check running order
+        if (
+          lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
+          lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
+          lastOrder.status === LiquidityManagementOrderStatus.NOT_PROCESSABLE
+        ) {
+          pipeline.continue(lastOrder.status);
+          await this.pipelineRepo.save(pipeline);
 
-            if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
-              await this.handlePipelineCompletion(pipeline);
-              continue;
-            }
-
-            if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
-              await this.handlePipelineFail(pipeline, lastOrder);
-              continue;
-            }
-
-            this.logger.verbose(
-              `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
-            );
+          if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
+            await this.handlePipelineCompletion(pipeline);
+            continue;
           }
-        } else {
+
+          if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
+            await this.handlePipelineFail(pipeline, lastOrder);
+            continue;
+          }
+
+          this.logger.verbose(
+            `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
+          );
+
           // start new order
           await this.placeLiquidityOrder(pipeline, lastOrder);
         }
