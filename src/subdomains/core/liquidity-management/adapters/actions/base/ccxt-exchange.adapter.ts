@@ -1,3 +1,4 @@
+import { InsufficientFunds } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
@@ -122,7 +123,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         if (e.message?.includes('not enough balance') && minTradeAmount != null) {
           const availableBalance = await this.exchangeService.getBalance(tradeAsset);
           if (availableBalance >= minTradeAmount) {
-            return await this.exchangeService.sell(tradeAsset, asset, availableBalance);
+            return await this.exchangeService.sell(tradeAsset, asset, availableBalance * 0.99);
           }
         }
 
@@ -220,6 +221,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         await this.orderRepo.save(order);
 
         return false;
+      } else if (e instanceof InsufficientFunds) {
+        throw new OrderNotProcessableException(e.message);
       }
 
       throw e;
