@@ -39,11 +39,14 @@ export class LiquidityManagementPipelineService {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     await this.checkRunningOrders();
-
     await this.startNewPipelines();
-    await this.checkRunningPipelines();
 
-    await this.startNewOrders();
+    let hasWaitingOrders = true;
+    for (let i = 0; i < 5 && hasWaitingOrders; i++) {
+      await this.checkRunningPipelines();
+
+      hasWaitingOrders = await this.startNewOrders();
+    }
   }
 
   //*** PUBLIC API ***//
@@ -150,7 +153,9 @@ export class LiquidityManagementPipelineService {
     await this.orderRepo.save(order);
   }
 
-  private async startNewOrders(): Promise<void> {
+  private async startNewOrders(): Promise<boolean> {
+    let hasFinishedOrders = false;
+
     const newOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.CREATED });
 
     for (const order of newOrders) {
@@ -170,9 +175,13 @@ export class LiquidityManagementPipelineService {
           await this.orderRepo.save(order);
         }
 
+        hasFinishedOrders = true;
+
         this.logger.warn(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
+
+    return hasFinishedOrders;
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
