@@ -47,6 +47,14 @@ export class SupportIssueService {
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
+    const existingIssue = await this.supportIssueRepo.findOneBy({
+      userData: { id: userDataId },
+      type: newIssue.type,
+      information: newIssue.information,
+      reason: newIssue.reason,
+      state: Not(SupportIssueState.COMPLETED),
+    });
+
     // transaction issues
     if (dto.transaction) {
       if (dto.transaction.id) {
@@ -62,16 +70,8 @@ export class SupportIssueService {
     }
 
     // limit request
-    if (dto.limitRequest)
+    if (dto.limitRequest && !existingIssue)
       newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
-
-    const existingIssue = await this.supportIssueRepo.findOneBy({
-      userData: { id: userDataId },
-      type: newIssue.type,
-      information: newIssue.information,
-      reason: newIssue.reason,
-      state: Not(SupportIssueState.COMPLETED),
-    });
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
 
