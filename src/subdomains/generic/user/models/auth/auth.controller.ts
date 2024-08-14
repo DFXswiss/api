@@ -3,7 +3,9 @@ import { ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -14,7 +16,7 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
-import { RedirectUrlDto } from './dto/redirect-url.dto';
+import { MergeRedirectDto } from './dto/redirect-url.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 
 @ApiTags('Auth')
@@ -63,10 +65,17 @@ export class AuthController {
 
   @Get('mail/confirm')
   @ApiExcludeEndpoint()
-  @ApiOkResponse({ type: RedirectUrlDto })
-  async executeMerge(@Query('code') code: string): Promise<RedirectUrlDto> {
+  @ApiOkResponse({ type: MergeRedirectDto })
+  async executeMerge(
+    @Query('code') code: string,
+    @GetJwt() jwt: JwtPayload,
+    @RealIP() ip: string,
+  ): Promise<MergeRedirectDto> {
     const { master } = await this.mergeService.executeMerge(code);
-    return { redirectUrl: master.kycUrl };
+    return {
+      redirectUrl: master.kycUrl,
+      accessToken: this.authService.generateAccountToken(master, ip),
+    };
   }
 
   @Get('signMessage')
