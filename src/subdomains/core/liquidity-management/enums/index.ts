@@ -1,14 +1,8 @@
-export enum LiquidityManagementContext {
-  DEFICHAIN = 'DeFiChain',
-  ETHEREUM = 'Ethereum',
-  BINANCE_SMART_CHAIN = 'BinanceSmartChain',
-  BITCOIN = 'Bitcoin',
-  ARBITRUM = 'Arbitrum',
-  OPTIMISM = 'Optimism',
-  BINANCE = 'Binance',
-  KRAKEN = 'Kraken',
-  BANK = 'Bank',
-}
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
+
+export type LiquidityManagementType = Blockchain | BankName | ExchangeName;
 
 export enum LiquidityManagementSystem {
   CAKE = 'Cake',

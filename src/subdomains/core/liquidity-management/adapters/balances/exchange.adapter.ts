@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
-import { LiquidityManagementContext, LiquidityManagementOrderStatus, LiquidityManagementSystem } from '../../enums';
+import { LiquidityManagementOrderStatus, LiquidityManagementSystem, LiquidityManagementType } from '../../enums';
 import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 
@@ -19,7 +19,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
   ) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
-    const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(
+    const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementType>(
       assets,
       'context',
     );
@@ -31,7 +31,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  async getNumberOfPendingOrders(_: Active, context: LiquidityManagementContext): Promise<number> {
+  async getNumberOfPendingOrders(_: Active, context: LiquidityManagementType): Promise<number> {
     const system = Object.values(LiquidityManagementSystem).find((s) => s.toString() === context.toString());
     return system
       ? this.orderRepo.countBy({

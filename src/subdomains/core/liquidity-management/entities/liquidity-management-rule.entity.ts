@@ -1,10 +1,13 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
+import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, ManyToOne as OneToOne } from 'typeorm';
-import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
+import { LiquidityManagementRuleStatus, LiquidityManagementType, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
 import { LiquidityBalance } from './liquidity-balance.entity';
@@ -14,7 +17,7 @@ import { LiquidityManagementAction } from './liquidity-management-action.entity'
 @Index((r: LiquidityManagementRule) => [r.context, r.targetAsset, r.targetFiat], { unique: true })
 export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
-  context: LiquidityManagementContext;
+  context: Blockchain | BankName | ExchangeName;
 
   @Column({ length: 256, nullable: true })
   status: LiquidityManagementRuleStatus;
@@ -47,7 +50,7 @@ export class LiquidityManagementRule extends IEntity {
   //*** FACTORY METHODS ***//
 
   static create(
-    context: LiquidityManagementContext,
+    context: LiquidityManagementType,
     targetAsset: Asset,
     targetFiat: Fiat,
     minimal: number,
@@ -120,8 +123,7 @@ export class LiquidityManagementRule extends IEntity {
 
   shouldReactivate(): boolean {
     return (
-      this.status === LiquidityManagementRuleStatus.PAUSED &&
-      Util.minutesDiff(this.updated) > this.reactivationTime
+      this.status === LiquidityManagementRuleStatus.PAUSED && Util.minutesDiff(this.updated) > this.reactivationTime
     );
   }
 

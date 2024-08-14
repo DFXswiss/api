@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
-import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration } from '../../interfaces';
+import { LiquidityManagementType } from '../../enums';
 
 @Injectable()
 export class BankAdapter implements LiquidityBalanceIntegration {
-  getBalances(fiats: (Fiat & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {
+  getBalances(fiats: (Fiat & { context: LiquidityManagementType })[]): Promise<LiquidityBalance[]> {
     if (!fiats.every(isFiat)) {
       throw new Error(`BankAdapter supports only Fiat.`);
     }
