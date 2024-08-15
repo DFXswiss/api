@@ -103,7 +103,7 @@ export class SupportIssueService {
     if (!entity.issue) throw new NotFoundException('Support issue not found');
 
     if (dto.author === CustomerAuthor && entity.userData.id !== userDataId)
-      throw new ForbiddenException('You can only create support messages for your own transaction');
+      throw new ForbiddenException('You can only create support messages for your own support issue');
 
     // upload document proof
     if (dto.file) {
