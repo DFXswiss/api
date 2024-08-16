@@ -12,7 +12,7 @@ export class PaymentWebhookService {
   private webhookSendQueue: QueueHandler;
 
   constructor(private readonly http: HttpService) {
-    this.webhookSendQueue = new QueueHandler();
+    this.webhookSendQueue = new QueueHandler(undefined, undefined, true);
   }
 
   async sendWebhook(paymentLink: PaymentLink): Promise<void> {

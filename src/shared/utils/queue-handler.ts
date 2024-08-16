@@ -44,7 +44,11 @@ export class QueueHandler {
    * @param queueTimeout Max. item in queue time (incl. execution time)
    * @param itemTimeout Max. item execution time
    */
-  constructor(private readonly queueTimeout?: number, private readonly itemTimeout?: number) {
+  constructor(
+    private readonly queueTimeout?: number,
+    private readonly itemTimeout?: number,
+    private workParallel = false,
+  ) {
     void this.doWork();
   }
 
@@ -68,7 +72,9 @@ export class QueueHandler {
     while (this.isRunning) {
       try {
         if (this.queue.length > 0) {
-          await this.queue.shift().doWork(this.itemTimeout);
+          this.workParallel
+            ? void this.queue.shift().doWork(this.itemTimeout)
+            : await this.queue.shift().doWork(this.itemTimeout);
         } else {
           await Util.delay(10);
         }
