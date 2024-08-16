@@ -14,7 +14,7 @@ export interface TransferInfo {
 
 export interface TransferAmount {
   method: TransferMethod;
-  gasPrice: number;
+  minFee: number;
   assets: TransferAmountAsset[];
 }
 
@@ -31,7 +31,11 @@ export interface PaymentLinkPayRequestDto {
   minSendable: number;
   maxSendable: number;
   metadata: string;
-  quoteId: string;
+  displayName: string;
+  quote: {
+    id: string;
+    expiration: Date;
+  };
   requestedAmount: RequestedAmountAsset;
   transferAmounts: TransferAmount[];
 }

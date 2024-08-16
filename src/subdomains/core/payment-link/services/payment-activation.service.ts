@@ -184,7 +184,7 @@ export class PaymentActivationService implements OnModuleInit {
 
     const walletPaymentParams: LnBitsWalletPaymentParamsDto = {
       amount: LightningHelper.btcToSat(transferInfo.amount),
-      memo: payment.requestMemo,
+      memo: payment.displayName,
       expirySec: expirySec,
       webhook: `${Config.url()}/payIn/lnurlpPayment/${uniqueId}`,
       extra: {

@@ -3,7 +3,6 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -127,7 +126,7 @@ export class PaymentQuoteService implements OnModuleInit {
   private async createLightningTransferAmount(assets: Asset[], payment: PaymentLinkPayment): Promise<TransferAmount> {
     const transferAmount: TransferAmount = {
       method: Blockchain.LIGHTNING,
-      gasPrice: undefined,
+      minFee: undefined,
       assets: [],
     };
 
@@ -136,20 +135,7 @@ export class PaymentQuoteService implements OnModuleInit {
       if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
     }
 
-    this.addMsatAsset(transferAmount);
-
     return transferAmount;
-  }
-
-  private addMsatAsset(transferAmount: TransferAmount) {
-    const btcAsset = transferAmount.assets.find((a) => a.asset === 'BTC');
-
-    if (btcAsset) {
-      transferAmount.assets.unshift({
-        asset: 'MSAT',
-        amount: LightningHelper.btcToMsat(btcAsset.amount),
-      });
-    }
   }
 
   private async createEvmTransferAmount(
@@ -161,7 +147,7 @@ export class PaymentQuoteService implements OnModuleInit {
 
     const transferAmount: TransferAmount = {
       method: blockchain,
-      gasPrice: gasPrice,
+      minFee: gasPrice,
       assets: [],
     };
 

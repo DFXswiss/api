@@ -67,7 +67,7 @@ export class PaymentLinkPayment extends IEntity {
     return this.externalId ?? `${this.id}`;
   }
 
-  get requestMemo(): string {
+  get displayName(): string {
     return this.link.route.userData.verifiedName ?? `Payment ${this.metaId} to ${this.link.metaId}`;
   }
 }

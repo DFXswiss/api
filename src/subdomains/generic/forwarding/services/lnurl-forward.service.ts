@@ -50,16 +50,22 @@ export class LnUrlForwardService {
 
     const actualQuote = await this.paymentQuoteService.createQuote(pendingPayment);
 
-    const mSatTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'MSAT');
-    if (!mSatTransferAmount) throw new NotFoundException('No BTC transfer amount found');
+    const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
+    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
+
+    const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
-      minSendable: mSatTransferAmount.amount,
-      maxSendable: mSatTransferAmount.amount,
-      metadata: LightningHelper.createLnurlMetadata(pendingPayment.requestMemo),
-      quoteId: actualQuote.uniqueId,
+      minSendable: msatTransferAmount,
+      maxSendable: msatTransferAmount,
+      metadata: LightningHelper.createLnurlMetadata(pendingPayment.displayName),
+      displayName: pendingPayment.displayName,
+      quote: {
+        id: actualQuote.uniqueId,
+        expiration: actualQuote.expiryDate,
+      },
       requestedAmount: {
         asset: pendingPayment.currency.name,
         amount: pendingPayment.amount,
@@ -95,16 +101,16 @@ export class LnUrlForwardService {
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {
-    const isMsat = !params.asset || params.asset === 'MSAT';
+    const isBtc = !params.asset || params.asset === 'BTC';
 
     const amount = params.amount ? Number(params.amount) : 0;
-    const asset = isMsat ? 'BTC' : params.asset;
+    const asset = isBtc ? 'BTC' : params.asset;
     const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
       method: method,
       asset: asset,
-      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
+      amount: isBtc ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
     };
   }
