@@ -292,7 +292,7 @@ export class BuyCryptoNotificationService {
       try {
         if (
           entity.bankData &&
-          Util.minutesDiff(entity.created) < 10 &&
+          Util.minutesDiff(entity.created) < 60 &&
           IbanTools.validateIBAN(entity.bankData.iban.split(';')[0]).valid
         )
           continue;
