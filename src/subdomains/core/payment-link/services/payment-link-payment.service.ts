@@ -22,6 +22,7 @@ import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } f
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
+import { PaymentWebhookService } from './payment-webhook.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -31,6 +32,7 @@ export class PaymentLinkPaymentService {
 
   constructor(
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
+    private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
     @Inject(forwardRef(() => PaymentActivationService))
     private readonly paymentActivationService: PaymentActivationService,
@@ -47,7 +49,7 @@ export class PaymentLinkPaymentService {
     });
 
     for (const pendingPaymentLinkPayment of pendingPaymentLinkPayments) {
-      await this.paymentLinkPaymentRepo.save(pendingPaymentLinkPayment.expire());
+      await this.doSave(pendingPaymentLinkPayment.expire());
     }
   }
 
@@ -133,7 +135,7 @@ export class PaymentLinkPaymentService {
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    await this.paymentLinkPaymentRepo.save(pendingPayment.cancel());
+    await this.doSave(pendingPayment.cancel());
 
     await this.paymentQuoteService.cancel(pendingPayment.id);
     await this.paymentActivationService.cancel(pendingPayment.id);
@@ -157,7 +159,7 @@ export class PaymentLinkPaymentService {
       link: paymentLink,
     });
 
-    return this.paymentLinkPaymentRepo.save(payment);
+    return this.doSave(payment);
   }
 
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
@@ -194,6 +196,28 @@ export class PaymentLinkPaymentService {
 
     if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) return pendingPayment;
 
-    return this.paymentLinkPaymentRepo.save(pendingPayment.complete());
+    return this.doSave(pendingPayment.complete());
+  }
+
+  private async doSave(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+    const savedPayment = await this.paymentLinkPaymentRepo.save(payment);
+
+    await this.sendWebhook(savedPayment);
+
+    return savedPayment;
+  }
+
+  private async sendWebhook(payment: PaymentLinkPayment): Promise<void> {
+    const paymentForWebhook = await this.paymentLinkPaymentRepo.findOne({
+      where: { uniqueId: payment.uniqueId },
+      relations: {
+        link: { route: true },
+      },
+    });
+
+    const paymentLink = paymentForWebhook.link;
+    paymentLink.payments = [paymentForWebhook];
+
+    await this.paymentWebhookService.sendWebhook(paymentLink);
   }
 }

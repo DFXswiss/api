@@ -21,6 +21,9 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: false })
   status: PaymentLinkStatus;
 
+  @Column({ length: 'MAX', nullable: true })
+  webhookUrl: string;
+
   // --- ENTITY METHODS --- //
   get metaId(): string {
     return this.externalId ?? `${this.id}`;

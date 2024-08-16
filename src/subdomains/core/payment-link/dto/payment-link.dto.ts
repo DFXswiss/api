@@ -81,6 +81,9 @@ export class PaymentLinkDto {
   @ApiPropertyOptional()
   externalId: string;
 
+  @ApiPropertyOptional()
+  webhookUrl: string;
+
   @ApiProperty({ enum: PaymentLinkStatus })
   status: PaymentLinkStatus;
 
