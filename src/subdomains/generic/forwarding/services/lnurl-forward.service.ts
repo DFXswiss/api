@@ -101,16 +101,16 @@ export class LnUrlForwardService {
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {
-    const isBtc = !params.asset || params.asset === 'BTC';
+    const isMsat = !params.asset;
 
     const amount = params.amount ? Number(params.amount) : 0;
-    const asset = isBtc ? 'BTC' : params.asset;
+    const asset = isMsat ? 'BTC' : params.asset;
     const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
       method: method,
       asset: asset,
-      amount: isBtc ? LightningHelper.msatToBtc(amount) : amount,
+      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
     };
   }
