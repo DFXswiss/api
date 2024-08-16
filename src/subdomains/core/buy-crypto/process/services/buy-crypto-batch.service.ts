@@ -195,8 +195,6 @@ export class BuyCryptoBatchService {
 
         const purchaseFee = await this.optimizeByLiquidity(batch);
 
-        if (batch.transactions.length === 0) continue;
-
         await this.optimizeByPayoutFee(batch);
         await this.optimizeByPurchaseFee(batch, purchaseFee);
 
@@ -208,7 +206,7 @@ export class BuyCryptoBatchService {
           );
         }
 
-        optimizedBatches.push(batch);
+        if (batch.transactions.length) optimizedBatches.push(batch);
       } catch (e) {
         const logLevel = e instanceof MissingBuyCryptoLiquidityException ? LogLevel.INFO : LogLevel.ERROR;
         this.logger.log(logLevel, `Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);

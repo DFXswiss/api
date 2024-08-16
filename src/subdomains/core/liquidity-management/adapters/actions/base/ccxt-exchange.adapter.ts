@@ -154,11 +154,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     if (token !== targetAsset) {
       const price = await targetExchange.getPrice(token, targetAsset);
       requiredAmount = price.invert().convert(requiredAmount);
+
+      const balance = await targetExchange.getBalance(token);
+      requiredAmount -= balance;
     }
 
-    const balance = await targetExchange.getBalance(token);
-    const minAmount = Util.round(requiredAmount - balance, 6);
-    const maxAmount = Util.round(requiredAmount - balance + (optimum ?? 0), 6);
+    const minAmount = Util.round(requiredAmount, 6);
+    const maxAmount = Util.round(requiredAmount + (optimum ?? 0), 6);
 
     const sourceBalance = await this.exchangeService.getBalance(token);
     if (minAmount > sourceBalance)
