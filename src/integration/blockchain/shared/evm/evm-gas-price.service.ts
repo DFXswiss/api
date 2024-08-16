@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BigNumber, ethers } from 'ethers';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -51,17 +50,13 @@ export class EvmGasPriceService implements OnModuleInit {
       try {
         this.gasPriceCache.set(blockchain, {
           timestamp: new Date(),
-          gasPrice: this.convertGasPrice(await this.evmRegistryService.getClient(blockchain).getRecommendedGasPrice()),
+          gasPrice: +(await this.evmRegistryService.getClient(blockchain).getRecommendedGasPrice()),
         });
       } catch (e) {
         this.gasPriceCache.delete(blockchain);
         this.logger.error(`Failed to get gas price of blockchain ${blockchain}:`, e);
       }
     }
-  }
-
-  private convertGasPrice(amount: BigNumber): number {
-    return parseFloat(ethers.utils.formatUnits(amount, 'wei'));
   }
 
   getGasPrice(blockchain: Blockchain): number | undefined {
