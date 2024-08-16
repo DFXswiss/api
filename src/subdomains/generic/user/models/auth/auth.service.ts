@@ -352,7 +352,7 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  private generateUserToken(user: User, ip: string): string {
+  generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       user: user.id,
       address: user.address,
@@ -364,7 +364,7 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  generateAccountToken(userData: UserData, ip: string): string {
+  private generateAccountToken(userData: UserData, ip: string): string {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,

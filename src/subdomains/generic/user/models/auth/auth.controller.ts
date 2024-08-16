@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
@@ -7,9 +8,12 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AlbySignupDto } from '../user/dto/alby.dto';
+import { UserRepository } from '../user/user.repository';
 import { AuthAlbyService } from './auth-alby.service';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
@@ -26,6 +30,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly albyService: AuthAlbyService,
     private readonly mergeService: AccountMergeService,
+    private readonly userRepo: UserRepository,
   ) {}
 
   @Post()
@@ -64,17 +69,24 @@ export class AuthController {
   }
 
   @Get('mail/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: MergeRedirectDto })
   async executeMerge(
-    @Query('code') code: string,
     @GetJwt() jwt: JwtPayload,
+    @Query('code') code: string,
     @RealIP() ip: string,
   ): Promise<MergeRedirectDto> {
     const { master } = await this.mergeService.executeMerge(code);
+    const newUser = await this.userRepo.findOne({
+      where: { userData: { id: master.id }, address: jwt.address },
+      relations: { userData: true, wallet: true },
+    });
+
     return {
       redirectUrl: master.kycUrl,
-      accessToken: this.authService.generateAccountToken(master, ip),
+      accessToken: this.authService.generateUserToken(newUser, ip),
     };
   }
 

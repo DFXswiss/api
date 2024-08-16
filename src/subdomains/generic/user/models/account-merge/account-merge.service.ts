@@ -72,7 +72,10 @@ export class AccountMergeService {
   }
 
   async executeMerge(code: string): Promise<AccountMerge> {
-    const request = await this.accountMergeRepo.findOne({ where: { code }, relations: { master: true, slave: true } });
+    const request = await this.accountMergeRepo.findOne({
+      where: { code },
+      relations: { master: { users: true }, slave: { users: true } },
+    });
     if (!request) throw new NotFoundException('Account merge information not found');
 
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
