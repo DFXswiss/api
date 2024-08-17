@@ -112,10 +112,7 @@ export class PaymentQuoteService implements OnModuleInit {
     const paymentAssetMap = await this.createOrderedPaymentAssetMap();
 
     for (const [blockchain, assets] of paymentAssetMap.entries()) {
-      const transferAmount =
-        blockchain === Blockchain.LIGHTNING
-          ? await this.createLightningTransferAmount(assets, payment)
-          : await this.createEvmTransferAmount(blockchain, assets, payment);
+      const transferAmount = await this.createTransferAmount(blockchain, assets, payment);
 
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
@@ -123,35 +120,20 @@ export class PaymentQuoteService implements OnModuleInit {
     return transferAmounts;
   }
 
-  private async createLightningTransferAmount(assets: Asset[], payment: PaymentLinkPayment): Promise<TransferAmount> {
-    const transferAmount: TransferAmount = {
-      method: Blockchain.LIGHTNING,
-      minFee: undefined,
-      assets: [],
-    };
-
-    for (const asset of assets) {
-      const transferAmountAsset = await this.getTransferAmountAsset(payment.currency, asset, payment.amount);
-      if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
-    }
-
-    return transferAmount;
-  }
-
-  private async createEvmTransferAmount(
+  private async createTransferAmount(
     blockchain: Blockchain,
     assets: Asset[],
     payment: PaymentLinkPayment,
   ): Promise<TransferAmount> {
-    const gasPrice = this.evmGasPriceService.getGasPrice(blockchain);
+    const minFee = await this.getMinFee(blockchain);
 
     const transferAmount: TransferAmount = {
       method: blockchain,
-      minFee: gasPrice,
+      minFee: minFee,
       assets: [],
     };
 
-    if (gasPrice) {
+    if (minFee != null) {
       for (const asset of assets) {
         const transferAmountAsset = await this.getTransferAmountAsset(payment.currency, asset, payment.amount);
         if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
@@ -159,6 +141,12 @@ export class PaymentQuoteService implements OnModuleInit {
     }
 
     return transferAmount;
+  }
+
+  private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
+    if (blockchain === Blockchain.LIGHTNING) return 0;
+
+    return this.evmGasPriceService.getGasPrice(blockchain);
   }
 
   private async createOrderedPaymentAssetMap(): Promise<Map<Blockchain, Asset[]>> {
