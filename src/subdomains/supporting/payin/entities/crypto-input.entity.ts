@@ -272,6 +272,10 @@ export class CryptoInput extends IEntity {
     return [this.id, update];
   }
 
+  sendingAmount(type: SendType): number {
+    return type === SendType.RETURN ? this.chargebackAmount : this.amount;
+  }
+
   get isLightningInput(): boolean {
     return this.asset.blockchain === Blockchain.LIGHTNING;
   }
