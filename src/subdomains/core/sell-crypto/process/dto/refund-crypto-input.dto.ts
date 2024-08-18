@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, ValidateNested } from 'class-validator';
+import { IsNumber, IsOptional, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 

@@ -13,6 +13,7 @@ import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/addres
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
+import { SendType } from '../strategies/send/impl/base/send.strategy';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -102,7 +103,7 @@ export class CryptoInput extends IEntity {
   isConfirmed: boolean;
 
   @Column({ nullable: true })
-  isForwardConfirmed: boolean;
+  isForwardApproved: boolean;
 
   @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
@@ -202,7 +203,7 @@ export class CryptoInput extends IEntity {
     this.status = PayInStatus.TO_RETURN;
     this.sendType = PayInSendType.RETURN;
     this.destinationAddress = returnAddress;
-    this.isForwardConfirmed = false;
+    this.isForwardApproved = false;
     this.chargebackAmount = chargebackAmount;
 
     return this;

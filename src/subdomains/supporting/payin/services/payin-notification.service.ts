@@ -34,7 +34,7 @@ export class PayInNotificationService {
         mailReturnSendDate: IsNull(),
         recipientMail: IsNull(),
         returnTxId: Not(IsNull()),
-        isForwardConfirmed: false,
+        isForwardApproved: false,
       },
       relations: ['route', 'route.user', 'route.user.userData'],
     });

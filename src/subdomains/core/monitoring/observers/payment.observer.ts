@@ -69,7 +69,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           list.map((i) => i.blockchains.split(';').map((b) => ({ blockchain: b, count: i.count }))).flat(),
         ),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
-        isForwardConfirmed: IsNull(),
+        isForwardApproved: IsNull(),
         status: Not(
           In([
             PayInStatus.FAILED,

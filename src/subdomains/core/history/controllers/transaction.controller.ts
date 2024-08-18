@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -259,18 +260,23 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      buyCrypto: { transaction: { user: { userData: true } } },
-      buyFiat: { transaction: { user: { userData: true } } },
+      buyCrypto: { transaction: { user: { userData: true } }, cryptoInput: true },
+      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: true },
     });
 
+    if (
+      !transaction ||
+      (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat))
+    )
+      throw new NotFoundException('Transaction not found');
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat))
-      throw new NotFoundException('Transaction not found');
+    if (!transaction.cryptoInput) throw new BadRequestException('You can only refund cryptoInput transaction');
 
-    transaction.targetEntity instanceof BuyFiat
-      ? await this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto)
-      : await this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto);
+    if (transaction.targetEntity instanceof BuyFiat)
+      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto);
+
+    return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto);
   }
 
   // --- HELPER METHODS --- //

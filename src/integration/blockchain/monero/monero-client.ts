@@ -184,7 +184,7 @@ export class MoneroClient {
   }
 
   async sendTransfer(destinationAddress: string, amount: number): Promise<MoneroTransferDto> {
-    return this.sendTransfers([{ addressTo: destinationAddress, amount: amount }]);
+    return this.sendTransfers([{ addressTo: destinationAddress, amount }]);
   }
 
   async sendTransfers(payout: PayoutGroup): Promise<MoneroTransferDto> {

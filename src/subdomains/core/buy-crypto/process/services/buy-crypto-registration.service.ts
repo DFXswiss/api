@@ -4,7 +4,7 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoService } from './buy-crypto.service';
@@ -73,7 +73,7 @@ export class BuyCryptoRegistrationService {
         if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
-          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+          if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
             continue;
           }

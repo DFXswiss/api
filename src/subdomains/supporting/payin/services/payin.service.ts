@@ -94,8 +94,8 @@ export class PayInService {
     await this.payInRepository.save(payIn);
   }
 
-  async updateForwardConfirmation(payInId: number, forwardConfirmation: boolean): Promise<void> {
-    await this.payInRepository.update(payInId, { isForwardConfirmed: forwardConfirmation });
+  async updateForwardConfirmation(payInId: number, forwardApproved: boolean): Promise<void> {
+    await this.payInRepository.update(payInId, { isForwardApproved: forwardApproved });
   }
 
   async returnPayIn(
@@ -105,7 +105,7 @@ export class PayInService {
     route: Staking | Sell | Swap,
     chargebackAmount: number,
   ): Promise<void> {
-    if (payIn.isForwardConfirmed) throw new BadRequestException('CryptoInput already forwarded');
+    if (payIn.isForwardApproved) throw new BadRequestException('CryptoInput already forwarded');
 
     payIn.triggerReturn(
       purpose,
@@ -173,7 +173,7 @@ export class PayInService {
       status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
       sendType: PayInSendType.FORWARD,
       outTxId: IsNull(),
-      isForwardConfirmed: true,
+      isForwardApproved: true,
       asset: Not(IsNull()),
     });
 
@@ -196,7 +196,7 @@ export class PayInService {
       status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
       sendType: PayInSendType.RETURN,
       returnTxId: IsNull(),
-      isForwardConfirmed: false,
+      isForwardApproved: false,
       asset: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
     });

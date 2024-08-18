@@ -332,16 +332,15 @@ export class BuyCryptoService {
       relations: { checkoutTx: true, cryptoInput: true },
     });
 
-    if (!buyCrypto.checkoutTx && !buyCrypto.cryptoInput)
-      throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
+    if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
+    if (buyCrypto.cryptoInput)
+      return this.refundCryptoInput(
+        buyCrypto,
+        { refundUserId: dto.refundUser.id, refundAddress: buyCrypto.chargebackIban },
+        dto.chargebackAmount,
+      );
 
-    buyCrypto.checkoutTx
-      ? await this.refundCheckoutTx(buyCrypto)
-      : await this.refundCryptoInput(
-          buyCrypto,
-          { refundUserId: dto.refundUser.id, refundAddress: buyCrypto.chargebackIban },
-          dto.chargebackAmount,
-        );
+    throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
   }
 
   async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -85,7 +85,7 @@ export class BuyFiatRegistrationService {
         if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
-          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+          if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
             continue;
           }

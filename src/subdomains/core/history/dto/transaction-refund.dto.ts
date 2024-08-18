@@ -1,17 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, ValidateIf, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
 
 export class TransactionRefundDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((b: TransactionRefundDto) => Boolean(b.refundUserId || !b.refundAddress))
+  @IsNotEmpty()
   @IsInt()
-  @ValidateNested()
-  @Type(() => EntityDto)
   refundUserId?: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((b: TransactionRefundDto) => Boolean(b.refundAddress || !b.refundUserId))
   @IsNotEmpty()
   @IsString()
