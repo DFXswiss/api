@@ -1,9 +1,9 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
-import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
+import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 
 @Entity()
 export class LiquidityManagementPipeline extends IEntity {
@@ -61,7 +61,7 @@ export class LiquidityManagementPipeline extends IEntity {
     this.previousAction = Object.assign(new LiquidityManagementAction(), this.currentAction);
     this.ordersProcessed++;
 
-    if (this.ordersProcessed >= 50) {
+    if (this.ordersProcessed >= 10) {
       this.currentAction = null;
       this.status = LiquidityManagementPipelineStatus.STOPPED;
 

@@ -121,3 +121,15 @@ export class PaymentLinkController {
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
   }
 }
+
+@ApiTags('Payment Link')
+@Controller()
+export class PaymentLinkShortController {
+  constructor(private readonly paymentLinkController: PaymentLinkController) {}
+
+  @Get('plp')
+  @ApiExcludeEndpoint()
+  async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
+    return this.paymentLinkController.createInvoicePayment(dto);
+  }
+}

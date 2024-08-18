@@ -81,6 +81,11 @@ export class UserKycDto {
   dataComplete: boolean;
 }
 
+export class UserPaymentLinkDto {
+  @ApiProperty()
+  active: boolean;
+}
+
 export class UserV2Dto {
   @ApiProperty({ description: 'Unique account id' })
   accountId: number;
@@ -114,4 +119,7 @@ export class UserV2Dto {
 
   @ApiPropertyOptional({ type: UserAddressDto })
   activeAddress?: UserAddressDto;
+
+  @ApiProperty({ type: UserPaymentLinkDto })
+  paymentLink: UserPaymentLinkDto;
 }
