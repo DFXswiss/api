@@ -32,6 +32,7 @@ export interface PaymentLinkPayRequestDto {
   maxSendable: number;
   metadata: string;
   displayName: string;
+  recipient: PaymentLinkRecipientDto;
   quote: {
     id: string;
     expiration: Date;
@@ -44,6 +45,40 @@ export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;
   uri: string;
+}
+
+export class PaymentLinkRecipientAddressDto {
+  @ApiPropertyOptional()
+  street?: string;
+
+  @ApiPropertyOptional()
+  houseNumber?: string;
+
+  @ApiPropertyOptional()
+  zip?: string;
+
+  @ApiPropertyOptional()
+  city?: string;
+
+  @ApiPropertyOptional()
+  country?: string;
+}
+
+export class PaymentLinkRecipientDto {
+  @ApiPropertyOptional()
+  name?: string;
+
+  @ApiPropertyOptional({ type: PaymentLinkRecipientAddressDto })
+  address?: PaymentLinkRecipientAddressDto;
+
+  @ApiPropertyOptional()
+  phone?: string;
+
+  @ApiPropertyOptional()
+  mail?: string;
+
+  @ApiPropertyOptional()
+  website?: string;
 }
 
 export class PaymentLinkPaymentDto {
@@ -83,10 +118,10 @@ export class PaymentLinkDto {
   routeId: number;
 
   @ApiPropertyOptional()
-  externalId: string;
+  externalId?: string;
 
   @ApiPropertyOptional()
-  webhookUrl: string;
+  webhookUrl?: string;
 
   @ApiProperty({ enum: PaymentLinkStatus })
   status: PaymentLinkStatus;
@@ -98,5 +133,8 @@ export class PaymentLinkDto {
   lnurl: string;
 
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto })
-  payment: PaymentLinkPaymentDto;
+  payment?: PaymentLinkPaymentDto;
+
+  @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
+  recipient?: PaymentLinkRecipientDto;
 }

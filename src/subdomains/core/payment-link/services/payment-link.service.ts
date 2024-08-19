@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -20,6 +21,7 @@ export class PaymentLinkService {
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly countryService: CountryService,
     private readonly sellService: SellService,
     private readonly fiatService: FiatService,
   ) {}
@@ -65,7 +67,8 @@ export class PaymentLinkService {
       if (exists) throw new ConflictException('Payment link already exists');
     }
 
-    return this.createForRoute(route, dto.externalId, dto.webhookUrl, dto.payment);
+    const newPaymentLink = await this.createForRoute(route, dto);
+    return this.getOrThrow(userId, newPaymentLink.id);
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
@@ -95,31 +98,38 @@ export class PaymentLinkService {
 
     const route = await this.sellService.getById(+dto.routeId);
 
-    return this.createForRoute(route, dto.externalId, null, payment);
+    return this.createForRoute(route, { externalId: dto.externalId, payment });
   }
 
-  private async createForRoute(
-    route: Sell,
-    externalId?: string,
-    webhookUrl?: string,
-    payment?: CreatePaymentLinkPaymentDto,
-  ): Promise<PaymentLink> {
+  private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
 
+    const country = dto.country ? await this.countryService.getCountryWithSymbol(dto.country) : undefined;
+
     const paymentLink = this.paymentLinkRepo.create({
       route,
-      externalId,
+      externalId: dto.externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
-      webhookUrl,
+      webhookUrl: dto.webhookUrl,
+      name: dto.name,
+      street: dto.street,
+      houseNumber: dto.houseNumber,
+      zip: dto.zip,
+      city: dto.city,
+      country: country,
+      phone: dto.phone,
+      mail: dto.mail,
+      website: dto.website,
       payments: [],
     });
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    payment && paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, payment));
+    dto.payment &&
+      paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
   }
@@ -132,16 +142,12 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
-    if (dto.status) paymentLink.status = dto.status;
-    if (dto.webhookUrl) paymentLink.webhookUrl = dto.webhookUrl;
-    if (dto.webhookUrl === null || dto.webhookUrl === '') paymentLink.webhookUrl = null;
+    const updatePaymentLink = <PaymentLink>Object.assign(new PaymentLink(), dto);
+    if (dto.country) updatePaymentLink.country = await this.countryService.getCountryWithSymbol(dto.country);
 
-    await this.paymentLinkRepo.update(paymentLink.id, {
-      status: paymentLink.status,
-      webhookUrl: paymentLink.webhookUrl,
-    });
+    await this.paymentLinkRepo.update(paymentLink.id, updatePaymentLink);
 
-    return paymentLink;
+    return Object.assign(paymentLink, updatePaymentLink);
   }
 
   // --- PAYMENTS --- //

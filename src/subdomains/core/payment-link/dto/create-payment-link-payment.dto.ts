@@ -28,7 +28,7 @@ export class CreatePaymentLinkPaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  externalId: string;
+  externalId?: string;
 
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
@@ -40,5 +40,50 @@ export class CreatePaymentLinkPaymentDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  expiryDate: Date;
+  expiryDate?: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  street?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  houseNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  zip?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  mail?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  website?: string;
 }

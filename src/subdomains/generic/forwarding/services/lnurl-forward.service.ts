@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmPaymentDto,
   PaymentLinkPayRequestDto,
@@ -62,6 +63,7 @@ export class LnUrlForwardService {
       maxSendable: msatTransferAmount,
       metadata: LightningHelper.createLnurlMetadata(pendingPayment.displayName),
       displayName: pendingPayment.displayName,
+      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
