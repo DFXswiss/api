@@ -150,10 +150,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const targetExchange = this.exchangeRegistry.get(target);
 
-    let requiredAmount = order.amount * 1.01; // small cap for price changes
+    let requiredAmount = order.amount;
     if (token !== targetAsset) {
       const price = await targetExchange.getPrice(token, targetAsset);
-      requiredAmount = price.invert().convert(requiredAmount);
+      requiredAmount = price.invert().convert(requiredAmount) * 1.01; // small cap for price changes;
 
       const balance = await targetExchange.getBalance(token);
       requiredAmount -= balance;

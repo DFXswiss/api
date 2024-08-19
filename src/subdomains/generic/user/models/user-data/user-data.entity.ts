@@ -317,6 +317,9 @@ export class UserData extends IEntity {
   @Column({ default: false })
   paymentLinksAllowed: boolean;
 
+  @Column({ length: 256, nullable: true })
+  paymentLinksName: string;
+
   // References
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()

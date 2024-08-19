@@ -214,7 +214,7 @@ export class BuyFiatPreparationService {
         const referencePrice = Price.create(
           inputCurrency.name,
           outputReferenceCurrency.name,
-          entity.inputReferenceAmount / entity.outputReferenceAmount,
+          entity.inputReferenceAmount / outputReferenceAmount,
         );
 
         const priceStep = PriceStep.create(
