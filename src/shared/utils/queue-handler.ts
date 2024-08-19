@@ -72,9 +72,8 @@ export class QueueHandler {
     while (this.isRunning) {
       try {
         if (this.queue.length > 0) {
-          this.workParallel
-            ? void this.queue.shift().doWork(this.itemTimeout)
-            : await this.queue.shift().doWork(this.itemTimeout);
+          const work = this.queue.shift().doWork(this.itemTimeout);
+          if (!this.workParallel) await work;
         } else {
           await Util.delay(10);
         }
