@@ -25,6 +25,7 @@ export class BuyCryptoJobService {
   async checkCryptoPayIn() {
     if (DisabledProcess(Process.BUY_CRYPTO)) return;
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
+    await this.buyCryptoRegistrationService.syncReturnTxId();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)

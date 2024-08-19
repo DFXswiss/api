@@ -21,6 +21,21 @@ export class BuyCryptoRegistrationService {
     private readonly transactionHelper: TransactionHelper,
   ) {}
 
+  async syncReturnTxId(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: { cryptoInput: { returnTxId: Not(IsNull()) }, chargebackCryptoTxId: IsNull() },
+      relations: { cryptoInput: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyCryptoRepo.update(entity.id, { chargebackCryptoTxId: entity.cryptoInput.returnTxId });
+      } catch (e) {
+        this.logger.error(`Error during buyCrypto payIn returnTxId sync (${entity.id}):`, e);
+      }
+    }
+  }
+
   async registerCryptoPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
 

@@ -3,6 +3,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { IsNull, Not } from 'typeorm';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -24,6 +25,21 @@ export class BuyFiatRegistrationService {
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
   ) {}
+
+  async syncReturnTxId(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: { cryptoInput: { returnTxId: Not(IsNull()) }, chargebackTxId: IsNull() },
+      relations: { cryptoInput: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyFiatRepo.update(entity.id, { chargebackTxId: entity.cryptoInput.returnTxId });
+      } catch (e) {
+        this.logger.error(`Error during buyFiat payIn returnTxId sync (${entity.id}):`, e);
+      }
+    }
+  }
 
   async registerSellPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();

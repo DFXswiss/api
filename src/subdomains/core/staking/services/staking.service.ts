@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { CryptoStaking } from '../entities/crypto-staking.entity';
 import { StakingRefReward } from '../entities/staking-ref-reward.entity';
@@ -7,13 +6,6 @@ import { PayoutType, StakingReward } from '../entities/staking-reward.entity';
 import { CryptoStakingRepository } from '../repositories/crypto-staking.repository';
 import { StakingRefRewardRepository } from '../repositories/staking-ref-reward.repository';
 import { StakingRewardRepository } from '../repositories/staking-reward.repository';
-import { StakingRepository } from '../repositories/staking.repository';
-
-interface RouteIdentifier {
-  id: number;
-  address: string;
-  blockchains: string;
-}
 
 @Injectable()
 export class StakingService {
@@ -21,8 +13,6 @@ export class StakingService {
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
-    private readonly stakingRepository: StakingRepository,
-    private readonly payInService: PayInService,
   ) {}
 
   // --- HISTORY METHODS --- //
