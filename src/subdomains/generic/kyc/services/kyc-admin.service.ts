@@ -9,7 +9,7 @@ import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycService } from './kyc.service';
 
@@ -60,6 +60,10 @@ export class KycAdminService {
       if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
         await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
     }
+  }
+
+  async triggerVideoIdentInternal(userData: UserData): Promise<void> {
+    await this.kycService.initiateStep(userData, KycStepName.IDENT, KycStepType.VIDEO);
   }
 
   async triggerWebhook(dto: KycWebhookTriggerDto): Promise<void> {

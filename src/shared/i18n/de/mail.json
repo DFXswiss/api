@@ -74,7 +74,8 @@
                 "chf_abroad_tx": "CHF kann nicht auf ausländische IBAN ausgezahlt werden",
                 "asset_kyc_needed": "Für das eingezahlte Asset wird KYC benötigt",
                 "card_name_mismatch": "Der angegebene Kreditkartenname stimmt nicht mit dem Namen des Inhabers des DFX Kontos überein",
-                "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen"
+                "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
+                "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
         },
@@ -147,6 +148,15 @@
                 "salutation": "Verifizierung (KYC) ist erforderlich, um deine ausstehende Transaktion auszuführen",
                 "line1": "Lieber Kunde, vielen Dank für dein Vertrauen in DFX.",
                 "line2": "Leider brauchen wir für das von dir eingezahlte Asset eine Verifizierung (KYC) von dir.",
+                "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Assets vollautomatisch nach 2 Tagen retourniert."
+            },
+            "video_ident_needed": {
+                "title": "Video-Verifizierung (KYC) erforderlich",
+                "salutation": "Video-Verifizierung (KYC) ist erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Lieber Kunde, vielen Dank für dein Vertrauen in DFX.",
+                "line2": "Leider brauchen wir für deine Transaktion eine Video-Verifizierung (KYC) von dir.",
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Assets vollautomatisch nach 2 Tagen retourniert."
