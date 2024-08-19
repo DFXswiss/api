@@ -1,23 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
-
-export enum PaymentLinkStatus {
-  ACTIVE = 'Active',
-  INACTIVE = 'Inactive',
-}
-
-export enum PaymentLinkPaymentStatus {
-  PENDING = 'Pending',
-  COMPLETED = 'Completed',
-  CANCELLED = 'Cancelled',
-  EXPIRED = 'Expired',
-}
-
-export enum PaymentLinkPaymentMode {
-  SINGLE = 'Single',
-  MULTIPLE = 'Multiple',
-}
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 
 export type TransferMethod = Blockchain;
 
@@ -25,7 +9,21 @@ export interface TransferInfo {
   asset: string;
   amount: number;
   method: TransferMethod;
+  quoteUniqueId: string;
 }
+
+export interface TransferAmount {
+  method: TransferMethod;
+  minFee: number;
+  assets: TransferAmountAsset[];
+}
+
+export interface TransferAmountAsset {
+  asset: string;
+  amount: number;
+}
+
+export type RequestedAmountAsset = TransferAmountAsset;
 
 export interface PaymentLinkPayRequestDto {
   tag: string;
@@ -33,7 +31,13 @@ export interface PaymentLinkPayRequestDto {
   minSendable: number;
   maxSendable: number;
   metadata: string;
-  transferAmounts: TransferInfo[];
+  displayName: string;
+  quote: {
+    id: string;
+    expiration: Date;
+  };
+  requestedAmount: RequestedAmountAsset;
+  transferAmounts: TransferAmount[];
 }
 
 export interface PaymentLinkEvmPaymentDto {
@@ -80,6 +84,9 @@ export class PaymentLinkDto {
 
   @ApiPropertyOptional()
   externalId: string;
+
+  @ApiPropertyOptional()
+  webhookUrl: string;
 
   @ApiProperty({ enum: PaymentLinkStatus })
   status: PaymentLinkStatus;

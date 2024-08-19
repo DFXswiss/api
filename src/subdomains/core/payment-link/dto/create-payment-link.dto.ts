@@ -14,6 +14,11 @@ export class CreatePaymentLinkDto {
   @IsString()
   externalId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
+
   @ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })
   @IsOptional()
   @Type()

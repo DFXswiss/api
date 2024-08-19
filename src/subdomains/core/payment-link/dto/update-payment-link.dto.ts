@@ -1,10 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty } from 'class-validator';
-import { PaymentLinkStatus } from './payment-link.dto';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { PaymentLinkStatus } from '../enums';
 
 export class UpdatePaymentLinkDto {
-  @ApiProperty({ enum: PaymentLinkStatus })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ enum: PaymentLinkStatus })
+  @IsOptional()
   @IsEnum(PaymentLinkStatus)
-  status: PaymentLinkStatus;
+  status?: PaymentLinkStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
 }
