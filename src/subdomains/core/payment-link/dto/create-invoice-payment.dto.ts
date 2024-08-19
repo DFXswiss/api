@@ -36,16 +36,14 @@ export class CreateInvoicePaymentDto {
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.amount || b.a))
   a: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.currency || !b.c))
-  currency: string;
+  currency?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.currency || b.c))
-  c: string;
+  c?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

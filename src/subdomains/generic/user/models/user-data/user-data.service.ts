@@ -536,7 +536,7 @@ export class UserDataService {
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
-      slave.kycSteps && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
+      slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
     ]

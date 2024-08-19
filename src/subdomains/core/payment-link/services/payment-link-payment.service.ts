@@ -125,7 +125,7 @@ export class PaymentLinkPaymentService {
       if (exists) throw new ConflictException('Payment already exists');
     }
 
-    const currency = await this.fiatService.getFiat(dto.currency.id);
+    const currency = dto.currency ? await this.fiatService.getFiat(dto.currency.id) : paymentLink.route.fiat;
     if (!currency) throw new NotFoundException('Currency not found');
 
     return this.save(dto, currency, paymentLink);

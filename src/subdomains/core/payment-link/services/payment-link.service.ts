@@ -89,7 +89,7 @@ export class PaymentLinkService {
       mode: PaymentLinkPaymentMode.SINGLE,
       amount: +dto.amount,
       externalId: dto.externalId,
-      currency: await this.fiatService.getFiatByName(dto.currency),
+      currency: dto.currency && (await this.fiatService.getFiatByName(dto.currency)),
       expiryDate: dto.expiryDate,
     };
 
