@@ -1,8 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
-import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { CryptoStaking } from '../entities/crypto-staking.entity';
@@ -28,15 +24,6 @@ export class StakingService {
     private readonly stakingRepository: StakingRepository,
     private readonly payInService: PayInService,
   ) {}
-
-  // --- JOBS --- //
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async checkCryptoPayIn() {
-    if (DisabledProcess(Process.STAKING)) return;
-    await this.returnStakingPayIn();
-  }
 
   // --- HISTORY METHODS --- //
 
@@ -93,55 +80,5 @@ export class StakingService {
           entry.payoutType !== PayoutType.REINVEST,
       ),
     };
-  }
-
-  // --- RETURN STAKING METHODS --- //
-
-  async returnStakingPayIn(): Promise<void> {
-    const newPayIns = await this.payInService.getNewPayIns();
-
-    if (newPayIns.length === 0) return;
-
-    const stakingPayIns = await this.filterStakingPayIns(newPayIns);
-    await this.returnPayIns(stakingPayIns);
-  }
-
-  // --- HELPER METHODS --- //
-
-  private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, RouteIdentifier][]> {
-    const routes = await this.stakingRepository
-      .createQueryBuilder('staking')
-      .innerJoin('staking.deposit', 'deposit')
-      .select('staking.id', 'id')
-      .addSelect('deposit.address', 'address')
-      .addSelect('deposit.blockchains', 'blockchains')
-      .getRawMany<RouteIdentifier>();
-
-    return this.pairRoutesWithPayIns(routes, allPayIns);
-  }
-
-  private pairRoutesWithPayIns(routes: RouteIdentifier[], allPayIns: CryptoInput[]): [CryptoInput, RouteIdentifier][] {
-    const result = [];
-
-    for (const staking of routes) {
-      const relevantPayIn = allPayIns.find(
-        (p) => p.address.address === staking.address && staking.blockchains.includes(p.address.blockchain),
-      );
-
-      relevantPayIn && result.push([relevantPayIn, staking]);
-    }
-
-    return result;
-  }
-
-  private async returnPayIns(payInsPairs: [CryptoInput, RouteIdentifier][]): Promise<void> {
-    for (const [payIn, stakingIdentifier] of payInsPairs) {
-      const staking = await this.stakingRepository.findOne({
-        where: { id: stakingIdentifier.id },
-        relations: { user: { userData: true } },
-      });
-
-      await this.payInService.returnPayIn(payIn, PayInPurpose.STAKING, staking.user.address, staking, payIn.amount);
-    }
   }
 }

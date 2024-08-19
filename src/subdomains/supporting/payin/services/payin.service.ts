@@ -6,6 +6,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -14,7 +15,7 @@ import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/d
 import { In, IsNull, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus, PayInType } from '../entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
@@ -94,31 +95,24 @@ export class PayInService {
     await this.payInRepository.save(payIn);
   }
 
-  async updateForwardConfirmation(payInId: number, forwardApproved: boolean): Promise<void> {
-    await this.payInRepository.update(payInId, { isForwardApproved: forwardApproved });
+  async updatePayInAction(payInId: number, amlCheck: CheckStatus): Promise<void> {
+    if (![CheckStatus.FAIL, CheckStatus.PASS].includes(amlCheck)) return;
+
+    await this.payInRepository.update(payInId, {
+      action: amlCheck === CheckStatus.PASS ? PayInAction.FORWARD : PayInAction.WAITING,
+    });
   }
 
-  async returnPayIn(
-    payIn: CryptoInput,
-    purpose: PayInPurpose,
-    returnAddress: string,
-    route: Staking | Sell | Swap,
-    chargebackAmount: number,
-  ): Promise<void> {
-    if (payIn.isForwardApproved) throw new BadRequestException('CryptoInput already forwarded');
+  async returnPayIn(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
+    if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
 
-    payIn.triggerReturn(
-      purpose,
-      BlockchainAddress.create(returnAddress, payIn.asset.blockchain),
-      route,
-      chargebackAmount,
-    );
+    payIn.triggerReturn(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
 
     // Remove that?
     if (payIn.transaction)
       await this.transactionService.update(payIn.transaction.id, {
         type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
-        user: route.user,
+        user: payIn.route.user,
       });
 
     await this.payInRepository.save(payIn);
@@ -171,9 +165,8 @@ export class PayInService {
   private async forwardPayIns(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-      sendType: PayInSendType.FORWARD,
+      action: PayInAction.FORWARD,
       outTxId: IsNull(),
-      isForwardApproved: true,
       asset: Not(IsNull()),
     });
 
@@ -194,9 +187,8 @@ export class PayInService {
   private async returnPayIns(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-      sendType: PayInSendType.RETURN,
+      action: PayInAction.RETURN,
       returnTxId: IsNull(),
-      isForwardApproved: false,
       asset: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
     });

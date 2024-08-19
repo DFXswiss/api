@@ -13,6 +13,7 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
+import { PayInAction } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 
 @Injectable()
@@ -34,9 +35,9 @@ export class PayInNotificationService {
         mailReturnSendDate: IsNull(),
         recipientMail: IsNull(),
         returnTxId: Not(IsNull()),
-        isForwardApproved: false,
+        action: PayInAction.RETURN,
       },
-      relations: ['route', 'route.user', 'route.user.userData'],
+      relations: { route: { user: { userData: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);

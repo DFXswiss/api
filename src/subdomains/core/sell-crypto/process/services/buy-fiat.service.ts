@@ -17,7 +17,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -173,8 +173,7 @@ export class BuyFiatService {
     };
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
-    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(dto.amlCheck))
-      await this.payInService.updateForwardConfirmation(entity.cryptoInput.id, entity.amlCheck === CheckStatus.PASS);
+    if (dto.amlCheck) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
@@ -273,9 +272,7 @@ export class BuyFiatService {
     if (chargebackAmount)
       await this.payInService.returnPayIn(
         buyFiat.cryptoInput,
-        PayInPurpose.BUY_FIAT,
         refundUser.address ?? buyFiat.chargebackAddress,
-        buyFiat.sell,
         chargebackAmount,
       );
 

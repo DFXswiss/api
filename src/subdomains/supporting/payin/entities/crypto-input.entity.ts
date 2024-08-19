@@ -13,7 +13,6 @@ import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/addres
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
-import { SendType } from '../strategies/send/impl/base/send.strategy';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -21,8 +20,9 @@ export enum PayInPurpose {
   BUY_CRYPTO = 'BuyCrypto',
 }
 
-export enum PayInSendType {
+export enum PayInAction {
   FORWARD = 'Forward',
+  WAITING = 'Waiting',
   RETURN = 'Return',
 }
 
@@ -76,7 +76,7 @@ export class CryptoInput extends IEntity {
   txType: PayInType;
 
   @Column({ nullable: true })
-  sendType: string;
+  action: PayInAction;
 
   @Column(() => BlockchainAddress)
   address: BlockchainAddress;
@@ -101,9 +101,6 @@ export class CryptoInput extends IEntity {
 
   @Column({ default: false })
   isConfirmed: boolean;
-
-  @Column({ nullable: true })
-  isForwardApproved: boolean;
 
   @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
@@ -171,7 +168,6 @@ export class CryptoInput extends IEntity {
   acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;
-    this.sendType = PayInSendType.FORWARD;
     this.status = PayInStatus.ACKNOWLEDGED;
 
     return this;
@@ -192,18 +188,10 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  triggerReturn(
-    purpose: PayInPurpose,
-    returnAddress: BlockchainAddress,
-    route: DepositRouteType,
-    chargebackAmount: number,
-  ): this {
-    this.purpose = purpose;
-    this.route = route;
+  triggerReturn(returnAddress: BlockchainAddress, chargebackAmount: number): this {
     this.status = PayInStatus.TO_RETURN;
-    this.sendType = PayInSendType.RETURN;
+    this.action = PayInAction.RETURN;
     this.destinationAddress = returnAddress;
-    this.isForwardApproved = false;
     this.chargebackAmount = chargebackAmount;
 
     return this;
@@ -237,7 +225,7 @@ export class CryptoInput extends IEntity {
 
   completed() {
     this.status = PayInStatus.COMPLETED;
-    this.sendType = null;
+    this.action = null;
 
     return this;
   }
@@ -272,8 +260,8 @@ export class CryptoInput extends IEntity {
     return [this.id, update];
   }
 
-  sendingAmount(type: SendType): number {
-    return type === SendType.RETURN ? this.chargebackAmount : this.amount;
+  get sendingAmount(): number {
+    return this.action === PayInAction.RETURN ? this.chargebackAmount : this.amount;
   }
 
   get isLightningInput(): boolean {

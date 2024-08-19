@@ -12,7 +12,6 @@ const defaultCryptoInput: Partial<CryptoInput> = {
   asset: createDefaultAsset(),
   route: createDefaultSell(),
   isConfirmed: false,
-  isForwardApproved: true,
 };
 
 export function createDefaultCryptoInput(): CryptoInput {

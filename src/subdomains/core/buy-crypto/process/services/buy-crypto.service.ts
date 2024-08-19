@@ -31,7 +31,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
-import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -298,8 +298,8 @@ export class BuyCryptoService {
       }),
     );
 
-    if (entity.cryptoInput && [CheckStatus.PASS, CheckStatus.FAIL].includes(dto.amlCheck))
-      await this.payInService.updateForwardConfirmation(entity.cryptoInput.id, entity.amlCheck === CheckStatus.PASS);
+    if (entity.cryptoInput && dto.amlCheck)
+      await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
@@ -388,9 +388,7 @@ export class BuyCryptoService {
     if (chargebackAmount)
       await this.payInService.returnPayIn(
         buyCrypto.cryptoInput,
-        PayInPurpose.BUY_CRYPTO,
         refundUser.address ?? buyCrypto.chargebackIban,
-        buyCrypto.cryptoRoute,
         chargebackAmount,
       );
 
