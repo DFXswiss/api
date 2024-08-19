@@ -1,15 +1,11 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { TransferMethod } from '../dto/payment-link.dto';
 import { PaymentActivationStatus } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 @Entity()
-@Index((activation: PaymentActivation) => [activation.method, activation.asset, activation.amount], {
-  unique: true,
-  where: `status = '${PaymentActivationStatus.PENDING}'`,
-})
 export class PaymentActivation extends IEntity {
   @Column()
   status: PaymentActivationStatus;

@@ -1,12 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-  OnModuleInit,
-} from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -134,10 +126,11 @@ export class PaymentActivationService implements OnModuleInit {
 
     let activation = await this.getExistingActivation(transferInfo);
 
-    if (activation && activation.payment.id !== pendingPayment.id)
-      throw new ConflictException('Duplicate payment request');
+    // TODO: reactivate unique check for sub-standard
+    // if (activation && activation.payment.id !== pendingPayment.id)
+    // throw new ConflictException('Duplicate payment request');
 
-    if (!activation)
+    if (!activation || activation.payment.id !== pendingPayment.id)
       activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
 
     return PaymentRequestMapper.toPaymentRequest(activation);
