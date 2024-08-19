@@ -10,6 +10,7 @@ export class PaymentLinkDtoMapper {
       id: paymentLink.id,
       routeId: paymentLink.route.id,
       externalId: paymentLink.externalId,
+      webhookUrl: paymentLink.webhookUrl ?? undefined,
       status: paymentLink.status,
       payment: PaymentLinkDtoMapper.toPaymentDto(paymentLink.payments?.[0]),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),

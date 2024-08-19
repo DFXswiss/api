@@ -13,6 +13,7 @@ import { PaymentQuoteRepository } from './repositories/payment-quote.repository'
 import { PaymentActivationService } from './services/payment-activation.service';
 import { PaymentLinkPaymentService } from './services/payment-link-payment.service';
 import { PaymentQuoteService } from './services/payment-quote.service';
+import { PaymentWebhookService } from './services/payment-webhook.service';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PaymentQuoteService } from './services/payment-quote.service';
     PaymentLinkPaymentService,
     PaymentQuoteService,
     PaymentActivationService,
+    PaymentWebhookService,
   ],
   exports: [PaymentLinkPaymentService, PaymentQuoteService, PaymentActivationService],
 })

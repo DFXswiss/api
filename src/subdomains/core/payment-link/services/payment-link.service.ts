@@ -65,7 +65,7 @@ export class PaymentLinkService {
       if (exists) throw new ConflictException('Payment link already exists');
     }
 
-    return this.createForRoute(route, dto.externalId, dto.payment);
+    return this.createForRoute(route, dto.externalId, dto.webhookUrl, dto.payment);
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
@@ -95,12 +95,13 @@ export class PaymentLinkService {
 
     const route = await this.sellService.getById(+dto.routeId);
 
-    return this.createForRoute(route, dto.externalId, payment);
+    return this.createForRoute(route, dto.externalId, null, payment);
   }
 
   private async createForRoute(
     route: Sell,
     externalId?: string,
+    webhookUrl?: string,
     payment?: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLink> {
     if (!route) throw new NotFoundException('Route not found');
@@ -112,6 +113,7 @@ export class PaymentLinkService {
       externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
+      webhookUrl,
       payments: [],
     });
 
@@ -130,8 +132,14 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
-    paymentLink.status = dto.status;
-    await this.paymentLinkRepo.update(paymentLink.id, { status: paymentLink.status });
+    if (dto.status) paymentLink.status = dto.status;
+    if (dto.webhookUrl) paymentLink.webhookUrl = dto.webhookUrl;
+    if (dto.webhookUrl === null || dto.webhookUrl === '') paymentLink.webhookUrl = null;
+
+    await this.paymentLinkRepo.update(paymentLink.id, {
+      status: paymentLink.status,
+      webhookUrl: paymentLink.webhookUrl,
+    });
 
     return paymentLink;
   }
