@@ -2,14 +2,10 @@ import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import {
-  PaymentLinkPaymentMode,
-  PaymentLinkPaymentStatus,
-  TransferInfo,
-  TransferMethod,
-} from '../dto/payment-link.dto';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../enums';
 import { PaymentActivation } from './payment-activation.entity';
 import { PaymentLink } from './payment-link.entity';
+import { PaymentQuote } from './payment-quote.entity';
 
 @Entity()
 export class PaymentLinkPayment extends IEntity {
@@ -38,14 +34,14 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ type: 'datetime2', nullable: false })
   expiryDate: Date;
 
-  @Column({ length: 'MAX' })
-  transferAmounts: string;
-
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
   cryptoInput: CryptoInput;
 
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
+
+  @OneToMany(() => PaymentQuote, (quote) => quote.payment, { nullable: true })
+  quotes: PaymentQuote[];
 
   // --- ENTITY METHODS --- //
 
@@ -67,19 +63,11 @@ export class PaymentLinkPayment extends IEntity {
     return this;
   }
 
-  get transferInfo(): TransferInfo[] {
-    return JSON.parse(this.transferAmounts);
-  }
-
-  getTransferInfoFor(method: TransferMethod, asset: string): TransferInfo | undefined {
-    return this.transferInfo.find((i) => i.method === method && i.asset === asset);
-  }
-
   get metaId(): string {
     return this.externalId ?? `${this.id}`;
   }
 
-  get requestMemo(): string {
+  get displayName(): string {
     return this.link.route.userData.verifiedName ?? `Payment ${this.metaId} to ${this.link.metaId}`;
   }
 }
