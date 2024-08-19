@@ -1,6 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsOptional, IsString, IsUrl } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { PaymentLinkStatus } from '../enums';
+import { PaymentLinkRecipientDto } from './payment-link.dto';
 
 export class UpdatePaymentLinkDto {
   @ApiPropertyOptional({ enum: PaymentLinkStatus })
@@ -13,48 +15,9 @@ export class UpdatePaymentLinkDto {
   @IsString()
   webhookUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   @IsOptional()
-  @IsString()
-  name?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  street?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  houseNumber?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  zip?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  city?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  country?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsEmail()
-  mail?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUrl()
-  website?: string;
+  @Type()
+  @ValidateNested()
+  recipient?: PaymentLinkRecipientDto;
 }

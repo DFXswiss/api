@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEmail, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
@@ -49,35 +51,56 @@ export interface PaymentLinkEvmPaymentDto {
 
 export class PaymentLinkRecipientAddressDto {
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   street?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   houseNumber?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   zip?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   city?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   country?: string;
 }
 
 export class PaymentLinkRecipientDto {
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   name?: string;
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientAddressDto })
+  @IsOptional()
+  @Type()
+  @ValidateNested()
   address?: PaymentLinkRecipientAddressDto;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
   mail?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl()
   website?: string;
 }
 

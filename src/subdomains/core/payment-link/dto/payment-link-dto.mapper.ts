@@ -1,5 +1,6 @@
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkDto, PaymentLinkPaymentDto, PaymentLinkRecipientDto } from './payment-link.dto';
@@ -62,7 +63,7 @@ export class PaymentLinkDtoMapper {
 
     if (userData) {
       return {
-        name: `${userData.firstname} ${userData.surname}`,
+        name: PaymentLinkDtoMapper.toName(userData),
         address: {
           street: userData.street,
           houseNumber: userData.houseNumber,
@@ -75,5 +76,11 @@ export class PaymentLinkDtoMapper {
         website: null,
       };
     }
+  }
+
+  private static toName(userData: UserData): string | undefined {
+    if (userData.firstname && userData.surname) return `${userData.firstname} ${userData.surname}`;
+    if (userData.firstname) return userData.firstname;
+    if (userData.surname) return userData.surname;
   }
 }

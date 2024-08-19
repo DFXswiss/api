@@ -1,7 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEmail, IsInt, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
+import { IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CreatePaymentLinkPaymentDto } from './create-payment-link-payment.dto';
+import { PaymentLinkRecipientDto } from './payment-link.dto';
 
 export class CreatePaymentLinkDto {
   @ApiPropertyOptional()
@@ -19,50 +20,11 @@ export class CreatePaymentLinkDto {
   @IsString()
   webhookUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   @IsOptional()
-  @IsString()
-  name?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  street?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  houseNumber?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  zip?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  city?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  country?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsEmail()
-  mail?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUrl()
-  website?: string;
+  @Type()
+  @ValidateNested()
+  recipient?: PaymentLinkRecipientDto;
 
   @ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })
   @IsOptional()

@@ -106,7 +106,9 @@ export class PaymentLinkService {
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
 
-    const country = dto.country ? await this.countryService.getCountryWithSymbol(dto.country) : undefined;
+    const country = dto.recipient?.address?.country
+      ? await this.countryService.getCountryWithSymbol(dto.recipient?.address?.country)
+      : undefined;
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
@@ -114,15 +116,15 @@ export class PaymentLinkService {
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
       webhookUrl: dto.webhookUrl,
-      name: dto.name,
-      street: dto.street,
-      houseNumber: dto.houseNumber,
-      zip: dto.zip,
-      city: dto.city,
+      name: dto.recipient?.name,
+      street: dto.recipient?.address?.street,
+      houseNumber: dto.recipient?.address?.houseNumber,
+      zip: dto.recipient?.address?.zip,
+      city: dto.recipient?.address?.city,
       country: country,
-      phone: dto.phone,
-      mail: dto.mail,
-      website: dto.website,
+      phone: dto.recipient?.phone,
+      mail: dto.recipient?.mail,
+      website: dto.recipient?.website,
       payments: [],
     });
 
@@ -142,12 +144,29 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
-    const updatePaymentLink = <PaymentLink>Object.assign(new PaymentLink(), dto);
-    if (dto.country) updatePaymentLink.country = await this.countryService.getCountryWithSymbol(dto.country);
+    const { status, webhookUrl, recipient } = dto;
+    const { name, address, phone, mail, website } = recipient ?? {};
+    const { street, houseNumber, zip, city, country } = address ?? {};
+
+    const updatePaymentLink: Partial<PaymentLink> = {
+      status,
+      webhookUrl,
+      street,
+      houseNumber,
+      zip,
+      city,
+      name,
+      phone,
+      mail,
+      website,
+    };
+
+    if (country) updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
+    if (country === null) updatePaymentLink.country = null;
 
     await this.paymentLinkRepo.update(paymentLink.id, updatePaymentLink);
 
-    return Object.assign(paymentLink, updatePaymentLink);
+    return this.getOrThrow(userId, linkId, linkExternalId);
   }
 
   // --- PAYMENTS --- //
