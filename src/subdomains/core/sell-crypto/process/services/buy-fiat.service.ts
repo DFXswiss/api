@@ -1,17 +1,11 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
+import { TransactionShareService } from 'src/subdomains/core/transaction/transaction-share.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -258,16 +252,7 @@ export class BuyFiatService {
       ? await this.userService.getUser(chargebackDto.refundUserId, { userData: true })
       : await this.userService.getUserByAddress(chargebackDto.refundAddress, { userData: true });
 
-    if (buyFiat.userData.id !== refundUser.userData.id)
-      throw new ForbiddenException('You can only refund to your own addresses');
-    if (!refundUser.blockchains.includes(buyFiat.cryptoInput.asset.blockchain))
-      throw new BadRequestException('You can only refund to a address on the origin blockchain');
-    if (buyFiat.chargebackAllowedDate || buyFiat.chargebackDate || buyFiat.chargebackTxId)
-      throw new BadRequestException('Transaction is already returned');
-    if (buyFiat.amlCheck !== CheckStatus.FAIL || buyFiat.outputAmount)
-      throw new BadRequestException('Only failed transactions are refundable');
-    if (chargebackAmount && chargebackAmount > buyFiat.inputAmount)
-      throw new BadRequestException('You can not refund more than the input amount');
+    TransactionShareService.validateRefund(buyFiat, refundUser, chargebackAmount);
 
     if (chargebackAmount)
       await this.payInService.returnPayIn(

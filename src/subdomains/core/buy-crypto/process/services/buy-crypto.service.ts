@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -23,6 +22,7 @@ import { TransactionRefundDto } from 'src/subdomains/core/history/dto/transactio
 import { RefundCryptoInputDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { TransactionShareService } from 'src/subdomains/core/transaction/transaction-share.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -374,16 +374,7 @@ export class BuyCryptoService {
       ? await this.userService.getUser(chargebackDto.refundUserId, { userData: true })
       : await this.userService.getUserByAddress(chargebackDto.refundAddress, { userData: true });
 
-    if (buyCrypto.userData.id !== refundUser.userData.id)
-      throw new ForbiddenException('You can only refund to your own addresses');
-    if (!refundUser.blockchains.includes(buyCrypto.cryptoInput.asset.blockchain))
-      throw new BadRequestException('You can only refund to a address on the origin blockchain');
-    if (buyCrypto.chargebackAllowedDate || buyCrypto.chargebackDate || buyCrypto.chargebackIban)
-      throw new BadRequestException('Transaction is already returned');
-    if (buyCrypto.amlCheck !== CheckStatus.FAIL || buyCrypto.outputAmount)
-      throw new BadRequestException('Only failed transactions are refundable');
-    if (chargebackAmount && chargebackAmount > buyCrypto.inputAmount)
-      throw new BadRequestException('You can not refund more than the input amount');
+    TransactionShareService.validateRefund(buyCrypto, refundUser, chargebackAmount);
 
     if (chargebackAmount)
       await this.payInService.returnPayIn(
