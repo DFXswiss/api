@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -15,6 +16,8 @@ import { KycService } from './kyc.service';
 
 @Injectable()
 export class KycAdminService {
+  private readonly logger = new DfxLogger(KycAdminService);
+
   constructor(
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
@@ -63,7 +66,11 @@ export class KycAdminService {
   }
 
   async triggerVideoIdentInternal(userData: UserData): Promise<void> {
-    await this.kycService.initiateStep(userData, KycStepName.IDENT, KycStepType.VIDEO);
+    try {
+      await this.kycService.initiateStep(userData, KycStepName.IDENT, KycStepType.VIDEO);
+    } catch (e) {
+      this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
+    }
   }
 
   async triggerWebhook(dto: KycWebhookTriggerDto): Promise<void> {

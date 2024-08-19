@@ -515,7 +515,7 @@ export class KycService {
           nextStep: {
             name: nextStep,
             type:
-              lastTry.type === KycStepType.VIDEO ? KycStepType.VIDEO : await this.userDataService.getIdentMethod(user),
+              lastTry?.type === KycStepType.VIDEO ? KycStepType.VIDEO : await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
         };
