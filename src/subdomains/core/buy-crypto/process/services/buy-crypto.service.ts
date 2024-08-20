@@ -18,11 +18,10 @@ import { Util } from 'src/shared/utils/util';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { RefundCryptoInputDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { TransactionShareService } from 'src/subdomains/core/transaction/transaction-share.service';
+import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -334,11 +333,7 @@ export class BuyCryptoService {
 
     if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
     if (buyCrypto.cryptoInput)
-      return this.refundCryptoInput(
-        buyCrypto,
-        { refundUserId: dto.refundUser.id, refundAddress: buyCrypto.chargebackIban },
-        dto.chargebackAmount,
-      );
+      return this.refundCryptoInput(buyCrypto, buyCrypto.chargebackIban, dto.refundUser.id, dto.chargebackAmount);
 
     throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
   }
@@ -364,17 +359,17 @@ export class BuyCryptoService {
 
   async refundCryptoInput(
     buyCrypto: BuyCrypto,
-    chargebackDto: TransactionRefundDto,
+    refundUserAddress: string,
+    refundUserId?: number,
     chargebackAmount?: number,
   ): Promise<void> {
-    if (!chargebackDto.refundAddress && !chargebackDto.refundUserId)
-      throw new BadRequestException('You have to define a chargebackAddress');
+    if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
 
-    const refundUser = chargebackDto.refundUserId
-      ? await this.userService.getUser(chargebackDto.refundUserId, { userData: true })
-      : await this.userService.getUserByAddress(chargebackDto.refundAddress, { userData: true });
+    const refundUser = refundUserId
+      ? await this.userService.getUser(refundUserId, { userData: true })
+      : await this.userService.getUserByAddress(refundUserAddress, { userData: true });
 
-    TransactionShareService.validateRefund(buyCrypto, refundUser, chargebackAmount);
+    TransactionUtilService.validateRefund(buyCrypto, refundUser, chargebackAmount);
 
     if (chargebackAmount)
       await this.payInService.returnPayIn(

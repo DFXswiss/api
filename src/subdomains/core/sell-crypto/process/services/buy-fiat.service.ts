@@ -3,9 +3,8 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
-import { TransactionShareService } from 'src/subdomains/core/transaction/transaction-share.service';
+import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -236,26 +235,22 @@ export class BuyFiatService {
       relations: { cryptoInput: { route: { user: true } } },
     });
 
-    await this.refundBuyFiatInternal(
-      buyFiat,
-      { refundUserId: dto.refundUser.id, refundAddress: buyFiat.chargebackAddress },
-      dto.chargebackAmount,
-    );
+    await this.refundBuyFiatInternal(buyFiat, buyFiat.chargebackAddress, dto.refundUser.id, dto.chargebackAmount);
   }
 
   async refundBuyFiatInternal(
     buyFiat: BuyFiat,
-    chargebackDto: TransactionRefundDto,
+    refundUserAddress: string,
+    refundUserId?: number,
     chargebackAmount?: number,
   ): Promise<void> {
-    if (!chargebackDto.refundAddress && !chargebackDto.refundUserId)
-      throw new BadRequestException('You have to define a chargebackAddress');
+    if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
 
-    const refundUser = chargebackDto.refundUserId
-      ? await this.userService.getUser(chargebackDto.refundUserId, { userData: true })
-      : await this.userService.getUserByAddress(chargebackDto.refundAddress, { userData: true });
+    const refundUser = refundUserId
+      ? await this.userService.getUser(refundUserId, { userData: true })
+      : await this.userService.getUserByAddress(refundUserAddress, { userData: true });
 
-    TransactionShareService.validateRefund(buyFiat, refundUser, chargebackAmount);
+    TransactionUtilService.validateRefund(buyFiat, refundUser, chargebackAmount);
 
     if (chargebackAmount)
       await this.payInService.returnPayIn(

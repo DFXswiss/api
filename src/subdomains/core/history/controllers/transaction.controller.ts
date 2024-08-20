@@ -271,12 +271,12 @@ export class TransactionController {
       throw new NotFoundException('Transaction not found');
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (!transaction.cryptoInput) throw new BadRequestException('You can only refund cryptoInput transaction');
+    if (!transaction.cryptoInput) throw new BadRequestException('You can only refund sell or swap transactions');
 
     if (transaction.targetEntity instanceof BuyFiat)
-      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto);
+      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto.refundAddress);
 
-    return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto);
+    return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto.refundAddress);
   }
 
   // --- HELPER METHODS --- //

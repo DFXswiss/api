@@ -4,7 +4,7 @@ import { CheckStatus } from '../aml/enums/check-status.enum';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 
-export class TransactionShareService {
+export class TransactionUtilService {
   static validateRefund(entity: BuyCrypto | BuyFiat, refundUser: User, chargebackAmount?: number): void {
     if (entity.userData.id !== refundUser.userData.id)
       throw new ForbiddenException('You can only refund to your own addresses');

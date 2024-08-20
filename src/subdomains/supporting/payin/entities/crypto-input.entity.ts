@@ -225,7 +225,6 @@ export class CryptoInput extends IEntity {
 
   completed() {
     this.status = PayInStatus.COMPLETED;
-    this.action = null;
 
     return this;
   }
