@@ -11,6 +11,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
@@ -29,6 +30,8 @@ export class PaymentLinkPaymentService {
   private readonly logger = new DfxLogger(PaymentLinkPaymentService);
 
   static readonly PREFIX_UNIQUE_ID = 'plp';
+
+  private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
 
   constructor(
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
@@ -110,6 +113,13 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async waitForPayment(paymentLink: PaymentLink): Promise<void> {
+    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
+    if (!pendingPayment) throw new NotFoundException('No pending payment found');
+
+    await this.paymentWaitMap.wait(pendingPayment.id, 0);
+  }
+
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
     if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
 
@@ -182,27 +192,45 @@ export class PaymentLinkPaymentService {
 
     return this.doUpdateStatus(
       pendingActivationData.pendingActivation,
-      pendingActivationData.allPendingActivations,
+      pendingActivationData.otherPendingActivations,
       pendingPayment,
     );
   }
 
   private async doUpdateStatus(
     activationToBeCompleted: PaymentActivation,
-    allPendingActivations: PaymentActivation[],
+    otherPendingActivations: PaymentActivation[],
     pendingPayment: PaymentLinkPayment,
   ): Promise<PaymentLinkPayment> {
-    await this.paymentActivationService.updatePaymentActivationStatus(activationToBeCompleted, allPendingActivations);
+    await this.paymentActivationService.complete(activationToBeCompleted);
 
-    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) return pendingPayment;
+    pendingPayment.txCount = await this.doUpdateTxCount(pendingPayment.id);
+
+    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
+      this.paymentWaitMap.resolve(pendingPayment.id, pendingPayment);
+      return pendingPayment;
+    }
+
+    await this.paymentActivationService.expire(otherPendingActivations);
 
     return this.doSave(pendingPayment.complete());
+  }
+
+  private async doUpdateTxCount(paymentId: number): Promise<number> {
+    const numberOfCompletedActivations = await this.paymentActivationService.getNumberOfCompletedActivations(paymentId);
+    await this.paymentLinkPaymentRepo.update(paymentId, { txCount: numberOfCompletedActivations });
+
+    return numberOfCompletedActivations;
   }
 
   private async doSave(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
     const savedPayment = await this.paymentLinkPaymentRepo.save(payment);
 
     await this.sendWebhook(savedPayment);
+
+    if (savedPayment.status !== PaymentLinkPaymentStatus.PENDING) {
+      this.paymentWaitMap.resolve(savedPayment.id, savedPayment);
+    }
 
     return savedPayment;
   }

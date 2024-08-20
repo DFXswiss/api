@@ -35,6 +35,7 @@ export class PaymentLinkDtoMapper {
         currency: FiatDtoMapper.toDto(payment.currency),
         mode: payment.mode,
         expiryDate: payment.expiryDate,
+        txCount: payment.txCount,
         url: LightningHelper.createLnurlp(payment.uniqueId),
         lnurl: LightningHelper.createEncodedLnurlp(payment.uniqueId),
       }

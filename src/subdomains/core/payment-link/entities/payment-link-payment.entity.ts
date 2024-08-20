@@ -34,6 +34,9 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ type: 'datetime2', nullable: false })
   expiryDate: Date;
 
+  @Column({ nullable: false, default: 0 })
+  txCount: number;
+
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
   cryptoInput: CryptoInput;
 
