@@ -95,6 +95,9 @@
     "paymentTimeout": {
       "value": "xxx"
     },
+    "paymentQuoteTimeout": {
+      "value": "xxx"
+    },
     "paymentTimeoutDelay": {
       "value": "xxx"
     },

@@ -80,6 +80,12 @@ export class PaymentLinkController {
   @Get('payment')
   @ApiExcludeEndpoint()
   async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
+    dto.routeId ??= dto.r;
+    dto.externalId ??= dto.e;
+    dto.amount ??= dto.a;
+    dto.currency ??= dto.c;
+    dto.expiryDate ??= dto.d;
+
     const link = await this.paymentLinkService.createInvoice(dto);
     return this.lnurlForwardService.createPaymentLinkPayRequest(link.uniqueId);
   }
@@ -99,6 +105,21 @@ export class PaymentLinkController {
     await this.checkPaymentLinksAllowed(jwt.account);
 
     return this.paymentLinkService.createPayment(+jwt.user, dto, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
+  @Get('payment/wait')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiQuery({ name: 'id', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalId', description: 'External link ID', required: false })
+  async waitForPayment(
+    @GetJwt() jwt: JwtPayload,
+    @Query('id') id: string,
+    @Query('externalId') externalId: string,
+  ): Promise<PaymentLinkDto> {
+    await this.checkPaymentLinksAllowed(jwt.account);
+
+    return this.paymentLinkService.waitForPayment(+jwt.user, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Delete('payment')

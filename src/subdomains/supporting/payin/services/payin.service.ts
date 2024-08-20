@@ -8,7 +8,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
+import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
@@ -29,7 +29,7 @@ export class PayInService {
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly transactionService: TransactionService,
-    private readonly paymentActivationService: PaymentActivationService,
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -54,7 +54,7 @@ export class PayInService {
 
       if (!exists) {
         payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
-        payIn.paymentLinkPayment = await this.paymentActivationService.getPaymentByCryptoInput(payIn);
+        payIn.paymentLinkPayment = await this.paymentLinkPaymentService.getPaymentByCryptoInput(payIn);
 
         await this.payInRepository.save(payIn);
 

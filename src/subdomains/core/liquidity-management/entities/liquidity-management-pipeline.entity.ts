@@ -61,7 +61,7 @@ export class LiquidityManagementPipeline extends IEntity {
     this.previousAction = Object.assign(new LiquidityManagementAction(), this.currentAction);
     this.ordersProcessed++;
 
-    if (this.ordersProcessed >= 10) {
+    if (this.ordersProcessed >= 15) {
       this.currentAction = null;
       this.status = LiquidityManagementPipelineStatus.STOPPED;
 
