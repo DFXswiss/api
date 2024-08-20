@@ -108,7 +108,6 @@ export class PayInService {
 
     payIn.triggerReturn(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
 
-    // Remove that?
     if (payIn.transaction)
       await this.transactionService.update(payIn.transaction.id, {
         type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,

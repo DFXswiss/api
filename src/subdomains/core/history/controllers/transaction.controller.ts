@@ -260,8 +260,8 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      buyCrypto: { transaction: { user: { userData: true } }, cryptoInput: true },
-      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: true },
+      buyCrypto: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
     });
 
     if (

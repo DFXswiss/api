@@ -231,7 +231,10 @@ export class BuyFiatService {
   }
 
   async refundBuyFiat(buyFiatId: number, dto: RefundCryptoInputDto): Promise<void> {
-    const buyFiat = await this.buyFiatRepo.findOne({ where: { id: buyFiatId }, relations: { cryptoInput: true } });
+    const buyFiat = await this.buyFiatRepo.findOne({
+      where: { id: buyFiatId },
+      relations: { cryptoInput: { route: { user: true } } },
+    });
 
     await this.refundBuyFiatInternal(
       buyFiat,

@@ -329,7 +329,7 @@ export class BuyCryptoService {
   async refundBuyCrypto(buyCryptoId: number, dto: RefundCryptoInputDto): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({
       where: { id: buyCryptoId },
-      relations: { checkoutTx: true, cryptoInput: true },
+      relations: { checkoutTx: true, cryptoInput: { route: { user: true } } },
     });
 
     if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
