@@ -188,4 +188,12 @@ export class PaymentLinkService {
 
     return this.paymentLinkPaymentService.cancelPayment(paymentLink);
   }
+
+  async waitForPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
+    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
+
+    await this.paymentLinkPaymentService.waitForPayment(paymentLink);
+
+    return this.getOrThrow(userId, linkId, linkExternalId);
+  }
 }

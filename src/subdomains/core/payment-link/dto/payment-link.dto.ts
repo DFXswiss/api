@@ -127,6 +127,9 @@ export class PaymentLinkPaymentDto {
   expiryDate: Date;
 
   @ApiProperty()
+  txCount: number;
+
+  @ApiProperty()
   url: string;
 
   @ApiProperty()
