@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -20,6 +21,7 @@ export class PaymentLinkService {
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly countryService: CountryService,
     private readonly sellService: SellService,
     private readonly fiatService: FiatService,
   ) {}
@@ -65,7 +67,8 @@ export class PaymentLinkService {
       if (exists) throw new ConflictException('Payment link already exists');
     }
 
-    return this.createForRoute(route, dto.externalId, dto.webhookUrl, dto.payment);
+    const newPaymentLink = await this.createForRoute(route, dto);
+    return this.getOrThrow(userId, newPaymentLink.id);
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
@@ -95,31 +98,40 @@ export class PaymentLinkService {
 
     const route = await this.sellService.getById(+dto.routeId);
 
-    return this.createForRoute(route, dto.externalId, null, payment);
+    return this.createForRoute(route, { externalId: dto.externalId, payment });
   }
 
-  private async createForRoute(
-    route: Sell,
-    externalId?: string,
-    webhookUrl?: string,
-    payment?: CreatePaymentLinkPaymentDto,
-  ): Promise<PaymentLink> {
+  private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
 
+    const country = dto.recipient?.address?.country
+      ? await this.countryService.getCountryWithSymbol(dto.recipient?.address?.country)
+      : undefined;
+
     const paymentLink = this.paymentLinkRepo.create({
       route,
-      externalId,
+      externalId: dto.externalId,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
-      webhookUrl,
+      webhookUrl: dto.webhookUrl,
+      name: dto.recipient?.name,
+      street: dto.recipient?.address?.street,
+      houseNumber: dto.recipient?.address?.houseNumber,
+      zip: dto.recipient?.address?.zip,
+      city: dto.recipient?.address?.city,
+      country: country,
+      phone: dto.recipient?.phone,
+      mail: dto.recipient?.mail,
+      website: dto.recipient?.website,
       payments: [],
     });
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    payment && paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, payment));
+    dto.payment &&
+      paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
   }
@@ -132,16 +144,29 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
 
-    if (dto.status) paymentLink.status = dto.status;
-    if (dto.webhookUrl) paymentLink.webhookUrl = dto.webhookUrl;
-    if (dto.webhookUrl === null || dto.webhookUrl === '') paymentLink.webhookUrl = null;
+    const { status, webhookUrl, recipient } = dto;
+    const { name, address, phone, mail, website } = recipient ?? {};
+    const { street, houseNumber, zip, city, country } = address ?? {};
 
-    await this.paymentLinkRepo.update(paymentLink.id, {
-      status: paymentLink.status,
-      webhookUrl: paymentLink.webhookUrl,
-    });
+    const updatePaymentLink: Partial<PaymentLink> = {
+      status,
+      webhookUrl,
+      street,
+      houseNumber,
+      zip,
+      city,
+      name,
+      phone,
+      mail,
+      website,
+    };
 
-    return paymentLink;
+    if (country) updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
+    if (country === null) updatePaymentLink.country = null;
+
+    await this.paymentLinkRepo.update(paymentLink.id, updatePaymentLink);
+
+    return this.getOrThrow(userId, linkId, linkExternalId);
   }
 
   // --- PAYMENTS --- //

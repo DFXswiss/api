@@ -211,7 +211,7 @@ export class PaymentLinkPaymentService {
     const paymentForWebhook = await this.paymentLinkPaymentRepo.findOne({
       where: { uniqueId: payment.uniqueId },
       relations: {
-        link: { route: true },
+        link: { route: { user: { userData: true } } },
       },
     });
 

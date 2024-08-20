@@ -19,7 +19,7 @@ export class CreatePaymentLinkPaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  externalId: string;
+  externalId?: string;
 
   @ApiPropertyOptional({ type: EntityDto })
   @IsOptional()
@@ -31,5 +31,5 @@ export class CreatePaymentLinkPaymentDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  expiryDate: Date;
+  expiryDate?: Date;
 }
