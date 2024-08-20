@@ -423,6 +423,31 @@ export class KycService {
   }
 
   // --- STEPPING METHODS --- //
+  async getOrCreateStepInternal(
+    kycHash: string,
+    name: KycStepName,
+    type?: KycStepType,
+    sequence?: number,
+    restartCompletedSteps = false,
+  ): Promise<{ user: UserData; step: KycStep }> {
+    const user = await this.getUser(kycHash);
+
+    let step =
+      sequence != null
+        ? user.getStepsWith(name, type, sequence)[0]
+        : user
+            .getStepsWith(name, type)
+            .find((s) => s.isInProgress || s.isInReview || (!restartCompletedSteps && s.isCompleted));
+    if (!step) {
+      step = await this.initiateStep(user, name, type, true);
+      user.nextStep(step);
+
+      await this.userDataService.save(user);
+    }
+
+    return { user, step };
+  }
+
   async getOrCreateStep(
     kycHash: string,
     ip: string,
@@ -434,18 +459,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const user = await this.getUser(kycHash);
-
-    let step =
-      sequence != null
-        ? user.getStepsWith(name, type, sequence)[0]
-        : user.getStepsWith(name, type).find((s) => s.isInProgress || s.isInReview);
-    if (!step) {
-      step = await this.initiateStep(user, name, type, true);
-      user.nextStep(step);
-
-      await this.userDataService.save(user);
-    }
+    const { user, step } = await this.getOrCreateStepInternal(kycHash, name, type, sequence, true);
 
     await this.verify2faIfRequired(user, ip);
 
@@ -514,7 +528,8 @@ export class KycService {
         return {
           nextStep: {
             name: nextStep,
-            type: await this.userDataService.getIdentMethod(user),
+            type:
+              lastTry?.type === KycStepType.VIDEO ? KycStepType.VIDEO : await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
         };

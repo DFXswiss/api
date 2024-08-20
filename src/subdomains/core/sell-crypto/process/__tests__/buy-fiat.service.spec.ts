@@ -5,6 +5,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
@@ -49,6 +50,7 @@ describe('BuyFiatService', () => {
   let bankDataService: BankDataService;
   let transactionService: TransactionService;
   let payInService: PayInService;
+  let userDataService: UserDataService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -66,6 +68,7 @@ describe('BuyFiatService', () => {
     bankDataService = createMock<BankDataService>();
     transactionService = createMock<TransactionService>();
     payInService = createMock<PayInService>();
+    userDataService = createMock<UserDataService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -86,6 +89,7 @@ describe('BuyFiatService', () => {
         { provide: BankDataService, useValue: bankDataService },
         { provide: TransactionService, useValue: transactionService },
         { provide: PayInService, useValue: payInService },
+        { provide: UserDataService, useValue: userDataService },
       ],
     }).compile();
 

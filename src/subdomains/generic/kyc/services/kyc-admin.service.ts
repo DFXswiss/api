@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -9,12 +10,14 @@ import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycService } from './kyc.service';
 
 @Injectable()
 export class KycAdminService {
+  private readonly logger = new DfxLogger(KycAdminService);
+
   constructor(
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
@@ -59,6 +62,14 @@ export class KycAdminService {
     for (const kycStep of userData.kycSteps) {
       if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
         await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
+    }
+  }
+
+  async triggerVideoIdentInternal(userData: UserData): Promise<void> {
+    try {
+      await this.kycService.getOrCreateStepInternal(userData.kycHash, KycStepName.IDENT, KycStepType.VIDEO);
+    } catch (e) {
+      this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
     }
   }
 

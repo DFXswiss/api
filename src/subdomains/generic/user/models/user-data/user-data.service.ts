@@ -204,6 +204,10 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
   }
 
+  async triggerVideoIdent(userData: UserData): Promise<void> {
+    await this.kycAdminService.triggerVideoIdentInternal(userData);
+  }
+
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
     const isPersonalAccount =
       (data.accountType ?? userData.accountType ?? AccountType.PERSONAL) === AccountType.PERSONAL;

@@ -4,6 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -31,6 +32,7 @@ export class BuyFiatPreparationService {
     private readonly amlService: AmlService,
     private readonly userService: UserService,
     private readonly payInService: PayInService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -107,7 +109,11 @@ export class BuyFiatPreparationService {
 
         await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
-        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
+        if (amlCheckBefore !== entity.amlCheck) {
+          await this.buyFiatService.triggerWebhook(entity);
+          if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+            await this.userDataService.triggerVideoIdent(entity.userData);
+        }
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
