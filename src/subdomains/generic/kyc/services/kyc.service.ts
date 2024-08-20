@@ -545,7 +545,7 @@ export class KycService {
     }
   }
 
-  async initiateStep(
+  private async initiateStep(
     user: UserData,
     stepName: KycStepName,
     stepType?: KycStepType,
