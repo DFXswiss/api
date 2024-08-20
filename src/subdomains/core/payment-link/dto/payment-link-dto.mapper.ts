@@ -78,7 +78,7 @@ export class PaymentLinkDtoMapper {
     }
   }
 
-  private static toName(userData: UserData): string | undefined {
+  private static toName(userData: UserData): string | null {
     if (userData.firstname && userData.surname) return `${userData.firstname} ${userData.surname}`;
     if (userData.firstname) return userData.firstname;
     if (userData.surname) return userData.surname;
