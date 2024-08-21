@@ -7,6 +7,6 @@ export class BankTxBatchService {
   constructor(private readonly bankTxBatchRepo: BankTxBatchRepository) {}
 
   async getBankTxBatchByIban(iban: string): Promise<BankTxBatch> {
-    return this.bankTxBatchRepo.findOneBy({ iban });
+    return this.bankTxBatchRepo.findOne({ where: { iban }, order: { id: 'DESC' } });
   }
 }

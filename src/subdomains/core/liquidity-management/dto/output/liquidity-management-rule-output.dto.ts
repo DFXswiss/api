@@ -1,9 +1,9 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { LiquidityManagementRuleStatus, LiquidityManagementType } from '../../enums';
+import { LiquidityManagementContext, LiquidityManagementRuleStatus } from '../../enums';
 
 export class LiquidityManagementRuleOutputDto {
-  context: LiquidityManagementType;
+  context: LiquidityManagementContext;
   status: LiquidityManagementRuleStatus;
   targetAsset: Asset;
   targetFiat: Fiat;

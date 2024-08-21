@@ -6,7 +6,7 @@ import { BankTxBatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/se
 import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
-import { LiquidityManagementType } from '../../enums';
+import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
   constructor(private readonly bankService: BankService, private readonly bankTxBatchService: BankTxBatchService) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
-    const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementType>(
+    const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(
       assets,
       'context',
     );
@@ -33,8 +33,8 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  getNumberOfPendingOrders(_asset: Asset): Promise<number> {
-    throw new Error(`Method not implemented.`);
+  async getNumberOfPendingOrders(_asset: Asset): Promise<number> {
+    return 0;
   }
 
   // --- HELPER METHODS --- //

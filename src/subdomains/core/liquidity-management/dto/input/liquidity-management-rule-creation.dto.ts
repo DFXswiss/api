@@ -16,7 +16,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { LiquidityManagementType } from '../../enums';
+import { LiquidityManagementContext } from '../../enums';
 import { LiquidityActionsAllStepsMatchValidator } from '../../validators/liquidity-actions-all-steps-match.validator';
 import { LiquidityActionsFirstStepValidator } from '../../validators/liquidity-actions-first-step.validator';
 import { LiquidityActionsNoDuplicateStepsValidator } from '../../validators/liquidity-actions-no-duplicate-steps.validator';
@@ -25,7 +25,7 @@ import { LiquidityManagementActionDto } from './liquidity-management-action.dto'
 export class LiquidityManagementRuleCreationDto {
   @IsNotEmpty()
   @IsEnum([Blockchain, BankName, ExchangeName])
-  context: LiquidityManagementType;
+  context: LiquidityManagementContext;
 
   @ValidateIf((dto) => dto.targetAssetId || (!dto.targetAssetId && !dto.targetFiatId))
   @Validate(XOR, ['targetFiatId'])

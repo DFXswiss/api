@@ -1,13 +1,10 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
-import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, ManyToOne as OneToOne } from 'typeorm';
-import { LiquidityManagementRuleStatus, LiquidityManagementType, LiquidityOptimizationType } from '../enums';
+import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
 import { LiquidityBalance } from './liquidity-balance.entity';
@@ -17,7 +14,7 @@ import { LiquidityManagementAction } from './liquidity-management-action.entity'
 @Index((r: LiquidityManagementRule) => [r.context, r.targetAsset, r.targetFiat], { unique: true })
 export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
-  context: Blockchain | BankName | ExchangeName;
+  context: LiquidityManagementContext;
 
   @Column({ length: 256, nullable: true })
   status: LiquidityManagementRuleStatus;
@@ -50,7 +47,7 @@ export class LiquidityManagementRule extends IEntity {
   //*** FACTORY METHODS ***//
 
   static create(
-    context: LiquidityManagementType,
+    context: LiquidityManagementContext,
     targetAsset: Asset,
     targetFiat: Fiat,
     minimal: number,
