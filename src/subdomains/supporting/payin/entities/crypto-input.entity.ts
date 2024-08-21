@@ -229,12 +229,6 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  toReturn(): this {
-    this.status = PayInStatus.TO_RETURN;
-
-    return this;
-  }
-
   confirm(): this {
     this.isConfirmed = true;
 
