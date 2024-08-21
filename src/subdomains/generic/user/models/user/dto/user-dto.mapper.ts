@@ -29,6 +29,9 @@ export class UserDtoMapper {
         .filter((u) => !u.isBlockedOrDeleted && !u.wallet.isKycClient)
         .map((u) => this.mapAddress(u)),
       activeAddress: activeUser && this.mapAddress(activeUser),
+      paymentLink: {
+        active: userData.paymentLinksAllowed,
+      },
     };
 
     return Object.assign(new UserV2Dto(), dto);

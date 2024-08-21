@@ -22,6 +22,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -73,6 +74,7 @@ export class BuyCryptoService {
     private readonly checkoutService: CheckoutService,
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -297,6 +299,7 @@ export class BuyCryptoService {
 
     if (entity.cryptoInput && dto.amlCheck)
       await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {

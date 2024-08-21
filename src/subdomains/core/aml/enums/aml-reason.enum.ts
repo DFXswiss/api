@@ -26,6 +26,7 @@ export enum AmlReason {
   USER_BLOCKED = 'UserBlocked',
   USER_DATA_BLOCKED = 'UserDataBlocked',
   USER_DELETED = 'UserDeleted',
+  VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
 }
 
 export const KycAmlReasons = [
@@ -35,6 +36,7 @@ export const KycAmlReasons = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export const AmlReasonWithoutReason = [

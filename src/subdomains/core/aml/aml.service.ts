@@ -35,7 +35,7 @@ export class AmlService {
     last24hVolume: number,
   ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; instantBanks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
-    const bankData = await this.getBankData(entity);
+    let bankData = await this.getBankData(entity);
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
@@ -54,14 +54,15 @@ export class AmlService {
             Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName ?? bankData.name))
         ) {
           try {
-            const [master, slave] =
+            const [masterId, slaveId] =
               bankData.userData.kycLevel < entity.userData.kycLevel
                 ? [entity.userData.id, bankData.userData.id]
                 : [bankData.userData.id, entity.userData.id];
 
-            await this.userDataService.mergeUserData(master, slave, true);
+            await this.userDataService.mergeUserData(masterId, slaveId, true);
 
-            entity.userData = await this.userDataService.getUserData(master, { users: true });
+            entity.userData = await this.userDataService.getUserData(masterId, { users: true });
+            if (masterId !== bankData.userData.id) bankData = await this.getBankData(entity);
 
             if (!entity.userData.bankTransactionVerification) await this.checkBankTransactionVerification(entity);
           } catch (e) {

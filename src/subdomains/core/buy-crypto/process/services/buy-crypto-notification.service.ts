@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -289,7 +290,12 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.bankData && IbanTools.validateIBAN(entity.bankData.iban.split(';')[0]).valid) continue;
+        if (
+          entity.bankData &&
+          Util.minutesDiff(entity.created) < 60 &&
+          IbanTools.validateIBAN(entity.bankData.iban.split(';')[0]).valid
+        )
+          continue;
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,

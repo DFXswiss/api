@@ -3,9 +3,11 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -48,6 +50,7 @@ export class BuyFiatService {
     private readonly bankDataService: BankDataService,
     private readonly transactionService: TransactionService,
     private readonly payInService: PayInService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -165,6 +168,7 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
     if (dto.amlCheck) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {

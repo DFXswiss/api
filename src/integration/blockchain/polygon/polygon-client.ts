@@ -86,8 +86,11 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
 
     const l2Erc20Token = this.posClient.erc20(l2Token.chainId);
 
+    const gasPrice = await this.getRecommendedGasPrice();
+
     const withdrawStartResult = await l2Erc20Token.withdrawStart(
       EvmUtil.toWeiAmount(amount, l2Token.decimals).toString(),
+      { gasPrice: +gasPrice },
     );
     const withdrawStartTxHash = await withdrawStartResult.getTransactionHash();
     this.logger.info(`Polygon withdrawStartTxHash: ${withdrawStartTxHash}`);
