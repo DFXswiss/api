@@ -1,8 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaymentLinkPaymentMode } from '../enums';
 
 export class CreatePaymentLinkPaymentDto {
@@ -21,11 +19,10 @@ export class CreatePaymentLinkPaymentDto {
   @IsString()
   externalId?: string;
 
-  @ApiPropertyOptional({ type: EntityDto })
+  @ApiPropertyOptional()
   @IsOptional()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  currency?: Fiat;
+  @IsString()
+  currency?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
