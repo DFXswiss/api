@@ -1,5 +1,4 @@
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkDto, PaymentLinkPaymentDto, PaymentLinkRecipientDto } from './payment-link.dto';
@@ -32,7 +31,7 @@ export class PaymentLinkDtoMapper {
         externalId: payment.externalId,
         status: payment.status,
         amount: payment.amount,
-        currency: FiatDtoMapper.toDto(payment.currency),
+        currency: payment.currency.name,
         mode: payment.mode,
         expiryDate: payment.expiryDate,
         txCount: payment.txCount,

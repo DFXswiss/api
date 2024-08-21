@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 
 export type TransferMethod = Blockchain;
@@ -117,8 +116,8 @@ export class PaymentLinkPaymentDto {
   @ApiProperty()
   amount: number;
 
-  @ApiProperty({ type: FiatDto })
-  currency: FiatDto;
+  @ApiProperty()
+  currency: string;
 
   @ApiProperty({ enum: PaymentLinkPaymentMode })
   mode: PaymentLinkPaymentMode;
