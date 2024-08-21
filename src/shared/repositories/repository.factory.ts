@@ -5,7 +5,7 @@ import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
-import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
+import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
 import { CheckoutTxRepository } from 'src/subdomains/supporting/fiat-payin/repositories/checkout-tx.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';

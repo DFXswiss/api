@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
-import { BankTxType } from '../bank-tx.entity';
+import { BankTxType } from '../entities/bank-tx.entity';
 
 export class UpdateBankTxDto {
   @IsOptional()

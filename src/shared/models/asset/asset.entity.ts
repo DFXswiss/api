@@ -70,7 +70,7 @@ export class Asset extends IEntity {
   ikna: boolean;
 
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
-  blockchain: Blockchain;
+  blockchain: Blockchain; //| BankName | ExchangeName;
 
   @Column({ default: false })
   comingSoon: boolean;
