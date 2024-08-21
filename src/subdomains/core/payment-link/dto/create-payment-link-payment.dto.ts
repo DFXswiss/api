@@ -6,10 +6,10 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { PaymentLinkPaymentMode } from '../enums';
 
 export class CreatePaymentLinkPaymentDto {
-  @ApiProperty({ enum: PaymentLinkPaymentMode })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ enum: PaymentLinkPaymentMode })
+  @IsOptional()
   @IsEnum(PaymentLinkPaymentMode)
-  mode: PaymentLinkPaymentMode;
+  mode?: PaymentLinkPaymentMode;
 
   @ApiProperty()
   @IsNotEmpty()

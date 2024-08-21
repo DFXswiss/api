@@ -162,7 +162,7 @@ export class PaymentLinkPaymentService {
       amount: dto.amount,
       externalId: dto.externalId,
       expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.timeout),
-      mode: dto.mode,
+      mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
       status: PaymentLinkPaymentStatus.PENDING,
