@@ -23,9 +23,9 @@ export class LightningStrategy extends SendStrategy {
     return undefined;
   }
 
-  async doSend(payIns: CryptoInput[], _: SendType): Promise<void> {
+  async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     for (const payIn of payIns) {
-      payIn.completed();
+      type === SendType.FORWARD ? payIn.completed() : payIn.toReturn();
 
       await this.payInRepo.save(payIn);
     }
