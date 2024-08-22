@@ -31,7 +31,7 @@ export class PayInBitcoinService extends PayInJellyfishService {
     return this.client.send(
       input.destinationAddress.address,
       input.inTxId,
-      input.amount,
+      input.sendingAmount,
       input.txSequence,
       await this.feeService.getRecommendedFeeRate(),
     );

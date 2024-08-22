@@ -36,7 +36,7 @@ export abstract class EvmStrategy extends SendStrategy {
         }
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
-          const totalAmount = this.getTotalGroupAmount(payInGroup);
+          const totalAmount = this.getTotalGroupAmount(payInGroup, type);
 
           const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup.asset, totalAmount);
           const minInputFee = await this.getMinInputFee(payInGroup.asset);
@@ -137,8 +137,8 @@ export abstract class EvmStrategy extends SendStrategy {
     return payInGroup.payIns.reduce((acc, t) => acc + `|${t.id}|`, '');
   }
 
-  protected getTotalGroupAmount(payInGroup: SendGroup): number {
-    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'amount');
+  protected getTotalGroupAmount(payInGroup: SendGroup, type = SendType.FORWARD): number {
+    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, type === SendType.RETURN ? 'chargebackAmount' : 'amount');
   }
 
   protected getTotalSendFee(payInGroup: SendGroup): number {

@@ -29,11 +29,6 @@ import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
-export enum ValidationError {
-  PAY_IN_TOO_SMALL = 'PayInTooSmall',
-  PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
-}
-
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
@@ -64,13 +59,10 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async validateInput(from: Active, amount: number): Promise<true | ValidationError> {
+  async validateInput(from: Active, amount: number): Promise<boolean> {
     // check min. volume
     const minVolume = await this.getMinVolumeIn(from, from, true);
-    if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
-
-    // check sellable
-    if (!from.sellable) return ValidationError.PAY_IN_NOT_SELLABLE;
+    if (amount < minVolume * 0.5) return false;
 
     return true;
   }

@@ -18,8 +18,10 @@ import { Util } from 'src/shared/utils/util';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
+import { RefundCryptoInputDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -278,7 +280,7 @@ export class BuyCryptoService {
         });
 
       if (entity.checkoutTx) {
-        await this.refundBuyCryptoInternal(entity);
+        await this.refundCheckoutTx(entity);
         Object.assign(dto, { isComplete: true, chargebackDate: new Date() });
       }
     }
@@ -310,7 +312,7 @@ export class BuyCryptoService {
     );
 
     if (entity.cryptoInput && dto.amlCheck)
-      await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+      await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
     if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
 
     // activate user
@@ -338,14 +340,25 @@ export class BuyCryptoService {
     return entity;
   }
 
-  async refundBuyCrypto(buyCryptoId: number): Promise<void> {
-    const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
+  async refundBuyCrypto(buyCryptoId: number, dto: RefundCryptoInputDto): Promise<void> {
+    const buyCrypto = await this.buyCryptoRepo.findOne({
+      where: { id: buyCryptoId },
+      relations: {
+        checkoutTx: true,
+        cryptoInput: { route: { user: true }, transaction: true },
+        transaction: { user: { userData: true } },
+      },
+    });
 
-    await this.refundBuyCryptoInternal(buyCrypto);
+    if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
+    if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
+    if (buyCrypto.cryptoInput)
+      return this.refundCryptoInput(buyCrypto, buyCrypto.chargebackIban, dto.refundUser?.id, dto.chargebackAmount);
+
+    throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
   }
 
-  async refundBuyCryptoInternal(buyCrypto: BuyCrypto): Promise<void> {
-    if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
+  async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {
     if (
       [
         CheckoutPaymentStatus.REFUNDED,
@@ -361,6 +374,33 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(buyCrypto.id, {
       chargebackDate: new Date(),
       chargebackRemittanceInfo: chargebackRemittanceInfo.reference,
+    });
+  }
+
+  async refundCryptoInput(
+    buyCrypto: BuyCrypto,
+    refundUserAddress: string,
+    refundUserId?: number,
+    chargebackAmount?: number,
+  ): Promise<void> {
+    if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
+
+    const refundUser = refundUserId
+      ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
+      : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
+
+    TransactionUtilService.validateRefund(buyCrypto, refundUser, chargebackAmount);
+
+    if (chargebackAmount)
+      await this.payInService.returnPayIn(
+        buyCrypto.cryptoInput,
+        refundUser.address ?? buyCrypto.chargebackIban,
+        chargebackAmount,
+      );
+
+    await this.buyCryptoRepo.update(buyCrypto.id, {
+      chargebackDate: chargebackAmount ? new Date() : null,
+      chargebackIban: refundUser.address ?? buyCrypto.chargebackIban,
     });
   }
 
