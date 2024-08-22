@@ -1,21 +1,25 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BigNumber } from 'ethers/lib/ethers';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
+import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PayInPurpose, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { IsNull, Like, Not } from 'typeorm';
@@ -35,11 +39,11 @@ export class SwapService {
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
-    private readonly assetService: AssetService,
-    private readonly evmRegistry: EvmRegistryService,
     private readonly payInService: PayInService,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly transactionUtilService: TransactionUtilService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -160,41 +164,8 @@ export class SwapService {
         where: { id: request.routeId },
         relations: { deposit: true, user: { wallet: true, userData: true } },
       });
-      const asset = await this.assetService.getAssetById(request.sourceId);
 
-      const client = this.evmRegistry.getClient(asset.blockchain);
-
-      if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
-        throw new BadRequestException('Invalid executor address');
-
-      const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);
-      if (!contractValid) throw new BadRequestException('Invalid signature transfer contract');
-
-      const txId = await client.permitTransfer(
-        dto.permit.address,
-        dto.permit.signature,
-        dto.permit.signatureTransferContract,
-        asset,
-        request.amount,
-        dto.permit.permittedAmount,
-        route.deposit.address,
-        dto.permit.nonce,
-        BigNumber.from(dto.permit.deadline),
-      );
-
-      const blockHeight = await client.getCurrentBlock();
-
-      const [payIn] = await this.payInService.createPayIns([
-        {
-          address: BlockchainAddress.create(route.deposit.address, asset.blockchain),
-          txId,
-          txType: PayInType.PERMIT_TRANSFER,
-          blockHeight,
-          amount: request.amount,
-          asset,
-        },
-      ]);
-
+      const payIn = await this.transactionUtilService.confirmCryptoInput(route, request, dto);
       const buyCrypto = await this.buyCryptoService.createFromCryptoInput(payIn, route, request);
 
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, route);
