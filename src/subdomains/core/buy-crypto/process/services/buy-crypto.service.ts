@@ -61,6 +61,7 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
     private readonly userService: UserService,
     private readonly assetService: AssetService,
@@ -74,6 +75,7 @@ export class BuyCryptoService {
     private readonly siftService: SiftService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly checkoutService: CheckoutService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly userDataService: UserDataService,

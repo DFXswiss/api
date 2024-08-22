@@ -21,8 +21,6 @@ import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
-import { BuyFiatPreparationService } from '../services/buy-fiat-preparation.service';
-import { BuyFiatRegistrationService } from '../services/buy-fiat-registration.service';
 import { BuyFiatService } from '../services/buy-fiat.service';
 
 enum MockBuyData {
@@ -42,10 +40,8 @@ describe('BuyFiatService', () => {
   let bankTxService: BankTxService;
   let fiatOutputService: FiatOutputService;
   let buyCryptoService: BuyCryptoService;
-  let buyFiatRegistrationService: BuyFiatRegistrationService;
   let webhookService: WebhookService;
   let fiatService: FiatService;
-  let buyFiatPreparationService: BuyFiatPreparationService;
   let transactionRequestService: TransactionRequestService;
   let bankDataService: BankDataService;
   let transactionService: TransactionService;
@@ -60,10 +56,8 @@ describe('BuyFiatService', () => {
     bankTxService = createMock<BankTxService>();
     fiatOutputService = createMock<FiatOutputService>();
     buyCryptoService = createMock<BuyCryptoService>();
-    buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
     webhookService = createMock<WebhookService>();
     fiatService = createMock<FiatService>();
-    buyFiatPreparationService = createMock<BuyFiatPreparationService>();
     transactionRequestService = createMock<TransactionRequestService>();
     bankDataService = createMock<BankDataService>();
     transactionService = createMock<TransactionService>();
@@ -81,10 +75,8 @@ describe('BuyFiatService', () => {
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
         { provide: WebhookService, useValue: webhookService },
         { provide: FiatService, useValue: fiatService },
-        { provide: BuyFiatPreparationService, useValue: buyFiatPreparationService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: BankDataService, useValue: bankDataService },
         { provide: TransactionService, useValue: transactionService },
