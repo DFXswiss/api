@@ -21,16 +21,11 @@ export class BuyCryptoJobService {
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async checkCryptoPayIn() {
-    if (DisabledProcess(Process.BUY_CRYPTO)) return;
-    await this.buyCryptoRegistrationService.registerCryptoPayIn();
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async process() {
     if (DisabledProcess(Process.BUY_CRYPTO)) return;
+    await this.buyCryptoRegistrationService.registerCryptoPayIn();
+    await this.buyCryptoRegistrationService.syncReturnTxId();
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
     if (!DisabledProcess(Process.BUY_CRYPTO_REFRESH_FEE)) await this.buyCryptoPreparationService.refreshFee();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
