@@ -16,7 +16,7 @@ import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto'
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
-import { PaymentActivationStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkPaymentMode } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -62,7 +62,7 @@ export class PaymentActivationService implements OnModuleInit {
     pendingPayment: PaymentLinkPayment,
     blockchain: Blockchain,
     receivedAmount: number,
-  ): { pendingActivation: PaymentActivation; allPendingActivations: PaymentActivation[] } | undefined {
+  ): { pendingActivation: PaymentActivation; otherPendingActivations: PaymentActivation[] } | undefined {
     const allPendingActivations = pendingPayment.activations.filter(
       (a) => a.status === PaymentActivationStatus.PENDING,
     );
@@ -81,20 +81,18 @@ export class PaymentActivationService implements OnModuleInit {
       return;
     }
 
-    return { pendingActivation, allPendingActivations };
+    const otherPendingActivations = allPendingActivations.filter((a) => a.id !== pendingActivation.id);
+
+    return { pendingActivation, otherPendingActivations };
   }
 
-  async updatePaymentActivationStatus(
-    activationToBeCompleted: PaymentActivation,
-    allPendingActivations: PaymentActivation[],
-  ): Promise<void> {
-    await this.paymentActivationRepo.save(activationToBeCompleted.complete());
-
-    for (const pendingActivation of allPendingActivations) {
-      if (pendingActivation.id !== activationToBeCompleted.id) {
-        await this.paymentActivationRepo.save(pendingActivation.expire());
-      }
-    }
+  async getNumberOfCompletedActivations(paymentId: number) {
+    return this.paymentActivationRepo.count({
+      where: {
+        payment: { id: paymentId },
+        status: PaymentActivationStatus.COMPLETED,
+      },
+    });
   }
 
   // --- CREATE ACTIVATIONS --- //
@@ -124,14 +122,20 @@ export class PaymentActivationService implements OnModuleInit {
     const expirySec = Util.secondsDiff(new Date(), expiryDate);
     if (expirySec < 1) throw new BadRequestException('Payment is expired');
 
-    let activation = await this.getExistingActivation(transferInfo);
+    let activation: PaymentActivation;
 
-    // TODO: reactivate unique check for sub-standard
-    // if (activation && activation.payment.id !== pendingPayment.id)
-    // throw new ConflictException('Duplicate payment request');
-
-    if (!activation || activation.payment.id !== pendingPayment.id)
+    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
       activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
+    } else {
+      activation = await this.getExistingActivation(transferInfo);
+
+      // TODO: reactivate unique check for sub-standard
+      // if (activation && activation.payment.id !== pendingPayment.id)
+      // throw new ConflictException('Duplicate payment request');
+
+      if (!activation || activation.payment.id !== pendingPayment.id)
+        activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
+    }
 
     return PaymentRequestMapper.toPaymentRequest(activation);
   }
@@ -245,6 +249,16 @@ export class PaymentActivationService implements OnModuleInit {
     if (!asset) throw new NotFoundException(`Asset ${uniqueName} not found`);
 
     return asset;
+  }
+
+  async complete(activation: PaymentActivation) {
+    await this.paymentActivationRepo.save(activation.complete());
+  }
+
+  async expire(activations: PaymentActivation[]) {
+    for (const activation of activations) {
+      await this.paymentActivationRepo.save(activation.expire());
+    }
   }
 
   async cancel(paymentId: number): Promise<void> {

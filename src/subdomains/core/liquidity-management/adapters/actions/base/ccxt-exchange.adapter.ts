@@ -123,7 +123,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         if (e.message?.includes('not enough balance') && minTradeAmount != null) {
           const availableBalance = await this.exchangeService.getBalance(tradeAsset);
           if (availableBalance >= minTradeAmount) {
-            return await this.exchangeService.sell(tradeAsset, asset, availableBalance * 0.99);
+            const reserve = Math.min(availableBalance * 0.01, minTradeAmount * 0.9);
+            return await this.exchangeService.sell(tradeAsset, asset, availableBalance - reserve);
           }
         }
 

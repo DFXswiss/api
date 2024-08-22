@@ -74,7 +74,8 @@
                 "chf_abroad_tx": "CHF cannot be paid out to foreign IBANs",
                 "asset_kyc_needed": "KYC is required for the deposited asset",
                 "card_name_mismatch": "The given credit card name does not match the name of the DFX account holder",
-                "user_deactivated": "Your linked blockchain address has been irrevocably deleted by you. You can still use DFX with other blockchain addresses"
+                "user_deactivated": "Your linked blockchain address has been irrevocably deleted by you. You can still use DFX with other blockchain addresses",
+                "video_ident_needed": "You must complete your KYC with Video-Ident for the transaction"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -147,6 +148,15 @@
                 "salutation": "Verification (KYC) is required to execute your pending transaction",
                 "line1": "Thank you for your trust in DFX.",
                 "line2": "Unfortunately, we need verification (KYC) from you for the asset you have deposited.",
+                "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
+                "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
+            },
+            "video_ident_needed": {
+                "title": "Video ident verification (KYC) required",
+                "salutation": "Video ident verification (KYC) is required to execute your pending transaction",
+                "line1": "Thank you for your trust in DFX.",
+                "line2": "Unfortunately, we need a video ident verification (KYC) from you for your transaction.",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
