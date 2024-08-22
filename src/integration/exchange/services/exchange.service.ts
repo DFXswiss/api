@@ -248,7 +248,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const balance = await this.getBalance(from);
     if (amount > balance) {
       throw new BadRequestException(
-        `${this.name}: there is not enough balance on for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
+        `${this.name}: not enough balance for ${from} (balance: ${balance}, requested: ${amount})`,
       );
     }
 

@@ -1,6 +1,5 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBaseService } from '../../../services/payin-base.service';
@@ -10,6 +9,7 @@ import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
+import { PayInWebHookService } from '../../../services/payin-webhhook.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
 import { BaseStrategy } from '../impl/base.strategy';
 import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registry';
@@ -37,7 +37,7 @@ describe('RegisterStrategyRegistry', () => {
   beforeEach(() => {
     bitcoinStrategy = new BitcoinStrategy(mock<PayInBitcoinService>());
 
-    lightningStrategy = new LightningStrategy(mock<LightningService>());
+    lightningStrategy = new LightningStrategy(new PayInWebHookService());
 
     moneroStrategy = new MoneroStrategy(mock<PayInMoneroService>());
 

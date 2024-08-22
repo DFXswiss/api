@@ -53,6 +53,10 @@ export class SellService {
     return this.sellRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
+  async getById(id: number): Promise<Sell> {
+    return this.sellRepo.findOne({ where: { id }, relations: { user: true } });
+  }
+
   async getLatest(userId: number): Promise<Sell | null> {
     return this.sellRepo.findOne({
       where: { user: { id: userId } },

@@ -1,5 +1,6 @@
-import { Inject } from '@nestjs/common';
+import { Inject, OnModuleInit } from '@nestjs/common';
 import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
+import { Config } from 'src/config/config';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
@@ -9,15 +10,18 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
+import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Like } from 'typeorm';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { RegisterStrategy } from './register.strategy';
 
-export abstract class EvmStrategy extends RegisterStrategy {
+export abstract class EvmStrategy extends RegisterStrategy implements OnModuleInit {
   protected addressWebhookMessageQueue: QueueHandler;
   protected assetTransfersMessageQueue: QueueHandler;
+
+  private evmPaymentDepositAddress: string;
 
   @Inject() protected readonly alchemyWebhookService: AlchemyWebhookService;
   @Inject() protected readonly alchemyService: AlchemyService;
@@ -28,6 +32,12 @@ export abstract class EvmStrategy extends RegisterStrategy {
     super();
   }
 
+  onModuleInit() {
+    super.onModuleInit();
+
+    this.evmPaymentDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
+  }
+
   protected abstract getOwnAddresses(): string[];
 
   // --- WEBHOOKS --- //
@@ -36,7 +46,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     this.addressWebhookMessageQueue
       .handle<void>(async () => this.processWebhookTransactions(dto))
       .catch((e) => {
-        this.logger.error('Error while process new payin entries', e);
+        this.logger.error('Error while processing new pay-in entries:', e);
       });
   }
 
@@ -70,7 +80,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     return transactions.map((tx) => ({
       address: BlockchainAddress.create(tx.toAddress, this.blockchain),
       txId: tx.hash,
-      txType: null,
+      txType: this.getTxType(tx.toAddress),
       blockHeight: Number(tx.blockNum),
       amount: EvmUtil.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
       asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
@@ -102,7 +112,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     const payInEntries = relevantAssetTransfers.map((tx) => ({
       address: BlockchainAddress.create(tx.to, this.blockchain),
       txId: tx.hash,
-      txType: null,
+      txType: this.getTxType(tx.to),
       blockHeight: Number(tx.blockNum),
       amount: EvmUtil.fromWeiAmount(tx.rawContract.value, Number(tx.rawContract.decimal)),
       asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
@@ -139,5 +149,9 @@ export abstract class EvmStrategy extends RegisterStrategy {
     return chainId
       ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
       : supportedAssets.find((a) => a.type === AssetType.COIN);
+  }
+
+  private getTxType(address: string): PayInType | undefined {
+    return Util.equalsIgnoreCase(this.evmPaymentDepositAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
   }
 }

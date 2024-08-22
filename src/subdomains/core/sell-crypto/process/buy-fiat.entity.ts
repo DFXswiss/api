@@ -139,6 +139,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
 
+  @Column({ length: 256, nullable: true })
+  chargebackAllowedBy: string;
+
   // Pass
   @Column({ type: 'datetime2', nullable: true })
   priceDefinitionAllowedDate: Date;
@@ -329,7 +332,6 @@ export class BuyFiat extends IEntity {
   amlCheckAndFillUp(
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -339,7 +341,7 @@ export class BuyFiat extends IEntity {
       this,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      0,
       last30dVolume,
       last365dVolume,
       bankData,
@@ -444,6 +446,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

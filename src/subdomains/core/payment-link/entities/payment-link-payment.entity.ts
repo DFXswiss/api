@@ -1,19 +1,15 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import {
-  PaymentLinkPaymentMode,
-  PaymentLinkPaymentStatus,
-  TransferInfo,
-  TransferMethod,
-} from '../dto/payment-link.dto';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../enums';
 import { PaymentActivation } from './payment-activation.entity';
 import { PaymentLink } from './payment-link.entity';
+import { PaymentQuote } from './payment-quote.entity';
 
 @Entity()
 export class PaymentLinkPayment extends IEntity {
-  @ManyToOne(() => PaymentLink, (p) => p.payments)
+  @ManyToOne(() => PaymentLink, (p) => p.payments, { nullable: false })
   @Index({ unique: true, where: `status = '${PaymentLinkPaymentStatus.PENDING}'` })
   link: PaymentLink;
 
@@ -38,15 +34,17 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ type: 'datetime2', nullable: false })
   expiryDate: Date;
 
-  @Column({ length: 'MAX' })
-  transferAmounts: string;
+  @Column({ nullable: false, default: 0 })
+  txCount: number;
 
-  @OneToOne(() => CryptoInput, { nullable: true })
-  @JoinColumn()
+  @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
   cryptoInput: CryptoInput;
 
-  @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true, eager: true })
+  @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
+
+  @OneToMany(() => PaymentQuote, (quote) => quote.payment, { nullable: true })
+  quotes: PaymentQuote[];
 
   // --- ENTITY METHODS --- //
 
@@ -68,19 +66,11 @@ export class PaymentLinkPayment extends IEntity {
     return this;
   }
 
-  get transferInfo(): TransferInfo[] {
-    return JSON.parse(this.transferAmounts);
-  }
-
-  getTransferInfoFor(method: TransferMethod, asset: string): TransferInfo | undefined {
-    return this.transferInfo.find((i) => i.method === method && i.asset === asset);
-  }
-
   get metaId(): string {
     return this.externalId ?? `${this.id}`;
   }
 
-  get requestMemo(): string {
-    return `Payment ${this.metaId} to ${this.link.metaId}`;
+  get displayName(): string {
+    return this.link.route.userData.verifiedName ?? `Payment ${this.metaId} to ${this.link.metaId}`;
   }
 }

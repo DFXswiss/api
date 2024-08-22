@@ -173,6 +173,9 @@ export class BuyCrypto extends IEntity {
   chargebackAllowedDate: Date;
 
   @Column({ length: 256, nullable: true })
+  chargebackAllowedBy: string;
+
+  @Column({ length: 256, nullable: true })
   chargebackIban: string;
 
   @OneToOne(() => FiatOutput, { nullable: true })
@@ -423,7 +426,7 @@ export class BuyCrypto extends IEntity {
   amlCheckAndFillUp(
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -435,7 +438,7 @@ export class BuyCrypto extends IEntity {
       this,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,
@@ -576,8 +579,8 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
-  AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN,
   AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

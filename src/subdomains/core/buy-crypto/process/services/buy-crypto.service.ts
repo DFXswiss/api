@@ -22,6 +22,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
@@ -73,6 +74,7 @@ export class BuyCryptoService {
     private readonly checkoutService: CheckoutService,
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -281,13 +283,16 @@ export class BuyCryptoService {
       }
     }
 
+    if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
 
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
     const forceUpdate: Partial<BuyCrypto> = {
-      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) &&
+      ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
+        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
       !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
@@ -306,6 +311,7 @@ export class BuyCryptoService {
 
     if (entity.cryptoInput && dto.amlCheck)
       await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
@@ -421,8 +427,13 @@ export class BuyCryptoService {
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
   }
 
-  async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
-    return this.buyCryptoRepo
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
+    const request = this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.bankTx', 'bankTx')
@@ -437,17 +448,25 @@ export class BuyCryptoService {
             .orWhere('cryptoRoute.userId IN (:...userIds)', { userIds }),
         ),
       )
-      .andWhere(
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
+
+    if (!type) {
+      request.andWhere(
         new Brackets((query) =>
           query
             .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
             .orWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
             .orWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
         ),
-      )
-      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume ?? 0);
+      );
+    } else {
+      request.andWhere(`${type}.${type !== 'checkoutTx' ? 'created' : 'requestedOn'} BETWEEN :dateFrom AND :dateTo`, {
+        dateFrom,
+        dateTo,
+      });
+    }
+
+    return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }
 
   async getRefTransactions(

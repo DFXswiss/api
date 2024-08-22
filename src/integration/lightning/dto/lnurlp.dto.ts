@@ -51,3 +51,13 @@ export interface LnurlpLinkUpdateDto {
 export interface LnurlpLinkRemoveDto {
   success: boolean;
 }
+
+export interface LnurlpTransactionDto {
+  payment_hash: string;
+  payment_request: string;
+  amount: number;
+  comment: string;
+  webhook_data: string;
+  lnurlp: string;
+  body: string;
+}

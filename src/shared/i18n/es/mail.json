@@ -73,7 +73,9 @@
                 "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada",
                 "chf_abroad_tx": "No se pueden pagar CHF a IBAN extranjeros",
                 "asset_kyc_needed": "Se requiere KYC para el activo depositado",
-                "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX"
+                "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX",
+                "user_deactivated": "Tu dirección de blockchain vinculada ha sido eliminada irrevocablemente por ti. Puede seguir utilizando DFX con otras direcciones de blockchain",
+                "video_ident_needed": "Usted debe completar su KYC con la identificación de vídeo para la transacción"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -141,15 +143,6 @@
                 "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
                 "line5": ""
             },
-            "chargeback_not_possible_no_iban": {
-                "title": "No es posible la devolución del cargo",
-                "salutation": "Su devolución no es posible",
-                "line1": "Gracias por confiar en DFX.",
-                "line2": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.",
-                "line3": "Póngase en contacto con nuestro equipo de asistencia.",
-                "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [url:https://services.dfx.swiss/support].",
-                "line5": ""
-            },
             "asset_kyc_needed": {
                 "title": "Verificación (KYC) requerida",
                 "salutation": "Se requiere verificación (KYC) para ejecutar su transacción pendiente",
@@ -158,7 +151,21 @@
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line5": "Si no desea llevar a cabo la verificación, el activo se devolverá de forma totalmente automática al cabo de 2 días."
+            },
+            "video_ident_needed": {
+                "title": "Se requiere verificación de identidad por vídeo (KYC)",
+                "salutation": "Se requiere verificación de identidad por vídeo (KYC) para ejecutar su transacción pendiente",
+                "line1": "Gracias por confiar en DFX.",
+                "line2": "Lamentablemente, necesitamos un vídeo de verificación de identidad (KYC) de usted para su transacción.",
+                "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
+                "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
+                "line5": "Si no desea llevar a cabo la verificación, el activo se devolverá de forma totalmente automática al cabo de 2 días."
             }
+        },
+        "chargeback_not_possible": {
+            "title": "No es posible la devolución del cargo",
+            "salutation": "Su devolución no es posible",
+            "message": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.<br>Póngase en contacto con nuestro equipo de asistencia.<br>Puede ponerse en contacto con el servicio de asistencia a través de [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",
         "blockchain": "Blockchain",

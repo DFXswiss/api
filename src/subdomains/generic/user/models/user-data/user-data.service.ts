@@ -133,7 +133,6 @@ export class UserDataService {
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
-      .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
       .getOne();
   }
 
@@ -205,8 +204,13 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
   }
 
+  async triggerVideoIdent(userData: UserData): Promise<void> {
+    await this.kycAdminService.triggerVideoIdentInternal(userData);
+  }
+
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
-    const isPersonalAccount = (data.accountType ?? userData.accountType) === AccountType.PERSONAL;
+    const isPersonalAccount =
+      (data.accountType ?? userData.accountType ?? AccountType.PERSONAL) === AccountType.PERSONAL;
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
@@ -536,7 +540,7 @@ export class UserDataService {
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
-      slave.kycSteps && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
+      slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
     ]

@@ -36,6 +36,7 @@ export enum MailTranslationKey {
   BLACK_SQUAD = 'mail.black_squad',
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
   SUPPORT_MESSAGE = 'mail.support_message',
+  CHARGEBACK_NOT_POSSIBLE = 'mail.payment.chargeback_not_possible',
 }
 
 export enum MailKey {
@@ -150,13 +151,14 @@ export class MailFactory {
   }
 
   private createPersonalMail(request: MailRequest): PersonalMail {
-    const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonalInput;
+    const { userData, title, prefix, banner, from, displayName, bcc } = request.input as MailRequestPersonalInput;
     const { correlationId, options } = request;
 
     const lang = userData.language.symbol;
 
     return new PersonalMail({
       to: userData.mail,
+      bcc,
       subject: this.translate(title, lang),
       prefix: prefix && this.getMailAffix(prefix, lang),
       banner,

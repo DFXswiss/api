@@ -10,6 +10,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -42,6 +43,7 @@ export class BuyCryptoPreparationService {
     private readonly siftService: SiftService,
     private readonly countryService: CountryService,
     private readonly payInService: PayInService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -92,13 +94,14 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+        const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.checkoutTx ? entity.inputReferenceAmount : 0,
           inputReferenceCurrency,
           false,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
           entity.userData.users,
+          'checkoutTx',
         );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
@@ -133,7 +136,7 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             minVolume,
             last24hVolume,
-            last7dVolume,
+            last7dCheckoutVolume,
             last30dVolume,
             last365dVolume,
             bankData,
@@ -145,7 +148,11 @@ export class BuyCryptoPreparationService {
 
         if (entity.cryptoInput) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
 
-        if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
+        if (amlCheckBefore !== entity.amlCheck) {
+          await this.buyCryptoWebhookService.triggerWebhook(entity);
+          if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+            await this.userDataService.triggerVideoIdent(entity.userData);
+        }
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);

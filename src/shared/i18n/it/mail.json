@@ -73,7 +73,9 @@
                 "asset_not_available_with_chosen_bank": "Questo bene non può essere acquistato tramite il conto bancario selezionato",
                 "chf_abroad_tx": "I CHF non possono essere versati su IBAN stranieri",
                 "asset_kyc_needed": "Il KYC è richiesto per l'attività depositata",
-                "card_name_mismatch": "Il nome della carta di credito indicato non corrisponde al nome del titolare del conto DFX"
+                "card_name_mismatch": "Il nome della carta di credito indicato non corrisponde al nome del titolare del conto DFX",
+                "user_deactivated": "L'indirizzo blockchain collegato è stato irrevocabilmente cancellato dall'utente. È ancora possibile utilizzare DFX con altri indirizzi blockchain",
+                "video_ident_needed": "È necessario completare il KYC con un'identità video per la transazione"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
@@ -141,15 +143,6 @@
                 "line4": "Sarete informati non appena il controllo sarà stato completato e il pagamento sarà stato elaborato.",
                 "line5": ""
             },
-            "chargeback_not_possible_no_iban": {
-                "title": "Il chargeback non è possibile",
-                "salutation": "Il vostro Chargeback non è possibile",
-                "line1": "Grazie per la vostra fiducia in DFX.",
-                "line2": "Purtroppo il vostro chargeback non è possibile perché la vostra banca non ha fornito un IBAN.",
-                "line3": "Contattate il nostro team di assistenza.",
-                "line4": "È possibile contattare l'assistenza tramite [url:https://services.dfx.swiss/support].",
-                "line5": ""
-            },
             "asset_kyc_needed": {
                 "title": "Verifica (KYC) richiesta",
                 "salutation": "La verifica (KYC) è necessaria per eseguire la transazione in corso.",
@@ -158,7 +151,21 @@
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line5": "Se non si desidera effettuare la verifica, il bene verrà restituito in modo completamente automatico dopo 2 giorni."
+            },
+            "video_ident_needed": {
+                "title": "È richiesta la verifica della video identità (KYC)",
+                "salutation": "La verifica della video identità (KYC) è necessaria per eseguire la transazione in corso",
+                "line1": "Grazie per la vostra fiducia in DFX.",
+                "line2": "Purtroppo abbiamo bisogno di una verifica dell'identità video (KYC) da parte vostra per la vostra transazione.",
+                "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
+                "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line5": "Se non si desidera effettuare la verifica, il bene verrà restituito in modo completamente automatico dopo 2 giorni."
             }
+        },
+        "chargeback_not_possible": {
+            "title": "Il chargeback non è possibile",
+            "salutation": "Il vostro Chargeback non è possibile",
+            "message": "Purtroppo il vostro chargeback non è possibile perché la vostra banca non ha fornito un IBAN.<br>Contattate il nostro team di assistenza.<br>È possibile contattare l'assistenza tramite [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",
         "blockchain": "Blockchain",

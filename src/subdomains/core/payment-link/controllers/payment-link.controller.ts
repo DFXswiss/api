@@ -1,17 +1,26 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
-import { PaymentLinkDto } from '../dto/payment-link.dto';
+import { PaymentLinkDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
-import { PaymentLinkService } from '../services/payment-link.services';
+import { PaymentLinkService } from '../services/payment-link.service';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')
@@ -19,6 +28,7 @@ export class PaymentLinkController {
   constructor(
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
+    private readonly lnurlForwardService: LnUrlForwardService,
   ) {}
 
   @Get()
@@ -67,6 +77,19 @@ export class PaymentLinkController {
     return this.paymentLinkService.update(+jwt.user, dto, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
+  @Get('payment')
+  @ApiExcludeEndpoint()
+  async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
+    dto.routeId ??= dto.r;
+    dto.externalId ??= dto.e;
+    dto.amount ??= dto.a;
+    dto.currency ??= dto.c;
+    dto.expiryDate ??= dto.d;
+
+    const link = await this.paymentLinkService.createInvoice(dto);
+    return this.lnurlForwardService.createPaymentLinkPayRequest(link.uniqueId);
+  }
+
   @Post('payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
@@ -82,6 +105,21 @@ export class PaymentLinkController {
     await this.checkPaymentLinksAllowed(jwt.account);
 
     return this.paymentLinkService.createPayment(+jwt.user, dto, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
+  @Get('payment/wait')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiQuery({ name: 'id', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalId', description: 'External link ID', required: false })
+  async waitForPayment(
+    @GetJwt() jwt: JwtPayload,
+    @Query('id') id: string,
+    @Query('externalId') externalId: string,
+  ): Promise<PaymentLinkDto> {
+    await this.checkPaymentLinksAllowed(jwt.account);
+
+    return this.paymentLinkService.waitForPayment(+jwt.user, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Delete('payment')
@@ -102,5 +140,17 @@ export class PaymentLinkController {
   private async checkPaymentLinksAllowed(userDataId: number): Promise<void> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+  }
+}
+
+@ApiTags('Payment Link')
+@Controller()
+export class PaymentLinkShortController {
+  constructor(private readonly paymentLinkController: PaymentLinkController) {}
+
+  @Get('plp')
+  @ApiExcludeEndpoint()
+  async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
+    return this.paymentLinkController.createInvoicePayment(dto);
   }
 }

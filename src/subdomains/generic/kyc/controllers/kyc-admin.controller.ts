@@ -27,7 +27,7 @@ export class KycAdminController {
   @Put('step/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async updateKycStep(@Param('id') id: string, @Body() dto: UpdateKycStepDto): Promise<void> {
     await this.kycService.updateKycStep(+id, dto);
   }

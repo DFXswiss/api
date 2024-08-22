@@ -104,7 +104,7 @@ export class UserService {
       .where('user.id = :id', { id })
       .andWhere('wallet.isKycClient = 0')
       .andWhere('linkedUser.status NOT IN (:...userStatus)', {
-        userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
+        userStatus: [UserStatus.BLOCKED, UserStatus.DELETED],
       })
       .getRawMany<{ address: string }>();
 
@@ -119,7 +119,7 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED] })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
       })
@@ -271,9 +271,9 @@ export class UserService {
     if (address) {
       const user = userData.users.find((u) => u.address === address);
       if (!user) throw new NotFoundException('Address not found');
-      if (user.isBlockedOrDeactivated) throw new BadRequestException('Address already deactivated');
+      if (user.isBlockedOrDeleted) throw new BadRequestException('Address already deleted or blocked');
 
-      await this.userRepo.update(...user.deactivateUser('Manual user deactivation'));
+      await this.userRepo.update(...user.deleteUser('Manual user deletion'));
       return;
     }
 

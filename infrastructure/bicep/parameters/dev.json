@@ -95,6 +95,9 @@
     "paymentTimeout": {
       "value": "xxx"
     },
+    "paymentQuoteTimeout": {
+      "value": "xxx"
+    },
     "paymentTimeoutDelay": {
       "value": "xxx"
     },
@@ -219,6 +222,12 @@
       "value": "xxx"
     },
     "lightningApiCertificate": {
+      "value": "xxx"
+    },
+    "lightningSigningPrivKey": {
+      "value": "xxx"
+    },
+    "lightningSigningPubKey": {
       "value": "xxx"
     },
     "lightningLnbitsApiKey": {
@@ -384,6 +393,9 @@
       "value": "xxx"
     },
     "limitRequestSupportMail": {
+      "value": "xxx"
+    },
+    "limitRequestSupportStaffMail": {
       "value": "xxx"
     },
     "limitRequestSupportName": {
