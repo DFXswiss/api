@@ -331,12 +331,17 @@ export class BuyCryptoService {
   async refundBuyCrypto(buyCryptoId: number, dto: RefundCryptoInputDto): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({
       where: { id: buyCryptoId },
-      relations: { checkoutTx: true, cryptoInput: { route: { user: true } } },
+      relations: {
+        checkoutTx: true,
+        cryptoInput: { route: { user: true }, transaction: true },
+        transaction: { user: { userData: true } },
+      },
     });
 
+    if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
     if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
     if (buyCrypto.cryptoInput)
-      return this.refundCryptoInput(buyCrypto, buyCrypto.chargebackIban, dto.refundUser.id, dto.chargebackAmount);
+      return this.refundCryptoInput(buyCrypto, buyCrypto.chargebackIban, dto.refundUser?.id, dto.chargebackAmount);
 
     throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
   }
@@ -369,8 +374,8 @@ export class BuyCryptoService {
     if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
 
     const refundUser = refundUserId
-      ? await this.userService.getUser(refundUserId, { userData: true })
-      : await this.userService.getUserByAddress(refundUserAddress, { userData: true });
+      ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
+      : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
 
     TransactionUtilService.validateRefund(buyCrypto, refundUser, chargebackAmount);
 

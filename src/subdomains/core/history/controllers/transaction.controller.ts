@@ -260,6 +260,7 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
+      user: { userData: true },
       buyCrypto: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
       buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
     });
@@ -271,7 +272,8 @@ export class TransactionController {
       throw new NotFoundException('Transaction not found');
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (!transaction.cryptoInput) throw new BadRequestException('You can only refund sell or swap transactions');
+    if (!transaction.targetEntity.cryptoInput)
+      throw new BadRequestException('You can only refund sell or swap transactions');
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto.refundAddress);

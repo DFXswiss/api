@@ -236,10 +236,14 @@ export class BuyFiatService {
   async refundBuyFiat(buyFiatId: number, dto: RefundCryptoInputDto): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id: buyFiatId },
-      relations: { cryptoInput: { route: { user: true } } },
+      relations: {
+        cryptoInput: { route: { user: true }, transaction: true },
+        transaction: { user: { userData: true } },
+      },
     });
+    if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
-    await this.refundBuyFiatInternal(buyFiat, buyFiat.chargebackAddress, dto.refundUser.id, dto.chargebackAmount);
+    await this.refundBuyFiatInternal(buyFiat, buyFiat.chargebackAddress, dto.refundUser?.id, dto.chargebackAmount);
   }
 
   async refundBuyFiatInternal(
@@ -251,8 +255,8 @@ export class BuyFiatService {
     if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
 
     const refundUser = refundUserId
-      ? await this.userService.getUser(refundUserId, { userData: true })
-      : await this.userService.getUserByAddress(refundUserAddress, { userData: true });
+      ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
+      : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
 
     TransactionUtilService.validateRefund(buyFiat, refundUser, chargebackAmount);
 
