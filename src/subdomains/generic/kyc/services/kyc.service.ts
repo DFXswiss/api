@@ -597,7 +597,8 @@ export class KycService {
       result.userdata?.nationality?.value &&
       identificationType &&
       result.identificationdocument?.type?.value &&
-      result.identificationdocument?.number?.value
+      result.identificationdocument?.number?.value &&
+      nationality
     ) {
       const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${
         result.identificationdocument.number.value
