@@ -1,11 +1,11 @@
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { BankTxBatch } from './bank-tx-batch.entity';
-import { BankTx } from './bank-tx.entity';
-import { SepaEntry } from './dto/sepa-entry.dto';
-import { SepaFile } from './dto/sepa-file.dto';
-import { ChargeRecord, SepaAddress, SepaCdi } from './dto/sepa.dto';
+import { SepaEntry } from '../dto/sepa-entry.dto';
+import { SepaFile } from '../dto/sepa-file.dto';
+import { ChargeRecord, SepaAddress, SepaCdi } from '../dto/sepa.dto';
+import { BankTxBatch } from '../entities/bank-tx-batch.entity';
+import { BankTx } from '../entities/bank-tx.entity';
 
 export class SepaParser {
   private static readonly logger = new DfxLogger(SepaParser);

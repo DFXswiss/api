@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Util } from 'src/shared/utils/util';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
-import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BankTx, BankTxType } from '../bank-tx/entities/bank-tx.entity';
+import { BankTxRepository } from '../bank-tx/repositories/bank-tx.repository';
 import { BankTxReturn } from './bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return.repository';
 import { UpdateBankTxReturnDto } from './dto/update-bank-tx-return.dto';

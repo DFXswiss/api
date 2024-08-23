@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
-import { BankTx } from '../bank-tx/bank-tx.entity';
+import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
 @Entity()
 export class BankTxReturn extends IEntity {
