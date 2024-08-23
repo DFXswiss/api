@@ -148,7 +148,7 @@ export class PayInService {
   async returnPayInEntries(): Promise<void> {
     if (DisabledProcess(Process.PAY_IN)) return;
 
-    await this.confirmReturnedPayIns();
+    await this.returnPayIns();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -225,7 +225,7 @@ export class PayInService {
     }
   }
 
-  private async confirmReturnedPayIns(): Promise<void> {
+  private async returnPayIns(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
       action: PayInAction.RETURN,
