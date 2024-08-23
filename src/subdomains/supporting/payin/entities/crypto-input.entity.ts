@@ -26,14 +26,18 @@ export enum PayInAction {
   RETURN = 'Return',
 }
 
+export type PayInConfirmationType = 'Input' | 'Output' | 'Return';
+
 export enum PayInStatus {
   CREATED = 'Created',
   FAILED = 'Failed',
   IGNORED = 'Ignored',
   TO_RETURN = 'ToReturn',
   RETURNED = 'Returned',
+  RETURN_CONFIRMED = 'ReturnConfirmed',
   ACKNOWLEDGED = 'Acknowledged',
   FORWARDED = 'Forwarded',
+  FORWARD_CONFIRMED = 'ForwardConfirmed',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
   COMPLETED = 'Completed',
@@ -229,10 +233,26 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  confirm(): this {
-    this.isConfirmed = true;
+  confirm(direction: PayInConfirmationType): this {
+    switch (direction) {
+      case 'Input':
+        this.isConfirmed = true;
+        break;
+
+      case 'Output':
+        this.status = PayInStatus.FORWARD_CONFIRMED;
+        break;
+
+      case 'Return':
+        this.status = PayInStatus.RETURN_CONFIRMED;
+        break;
+    }
 
     return this;
+  }
+
+  confirmationTxId(direction: PayInConfirmationType): string {
+    return direction === 'Input' ? this.inTxId : direction === 'Output' ? this.outTxId : this.returnTxId;
   }
 
   designateReturn(): this {
