@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { PayInRepository } from '../../../repositories/payin.repository';
@@ -10,12 +9,8 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class OptimismCoinStrategy extends EvmCoinStrategy {
-  constructor(
-    optimismService: PayInOptimismService,
-    payInRepo: PayInRepository,
-    evmRegistryService: EvmRegistryService,
-  ) {
-    super(optimismService, payInRepo, evmRegistryService);
+  constructor(optimismService: PayInOptimismService, payInRepo: PayInRepository) {
+    super(optimismService, payInRepo);
   }
 
   get blockchain(): Blockchain {

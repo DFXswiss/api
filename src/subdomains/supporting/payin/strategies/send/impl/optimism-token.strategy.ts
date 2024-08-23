@@ -6,12 +6,11 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { EvmTokenStrategy } from './base/evm.token.strategy';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 
 @Injectable()
 export class OptimismTokenStrategy extends EvmTokenStrategy {
-  constructor(optimismService: PayInOptimismService, payInRepo: PayInRepository, evmRegistryService: EvmRegistryService) {
-    super(optimismService, payInRepo, evmRegistryService);
+  constructor(optimismService: PayInOptimismService, payInRepo: PayInRepository) {
+    super(optimismService, payInRepo);
   }
 
   get blockchain(): Blockchain {

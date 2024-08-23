@@ -27,7 +27,6 @@ import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
 import { PolygonCoinStrategy } from '../impl/polygon-coin.strategy';
 import { PolygonTokenStrategy } from '../impl/polygon-token.strategy';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 
 describe('SendStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
@@ -55,23 +54,23 @@ describe('SendStrategyRegistry', () => {
 
     monero = new MoneroStrategy(mock<PayInMoneroService>(), mock<PayInRepository>());
 
-    ethereumCoin = new EthereumCoinStrategy(mock<PayInEthereumService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
-    ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
+    ethereumCoin = new EthereumCoinStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
+    ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
 
-    bscCoin = new BscCoinStrategy(mock<PayInBscService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
-    bscToken = new BscTokenStrategy(mock<PayInBscService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
+    bscCoin = new BscCoinStrategy(mock<PayInBscService>(), mock<PayInRepository>());
+    bscToken = new BscTokenStrategy(mock<PayInBscService>(), mock<PayInRepository>());
 
-    arbitrumCoin = new ArbitrumCoinStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
-    arbitrumToken = new ArbitrumTokenStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
+    arbitrumCoin = new ArbitrumCoinStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>());
+    arbitrumToken = new ArbitrumTokenStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>());
 
-    optimismCoin = new OptimismCoinStrategy(mock<PayInOptimismService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
-    optimismToken = new OptimismTokenStrategy(mock<PayInOptimismService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
+    optimismCoin = new OptimismCoinStrategy(mock<PayInOptimismService>(), mock<PayInRepository>());
+    optimismToken = new OptimismTokenStrategy(mock<PayInOptimismService>(), mock<PayInRepository>());
 
-    polygonCoin = new PolygonCoinStrategy(mock<PayInPolygonService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
-    polygonToken = new PolygonTokenStrategy(mock<PayInPolygonService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
+    polygonCoin = new PolygonCoinStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
+    polygonToken = new PolygonTokenStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
 
-    baseCoin = new BaseCoinStrategy(mock<PayInBaseService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
-    baseToken = new BaseTokenStrategy(mock<PayInBaseService>(), mock<PayInRepository>(), mock<EvmRegistryService>());
+    baseCoin = new BaseCoinStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
+    baseToken = new BaseTokenStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
 
     registry = new SendStrategyRegistryWrapper(
       bitcoin,

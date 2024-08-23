@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import {
@@ -15,11 +14,7 @@ import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
-  constructor(
-    protected readonly payInEvmService: PayInEvmService,
-    protected readonly payInRepo: PayInRepository,
-    protected readonly evmRegistryService: EvmRegistryService,
-  ) {
+  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
     super();
   }
 
@@ -97,10 +92,7 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
-    const client = this.evmRegistryService.getClient(payIn.asset.blockchain);
-
-    const { confirmations } = await client.getTx(payIn.confirmationTxId(direction));
-    return confirmations >= 1;
+    return this.payInEvmService.checkTransactionCompletion(payIn.confirmationTxId(direction));
   }
 
   //*** HELPER METHODS ***//

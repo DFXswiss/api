@@ -1,4 +1,3 @@
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
@@ -6,12 +5,8 @@ import { EvmStrategy } from './evm.strategy';
 import { SendGroup } from './send.strategy';
 
 export abstract class EvmTokenStrategy extends EvmStrategy {
-  constructor(
-    protected readonly payInEvmService: PayInEvmService,
-    protected readonly payInRepo: PayInRepository,
-    protected readonly evmRegistryService: EvmRegistryService,
-  ) {
-    super(payInEvmService, payInRepo, evmRegistryService);
+  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+    super(payInEvmService, payInRepo);
   }
 
   protected async checkPreparation(payInGroup: SendGroup): Promise<boolean> {
