@@ -168,6 +168,10 @@ export class UserDataService {
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
       const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
       if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+
+      for (const user of userData.users) {
+        await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
+      }
     }
 
     // Columns are not updatable
@@ -612,7 +616,8 @@ export class UserDataService {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {
-        await this.userRepo.activateUser(user);
+        await this.userRepo.update(...user.activateUser());
+        await this.userRepo.setUserRef(user, master.kycLevel);
       }
     }
 
