@@ -514,11 +514,8 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    if (!this.isDataComplete) return undefined;
-
     return this.accountType === AccountType.BUSINESS
       ? {
-          name: this.organizationName,
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,
           city: this.organizationLocation,
@@ -526,7 +523,6 @@ export class UserData extends IEntity {
           country: this.organizationCountry,
         }
       : {
-          name: `${this.firstname} ${this.surname}`,
           street: this.street,
           houseNumber: this.houseNumber,
           city: this.location,
