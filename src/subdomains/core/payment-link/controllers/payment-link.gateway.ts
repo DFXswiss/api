@@ -22,27 +22,26 @@ export class PaymentLinkGateway implements OnGatewayConnection {
   }
 
   handleConnection(client: WebSocket, message: IncomingMessage) {
-    const search = new URLSearchParams(message.url?.split('?')[1]);
-    const id = search.get('id');
-    if (!id) throw new BadRequestException('id parameter is required');
+    const device = new URLSearchParams(message.url?.split('?')[1]).get('device');
+    if (!device) throw new BadRequestException('device should not be empty');
 
-    this.addClient(id, client);
+    this.addClient(device, client);
   }
 
   // --- HELPER METHODS --- //
-  private addClient(id: string, client: WebSocket) {
+  private addClient(device: string, client: WebSocket) {
     const clientId = Util.createUniqueId('client');
 
-    const clients = this.clients.get(id) ?? new Map();
+    const clients = this.clients.get(device) ?? new Map();
     clients.set(clientId, client);
-    this.clients.set(id, clients);
+    this.clients.set(device, clients);
 
-    client.onclose = () => this.removeClient(id, clientId);
+    client.onclose = () => this.removeClient(device, clientId);
   }
 
-  private removeClient(id: string, clientId: string) {
-    const clients = this.clients.get(id);
+  private removeClient(device: string, clientId: string) {
+    const clients = this.clients.get(device);
     clients?.delete(clientId);
-    this.clients.set(id, clients);
+    this.clients.set(device, clients);
   }
 }
