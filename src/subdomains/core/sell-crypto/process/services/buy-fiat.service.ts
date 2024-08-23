@@ -51,6 +51,7 @@ export class BuyFiatService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
   ) {}

@@ -8,6 +8,7 @@ import { ReferralModule } from './referral/referral.module';
 import { SellCryptoModule } from './sell-crypto/sell-crypto.module';
 import { StatisticModule } from './statistic/statistic.module';
 import { TradingModule } from './trading/trading.module';
+import { TransactionUtilModule } from './transaction/transaction-util.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TradingModule } from './trading/trading.module';
     LiquidityManagementModule,
     TradingModule,
     PaymentLinkModule,
+    TransactionUtilModule,
   ],
   controllers: [],
   providers: [],
