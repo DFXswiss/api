@@ -40,7 +40,7 @@ export class TransactionUtilService {
       throw new BadRequestException('You can not refund more than the input amount');
   }
 
-  async confirmCryptoInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {
+  async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {
     const asset = await this.assetService.getAssetById(request.sourceId);
 
     const client = this.evmRegistry.getClient(asset.blockchain);

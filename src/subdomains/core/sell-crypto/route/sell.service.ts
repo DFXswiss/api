@@ -195,7 +195,7 @@ export class SellService {
         relations: { deposit: true, user: { wallet: true, userData: true } },
       });
 
-      const payIn = await this.transactionUtilService.confirmCryptoInput(route, request, dto);
+      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto);
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
 
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
