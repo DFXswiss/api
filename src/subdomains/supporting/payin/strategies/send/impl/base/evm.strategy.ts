@@ -80,6 +80,8 @@ export abstract class EvmStrategy extends SendStrategy {
   async checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void> {
     for (const payIn of payIns) {
       try {
+        if (!payIn.confirmationTxId(direction)) continue;
+
         const isConfirmed = await this.isConfirmed(payIn, direction);
         if (isConfirmed) {
           payIn.confirm(direction);

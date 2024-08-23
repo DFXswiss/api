@@ -18,6 +18,8 @@ export abstract class JellyfishStrategy extends SendStrategy {
 
     for (const payIn of payIns) {
       try {
+        if (!payIn.confirmationTxId(direction)) continue;
+
         const isConfirmed = await this.isConfirmed(payIn, direction);
         if (isConfirmed) {
           payIn.confirm(direction);

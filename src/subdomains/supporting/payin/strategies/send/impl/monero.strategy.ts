@@ -51,6 +51,8 @@ export class MoneroStrategy extends SendStrategy {
 
     for (const payIn of payIns) {
       try {
+        if (!payIn.confirmationTxId(direction)) continue;
+
         const transaction = await this.payInMoneroService.getTransaction(payIn.confirmationTxId(direction));
 
         if (MoneroHelper.isTransactionComplete(transaction)) {
