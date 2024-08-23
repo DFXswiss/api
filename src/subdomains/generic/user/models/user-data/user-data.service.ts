@@ -170,7 +170,7 @@ export class UserDataService {
       if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
 
       for (const user of userData.users) {
-        await this.userRepo.setUserRef(user);
+        await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
       }
     }
 
@@ -616,8 +616,8 @@ export class UserDataService {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {
-        await this.userRepo.activateUser(user);
-        await this.userRepo.setUserRef(user);
+        await this.userRepo.update(...user.activateUser());
+        await this.userRepo.setUserRef(user, master.kycLevel);
       }
     }
 

@@ -442,7 +442,7 @@ export class UserService {
   }
 
   async activateUser(user: User): Promise<void> {
-    await this.userRepo.activateUser(user);
+    await this.userRepo.update(...user.activateUser());
     await this.userDataRepo.activateUserData(user.userData);
   }
 

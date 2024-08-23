@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
 import { EntityManager, Like } from 'typeorm';
-import { User, UserStatus } from './user.entity';
+import { KycLevel } from '../user-data/user-data.entity';
+import { User } from './user.entity';
 
 @Injectable()
 export class UserRepository extends BaseRepository<User> {
@@ -10,13 +11,9 @@ export class UserRepository extends BaseRepository<User> {
     super(User, manager);
   }
 
-  async activateUser(user: User): Promise<void> {
-    if (user.status === UserStatus.NA) await Util.retry(() => this.update(...user.activateUser()), 3, 0);
-  }
-
-  async setUserRef(user: User): Promise<void> {
-    if (!user.ref) {
-      let ref = user.ref ?? (await this.getNextRef());
+  async setUserRef(user: User, kycLevel: KycLevel): Promise<void> {
+    if (!user.ref && kycLevel >= KycLevel.LEVEL_50) {
+      let ref = await this.getNextRef();
       // retry (in case of ref conflict)
       await Util.retry(
         () => this.update(...user.setRef(ref)),
