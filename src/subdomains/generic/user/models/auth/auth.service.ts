@@ -364,7 +364,7 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  private generateAccountToken(userData: UserData, ip: string): string {
+  generateAccountToken(userData: UserData, ip: string): string {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,

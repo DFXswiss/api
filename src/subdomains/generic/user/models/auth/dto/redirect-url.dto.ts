@@ -2,12 +2,12 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class MergeRedirectDto {
   @ApiProperty({
-    description: 'Redirect URL',
+    description: 'KYC hash',
   })
-  redirectUrl: string;
+  kycHash: string;
 
   @ApiProperty({
     description: 'Access token of DFX API',
   })
-  accessToken: string;
+  accessToken?: string;
 }

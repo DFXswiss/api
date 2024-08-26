@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -7,9 +6,8 @@ import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AlbySignupDto } from '../user/dto/alby.dto';
@@ -70,7 +68,7 @@ export class AuthController {
 
   @Get('mail/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: MergeRedirectDto })
   async executeMerge(
@@ -79,14 +77,24 @@ export class AuthController {
     @RealIP() ip: string,
   ): Promise<MergeRedirectDto> {
     const { master } = await this.mergeService.executeMerge(code);
-    const newUser = await this.userRepo.findOne({
-      where: { userData: { id: master.id }, address: jwt.address },
-      relations: { userData: true, wallet: true },
-    });
+    let accessToken: string;
+
+    if (jwt) {
+      if (jwt.user) {
+        const newUser = await this.userRepo.findOne({
+          where: { userData: { id: master.id }, address: jwt.address },
+          relations: { userData: true, wallet: true },
+        });
+
+        accessToken = this.authService.generateUserToken(newUser, ip);
+      } else {
+        accessToken = this.authService.generateAccountToken(master, ip);
+      }
+    }
 
     return {
-      redirectUrl: master.kycUrl,
-      accessToken: this.authService.generateUserToken(newUser, ip),
+      kycHash: master.kycHash,
+      accessToken,
     };
   }
 
