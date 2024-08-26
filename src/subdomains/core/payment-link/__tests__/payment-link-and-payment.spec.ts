@@ -4,22 +4,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
 import { EntityManager } from 'typeorm';
-import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { PaymentLinkController } from '../controllers/payment-link.controller';
-import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkStatus } from '../enums';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentActivationService } from '../services/payment-activation.service';
@@ -27,8 +20,9 @@ import { PaymentLinkPaymentService } from '../services/payment-link-payment.serv
 import { PaymentLinkService } from '../services/payment-link.service';
 import { PaymentQuoteService } from '../services/payment-quote.service';
 import { PaymentWebhookService } from '../services/payment-webhook.service';
+import { PaymentTestHelper } from './payment-test.helper';
 
-describe('Payment', () => {
+describe('Payment Link', () => {
   let userDataServiceMock: UserDataService;
   let countryServiceMock: CountryService;
   let fiatServiceMock: FiatService;
@@ -114,99 +108,76 @@ describe('Payment', () => {
   it('should create a payment link', async () => {
     PaymentTestHelper.spyOnRoute(sellServiceMock, Blockchain.LIGHTNING);
 
-    const newPaymentLink = new PaymentLink();
-
-    jest
-      .spyOn(paymentLinkRepo, 'create')
-      .mockImplementation((data) => Object.assign(newPaymentLink, data, { uniqueId: 'x_12345' }));
-    jest
-      .spyOn(paymentLinkRepo, 'save')
-      .mockImplementation(async (data) => Object.assign(newPaymentLink, data, { id: 1 }));
-    jest.spyOn(paymentLinkRepo, 'existsBy').mockImplementation(async () => false);
-
-    jest.spyOn(paymentLinkRepo, 'getPaymentLinkById').mockImplementation(async () => newPaymentLink);
-    jest.spyOn(paymentLinkPaymentRepo, 'findOne').mockImplementation();
+    PaymentTestHelper.spyOnPaymentLinkRepo(paymentLinkRepo);
+    PaymentTestHelper.spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo);
 
     const dto = PaymentTestHelper.createPaymentLinkDto();
-    const paymentLink = await paymentLinkController.createPaymentLink(jwtPayloadMock, dto);
+    const checkLink = await paymentLinkController.createPaymentLink(jwtPayloadMock, dto);
 
-    expect(paymentLink.id).toBe(1);
-    expect(paymentLink.externalId).toBe('Hello_World');
-    expect(paymentLink.webhookUrl).toBe('http://test-webhook/wh_112233');
-    expect(paymentLink.recipient.name).toBe('Testname');
-    expect(paymentLink.recipient.address.street).toBe('Teststreet');
-    expect(paymentLink.recipient.address.houseNumber).toBe('Testhousenumber');
-    expect(paymentLink.recipient.address.zip).toBe('Testzip');
-    expect(paymentLink.recipient.address.city).toBe('Testcity');
-    expect(paymentLink.recipient.address.country).toBe('Testcountry');
-    expect(paymentLink.recipient.phone).toBe('Testphone');
-    expect(paymentLink.recipient.mail).toBe('Testmail');
-    expect(paymentLink.recipient.website).toBe('Testwebsite');
+    expect(checkLink.id).toBe(1);
+    expect(checkLink.externalId).toBe('Hello_World');
+    expect(checkLink.webhookUrl).toBe('http://test-webhook/wh_112233');
+    expect(checkLink.recipient.name).toBe('Testname');
+    expect(checkLink.recipient.address.street).toBe('Teststreet');
+    expect(checkLink.recipient.address.houseNumber).toBe('Testhousenumber');
+    expect(checkLink.recipient.address.zip).toBe('Testzip');
+    expect(checkLink.recipient.address.city).toBe('Testcity');
+    expect(checkLink.recipient.address.country).toBe('Testcountry');
+    expect(checkLink.recipient.phone).toBe('Testphone');
+    expect(checkLink.recipient.mail).toBe('Testmail');
+    expect(checkLink.recipient.website).toBe('Testwebsite');
 
-    expect(paymentLink.status).toBe(PaymentLinkStatus.ACTIVE);
-    expect(paymentLink.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/x_12345');
-    expect(paymentLink.lnurl).toBe(
+    expect(checkLink.status).toBe(PaymentLinkStatus.ACTIVE);
+    expect(checkLink.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/x_12345');
+    expect(checkLink.lnurl).toBe(
       'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHKCMN4WFK8QTMCTUCNYVE5X588FPER',
     );
   });
+
+  it('should create a payment link payment', async () => {
+    PaymentTestHelper.spyOnRoute(sellServiceMock, Blockchain.LIGHTNING);
+
+    PaymentTestHelper.spyOnPaymentLinkRepo(paymentLinkRepo);
+    PaymentTestHelper.spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo);
+
+    const paymentLinkDto = PaymentTestHelper.createPaymentLinkDto();
+    const paymentLink = await paymentLinkController.createPaymentLink(jwtPayloadMock, paymentLinkDto);
+
+    const paymentLinkPaymentDto = PaymentTestHelper.createPaymentLinkPaymentDto();
+    const checkPayment = await paymentLinkController.createPayment(
+      jwtPayloadMock,
+      null,
+      paymentLink.externalId,
+      paymentLinkPaymentDto,
+    );
+
+    expect(checkPayment.id).toBe(1);
+    expect(checkPayment.externalId).toBe('Hello_World');
+    expect(checkPayment.webhookUrl).toBe('http://test-webhook/wh_112233');
+    expect(checkPayment.recipient.name).toBe('Testname');
+    expect(checkPayment.recipient.address.street).toBe('Teststreet');
+    expect(checkPayment.recipient.address.houseNumber).toBe('Testhousenumber');
+    expect(checkPayment.recipient.address.zip).toBe('Testzip');
+    expect(checkPayment.recipient.address.city).toBe('Testcity');
+    expect(checkPayment.recipient.address.country).toBe('Testcountry');
+    expect(checkPayment.recipient.phone).toBe('Testphone');
+    expect(checkPayment.recipient.mail).toBe('Testmail');
+    expect(checkPayment.recipient.website).toBe('Testwebsite');
+    expect(checkPayment.status).toBe(PaymentLinkStatus.ACTIVE);
+    expect(checkPayment.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/x_12345');
+    expect(checkPayment.lnurl).toBe(
+      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHKCMN4WFK8QTMCTUCNYVE5X588FPER',
+    );
+
+    expect(checkPayment.payment.id).toBe(1);
+    expect(checkPayment.payment.externalId).toBe('Hello_Payment_World');
+    expect(checkPayment.payment.status).toBe(PaymentLinkPaymentStatus.PENDING);
+    expect(checkPayment.payment.amount).toBe(111.22);
+    expect(checkPayment.payment.currency).toBe('CHF');
+    expect(checkPayment.payment.mode).toBe(PaymentLinkPaymentMode.SINGLE);
+    expect(checkPayment.payment.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/y_98765');
+    expect(checkPayment.payment.lnurl).toBe(
+      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHKCMN4WFK8QTMETUUNSDEKX5VJHJEV',
+    );
+  });
 });
-
-class PaymentTestHelper {
-  static createPaymentLinkDto(): CreatePaymentLinkDto {
-    return {
-      externalId: 'Hello_World',
-      webhookUrl: 'http://test-webhook/wh_112233',
-      recipient: {
-        name: 'Testname',
-        address: {
-          street: 'Teststreet',
-          houseNumber: 'Testhousenumber',
-          zip: 'Testzip',
-          city: 'Testcity',
-          country: 'Testcountry',
-        },
-        phone: 'Testphone',
-        mail: 'Testmail',
-        website: 'Testwebsite',
-      },
-    };
-  }
-
-  static createUser(): User {
-    const userData = new UserData();
-    userData.paymentLinksAllowed = true;
-
-    const user = new User();
-    user.userData = userData;
-
-    return user;
-  }
-
-  static spyOnUserData(userDataServiceMock: UserDataService) {
-    jest.spyOn(userDataServiceMock, 'getUserData').mockResolvedValue(PaymentTestHelper.createUser().userData);
-  }
-
-  static spyOnCountry(countryServiceMock: CountryService) {
-    jest.spyOn(countryServiceMock, 'getCountryWithSymbol').mockImplementation(async (data) => {
-      const country = new Country();
-      country.name = data;
-      country.symbol = data;
-      return country;
-    });
-  }
-
-  static spyOnRoute(sellServiceMock: SellService, blockchain: Blockchain): Sell {
-    const deposit = new Deposit();
-    deposit.blockchains = blockchain;
-
-    const sellRoute = new Sell();
-    sellRoute.deposit = deposit;
-    sellRoute.user = PaymentTestHelper.createUser();
-
-    jest.spyOn(sellServiceMock, 'get').mockResolvedValue(sellRoute);
-    jest.spyOn(sellServiceMock, 'getById').mockResolvedValue(sellRoute);
-    jest.spyOn(sellServiceMock, 'getLatest').mockResolvedValue(sellRoute);
-
-    return sellRoute;
-  }
-}
