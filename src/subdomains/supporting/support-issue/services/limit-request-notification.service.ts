@@ -74,6 +74,7 @@ export class LimitRequestNotificationService {
                 },
               ],
               from: Config.support.limitRequest.mailAddress,
+              bcc: Config.support.limitRequest.mailAddressSupportStaff,
               displayName: Config.support.limitRequest.mailName,
               banner: Config.support.limitRequest.mailBanner,
             },

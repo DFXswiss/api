@@ -5,6 +5,7 @@ import { Mail } from './base/mail';
 
 export interface MailRequestPersonalInput {
   userData: UserData;
+  bcc?: string;
   title: string;
   salutation?: TranslationItem;
   prefix?: TranslationItem[];
@@ -15,6 +16,7 @@ export interface MailRequestPersonalInput {
 
 export interface PersonalMailParams {
   to: string;
+  bcc?: string;
   subject: string;
   prefix: MailAffix[];
   banner: string;

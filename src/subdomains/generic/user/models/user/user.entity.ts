@@ -140,11 +140,16 @@ export class User extends IEntity {
     return [this.id, update];
   }
 
-  activateUser(ref: string): UpdateResult<User> {
-    const update: Partial<User> = {
-      status: UserStatus.ACTIVE,
-      ref,
-    };
+  activateUser(): UpdateResult<User> {
+    const update: Partial<User> = { status: UserStatus.ACTIVE };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setRef(ref: string): UpdateResult<User> {
+    const update: Partial<User> = { ref };
 
     Object.assign(this, update);
 
@@ -152,9 +157,7 @@ export class User extends IEntity {
   }
 
   setLabel(label: string): UpdateResult<User> {
-    const update: Partial<User> = {
-      label,
-    };
+    const update: Partial<User> = { label };
 
     Object.assign(this, update);
 

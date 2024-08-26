@@ -205,4 +205,8 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsBoolean()
   bankDataActive: boolean;
+
+  @IsOptional()
+  @IsString()
+  chargebackAllowedBy: string;
 }

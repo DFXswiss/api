@@ -240,4 +240,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(SignatoryPower)
   signatoryPower?: SignatoryPower;
+
+  @IsOptional()
+  @IsString()
+  paymentLinksName?: string;
 }

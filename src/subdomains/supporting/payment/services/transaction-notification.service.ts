@@ -6,7 +6,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { In, IsNull } from 'typeorm';
-import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
+import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';

@@ -273,6 +273,17 @@ export abstract class EvmClient {
     return this.provider.getTransactionReceipt(txHash);
   }
 
+  // got from https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
+  async getTxError(txHash: string): Promise<string> {
+    const tx = await this.getTx(txHash);
+    if (!tx) throw new Error('Transaction not found');
+
+    delete tx.maxFeePerGas;
+    delete tx.maxPriorityFeePerGas;
+
+    return this.provider.call(tx, tx.blockNumber);
+  }
+
   async getTxNonce(txHash: string): Promise<number> {
     return this.provider.getTransaction(txHash).then((r) => r?.nonce);
   }

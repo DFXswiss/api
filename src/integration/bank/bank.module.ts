@@ -10,4 +10,4 @@ import { RevolutService } from './services/revolut.service';
   providers: [IbanService, OlkypayService, RevolutService],
   exports: [IbanService, OlkypayService, RevolutService],
 })
-export class BankModule {}
+export class BankIntegrationModule {}

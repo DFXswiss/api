@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
+import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { LetterModule } from 'src/integration/letter/letter.module';

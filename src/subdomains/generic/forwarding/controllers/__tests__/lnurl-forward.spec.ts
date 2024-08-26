@@ -4,6 +4,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
+import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LightningService } from '../../../../../integration/lightning/services/lightning.service';
 import { createCustomLnurlpLRequest } from '../../dto/__mocks__/lnurlp.dto.mock';
 import { createCustomLnurlwRequest } from '../../dto/__mocks__/lnurlw.dto.mock';
@@ -14,6 +15,7 @@ import { LnUrlWForwardController } from '../lnurlw-forward.controller';
 describe('LnurlForward', () => {
   let httpServiceMock: HttpService;
   let paymentLinkPaymentServiceMock: PaymentLinkPaymentService;
+  let paymentQuoteServiceMock: PaymentQuoteService;
   let paymentActivationServiceMock: PaymentActivationService;
   let lnurlpForward: LnUrlPForwardController;
   let lnurlwForward: LnUrlWForwardController;
@@ -34,6 +36,7 @@ describe('LnurlForward', () => {
 
     httpServiceMock = mock<HttpService>();
     paymentLinkPaymentServiceMock = mock<PaymentLinkPaymentService>();
+    paymentQuoteServiceMock = mock<PaymentQuoteService>();
     paymentActivationServiceMock = mock<PaymentActivationService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -42,6 +45,7 @@ describe('LnurlForward', () => {
         TestUtil.provideConfig(config),
         { provide: HttpService, useValue: httpServiceMock },
         { provide: PaymentLinkPaymentService, useValue: paymentLinkPaymentServiceMock },
+        { provide: PaymentQuoteService, useValue: paymentQuoteServiceMock },
         { provide: PaymentActivationService, useValue: paymentActivationServiceMock },
         LightningService,
         LnUrlForwardService,

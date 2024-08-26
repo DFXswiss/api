@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
+import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { TransactionModule } from '../payment/transaction.module';

@@ -109,7 +109,10 @@ export class TradingOrderService implements OnModuleInit {
 
       throw new WaitingForLiquidityException(`Waiting for liquidity of ${order.assetIn.uniqueName}`);
     } else {
-      liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
+      const adaptedAmount = Math.min(order.amountIn, availableAmount);
+
+      order.amountExpected = Util.round((order.amountExpected * adaptedAmount) / order.amountIn, 8);
+      liquidityRequest.referenceAmount = order.amountIn = adaptedAmount;
     }
 
     await this.dexService.reserveLiquidity(liquidityRequest);

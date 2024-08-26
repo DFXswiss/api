@@ -37,6 +37,9 @@ export class BankData extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
+  @Column({ nullable: true })
+  manualCheck: boolean;
+
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

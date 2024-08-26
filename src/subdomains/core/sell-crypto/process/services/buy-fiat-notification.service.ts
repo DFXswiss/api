@@ -86,8 +86,8 @@ export class BuyFiatNotificationService {
   private async paybackToAddressInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
-        cryptoReturnTxId: Not(IsNull()),
-        cryptoReturnDate: Not(IsNull()),
+        chargebackTxId: Not(IsNull()),
+        chargebackDate: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
         amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),

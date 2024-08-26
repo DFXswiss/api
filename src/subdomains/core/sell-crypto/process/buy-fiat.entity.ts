@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -128,16 +128,22 @@ export class BuyFiat extends IEntity {
 
   // Fail
   @Column({ length: 256, nullable: true })
-  cryptoReturnTxId: string;
+  chargebackTxId: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  cryptoReturnDate: Date;
+  chargebackDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAddress: string;
 
   @Column({ type: 'datetime2', nullable: true })
   mailReturnSendDate: Date;
 
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAllowedBy: string;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
@@ -329,7 +335,6 @@ export class BuyFiat extends IEntity {
   amlCheckAndFillUp(
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -339,7 +344,7 @@ export class BuyFiat extends IEntity {
       this,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      0,
       last30dVolume,
       last365dVolume,
       bankData,
@@ -381,8 +386,8 @@ export class BuyFiat extends IEntity {
       usedBank: null,
       instantSepa: null,
       remittanceInfo: null,
-      cryptoReturnTxId: null,
-      cryptoReturnDate: null,
+      chargebackTxId: null,
+      chargebackDate: null,
       mailReturnSendDate: null,
       comment: null,
       chargebackAllowedDate: null,
@@ -444,6 +449,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

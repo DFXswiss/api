@@ -1,5 +1,6 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
 import { useContainer } from 'class-validator';
@@ -33,6 +34,8 @@ async function bootstrap() {
 
   app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
+
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   app.enableVersioning({
     type: VersioningType.URI,

@@ -4,7 +4,11 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInConfirmationType,
+  PayInStatus,
+} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -47,7 +51,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   abstract get assetType(): AssetType;
 
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
-  abstract checkConfirmations(payIns: CryptoInput[]): Promise<void>;
+  abstract checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void>;
 
   protected abstract getForwardAddress(): BlockchainAddress;
 

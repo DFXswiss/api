@@ -7,7 +7,7 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -171,6 +171,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAllowedBy: string;
 
   @Column({ length: 256, nullable: true })
   chargebackIban: string;
@@ -423,7 +426,7 @@ export class BuyCrypto extends IEntity {
   amlCheckAndFillUp(
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -435,7 +438,7 @@ export class BuyCrypto extends IEntity {
       this,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,
@@ -577,6 +580,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

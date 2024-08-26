@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BuyFiat } from './buy-fiat.entity';
+import { RefundCryptoInputDto } from './dto/refund-crypto-input.dto';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 import { BuyFiatService } from './services/buy-fiat.service';
 
@@ -18,6 +19,14 @@ export class BuyFiatController {
   @ApiExcludeEndpoint()
   async triggerWebhook(@Param('id') id: string): Promise<void> {
     return this.buyFiatService.triggerWebhookManual(+id);
+  }
+
+  @Post(':id/refund')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @ApiExcludeEndpoint()
+  async refundBuyFiat(@Param('id') id: string, @Body() dto: RefundCryptoInputDto): Promise<void> {
+    return this.buyFiatService.refundBuyFiat(+id, dto);
   }
 
   @Put('volumes')

@@ -47,6 +47,7 @@ export enum TransactionReason {
   ASSET_KYC_NEEDED = 'AssetKycNeeded',
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   USER_DELETED = 'UserDeleted',
+  VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
 }
 
 export const KycRequiredReason = [
@@ -87,6 +88,7 @@ export const TransactionReasonMapper: {
   [AmlReason.CHF_ABROAD_TX]: TransactionReason.CHF_ABROAD_NOT_ALLOWED,
   [AmlReason.ASSET_KYC_NEEDED]: TransactionReason.ASSET_KYC_NEEDED,
   [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
+  [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
 };
 
 export class UnassignedTransactionDto {

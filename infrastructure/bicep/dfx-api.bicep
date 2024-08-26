@@ -53,6 +53,7 @@ param utxoSpenderAddress string
 param btcOutWalletAddress string
 
 param paymentTimeout string
+param paymentQuoteTimeout string
 param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
@@ -112,6 +113,10 @@ param bscScanApiKey string
 
 @secure()
 param lightningApiCertificate string
+@secure()
+param lightningSigningPrivKey string
+@secure()
+param lightningSigningPubKey string
 @secure()
 param lightningLnbitsApiKey string
 @secure()
@@ -211,6 +216,7 @@ param servicesUrl string
 
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
+param limitRequestSupportStaffMail string
 param limitRequestSupportName string
 
 param azureSubscriptionId string
@@ -640,6 +646,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentTimeout
         }
         {
+          name: 'PAYMENT_QUOTE_TIMEOUT'
+          value: paymentQuoteTimeout
+        }
+        {
           name: 'PAYMENT_TIMEOUT_DELAY'
           value: paymentTimeoutDelay
         }
@@ -806,6 +816,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIGHTNING_API_CERTIFICATE'
           value: lightningApiCertificate
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PRIV_KEY'
+          value: lightningSigningPrivKey
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PUB_KEY'
+          value: lightningSigningPubKey
         }
         {
           name: 'LIGHTNING_LNBITS_API_URL'
@@ -1038,6 +1056,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIMIT_REQUEST_SUPPORT_MAIL'
           value: limitRequestSupportMail
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_STAFF_MAIL'
+          value: limitRequestSupportStaffMail
         }
         {
           name: 'LIMIT_REQUEST_SUPPORT_NAME'

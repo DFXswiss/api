@@ -6,8 +6,8 @@ import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
-import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -135,7 +135,7 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<File[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<File[]> {
     return [
       ...(await this.documentStorageService.listUserFiles(userDataId)),
       ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),

@@ -13,11 +13,12 @@ import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
+import { EvmGasPriceService } from './shared/evm/evm-gas-price.service';
 import { EvmRegistryService } from './shared/evm/evm-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 
 @Module({
-  providers: [EvmRegistryService, EvmDecimalsService, CryptoService],
+  providers: [EvmRegistryService, EvmDecimalsService, EvmGasPriceService, CryptoService],
   imports: [
     SharedModule,
     AinModule,
@@ -46,6 +47,7 @@ import { CryptoService } from './shared/services/crypto.service';
     FrankencoinModule,
     Ebel2xModule,
     EvmRegistryService,
+    EvmGasPriceService,
     CryptoService,
   ],
 })

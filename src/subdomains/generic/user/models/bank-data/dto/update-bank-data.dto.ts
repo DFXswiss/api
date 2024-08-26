@@ -16,4 +16,9 @@ export class UpdateBankDataDto {
   @IsOptional()
   @IsEnum(BankDataType)
   type?: BankDataType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  manualCheck?: boolean;
 }
