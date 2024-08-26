@@ -10,20 +10,23 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
   }
 
   async getAllPaymentLinks(userId: number): Promise<PaymentLink[]> {
-    return this.find({ where: { route: { user: { id: userId } } }, relations: { route: true } });
+    return this.find({
+      where: { route: { user: { id: userId }, active: true } },
+      relations: { route: { user: { userData: true } } },
+    });
   }
 
   async getPaymentLinkById(userId: number, id: number): Promise<PaymentLink | null> {
     return this.findOne({
-      where: { id: Equal(id), route: { user: { id: Equal(userId) } } },
-      relations: { route: true },
+      where: { id: Equal(id), route: { user: { id: Equal(userId) }, active: true } },
+      relations: { route: { user: { userData: true } } },
     });
   }
 
   async getPaymentLinkByExternalId(userId: number, externalId: string): Promise<PaymentLink | null> {
     return this.findOne({
-      where: { externalId: Equal(externalId), route: { user: { id: Equal(userId) } } },
-      relations: { route: true },
+      where: { externalId: Equal(externalId), route: { user: { id: Equal(userId) }, active: true } },
+      relations: { route: { user: { userData: true } } },
     });
   }
 }

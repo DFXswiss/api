@@ -5,7 +5,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -21,10 +20,13 @@ export enum PayInPurpose {
   BUY_CRYPTO = 'BuyCrypto',
 }
 
-export enum PayInSendType {
+export enum PayInAction {
   FORWARD = 'Forward',
+  WAITING = 'Waiting',
   RETURN = 'Return',
 }
+
+export type PayInConfirmationType = 'Input' | 'Output' | 'Return';
 
 export enum PayInStatus {
   CREATED = 'Created',
@@ -32,8 +34,10 @@ export enum PayInStatus {
   IGNORED = 'Ignored',
   TO_RETURN = 'ToReturn',
   RETURNED = 'Returned',
+  RETURN_CONFIRMED = 'ReturnConfirmed',
   ACKNOWLEDGED = 'Acknowledged',
   FORWARDED = 'Forwarded',
+  FORWARD_CONFIRMED = 'ForwardConfirmed',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
   COMPLETED = 'Completed',
@@ -41,6 +45,8 @@ export enum PayInStatus {
 
 export enum PayInType {
   PERMIT_TRANSFER = 'PermitTransfer',
+  DEPOSIT = 'Deposit',
+  PAYMENT = 'Payment',
 }
 
 @Entity()
@@ -74,7 +80,7 @@ export class CryptoInput extends IEntity {
   txType: PayInType;
 
   @Column({ nullable: true })
-  sendType: string;
+  action: PayInAction;
 
   @Column(() => BlockchainAddress)
   address: BlockchainAddress;
@@ -88,6 +94,9 @@ export class CryptoInput extends IEntity {
   @Column({ nullable: false, type: 'float' })
   amount: number;
 
+  @Column({ nullable: true, type: 'float' })
+  chargebackAmount: number;
+
   @Column({ type: 'float', nullable: true })
   forwardFeeAmount: number;
 
@@ -96,9 +105,6 @@ export class CryptoInput extends IEntity {
 
   @Column({ default: false })
   isConfirmed: boolean;
-
-  @Column({ length: 256, nullable: true })
-  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
@@ -116,7 +122,7 @@ export class CryptoInput extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
   buyCrypto: BuyCrypto;
 
-  @OneToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInput, { nullable: true })
+  @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInput, { nullable: true })
   paymentLinkPayment: PaymentLinkPayment;
 
   //*** FACTORY METHODS ***//
@@ -166,7 +172,6 @@ export class CryptoInput extends IEntity {
   acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;
-    this.sendType = PayInSendType.FORWARD;
     this.status = PayInStatus.ACKNOWLEDGED;
 
     return this;
@@ -187,18 +192,11 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  triggerReturn(
-    purpose: PayInPurpose,
-    returnAddress: BlockchainAddress,
-    route: DepositRouteType,
-    amlCheck: CheckStatus,
-  ): this {
-    this.purpose = purpose;
-    this.route = route;
-    this.amlCheck = amlCheck;
+  triggerReturn(returnAddress: BlockchainAddress, chargebackAmount: number): this {
     this.status = PayInStatus.TO_RETURN;
-    this.sendType = PayInSendType.RETURN;
+    this.action = PayInAction.RETURN;
     this.destinationAddress = returnAddress;
+    this.chargebackAmount = chargebackAmount;
 
     return this;
   }
@@ -231,15 +229,30 @@ export class CryptoInput extends IEntity {
 
   completed() {
     this.status = PayInStatus.COMPLETED;
-    this.sendType = null;
 
     return this;
   }
 
-  confirm(): this {
-    this.isConfirmed = true;
+  confirm(direction: PayInConfirmationType): this {
+    switch (direction) {
+      case 'Input':
+        this.isConfirmed = true;
+        break;
+
+      case 'Output':
+        this.status = PayInStatus.FORWARD_CONFIRMED;
+        break;
+
+      case 'Return':
+        this.status = PayInStatus.RETURN_CONFIRMED;
+        break;
+    }
 
     return this;
+  }
+
+  confirmationTxId(direction: PayInConfirmationType): string {
+    return direction === 'Input' ? this.inTxId : direction === 'Output' ? this.outTxId : this.returnTxId;
   }
 
   designateReturn(): this {
@@ -264,6 +277,10 @@ export class CryptoInput extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get sendingAmount(): number {
+    return this.action === PayInAction.RETURN ? this.chargebackAmount : this.amount;
   }
 
   get isLightningInput(): boolean {

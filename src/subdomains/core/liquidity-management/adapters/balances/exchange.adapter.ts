@@ -6,7 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext, LiquidityManagementOrderStatus, LiquidityManagementSystem } from '../../enums';
-import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
+import { LiquidityBalanceIntegration, LiquidityManagementActive } from '../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 
 @Injectable()
@@ -18,8 +18,8 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     private readonly orderRepo: LiquidityManagementOrderRepository,
   ) {}
 
-  async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
-    const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(
+  async getBalances(assets: LiquidityManagementActive[]): Promise<LiquidityBalance[]> {
+    const liquidityManagementAssets = Util.groupBy<LiquidityManagementActive, LiquidityManagementContext>(
       assets,
       'context',
     );
@@ -43,7 +43,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
 
   // --- HELPER METHODS --- //
 
-  async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
+  async getForExchange(exchange: string, assets: LiquidityManagementActive[]): Promise<LiquidityBalance[]> {
     try {
       const exchangeService = this.exchangeRegistry.get(exchange);
       const balances = await exchangeService.getBalances().then((b) => b.total);

@@ -1,4 +1,4 @@
-import { BankTx } from '../bank-tx.entity';
+import { BankTx } from '../entities/bank-tx.entity';
 
 describe('BankTx', () => {
   const multiAccountIban = 'MULTI-ACCOUNT-IBAN';

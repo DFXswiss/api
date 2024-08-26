@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  Body,
   ConflictException,
   Controller,
   ForbiddenException,
@@ -30,8 +32,12 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { BankTx, BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import {
+  BankTx,
+  BankTxType,
+  BankTxTypeUnassigned,
+} from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
@@ -43,6 +49,7 @@ import {
 } from '../../../supporting/payment/dto/transaction.dto';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
+import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
@@ -53,6 +60,7 @@ import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
+import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 import { ExportType, HistoryService } from '../services/history.service';
 
@@ -71,6 +79,7 @@ export class TransactionController {
     private readonly bankTxService: BankTxService,
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   // --- OPEN ENDPOINTS --- //
@@ -243,6 +252,37 @@ export class TransactionController {
       throw new ForbiddenException('You can only assign your own transaction');
 
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
+  }
+
+  @Put(':id/refund')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiExcludeEndpoint()
+  async setTransactionRefundTarget(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: TransactionRefundDto,
+  ): Promise<void> {
+    const transaction = await this.transactionService.getTransactionById(+id, {
+      user: { userData: true },
+      buyCrypto: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+    });
+
+    if (
+      !transaction ||
+      (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat))
+    )
+      throw new NotFoundException('Transaction not found');
+    if (jwt.account !== transaction.userData.id)
+      throw new ForbiddenException('You can only refund your own transaction');
+    if (!transaction.targetEntity.cryptoInput)
+      throw new BadRequestException('You can only refund sell or swap transactions');
+
+    if (transaction.targetEntity instanceof BuyFiat)
+      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto.refundAddress);
+
+    return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto.refundAddress);
   }
 
   // --- HELPER METHODS --- //

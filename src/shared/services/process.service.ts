@@ -51,6 +51,7 @@ export enum Process {
   LIMIT_REQUEST_SYNC = 'LimitRequestSync',
   TRADING_LOG = 'TradingLog',
   ASSET_DECIMALS = 'AssetDecimals',
+  UPDATE_GAS_PRICE = 'UpdateGasPrice',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

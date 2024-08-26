@@ -112,9 +112,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
           const id = await this.updateOrderPrice(order, price).catch((e) =>
             this.logger.error(`Failed to update price of order ${order.id}:`, e),
           );
-          this.logger.verbose(`Order ${order.id} changed to ${id}`);
 
-          if (id) throw new TradeChangedException(id);
+          if (id) {
+            this.logger.verbose(`Order ${order.id} changed to ${id}`);
+            throw new TradeChangedException(id);
+          }
         } else {
           this.logger.verbose(`Order ${order.id} open, price is still ${price}`);
         }
@@ -248,7 +250,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const balance = await this.getBalance(from);
     if (amount > balance) {
       throw new BadRequestException(
-        `${this.name}: there is not enough balance on for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
+        `${this.name}: not enough balance for ${from} (balance: ${balance}, requested: ${amount})`,
       );
     }
 
@@ -279,9 +281,9 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   protected async updateOrderPrice(order: Order, price: number): Promise<string> {
-    return this.callApi((e) =>
-      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
-    ).then((o) => o.id);
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, order.amount, price)).then(
+      (o) => o.id,
+    );
   }
 
   // other

@@ -81,9 +81,6 @@ export class KycStep extends IEntity {
       case KycStepName.FINANCIAL_DATA:
         return { url: `${apiUrl}/data/financial/${this.id}`, type: UrlType.API };
 
-      case KycStepName.DOCUMENT_UPLOAD:
-        return { url: `${apiUrl}/document/${this.id}`, type: UrlType.API };
-
       case KycStepName.DFX_APPROVAL:
         return { url: '', type: UrlType.NONE };
     }
@@ -91,8 +88,7 @@ export class KycStep extends IEntity {
 
   // --- FACTORY --- //
   static create(userData: UserData, name: KycStepName, sequenceNumber: number, type?: KycStepType): KycStep {
-    if ([KycStepName.IDENT, KycStepName.DOCUMENT_UPLOAD].includes(name) && type == null)
-      throw new Error('Step type is missing');
+    if ([KycStepName.IDENT].includes(name) && type == null) throw new Error('Step type is missing');
 
     return Object.assign(new KycStep(), {
       userData,

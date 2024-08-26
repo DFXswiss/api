@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -27,9 +26,7 @@ export class AssetPricesService {
     const usd = await this.fiatService.getFiatByName('USD');
     const chf = await this.fiatService.getFiatByName('CHF');
 
-    const assets = await this.assetService.getActiveAssets();
-
-    const assetsToUpdate = assets.filter((a) => a.type !== AssetType.CUSTOM);
+    const assetsToUpdate = await this.assetService.getPricedAssets();
 
     for (const asset of assetsToUpdate) {
       try {

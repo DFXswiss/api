@@ -361,7 +361,7 @@ export class FeeService {
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
-    const accountType = request.user?.userData ? request.user.userData?.accountType : request.accountType;
+    const accountType = request.user?.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
     const wallet = request.user?.wallet;
     const userDataId = request.user?.userData?.id;
 

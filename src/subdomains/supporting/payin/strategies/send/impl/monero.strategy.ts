@@ -5,7 +5,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { CryptoInput, PayInConfirmationType } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { SendStrategy, SendType } from './base/send.strategy';
@@ -45,16 +45,18 @@ export class MoneroStrategy extends SendStrategy {
     }
   }
 
-  async checkConfirmations(payIns: CryptoInput[]): Promise<void> {
+  async checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void> {
     const isHealthy = await this.payInMoneroService.isHealthy();
     if (!isHealthy) throw new Error('Monero Node is unhealthy');
 
     for (const payIn of payIns) {
       try {
-        const transaction = await this.payInMoneroService.getTransaction(payIn.inTxId);
+        if (!payIn.confirmationTxId(direction)) continue;
+
+        const transaction = await this.payInMoneroService.getTransaction(payIn.confirmationTxId(direction));
 
         if (MoneroHelper.isTransactionComplete(transaction)) {
-          payIn.confirm();
+          payIn.confirm(direction);
           await this.payInRepo.save(payIn);
         }
       } catch (e) {

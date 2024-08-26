@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoService } from './buy-crypto.service';
@@ -21,6 +20,21 @@ export class BuyCryptoRegistrationService {
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
   ) {}
+
+  async syncReturnTxId(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: { cryptoInput: { returnTxId: Not(IsNull()) }, chargebackCryptoTxId: IsNull() },
+      relations: { cryptoInput: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyCryptoRepo.update(entity.id, { chargebackCryptoTxId: entity.cryptoInput.returnTxId });
+      } catch (e) {
+        this.logger.error(`Error during buyCrypto payIn returnTxId sync (${entity.id}):`, e);
+      }
+    }
+  }
 
   async registerCryptoPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
@@ -74,19 +88,9 @@ export class BuyCryptoRegistrationService {
         if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
-          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+          if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
             continue;
-          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
-            if (cryptoRoute.asset.blockchain === payIn.address.blockchain) {
-              await this.payInService.returnPayIn(
-                payIn,
-                PayInPurpose.BUY_CRYPTO,
-                BlockchainAddress.create(cryptoRoute.user.address, payIn.address.blockchain),
-                cryptoRoute,
-              );
-              continue;
-            }
           }
 
           await this.buyCryptoService.createFromCryptoInput(payIn, cryptoRoute);

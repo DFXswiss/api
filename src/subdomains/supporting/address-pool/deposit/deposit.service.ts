@@ -8,6 +8,7 @@ import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -73,7 +74,7 @@ export class DepositService {
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
   }
 
-  private async createBitcoinDeposits(blockchain: Blockchain, count: number) {
+  private async createBitcoinDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const client = this.btcInpClient;
     const label = Util.isoDate(new Date());
     const type = AddressType.P2SH_SEGWIT;
@@ -85,7 +86,7 @@ export class DepositService {
     }
   }
 
-  private async createEvmDeposits(blockchain: Blockchain, count: number) {
+  private async createEvmDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
     const nextDepositIndex = await this.getNextDepositIndex(CryptoService.EthereumBasedChains);
@@ -104,9 +105,15 @@ export class DepositService {
       addresses.push(deposit.address);
     }
 
+    addresses.push(this.createPaymentAddress(0));
+
     for (const chain of applicableChains) {
       await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
     }
+  }
+
+  private createPaymentAddress(accountIndex: number): string {
+    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: accountIndex }).address;
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number) {
@@ -131,5 +138,35 @@ export class DepositService {
     }
 
     return query.getRawOne<{ accountIndex: number }>().then((r) => (r?.accountIndex ?? -1) + 1);
+  }
+
+  async updateLightningDepositWebhook(): Promise<void> {
+    const lnurlpLinks = await this.lightningClient.getLnurlpLinks();
+    const depositLinks = lnurlpLinks.filter((l) => l.description.startsWith('DFX Deposit Address '));
+
+    for (const depositLink of depositLinks) {
+      const linkId = depositLink.id;
+
+      const uniqueId = Util.createUniqueId('deposit');
+      const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
+
+      const lnurlpLinkUpdate: LnurlpLinkUpdateDto = {
+        description: depositLink.description,
+        min: depositLink.min,
+        max: depositLink.max,
+        currency: depositLink.currency,
+        comment_chars: depositLink.comment_chars,
+        webhook_url: `${Config.url()}/payIn/lnurlpDeposit/${uniqueId}`,
+        webhook_headers: `{ "Deposit-Signature": "${uniqueIdSignature}" }`,
+        webhook_body: depositLink.webhook_body,
+        success_text: depositLink.success_text,
+        success_url: depositLink.success_url,
+        fiat_base_multiplier: depositLink.fiat_base_multiplier,
+        username: depositLink.username,
+        zaps: depositLink.zaps,
+      };
+
+      await this.lightningClient.updateLnurlpLink(linkId, lnurlpLinkUpdate);
+    }
   }
 }

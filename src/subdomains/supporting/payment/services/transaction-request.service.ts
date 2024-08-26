@@ -52,6 +52,7 @@ export class TransactionRequestService {
       let sourceCurrencyName: string;
       let targetCurrencyName: string;
       let blockchain: Blockchain;
+      let siftOrder: boolean;
 
       switch (type) {
         case TransactionRequestType.Buy:
@@ -66,6 +67,7 @@ export class TransactionRequestService {
           sourceCurrencyName = buyResponse.currency.name;
           targetCurrencyName = buyResponse.asset.name;
           blockchain = buyResponse.asset.blockchain;
+          siftOrder = true;
           break;
 
         case TransactionRequestType.Sell:
@@ -97,7 +99,14 @@ export class TransactionRequestService {
       response.id = transactionRequest.id;
 
       // create order at sift (without waiting)
-      void this.siftService.createOrder(transactionRequest, userId, sourceCurrencyName, targetCurrencyName, blockchain);
+      if (siftOrder)
+        void this.siftService.createOrder(
+          transactionRequest,
+          userId,
+          sourceCurrencyName,
+          targetCurrencyName,
+          blockchain,
+        );
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(

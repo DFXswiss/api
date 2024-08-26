@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 import { BankTx } from './bank-tx.entity';
 
 @Entity()

@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -22,7 +21,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -66,7 +65,7 @@ export class AmlHelperService {
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.active === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if (!bankData.active) {
+      } else if ((!bankData.active && !bankData.manualCheck) || bankData.manualCheck === false) {
         errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
       } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
@@ -100,23 +99,15 @@ export class AmlHelperService {
             errors.push(AmlError.IP_MISMATCH);
           break;
         case AmlRule.RULE_2:
-          if (
-            entity.user.status === UserStatus.NA &&
-            entity.userData.kycLevel < KycLevel.LEVEL_30 &&
-            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
-          )
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
             errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
         case AmlRule.RULE_3:
-          if (
-            entity.user.status === UserStatus.NA &&
-            entity.userData.kycLevel < KycLevel.LEVEL_50 &&
-            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
-          )
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
         case AmlRule.RULE_4:
-          if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+          if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
       }
 
@@ -139,7 +130,11 @@ export class AmlHelperService {
         }
       } else if (entity.checkoutTx) {
         // checkout
-        if (entity.checkoutTx.cardName && !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName))
+        if (
+          !bankData.manualCheck &&
+          entity.checkoutTx.cardName &&
+          !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName)
+        )
           errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
@@ -151,7 +146,7 @@ export class AmlHelperService {
           )
         )
           errors.push(AmlError.CARD_BLACKLISTED);
-        if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+        if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
@@ -181,7 +176,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     minVolume: number,
     last24hVolume: number,
-    last7dVolume: number,
+    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -200,7 +195,7 @@ export class AmlHelperService {
       entity,
       minVolume,
       last24hVolume,
-      last7dVolume,
+      last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,

@@ -47,6 +47,14 @@ export class SupportIssueService {
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
+    const existingIssue = await this.supportIssueRepo.findOneBy({
+      userData: { id: userDataId },
+      type: newIssue.type,
+      information: newIssue.information,
+      reason: newIssue.reason,
+      state: Not(SupportIssueState.COMPLETED),
+    });
+
     // transaction issues
     if (dto.transaction) {
       if (dto.transaction.id) {
@@ -62,16 +70,8 @@ export class SupportIssueService {
     }
 
     // limit request
-    if (dto.limitRequest)
+    if (dto.limitRequest && !existingIssue)
       newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
-
-    const existingIssue = await this.supportIssueRepo.findOneBy({
-      userData: { id: userDataId },
-      type: newIssue.type,
-      information: newIssue.information,
-      reason: newIssue.reason,
-      state: Not(SupportIssueState.COMPLETED),
-    });
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
 
@@ -103,7 +103,7 @@ export class SupportIssueService {
     if (!entity.issue) throw new NotFoundException('Support issue not found');
 
     if (dto.author === CustomerAuthor && entity.userData.id !== userDataId)
-      throw new ForbiddenException('You can only create support messages for your own transaction');
+      throw new ForbiddenException('You can only create support messages for your own support issue');
 
     // upload document proof
     if (dto.file) {
@@ -126,7 +126,10 @@ export class SupportIssueService {
   async getUserSupportTickets(
     userDataId: number,
   ): Promise<{ supportIssues: SupportIssue[]; supportMessages: SupportMessage[] }> {
-    const supportIssues = await this.supportIssueRepo.findBy({ userData: { id: userDataId } });
+    const supportIssues = await this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true },
+    });
     return {
       supportIssues,
       supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),

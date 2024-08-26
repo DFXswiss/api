@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmPaymentDto,
   PaymentLinkPayRequestDto,
@@ -8,9 +9,10 @@ import {
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
-import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.services';
+import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
+import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
-import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
+import { LnurlWithdrawRequestDto, LnurlwInvoiceDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
 import { LightningHelper } from '../../../../integration/lightning/lightning-helper';
 import { LightningService } from '../../../../integration/lightning/services/lightning.service';
@@ -25,6 +27,7 @@ export class LnUrlForwardService {
   constructor(
     lightningService: LightningService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -35,26 +38,41 @@ export class LnUrlForwardService {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
-    )
+    ) {
       return this.createPaymentLinkPayRequest(id);
+    }
 
     return this.createLnurlpPayRequest(id);
   }
 
-  private async createPaymentLinkPayRequest(uniqueId: string): Promise<PaymentLinkPayRequestDto> {
+  async createPaymentLinkPayRequest(uniqueId: string): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const mSatTransferAmount = pendingPayment.getTransferInfoFor(Blockchain.LIGHTNING, 'MSAT');
-    if (!mSatTransferAmount) throw new NotFoundException('No BTC transfer amount found');
+    const actualQuote = await this.paymentQuoteService.createQuote(pendingPayment);
+
+    const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
+    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
+
+    const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
 
     const payRequest: PaymentLinkPayRequestDto = {
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
-      minSendable: mSatTransferAmount.amount,
-      maxSendable: mSatTransferAmount.amount,
-      metadata: LightningHelper.createLnurlMetadata(pendingPayment.requestMemo),
-      transferAmounts: pendingPayment.transferInfo,
+      minSendable: msatTransferAmount,
+      maxSendable: msatTransferAmount,
+      metadata: LightningHelper.createLnurlMetadata(pendingPayment.displayName),
+      displayName: pendingPayment.displayName,
+      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
+      quote: {
+        id: actualQuote.uniqueId,
+        expiration: actualQuote.expiryDate,
+      },
+      requestedAmount: {
+        asset: pendingPayment.currency.name,
+        amount: pendingPayment.amount,
+      },
+      transferAmounts: actualQuote.transferAmountsAsObj,
     };
 
     return payRequest;
@@ -74,7 +92,7 @@ export class LnUrlForwardService {
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
       const transferInfo = this.getPaymentTransferInfo(params);
-      return this.paymentActivationService.createPaymentLinkRequest(id, transferInfo);
+      return this.paymentActivationService.createPaymentActivationRequest(id, transferInfo);
     }
 
     return this.createLnurlpInvoice(id, params);
@@ -85,16 +103,17 @@ export class LnUrlForwardService {
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {
-    const isMsat = !params.asset || params.asset === 'MSAT';
+    const isMsat = !params.asset;
 
     const amount = params.amount ? Number(params.amount) : 0;
     const asset = isMsat ? 'BTC' : params.asset;
     const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
-      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
-      asset: asset,
       method: method,
+      asset: asset,
+      amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
+      quoteUniqueId: params.quote,
     };
   }
 
