@@ -18,7 +18,7 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
-import { MergeRedirectDto } from './dto/redirect-url.dto';
+import { MergeResponseDto } from './dto/merge-response.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 
 @ApiTags('Auth')
@@ -70,12 +70,12 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiExcludeEndpoint()
-  @ApiOkResponse({ type: MergeRedirectDto })
+  @ApiOkResponse({ type: MergeResponseDto })
   async executeMerge(
     @GetJwt() jwt: JwtPayload,
     @Query('code') code: string,
     @RealIP() ip: string,
-  ): Promise<MergeRedirectDto> {
+  ): Promise<MergeResponseDto> {
     const { master } = await this.mergeService.executeMerge(code);
     let accessToken: string;
 
