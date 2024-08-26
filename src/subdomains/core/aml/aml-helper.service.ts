@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -100,19 +99,11 @@ export class AmlHelperService {
             errors.push(AmlError.IP_MISMATCH);
           break;
         case AmlRule.RULE_2:
-          if (
-            entity.user.status === UserStatus.NA &&
-            entity.userData.kycLevel < KycLevel.LEVEL_30 &&
-            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
-          )
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
             errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
         case AmlRule.RULE_3:
-          if (
-            entity.user.status === UserStatus.NA &&
-            entity.userData.kycLevel < KycLevel.LEVEL_50 &&
-            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
-          )
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
         case AmlRule.RULE_4:

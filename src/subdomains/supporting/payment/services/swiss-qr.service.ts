@@ -296,7 +296,9 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): QrBillData {
-    const debtorAddress = request?.user.userData.address;
+    const debtor = request?.user.userData.isDataComplete
+      ? { name: request.user.userData.completeName, address: request.user.userData.address }
+      : undefined;
 
     const data: QrBillData = {
       amount,
@@ -311,14 +313,14 @@ export class SwissQRService {
         name: bankInfo.name,
         zip: bankInfo.zip,
       },
-      debtor: debtorAddress
+      debtor: debtor
         ? {
-            address: debtorAddress.street,
-            buildingNumber: debtorAddress.houseNumber,
-            city: debtorAddress.city,
-            country: debtorAddress.country.symbol,
-            name: debtorAddress.name,
-            zip: debtorAddress.zip,
+            address: debtor.address.street,
+            buildingNumber: debtor.address.houseNumber,
+            city: debtor.address.city,
+            country: debtor.address.country.symbol,
+            name: debtor.name,
+            zip: debtor.address.zip,
           }
         : undefined,
     };

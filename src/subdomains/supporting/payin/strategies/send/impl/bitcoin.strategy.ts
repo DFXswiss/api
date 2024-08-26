@@ -5,7 +5,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { CryptoInput, PayInConfirmationType } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
@@ -62,8 +62,8 @@ export class BitcoinStrategy extends JellyfishStrategy {
     return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
 
-  protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {
-    const { confirmations } = await this.jellyfishService.getTx(payIn.inTxId);
+  protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
+    const { confirmations } = await this.jellyfishService.getTx(payIn.confirmationTxId(direction));
     return confirmations >= 1;
   }
 }

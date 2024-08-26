@@ -14,6 +14,7 @@ import { TransactionModule } from 'src/subdomains/supporting/payment/transaction
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { AmlModule } from '../aml/aml.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
+import { TransactionUtilModule } from '../transaction/transaction-util.module';
 import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
 import { BuyFiatRepository } from './process/buy-fiat.repository';
@@ -44,6 +45,7 @@ import { SellService } from './route/sell.service';
     PricingModule,
     TransactionModule,
     AmlModule,
+    TransactionUtilModule,
   ],
   controllers: [BuyFiatController, SellController],
   providers: [

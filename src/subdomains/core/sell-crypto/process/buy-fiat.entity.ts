@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -128,10 +128,13 @@ export class BuyFiat extends IEntity {
 
   // Fail
   @Column({ length: 256, nullable: true })
-  cryptoReturnTxId: string;
+  chargebackTxId: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  cryptoReturnDate: Date;
+  chargebackDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAddress: string;
 
   @Column({ type: 'datetime2', nullable: true })
   mailReturnSendDate: Date;
@@ -383,8 +386,8 @@ export class BuyFiat extends IEntity {
       usedBank: null,
       instantSepa: null,
       remittanceInfo: null,
-      cryptoReturnTxId: null,
-      cryptoReturnDate: null,
+      chargebackTxId: null,
+      chargebackDate: null,
       mailReturnSendDate: null,
       comment: null,
       chargebackAllowedDate: null,

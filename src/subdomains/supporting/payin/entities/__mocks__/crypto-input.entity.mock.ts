@@ -1,5 +1,4 @@
 import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { createDefaultSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { CryptoInput } from '../crypto-input.entity';
 
@@ -13,7 +12,6 @@ const defaultCryptoInput: Partial<CryptoInput> = {
   asset: createDefaultAsset(),
   route: createDefaultSell(),
   isConfirmed: false,
-  amlCheck: CheckStatus.PASS,
 };
 
 export function createDefaultCryptoInput(): CryptoInput {

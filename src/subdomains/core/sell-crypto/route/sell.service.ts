@@ -7,11 +7,8 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BigNumber } from 'ethers/lib/ethers';
 import { Config } from 'src/config/config';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -20,15 +17,16 @@ import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PayInPurpose, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { ConfirmSellDto } from './dto/confirm-sell.dto';
+import { ConfirmDto } from './dto/confirm.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -42,10 +40,10 @@ export class SellService {
     private readonly userDataService: UserDataService,
     private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
-    private readonly evmRegistry: EvmRegistryService,
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
+    private readonly transactionUtilService: TransactionUtilService,
   ) {}
 
   // --- SELLS --- //
@@ -190,47 +188,14 @@ export class SellService {
   }
 
   // --- CONFIRMATION --- //
-  async confirmSell(request: TransactionRequest, dto: ConfirmSellDto): Promise<BuyFiatExtended> {
+  async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
     try {
       const route = await this.sellRepo.findOne({
         where: { id: request.routeId },
         relations: { deposit: true, user: { wallet: true, userData: true } },
       });
-      const asset = await this.assetService.getAssetById(request.sourceId);
 
-      const client = this.evmRegistry.getClient(asset.blockchain);
-
-      if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
-        throw new BadRequestException('Invalid executor address');
-
-      const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);
-      if (!contractValid) throw new BadRequestException('Invalid signature transfer contract');
-
-      const txId = await client.permitTransfer(
-        dto.permit.address,
-        dto.permit.signature,
-        dto.permit.signatureTransferContract,
-        asset,
-        request.amount,
-        dto.permit.permittedAmount,
-        route.deposit.address,
-        dto.permit.nonce,
-        BigNumber.from(dto.permit.deadline),
-      );
-
-      const blockHeight = await client.getCurrentBlock();
-
-      const [payIn] = await this.payInService.createPayIns([
-        {
-          address: BlockchainAddress.create(route.deposit.address, asset.blockchain),
-          txId,
-          txType: PayInType.PERMIT_TRANSFER,
-          blockHeight,
-          amount: request.amount,
-          asset,
-        },
-      ]);
-
+      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto);
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
 
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);

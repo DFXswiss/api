@@ -1,4 +1,4 @@
-import { BankTxBatch } from '../bank-tx-batch.entity';
+import { BankTxBatch } from '../entities/bank-tx-batch.entity';
 
 const defaultBankTxBatch: Partial<BankTxBatch> = {
   transactions: [],

@@ -62,13 +62,10 @@ export class PaymentLinkDtoMapper {
 
     if (userData) {
       return {
-        name: userData.completeName ?? null,
+        name: userData.completeName,
         address: {
-          street: userData.street,
-          houseNumber: userData.houseNumber,
-          zip: userData.zip,
-          city: userData.location,
-          country: userData.country?.name,
+          ...userData.address,
+          country: userData.address.country?.name,
         },
         phone: userData.phone,
         mail: userData.mail,

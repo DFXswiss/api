@@ -110,6 +110,7 @@ export class PaymentLinkController {
   @Get('payment/wait')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'id', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalId', description: 'External link ID', required: false })
   async waitForPayment(
@@ -125,6 +126,7 @@ export class PaymentLinkController {
   @Delete('payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'id', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalId', description: 'External link ID', required: false })
   async cancelPayment(

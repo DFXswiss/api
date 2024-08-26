@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -28,11 +27,6 @@ import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/
 import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
-
-export enum ValidationError {
-  PAY_IN_TOO_SMALL = 'PayInTooSmall',
-  PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
-}
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -64,13 +58,10 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async validateInput(from: Active, amount: number): Promise<true | ValidationError> {
+  async validateInput(from: Active, amount: number): Promise<boolean> {
     // check min. volume
     const minVolume = await this.getMinVolumeIn(from, from, true);
-    if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
-
-    // check sellable
-    if (!from.sellable) return ValidationError.PAY_IN_NOT_SELLABLE;
+    if (amount < minVolume * 0.5) return false;
 
     return true;
   }
@@ -466,13 +457,12 @@ export class TransactionHelper implements OnModuleInit {
     // KYC checks
     if (isBuy) {
       if (
-        ((user?.status === UserStatus.NA &&
+        (user?.status === UserStatus.NA &&
           user?.wallet.amlRule === AmlRule.RULE_2 &&
           user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-          (user?.status === UserStatus.NA &&
-            user?.wallet.amlRule === AmlRule.RULE_3 &&
-            user?.userData.kycLevel < KycLevel.LEVEL_50)) &&
-        to.blockchain !== Blockchain.LIGHTNING
+        (user?.status === UserStatus.NA &&
+          user?.wallet.amlRule === AmlRule.RULE_3 &&
+          user?.userData.kycLevel < KycLevel.LEVEL_50)
       )
         return QuoteError.KYC_REQUIRED;
     }

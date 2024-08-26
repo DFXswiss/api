@@ -4,8 +4,8 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { In } from 'typeorm';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
-import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BankTx, BankTxType } from '../bank-tx/entities/bank-tx.entity';
+import { BankTxRepository } from '../bank-tx/repositories/bank-tx.repository';
 import { BankTxRepeat } from './bank-tx-repeat.entity';
 import { BankTxRepeatRepository } from './bank-tx-repeat.repository';
 import { UpdateBankTxRepeatDto } from './dto/update-bank-tx-repeat.dto';

@@ -514,11 +514,8 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    if (!this.isDataComplete) return undefined;
-
     return this.accountType === AccountType.BUSINESS
       ? {
-          name: this.organizationName,
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,
           city: this.organizationLocation,
@@ -526,7 +523,6 @@ export class UserData extends IEntity {
           country: this.organizationCountry,
         }
       : {
-          name: `${this.firstname} ${this.surname}`,
           street: this.street,
           houseNumber: this.houseNumber,
           city: this.location,
@@ -668,6 +664,7 @@ export class UserData extends IEntity {
       throw new BadRequestException('Master or slave is already merged');
     if (slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
+    if (!this.verifiedName) throw new BadRequestException('Verified name missing');
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
     if (this.accountType !== slave.accountType && slave.kycLevel >= KycLevel.LEVEL_20)
       throw new BadRequestException('Account type mismatch');

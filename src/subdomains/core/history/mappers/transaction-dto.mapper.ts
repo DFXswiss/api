@@ -2,7 +2,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { Active, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
@@ -116,7 +116,7 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
-      date: buyFiat.outputDate ?? buyFiat.cryptoReturnDate ?? buyFiat.updated,
+      date: buyFiat.outputDate ?? buyFiat.chargebackDate ?? buyFiat.updated,
       externalTransactionId: buyFiat.transaction.externalId,
     };
 
@@ -289,7 +289,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         return { state: TransactionState.AML_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.cryptoReturnDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
         return { state: TransactionState.FAILED, reason };
 
       case CheckStatus.PASS:

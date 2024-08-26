@@ -1,7 +1,11 @@
 import { Config } from 'src/config/config';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInConfirmationType,
+  PayInStatus,
+} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
@@ -36,7 +40,7 @@ export abstract class EvmStrategy extends SendStrategy {
         }
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
-          const totalAmount = this.getTotalGroupAmount(payInGroup);
+          const totalAmount = this.getTotalGroupAmount(payInGroup, type);
 
           const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup.asset, totalAmount);
           const minInputFee = await this.getMinInputFee(payInGroup.asset);
@@ -73,18 +77,24 @@ export abstract class EvmStrategy extends SendStrategy {
     }
   }
 
-  async checkConfirmations(payIns: CryptoInput[]): Promise<void> {
-    /**
-     * @autoconfirm
-     */
+  async checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void> {
     for (const payIn of payIns) {
       try {
-        payIn.confirm();
-        await this.payInRepo.save(payIn);
+        if (!payIn.confirmationTxId(direction)) continue;
+
+        const isConfirmed = await this.isConfirmed(payIn, direction);
+        if (isConfirmed) {
+          payIn.confirm(direction);
+          await this.payInRepo.save(payIn);
+        }
       } catch (e) {
         this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
       }
     }
+  }
+
+  protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
+    return this.payInEvmService.checkTransactionCompletion(payIn.confirmationTxId(direction));
   }
 
   //*** HELPER METHODS ***//
@@ -137,8 +147,8 @@ export abstract class EvmStrategy extends SendStrategy {
     return payInGroup.payIns.reduce((acc, t) => acc + `|${t.id}|`, '');
   }
 
-  protected getTotalGroupAmount(payInGroup: SendGroup): number {
-    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'amount');
+  protected getTotalGroupAmount(payInGroup: SendGroup, type = SendType.FORWARD): number {
+    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, type === SendType.RETURN ? 'chargebackAmount' : 'amount');
   }
 
   protected getTotalSendFee(payInGroup: SendGroup): number {

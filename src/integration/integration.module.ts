@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
-import { BankModule } from './bank/bank.module';
+import { BankIntegrationModule } from './bank/bank.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { ExchangeModule } from './exchange/exchange.module';
@@ -12,7 +12,7 @@ import { SiftModule } from './sift/sift.module';
 @Module({
   imports: [
     SharedModule,
-    BankModule,
+    BankIntegrationModule,
     BlockchainModule,
     ExchangeModule,
     LetterModule,
@@ -23,7 +23,7 @@ import { SiftModule } from './sift/sift.module';
   controllers: [],
   providers: [AzureService],
   exports: [
-    BankModule,
+    BankIntegrationModule,
     BlockchainModule,
     ExchangeModule,
     LetterModule,

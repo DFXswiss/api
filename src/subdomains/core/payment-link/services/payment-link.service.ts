@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -23,7 +22,6 @@ export class PaymentLinkService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
-    private readonly fiatService: FiatService,
   ) {}
 
   async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {

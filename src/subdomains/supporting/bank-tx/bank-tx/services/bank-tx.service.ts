@@ -18,19 +18,25 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DeepPartial, In, IsNull } from 'typeorm';
-import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
-import { BankName } from '../../bank/bank/bank.entity';
-import { BankService } from '../../bank/bank/bank.service';
-import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
-import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
-import { TransactionService } from '../../payment/services/transaction.service';
-import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
-import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
-import { BankTxBatch } from './bank-tx-batch.entity';
-import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTx, BankTxIndicator, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
-import { BankTxRepository } from './bank-tx.repository';
-import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
+import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
+import { BankName } from '../../../bank/bank/bank.entity';
+import { BankService } from '../../../bank/bank/bank.service';
+import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
+import { TransactionService } from '../../../payment/services/transaction.service';
+import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
+import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service';
+import { UpdateBankTxDto } from '../dto/update-bank-tx.dto';
+import { BankTxBatch } from '../entities/bank-tx-batch.entity';
+import {
+  BankTx,
+  BankTxIndicator,
+  BankTxType,
+  BankTxTypeCompleted,
+  BankTxUnassignedTypes,
+} from '../entities/bank-tx.entity';
+import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
+import { BankTxRepository } from '../repositories/bank-tx.repository';
 import { SepaParser } from './sepa-parser.service';
 
 export const TransactionBankTxTypeMapper: {

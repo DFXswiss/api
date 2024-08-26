@@ -29,6 +29,6 @@ export class PayInMoneroService {
   }
 
   async sendTransfer(payIn: CryptoInput): Promise<MoneroTransferDto> {
-    return this.client.sendTransfer(payIn.address.address, payIn.amount);
+    return this.client.sendTransfer(payIn.address.address, payIn.sendingAmount);
   }
 }
