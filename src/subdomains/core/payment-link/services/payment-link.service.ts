@@ -178,9 +178,8 @@ export class PaymentLinkService {
     dto: CreatePaymentLinkPaymentDto,
     linkId?: number,
     externalLinkId?: string,
-    externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId);
 
     paymentLink.payments = [await this.paymentLinkPaymentService.createPayment(paymentLink, dto)];
 
