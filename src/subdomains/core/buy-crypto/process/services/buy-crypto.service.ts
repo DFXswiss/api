@@ -171,21 +171,25 @@ export class BuyCryptoService {
       transaction: { id: cryptoInput.transaction.id },
     });
 
-    // transaction
-    request = await this.getTxRequest(entity, request);
-
-    return this.createEntity(entity, {
-      type: TransactionTypeInternal.CRYPTO_CRYPTO,
-      user: swap.user,
+    return this.createEntity(
+      entity,
+      {
+        type: TransactionTypeInternal.CRYPTO_CRYPTO,
+        user: swap.user,
+      },
       request,
-    });
+    );
   }
 
-  private async createEntity(entity: BuyCrypto, dto: UpdateTransactionDto): Promise<BuyCrypto> {
+  private async createEntity(
+    entity: BuyCrypto,
+    dto: UpdateTransactionDto,
+    request?: TransactionRequest,
+  ): Promise<BuyCrypto> {
     entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
 
     // transaction
-    const request = await this.getTxRequest(entity);
+    request = await this.getAndCompleteTxRequest(entity, request);
     entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
@@ -195,7 +199,7 @@ export class BuyCryptoService {
     return entity;
   }
 
-  private async getTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
+  private async getAndCompleteTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
     if (request) {
       await this.transactionRequestService.complete(request.id);
     } else {

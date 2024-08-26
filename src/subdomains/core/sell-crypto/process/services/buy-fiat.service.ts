@@ -68,7 +68,7 @@ export class BuyFiatService {
     });
 
     // transaction
-    request = await this.getTxRequest(entity, request);
+    request = await this.getAndCompleteTxRequest(entity, request);
     entity.transaction = await this.transactionService.update(entity.transaction.id, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
@@ -92,7 +92,7 @@ export class BuyFiatService {
     return entity;
   }
 
-  private async getTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
+  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
     if (request) {
       await this.transactionRequestService.complete(request.id);
     } else {
