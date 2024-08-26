@@ -96,6 +96,12 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async getPaymentByExternalId(externalPaymentId: string): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: { externalId: externalPaymentId },
+    });
+  }
+
   async getMostRecentPayment(uniqueId: string): Promise<PaymentLinkPayment | null> {
     return this.paymentLinkPaymentRepo.findOne({
       where: [
@@ -106,9 +112,6 @@ export class PaymentLinkPaymentService {
           uniqueId: uniqueId,
         },
       ],
-      relations: {
-        link: true,
-      },
       order: { updated: 'DESC' },
     });
   }

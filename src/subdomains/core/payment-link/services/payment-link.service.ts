@@ -24,17 +24,21 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
   ) {}
 
-  async getOrThrow(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
-    let link: PaymentLink;
-    if (linkId) link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId);
-    if (linkExternalId) link = await this.paymentLinkRepo.getPaymentLinkByExternalId(userId, linkExternalId);
-
+  async getOrThrow(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<PaymentLink> {
+    const link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId, externalLinkId, externalPaymentId);
     if (!link) throw new NotFoundException('Payment link not found');
 
     if (!link.payments) link.payments = [];
 
-    const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
-    if (mostRecentPayment) link.payments.push(mostRecentPayment);
+    const payment = externalPaymentId
+      ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
+      : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
+    if (payment) link.payments.push(payment);
 
     return link;
   }
@@ -138,9 +142,10 @@ export class PaymentLinkService {
     userId: number,
     dto: UpdatePaymentLinkDto,
     linkId?: number,
-    linkExternalId?: string,
+    externalLinkId?: string,
+    externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
     const { status, webhookUrl, recipient } = dto;
     const { name, address, phone, mail, website } = recipient ?? {};
@@ -164,7 +169,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkRepo.update(paymentLink.id, updatePaymentLink);
 
-    return this.getOrThrow(userId, linkId, linkExternalId);
+    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }
 
   // --- PAYMENTS --- //
@@ -172,26 +177,36 @@ export class PaymentLinkService {
     userId: number,
     dto: CreatePaymentLinkPaymentDto,
     linkId?: number,
-    linkExternalId?: string,
+    externalLinkId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId);
 
     paymentLink.payments = [await this.paymentLinkPaymentService.createPayment(paymentLink, dto)];
 
     return paymentLink;
   }
 
-  async cancelPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
+  async cancelPayment(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
     return this.paymentLinkPaymentService.cancelPayment(paymentLink);
   }
 
-  async waitForPayment(userId: number, linkId?: number, linkExternalId?: string): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, linkExternalId);
+  async waitForPayment(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
     await this.paymentLinkPaymentService.waitForPayment(paymentLink);
 
-    return this.getOrThrow(userId, linkId, linkExternalId);
+    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }
 }
