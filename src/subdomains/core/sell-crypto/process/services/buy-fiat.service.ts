@@ -183,7 +183,7 @@ export class BuyFiatService {
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
-      dto.cryptoReturnDate
+      dto.chargebackDate
     )
       await this.triggerWebhook(entity);
 
