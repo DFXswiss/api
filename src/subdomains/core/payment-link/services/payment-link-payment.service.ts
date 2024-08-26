@@ -96,6 +96,15 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async getPaymentByExternalId(externalPaymentId: string): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: { externalId: externalPaymentId },
+      relations: {
+        link: true,
+      },
+    });
+  }
+
   async getMostRecentPayment(uniqueId: string): Promise<PaymentLinkPayment | null> {
     return this.paymentLinkPaymentRepo.findOne({
       where: [
