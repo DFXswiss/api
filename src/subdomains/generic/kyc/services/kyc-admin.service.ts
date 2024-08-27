@@ -39,20 +39,25 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
 
-    if (kycStep.name === KycStepName.IDENT && kycStep.isCompleted) {
-      const result = kycStep.getResult<IdentResultDto>();
-      const nationality = result.userdata?.nationality?.value
-        ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
-        : null;
+    if (kycStep.isCompleted) {
+      if (kycStep.name === KycStepName.COMMERCIAL_REGISTER) {
+        kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+      }
+      if (kycStep.name === KycStepName.IDENT) {
+        const result = kycStep.getResult<IdentResultDto>();
+        const nationality = result.userdata?.nationality?.value
+          ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
+          : null;
 
-      kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
+        kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
 
-      if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-        await this.bankDataService.createBankData(kycStep.userData, {
-          name: kycStep.userName,
-          iban: `Ident${kycStep.identDocumentId}`,
-          type: BankDataType.IDENT,
-        });
+        if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+          await this.bankDataService.createBankData(kycStep.userData, {
+            name: kycStep.userName,
+            iban: `Ident${kycStep.identDocumentId}`,
+            type: BankDataType.IDENT,
+          });
+      }
     }
 
     await this.kycStepRepo.save(kycStep);

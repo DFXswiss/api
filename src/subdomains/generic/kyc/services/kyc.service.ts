@@ -590,6 +590,11 @@ export class KycService {
 
   // --- HELPER METHODS --- //
 
+  async completeCommercialRegister(userData: UserData): Promise<UserData> {
+    if (!userData.verifiedName && userData.organizationName)
+      return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
+  }
+
   async completeIdent(result: IdentResultDto, userData: UserData, nationality?: Country): Promise<UserData> {
     const identificationType = getIdentificationType(result.identificationprocess?.companyid);
     if (
