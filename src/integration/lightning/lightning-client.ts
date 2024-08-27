@@ -27,6 +27,17 @@ export class LightningClient {
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
+
+  async isHealthy(): Promise<boolean> {
+    try {
+      const info = await this.getLndInfo();
+
+      return 0 < info.num_active_channels && info.synced_to_chain;
+    } catch {
+      return false;
+    }
+  }
+
   async getLndInfo(): Promise<LndInfoDto> {
     return this.http.get<LndInfoDto>(`${Config.blockchain.lightning.lnd.apiUrl}/getinfo`, this.httpLndConfig());
   }

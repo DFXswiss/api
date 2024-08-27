@@ -73,12 +73,7 @@ export class LightningStrategy extends PayoutStrategy {
   }
 
   private async isHealthy(): Promise<boolean> {
-    try {
-      return await this.payoutLightningService.isHealthy();
-    } catch (e) {
-      this.logger.error('Error in checking health state of Lightning Node', e);
-      return false;
-    }
+    return this.payoutLightningService.isHealthy();
   }
 
   async estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult> {
