@@ -8,6 +8,7 @@ import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
+import { PayInLightningService } from '../../../services/payin-lightning.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
@@ -50,7 +51,7 @@ describe('SendStrategyRegistry', () => {
   beforeEach(() => {
     bitcoin = new BitcoinStrategy(mock<PayInBitcoinService>(), mock<PayInRepository>());
 
-    lightning = new LightningStrategy(mock<PayInRepository>());
+    lightning = new LightningStrategy(mock<PayInLightningService>(), mock<PayInRepository>());
 
     monero = new MoneroStrategy(mock<PayInMoneroService>(), mock<PayInRepository>());
 
