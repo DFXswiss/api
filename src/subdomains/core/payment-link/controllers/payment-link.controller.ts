@@ -90,9 +90,12 @@ export class PaymentLinkController {
   async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
     dto.routeId ??= dto.r;
     dto.externalId ??= dto.e;
+    dto.message ??= dto.m;
     dto.amount ??= dto.a;
     dto.currency ??= dto.c;
     dto.expiryDate ??= dto.d;
+
+    dto.externalId ??= `${dto.message}/${dto.amount}${dto.currency}`;
 
     const link = await this.paymentLinkService.createInvoice(dto);
     return this.lnurlForwardService.createPaymentLinkPayRequest(link.uniqueId);
