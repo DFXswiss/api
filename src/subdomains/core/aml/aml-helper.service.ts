@@ -43,8 +43,7 @@ export class AmlHelperService {
     if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable) {
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
     }
-    if (ibanCountry && (!ibanCountry.fatfEnable || ibanCountry.symbol === 'AE'))
-      errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
+    if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
@@ -137,6 +136,7 @@ export class AmlHelperService {
         )
           errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
+        if (ibanCountry && !ibanCountry.checkoutEnable) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
         if (
           blacklist.some((b) =>
             b.matches(
