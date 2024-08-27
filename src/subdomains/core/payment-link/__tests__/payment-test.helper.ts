@@ -111,7 +111,6 @@ export class PaymentTestHelper {
 
     jest.spyOn(paymentLinkRepo, 'existsBy').mockImplementation(async () => false);
     jest.spyOn(paymentLinkRepo, 'getPaymentLinkById').mockImplementation(async () => paymentLink);
-    jest.spyOn(paymentLinkRepo, 'getPaymentLinkByExternalId').mockImplementation(async () => paymentLink);
 
     return paymentLink;
   }
