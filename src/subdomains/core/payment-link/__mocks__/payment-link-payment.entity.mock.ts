@@ -5,6 +5,9 @@ import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../enums';
 const defaultFiat: Partial<Fiat> = { name: 'CHF' };
 
 const defaultPaymentLinkPayment: Partial<PaymentLinkPayment> = {
+  id: 1,
+  uniqueId: 'plp_1x2y3z',
+  externalId: '20240827-00000001',
   status: PaymentLinkPaymentStatus.PENDING,
   mode: PaymentLinkPaymentMode.SINGLE,
   currency: Object.assign(new Fiat(), defaultFiat),
