@@ -13,10 +13,12 @@ import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import { PaymentLinkPaymentMode } from '../enums';
+import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
@@ -141,11 +143,23 @@ export class PaymentTestHelper {
     jest
       .spyOn(paymentQuoteRepo, 'create')
       .mockImplementation((data) => Object.assign(paymentQuote, data, { uniqueId }));
-
     jest
       .spyOn(paymentQuoteRepo, 'save')
       .mockImplementation(async (data) => Object.assign(paymentQuote, data, { id: 1 }));
 
     return paymentQuote;
+  }
+
+  static spyOnPaymentActivationRepo(paymentActivationRepo: PaymentActivationRepository): PaymentActivation {
+    const paymentActivation = new PaymentActivation();
+
+    jest.spyOn(paymentActivationRepo, 'create').mockImplementation((data) => Object.assign(paymentActivation, data));
+    jest
+      .spyOn(paymentActivationRepo, 'save')
+      .mockImplementation(async (data) => Object.assign(paymentActivation, data, { id: 1 }));
+
+    jest.spyOn(paymentActivationRepo, 'findOne').mockImplementation(async () => undefined);
+
+    return paymentActivation;
   }
 }
