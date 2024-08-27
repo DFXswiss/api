@@ -95,7 +95,7 @@ export class PaymentLinkController {
     dto.currency ??= dto.c;
     dto.expiryDate ??= dto.d;
 
-    dto.externalId ??= `${dto.message}/${dto.amount}${dto.currency}`;
+    dto.externalId ??= `${dto.message}/${dto.amount}${dto.currency ?? ''}`;
 
     const link = await this.paymentLinkService.createInvoice(dto);
     return this.lnurlForwardService.createPaymentLinkPayRequest(link.uniqueId);
