@@ -143,6 +143,7 @@ export class Util {
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
       .replace(/[ł]/g, 'l')
+      .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
       .replace(/[ßșš]/g, 's')
       .replace(/ss/g, 's')
