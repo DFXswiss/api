@@ -1,7 +1,10 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -12,9 +15,11 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { PaymentQuote } from '../entities/payment-quote.entity';
 import { PaymentLinkPaymentMode } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
+import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 export class PaymentTestHelper {
   static createPaymentLinkDto(): CreatePaymentLinkDto {
@@ -60,10 +65,10 @@ export class PaymentTestHelper {
   }
 
   static spyOnCountry(countryServiceMock: CountryService) {
-    jest.spyOn(countryServiceMock, 'getCountryWithSymbol').mockImplementation(async (data) => {
+    jest.spyOn(countryServiceMock, 'getCountryWithSymbol').mockImplementation(async (symbol) => {
       const country = new Country();
-      country.name = data;
-      country.symbol = data;
+      country.name = symbol;
+      country.symbol = symbol;
       return country;
     });
   }
@@ -72,12 +77,9 @@ export class PaymentTestHelper {
     const deposit = new Deposit();
     deposit.blockchains = blockchain;
 
-    const fiat = new Fiat();
-    fiat.name = 'CHF';
-
     const sellRoute = new Sell();
     sellRoute.deposit = deposit;
-    sellRoute.fiat = fiat;
+    sellRoute.fiat = createCustomFiat({ name: 'CHF' });
     sellRoute.user = PaymentTestHelper.createUser();
 
     jest.spyOn(sellServiceMock, 'get').mockResolvedValue(sellRoute);
@@ -87,12 +89,22 @@ export class PaymentTestHelper {
     return sellRoute;
   }
 
-  static spyOnPaymentLinkRepo(paymentLinkRepo: PaymentLinkRepository): PaymentLink {
+  static spyOnAsset(assetServiceMock: AssetService): Asset[] {
+    const paymenAssets: Asset[] = [
+      createCustomAsset({ blockchain: Blockchain.LIGHTNING, name: 'BTC', dexName: 'BTC' }),
+      createCustomAsset({ blockchain: Blockchain.ETHEREUM, name: 'ZCHF', dexName: 'ZCHF' }),
+      createCustomAsset({ blockchain: Blockchain.POLYGON, name: 'ZCHF', dexName: 'ZCHF' }),
+    ];
+
+    jest.spyOn(assetServiceMock, 'getPaymentAssets').mockResolvedValue(paymenAssets);
+
+    return paymenAssets;
+  }
+
+  static spyOnPaymentLinkRepo(paymentLinkRepo: PaymentLinkRepository, uniqueId: string): PaymentLink {
     const paymentLink = new PaymentLink();
 
-    jest
-      .spyOn(paymentLinkRepo, 'create')
-      .mockImplementation((data) => Object.assign(paymentLink, data, { uniqueId: 'x_12345' }));
+    jest.spyOn(paymentLinkRepo, 'create').mockImplementation((data) => Object.assign(paymentLink, data, { uniqueId }));
     jest.spyOn(paymentLinkRepo, 'save').mockImplementation(async (data) => Object.assign(paymentLink, data, { id: 1 }));
 
     jest.spyOn(paymentLinkRepo, 'existsBy').mockImplementation(async () => false);
@@ -102,21 +114,38 @@ export class PaymentTestHelper {
     return paymentLink;
   }
 
-  static spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo: PaymentLinkPaymentRepository): PaymentLinkPayment {
+  static spyOnPaymentLinkPaymentRepo(
+    paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
+    uniqueId: string,
+  ): PaymentLinkPayment {
     const paymentLinkPayment = new PaymentLinkPayment();
 
     jest
       .spyOn(paymentLinkPaymentRepo, 'create')
-      .mockImplementation((data) => Object.assign(paymentLinkPayment, data, { uniqueId: 'y_98765' }));
+      .mockImplementation((data) => Object.assign(paymentLinkPayment, data, { uniqueId }));
     jest
       .spyOn(paymentLinkPaymentRepo, 'save')
       .mockImplementation(async (data) => Object.assign(paymentLinkPayment, data, { id: 1 }));
 
     jest.spyOn(paymentLinkPaymentRepo, 'findOne').mockImplementation(async (find) => {
-      return find.where['uniqueId'] === 'y_98765' ? paymentLinkPayment : undefined;
+      return find.where['uniqueId'] === uniqueId ? paymentLinkPayment : undefined;
     });
     jest.spyOn(paymentLinkPaymentRepo, 'existsBy').mockImplementation(async () => false);
 
     return paymentLinkPayment;
+  }
+
+  static spyOnPaymentQuoteRepo(paymentQuoteRepo: PaymentQuoteRepository, uniqueId: string): PaymentQuote {
+    const paymentQuote = new PaymentQuote();
+
+    jest
+      .spyOn(paymentQuoteRepo, 'create')
+      .mockImplementation((data) => Object.assign(paymentQuote, data, { uniqueId }));
+
+    jest
+      .spyOn(paymentQuoteRepo, 'save')
+      .mockImplementation(async (data) => Object.assign(paymentQuote, data, { id: 1 }));
+
+    return paymentQuote;
   }
 }

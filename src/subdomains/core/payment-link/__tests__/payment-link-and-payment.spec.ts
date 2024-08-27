@@ -57,7 +57,7 @@ describe('Payment Link', () => {
     entityManagerMock = createMock<EntityManager>();
 
     const config = {
-      url: () => 'https://test.dfx.api:12345/v0.1',
+      url: () => 'https://test.dfx.api:12345/v0.1/payment-link-and-payment',
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -108,8 +108,8 @@ describe('Payment Link', () => {
   it('should create a payment link', async () => {
     PaymentTestHelper.spyOnRoute(sellServiceMock, Blockchain.LIGHTNING);
 
-    PaymentTestHelper.spyOnPaymentLinkRepo(paymentLinkRepo);
-    PaymentTestHelper.spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo);
+    PaymentTestHelper.spyOnPaymentLinkRepo(paymentLinkRepo, 'pl_12345');
+    PaymentTestHelper.spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo, 'pl_12345');
 
     const dto = PaymentTestHelper.createPaymentLinkDto();
     const checkLink = await paymentLinkController.createPaymentLink(jwtPayloadMock, dto);
@@ -128,17 +128,17 @@ describe('Payment Link', () => {
     expect(checkLink.recipient.website).toBe('Testwebsite');
 
     expect(checkLink.status).toBe(PaymentLinkStatus.ACTIVE);
-    expect(checkLink.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/x_12345');
+    expect(checkLink.url).toBe('https://test.dfx.api:12345/v0.1/payment-link-and-payment/lnurlp/pl_12345');
     expect(checkLink.lnurl).toBe(
-      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHKCMN4WFK8QTMCTUCNYVE5X588FPER',
+      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHHQCTED4JKUAPDD35KU6EDV9HXGTTSV9UK6ETWWSHKCMN4WFK8QTMSD30NZV3NXS6SFZG7SV',
     );
   });
 
   it('should create a payment link payment', async () => {
     PaymentTestHelper.spyOnRoute(sellServiceMock, Blockchain.LIGHTNING);
 
-    PaymentTestHelper.spyOnPaymentLinkRepo(paymentLinkRepo);
-    PaymentTestHelper.spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo);
+    PaymentTestHelper.spyOnPaymentLinkRepo(paymentLinkRepo, 'pl_12345');
+    PaymentTestHelper.spyOnPaymentLinkPaymentRepo(paymentLinkPaymentRepo, 'plp_98765');
 
     const paymentLinkDto = PaymentTestHelper.createPaymentLinkDto();
     const paymentLink = await paymentLinkController.createPaymentLink(jwtPayloadMock, paymentLinkDto);
@@ -164,9 +164,9 @@ describe('Payment Link', () => {
     expect(checkPayment.recipient.mail).toBe('Testmail');
     expect(checkPayment.recipient.website).toBe('Testwebsite');
     expect(checkPayment.status).toBe(PaymentLinkStatus.ACTIVE);
-    expect(checkPayment.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/x_12345');
+    expect(checkPayment.url).toBe('https://test.dfx.api:12345/v0.1/payment-link-and-payment/lnurlp/pl_12345');
     expect(checkPayment.lnurl).toBe(
-      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHKCMN4WFK8QTMCTUCNYVE5X588FPER',
+      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHHQCTED4JKUAPDD35KU6EDV9HXGTTSV9UK6ETWWSHKCMN4WFK8QTMSD30NZV3NXS6SFZG7SV',
     );
 
     expect(checkPayment.payment.id).toBe(1);
@@ -175,9 +175,9 @@ describe('Payment Link', () => {
     expect(checkPayment.payment.amount).toBe(111.22);
     expect(checkPayment.payment.currency).toBe('CHF');
     expect(checkPayment.payment.mode).toBe(PaymentLinkPaymentMode.SINGLE);
-    expect(checkPayment.payment.url).toBe('https://test.dfx.api:12345/v0.1/lnurlp/y_98765');
+    expect(checkPayment.payment.url).toBe('https://test.dfx.api:12345/v0.1/payment-link-and-payment/lnurlp/plp_98765');
     expect(checkPayment.payment.lnurl).toBe(
-      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHKCMN4WFK8QTMETUUNSDEKX5VJHJEV',
+      'LNURL1DP68GURN8GHJ7AR9WD6ZUERX0QHXZURF8GCNYVE5X5HHVVPWXYHHQCTED4JKUAPDD35KU6EDV9HXGTTSV9UK6ETWWSHKCMN4WFK8QTMSD3C97WFCXUMR22VVQ5U',
     );
   });
 });
