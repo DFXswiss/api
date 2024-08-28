@@ -71,10 +71,9 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get displayName(): string {
-    return (
-      this.link.route.userData.paymentLinksName ??
-      this.link.route.userData.verifiedName ??
-      `Payment ${this.metaId} to ${this.link.metaId}`
-    );
+    const name = this.link.route.userData.paymentLinksName ?? this.link.route.userData.verifiedName;
+    const amount = `${this.currency.name} ${this.amount}`;
+
+    return name ? `${name} - ${amount}` : `Payment ${this.metaId} (${amount}) to ${this.link.metaId}`;
   }
 }
