@@ -82,10 +82,15 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get displayName(): string {
-    const name = this.link.route.userData.paymentLinksName ?? this.link.route.userData.verifiedName;
-    const amount = `${this.currency.name} ${this.amount}`;
+    return (
+      this.link.route.userData.paymentLinksName ??
+      this.link.route.userData.verifiedName ??
+      `Payment ${this.metaId} to ${this.link.metaId}`
+    );
+  }
 
-    return name ? `${name} - ${amount}` : `Payment ${this.metaId} (${amount}) to ${this.link.metaId}`;
+  get memo(): string {
+    return `${this.displayName} - ${this.currency.name} ${this.amount}`;
   }
 
   get device(): PaymentDevice | undefined {
