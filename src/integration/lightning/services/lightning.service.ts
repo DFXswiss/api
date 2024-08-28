@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { LnBitsInvoiceDto } from '../dto/lnbits.dto';
+import { LndPaymentDto, LndPaymentStatus, LndSendPaymentResponseDto } from '../dto/lnd.dto';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../dto/lnurlp.dto';
 import { LightningClient } from '../lightning-client';
 import { LightningAddressType, LightningHelper } from '../lightning-helper';
@@ -95,5 +97,71 @@ export class LightningService {
         },
       )
       .then((i) => i.payment_request);
+  }
+
+  async sendTransfer(address: string, amount: number): Promise<string> {
+    const addressType = LightningHelper.getAddressType(address);
+
+    let paymentResponse: LndSendPaymentResponseDto;
+
+    switch (addressType) {
+      case LightningAddressType.LN_URL: {
+        const invoice = await this.getInvoiceByLnurlp(address, amount);
+        paymentResponse = await this.client.sendPaymentByInvoice(invoice);
+        break;
+      }
+
+      case LightningAddressType.LN_NID: {
+        const publicKey = await this.getPublicKeyOfAddress(address);
+        paymentResponse = await this.client.sendPaymentByPublicKey(publicKey, amount);
+        break;
+      }
+
+      case LightningAddressType.LND_HUB: {
+        const invoice = await this.getInvoiceByLndhub(address, amount);
+        paymentResponse = await this.client.sendPaymentByInvoice(invoice);
+        break;
+      }
+
+      default:
+        throw new Error(`Unknown address type ${addressType} in send payment`);
+    }
+
+    if (paymentResponse.payment_error) {
+      throw new Error(`Error while sending payment by LNURL ${address}: ${paymentResponse.payment_error}`);
+    }
+
+    return Buffer.from(paymentResponse.payment_hash, 'base64').toString('hex');
+  }
+
+  async getTransferCompletionData(txId: string, maxHours = 24): Promise<[boolean, number]> {
+    const foundPayment = await this.findPayment(new Date(), maxHours, txId);
+
+    let isComplete = false;
+    let transferFee = 0;
+
+    if (foundPayment) {
+      isComplete = foundPayment.status === LndPaymentStatus.SUCCEEDED;
+      transferFee = LightningHelper.satToBtc(foundPayment.fee_sat);
+    }
+
+    return [isComplete, transferFee];
+  }
+
+  private async findPayment(toDate: Date, maxHours: number, txId: string): Promise<LndPaymentDto> {
+    let loopToDate = toDate;
+    let loopFromDate = Util.hoursBefore(1, loopToDate);
+
+    for (let hour = 0; hour < maxHours; hour++) {
+      const payments = await this.client.listPayments(loopFromDate, loopToDate);
+      const foundPayment = payments.find((p) => p.payment_hash === txId);
+
+      if (foundPayment) return foundPayment;
+
+      loopToDate = Util.hoursBefore(1, loopToDate);
+      loopFromDate = Util.hoursBefore(1, loopToDate);
+    }
+
+    return null;
   }
 }

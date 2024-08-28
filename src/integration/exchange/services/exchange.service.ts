@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
-import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -109,9 +109,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
           this.logger.verbose(
             `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
           );
-          const id = await this.updateOrderPrice(order, price).catch((e) =>
-            this.logger.error(`Failed to update price of order ${order.id}:`, e),
-          );
+          const id = await this.updateOrderPrice(order, price).catch((e: ExchangeError) => {
+            this.logger.error(`Failed to update price of order ${order.id}:`, e);
+
+            if (e.message.includes('Not enough leaves qty')) throw e;
+          });
 
           if (id) {
             this.logger.verbose(`Order ${order.id} changed to ${id}`);
@@ -281,9 +283,9 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   protected async updateOrderPrice(order: Order, price: number): Promise<string> {
-    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, order.amount, price)).then(
-      (o) => o.id,
-    );
+    return this.callApi((e) =>
+      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
+    ).then((o) => o.id);
   }
 
   // other

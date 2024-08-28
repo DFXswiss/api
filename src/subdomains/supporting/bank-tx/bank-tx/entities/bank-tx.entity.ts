@@ -233,7 +233,7 @@ export class BankTx extends IEntity {
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
       if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().split(' ').join('')}`;
-      if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
+      if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().split(' ').join('')}`;
       return this.iban;
     }
 

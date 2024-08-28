@@ -19,6 +19,7 @@ import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { MergeResponseDto } from './dto/merge-response.dto';
+import { RedirectResponseDto } from './dto/redirect-response.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 
 @ApiTags('Auth')
@@ -61,9 +62,8 @@ export class AuthController {
 
   @Get('mail/redirect')
   @ApiExcludeEndpoint()
-  async redirectMail(@Query('code') code: string, @Res() res: Response, @RealIP() ip: string): Promise<void> {
-    const redirectUri = await this.authService.completeSignInByMail(code, ip);
-    res.redirect(redirectUri);
+  async redirectMail(@Query('code') code: string, @RealIP() ip: string): Promise<RedirectResponseDto> {
+    return { redirectUrl: await this.authService.completeSignInByMail(code, ip) };
   }
 
   @Get('mail/confirm')

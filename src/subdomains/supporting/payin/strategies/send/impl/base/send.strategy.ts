@@ -66,7 +66,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
         return payIn.forward(outTxId, feeAmount);
 
       case SendType.RETURN:
-        return payIn.return(outTxId);
+        return payIn.return(outTxId, feeAmount);
 
       default:
         this.logger.warn(`Unsupported SendType for updating with send data for pay-in ${payIn.id}`);

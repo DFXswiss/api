@@ -261,9 +261,13 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  return(returnTxId: string): this {
+  return(returnTxId: string, returnFeeAmount?: number): this {
     this.returnTxId = returnTxId;
     this.status = PayInStatus.RETURNED;
+
+    if (returnFeeAmount != null) {
+      this.forwardFeeAmount = returnFeeAmount;
+    }
 
     return this;
   }

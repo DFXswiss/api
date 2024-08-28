@@ -124,7 +124,9 @@ export class Util {
   static includesSameName(reference: string, testedName: string): boolean {
     if (!reference || !testedName) return false;
 
-    return this.removeSpecialChars(reference).includes(this.removeSpecialChars(testedName));
+    const testedNameArray = this.removeSpecialChars(testedName).split(' ');
+
+    return testedNameArray.some((n) => this.removeSpecialChars(reference).includes(n));
   }
 
   static removeSpecialChars(name: string): string {
@@ -140,6 +142,8 @@ export class Util {
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
+      .replace(/[ł]/g, 'l')
+      .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
       .replace(/[ßșš]/g, 's')
       .replace(/ss/g, 's')

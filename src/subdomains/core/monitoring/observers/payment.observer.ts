@@ -16,6 +16,7 @@ interface PaymentData {
   incomplete: IncompleteTransactions;
   freeDeposit: { blockchain: string; count: number }[];
   unhandledCryptoInputs: number;
+  unconfirmedCryptoInputs: number;
   bankTxWithoutType: number;
   bankTxGsType: number;
 }
@@ -81,6 +82,9 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
             PayInStatus.COMPLETED,
           ]),
         ),
+      }),
+      unconfirmedCryptoInputs: await this.repos.payIn.countBy({
+        status: In([PayInStatus.RETURNED, PayInStatus.FORWARDED]),
       }),
     };
   }
