@@ -52,8 +52,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
 
         switch (bankName) {
           case BankName.OLKY:
-            const olkyBalance = await this.olkypayService.getBalance();
-            balance = olkyBalance.balance;
+            balance = await this.olkypayService.getBalance().then((b) => b.balance);
 
             break;
 
