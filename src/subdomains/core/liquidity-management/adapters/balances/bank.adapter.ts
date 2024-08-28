@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -13,7 +14,11 @@ import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../int
 export class BankAdapter implements LiquidityBalanceIntegration {
   private readonly logger = new DfxLogger(BankAdapter);
 
-  constructor(private readonly bankService: BankService, private readonly bankTxBatchService: BankTxBatchService) {}
+  constructor(
+    private readonly bankService: BankService,
+    private readonly bankTxBatchService: BankTxBatchService,
+    private readonly olkypayService: OlkypayService,
+  ) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(
@@ -43,14 +48,25 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     const balances: LiquidityBalance[] = [];
     try {
       for (const asset of assets) {
-        const bank = await this.bankService.getBankInternal(bankName, asset.dexName);
-        const bankTxBatch = await this.bankTxBatchService.getBankTxBatchByIban(bank.iban);
+        let balance = 0;
 
-        const balance = !bankTxBatch
-          ? 0
-          : bankTxBatch.balanceAfterCdi === 'CRDT'
-          ? bankTxBatch.balanceAfterAmount
-          : -bankTxBatch.balanceAfterAmount;
+        switch (bankName) {
+          case BankName.OLKY:
+            const olkyBalance = await this.olkypayService.getBalance();
+            balance = olkyBalance.balance;
+
+            break;
+
+          default:
+            const bank = await this.bankService.getBankInternal(bankName, asset.dexName);
+            const bankTxBatch = await this.bankTxBatchService.getBankTxBatchByIban(bank.iban);
+            if (!bankTxBatch) break;
+
+            balance =
+              bankTxBatch.balanceAfterCdi === 'CRDT' ? bankTxBatch.balanceAfterAmount : -bankTxBatch.balanceAfterAmount;
+
+            break;
+        }
 
         balances.push(LiquidityBalance.create(asset, balance));
       }
