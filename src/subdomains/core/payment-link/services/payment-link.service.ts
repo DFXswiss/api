@@ -83,7 +83,8 @@ export class PaymentLinkService {
     });
     if (existingLinks.length) {
       const matchingLink = existingLinks.find(
-        (l) => l.payments[0]?.amount === +dto.amount && l.payments[0]?.currency.name === dto.currency,
+        (l) =>
+          l.payments[0]?.amount === +dto.amount && (l.payments[0]?.currency.name === dto.currency || !dto.currency),
       );
       if (matchingLink) return matchingLink;
 

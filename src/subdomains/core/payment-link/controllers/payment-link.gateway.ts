@@ -1,24 +1,20 @@
-import { BadRequestException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { BadRequestException, OnModuleInit } from '@nestjs/common';
 import { OnGatewayConnection, WebSocketGateway } from '@nestjs/websockets';
 import { IncomingMessage } from 'http';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { PaymentDevice } from '../entities/payment-link-payment.entity';
+import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 
 type ClientMap = Map<string, Map<string, WebSocket>>;
 
 @WebSocketGateway({ path: '/v1/paymentLink' })
-export class PaymentLinkGateway implements OnGatewayConnection {
+export class PaymentLinkGateway implements OnGatewayConnection, OnModuleInit {
   private readonly clients: ClientMap = new Map();
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock()
-  sendMessages() {
-    for (const devices of this.clients.values()) {
-      for (const client of devices.values()) {
-        client.send('12-10000');
-      }
-    }
+  constructor(private readonly paymentService: PaymentLinkPaymentService) {}
+
+  onModuleInit() {
+    this.paymentService.getDeviceActivationObservable().subscribe((a) => this.sendMessage(a));
   }
 
   handleConnection(client: WebSocket, message: IncomingMessage) {
@@ -43,5 +39,14 @@ export class PaymentLinkGateway implements OnGatewayConnection {
     const clients = this.clients.get(device);
     clients?.delete(clientId);
     this.clients.set(device, clients);
+  }
+
+  private sendMessage(device: PaymentDevice) {
+    const clients = this.clients.get(device.id);
+    if (!clients) return;
+
+    for (const client of clients.values()) {
+      client.send(device.command);
+    }
   }
 }
