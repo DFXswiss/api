@@ -58,6 +58,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
       return balances;
     } catch (e) {
       this.logger.error(`Failed to update liquidity management balance for ${bankName}:`, e);
+      throw e;
     }
   }
 }
