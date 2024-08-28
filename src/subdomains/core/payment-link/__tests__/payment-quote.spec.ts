@@ -103,8 +103,8 @@ describe('Payment Quote', () => {
       expect(checkDto.callback).toBe('https://test.dfx.api:12345/v0.1/payment-quote/lnurlp/cb/pl_x1y2z3');
       expect(checkDto.minSendable).toBe(226745000);
       expect(checkDto.maxSendable).toBe(226745000);
-      expect(checkDto.metadata).toBe('[["text/plain", "TestLinkName"]]');
-      expect(checkDto.displayName).toBe('TestLinkName');
+      expect(checkDto.metadata).toBe('[["text/plain", "TestLinkName - CHF 123.45"]]');
+      expect(checkDto.displayName).toBe('TestLinkName - CHF 123.45');
       expect(checkDto.quote.id).toBe('pl_x1y2z3');
       expect(checkDto.requestedAmount.asset).toBe('CHF');
       expect(checkDto.requestedAmount.amount).toBe(123.45);

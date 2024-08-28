@@ -48,6 +48,16 @@ describe('Payment Activation', () => {
 
     const config = {
       url: () => 'https://test.dfx.api:12345/v0.1/payment-webhook',
+      blockchain: {
+        lightning: {
+          lnbits: {
+            signingPrivKey:
+              '-----BEGIN PRIVATE KEY-----<br>MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCfKyNKl+FLGILG<br>TVaE2NqdNTakTHZ3EXGaBbQDAigeaqg+mBZFzrXJuPXIs5sccadzrKwwFR+5wK6C<br>+8gahbgSqUHZbuvMrU5WnlLhOodGqvVCPDzmdPdK7Zo0nrbefx0w68sR9qNPW4P+<br>77DNgvfMtdoar+dPhz+FBxmMyRm2P9fcq5GQzl06jnpJnri4fAwlcNiNDRqNOhk2<br>mLNtqwka0DSqLpKuMlEEuIMO4IbmQCl0uAxyNitMNurIpXE0PEaNWtzPP9uo+71j<br>+kPNip1HWFRNoFsoXy3kDsILK79NwUXQaehXU6carc7K3E5v8SLuEECBYyyba8Kc<br>0MRlDhfLAgMBAAECggEAbdFUkyXBQo/RwsIfXJ9GDktlvOwonDRD3hHrRlwZlArg<br>s/c4/scFM/3STrxk27Yq46uSTcZ1UjL39NWFFY+HFhEDpuJZ/KjiMO8hndZE+WQA<br>vcdT+WlgKalPyNhssYygdl1piaZSvPEWXDHCGbkwAWTC68DL5loZYE4qubESdWP2<br>lNCGuCPbwqRcfdosYmFji2lgs1b/8X39RsheBKLVdkhffJcWh+WM0CXHHSRmoWVK<br>WVZQDxZ9jHK23f6uCT4tou1VcjOebUAHs9YLwmEXkdAicbo9ArNZzARhTn09ncAE<br>ov1BSd7hxwdDXa49rwDrnz5e7UVo9LXyJMihBQOLcQKBgQDNJ5FRVSO+7nnbV5Lv<br>q3b5rUdQEwThzQXd2f+He0+FddDXXcMqr+tvwL6uAnxgs/6Kg9OKVSo21vwosWKv<br>EiApKVcS1k5EDZE0eMVLVb9aEn28e+BQZpoVfxrN4Hwu3n/smJIGyiCF01Y+20a7<br>2DIr5OZPW/5AmsR5jJHSTLKXIwKBgQDGneUkZxCfrQAl18ocDtO/srb+LsTHfOqc<br>IvLKQYkeJgmP8Q4l2s0IbDtrlEK/Q57xN5/u0Ez/Tk37rqMfwPHHNChWinxcHan+<br>73F2Fbgan+7jbMnzhxuvu27EzXnaJJHWTK8n2z/ZEM3ByVY5GrTVNmlJ3Aj+T7q6<br>Zg3fRbtbOQKBgQCpJ8fdLPtFUfKt1X51GYcHBUX4k0YCPH9q1nWoKxd9bpBdE5V5<br>nAXfZiiS57/QKHlnkpyYwfIFt6vAjcpVmfdkmQ6PnJ555Enm3vGmVTRquzZrdCSX<br>hpHjyaK7QC6EorcNyRsWeBDq5z+Eol6nQfLUWG9B3hM9B5+arToLEWxrywKBgDFj<br>yDxyKK8cTSIb9BVgFoXgAiNZK/PTe1/STP/ApkFKAiy6K+N78mp6x5fr6WE4hojD<br>ZVD0mYEPTtMcTVIzH6yCqtlCXMRnWAOeNV/A7OQqCzSgs+OMIHVlrZjg48E8QMvC<br>i/fkTI9E33WmBHv0yS0P98S3I8FhwDRj9mUkKP/5AoGAcc0mg9Gn2Kq+NocmsgWY<br>KjSFgK6wAZ/isziCXdpTixVggygMT6b+JEnk88ipuuu4IwZO8RjM2hKX0FrQCvDr<br>DyixB5I7G4QVJhywGArY09XpdjMkZlVBTuMo61LwI2If63Qq6Dl4zd5EDBCJPx9o<br>XJ55b0HUWpFSTAmzSMv9Q+0=<br>-----END PRIVATE KEY-----'
+                .split('<br>')
+                .join('\n'),
+          },
+        },
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
