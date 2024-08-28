@@ -54,6 +54,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.TEST_FIAT_FIAT]: null,
   [BankTxType.GSHEET]: null,
   [BankTxType.KRAKEN]: null,
+  [BankTxType.SCB]: null,
   [BankTxType.CHECKOUT_LTD]: null,
   [BankTxType.REVOLUT_CARD_PAYMENT]: null,
   [BankTxType.BANK_ACCOUNT_FEE]: null,
