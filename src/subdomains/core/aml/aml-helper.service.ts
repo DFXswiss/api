@@ -108,6 +108,14 @@ export class AmlHelperService {
         case AmlRule.RULE_4:
           if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
+        case AmlRule.RULE_6:
+          if (entity.user.status === UserStatus.NA && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_30)
+            errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
+          break;
+        case AmlRule.RULE_7:
+          if (entity.user.status === UserStatus.NA && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_50)
+            errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+          break;
       }
 
       if (entity.bankTx) {

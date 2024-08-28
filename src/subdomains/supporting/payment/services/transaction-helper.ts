@@ -457,12 +457,15 @@ export class TransactionHelper implements OnModuleInit {
     // KYC checks
     if (isBuy) {
       if (
-        (user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_2 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_3 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_50)
+        user?.status === UserStatus.NA &&
+        ((user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+          (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50) ||
+          (user?.wallet.amlRule === AmlRule.RULE_6 &&
+            paymentMethodIn === FiatPaymentMethod.CARD &&
+            user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+          (user?.wallet.amlRule === AmlRule.RULE_7 &&
+            paymentMethodIn === FiatPaymentMethod.CARD &&
+            user?.userData.kycLevel < KycLevel.LEVEL_50))
       )
         return QuoteError.KYC_REQUIRED;
     }
