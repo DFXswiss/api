@@ -84,6 +84,6 @@ export class AccountMergeService {
   }
 
   private buildConfirmationUrl(code: string): string {
-    return `${Config.frontend.services}/account-merge?code=${code}`;
+    return `${Config.frontend.services}/account-merge?otp=${code}`;
   }
 }
