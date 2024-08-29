@@ -243,7 +243,7 @@ export class KycStep extends IEntity {
   get identErrorsMailString(): string {
     return `<ul>${this.comment
       .split(';')
-      .map((c) => `<li>${IdentCheckErrorMap[Object.values(IdentCheckError).find((e) => e === c)]}</li>`)
+      .map((c) => `<li>${IdentCheckErrorMap[c as IdentCheckError]}</li>`)
       .join('')}</ul>`;
   }
 }
