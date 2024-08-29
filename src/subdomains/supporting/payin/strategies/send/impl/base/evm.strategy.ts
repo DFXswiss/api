@@ -42,7 +42,11 @@ export abstract class EvmStrategy extends SendStrategy {
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
           const totalAmount = this.getTotalGroupAmount(payInGroup, type);
 
-          const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup.asset, totalAmount);
+          const { nativeFee, targetFee } = await this.getEstimatedFee(
+            payInGroup.asset,
+            totalAmount,
+            this.getForwardAddress().address,
+          );
           const minInputFee = await this.getMinInputFee(payInGroup.asset);
 
           CryptoInput.verifyEstimatedFee(targetFee, minInputFee, totalAmount);
