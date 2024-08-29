@@ -96,14 +96,9 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected async getEstimatedFee(
     asset: Asset,
     amount: number,
-    targetAddress?: string,
+    targetAddress: string,
   ): Promise<{ nativeFee: number; targetFee: number }> {
-    const nativeFee = await this.payoutService.estimateFee(
-      asset,
-      targetAddress ?? this.getForwardAddress().address,
-      amount,
-      asset,
-    );
+    const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
     const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
 
     return { nativeFee: nativeFee.amount, targetFee };
