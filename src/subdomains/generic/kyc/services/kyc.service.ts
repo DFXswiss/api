@@ -64,6 +64,7 @@ export enum IdentCheckError {
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
   NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
+  NATIONALITY_MISSING = 'NationalityMissing',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
@@ -652,8 +653,11 @@ export class KycService {
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id)
+    if (!nationality) {
+      errors.push(IdentCheckError.NATIONALITY_MISSING);
+    } else if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id) {
       errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
+    }
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
