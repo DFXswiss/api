@@ -466,7 +466,9 @@ export class Util {
       throw validationResult;
     }
 
-    return new XMLParser({ ignoreAttributes: false }).parse(file);
+    return new XMLParser({ ignoreAttributes: false, numberParseOptions: { leadingZeros: false, hex: false } }).parse(
+      file,
+    );
   }
 
   static blankStart(value: string, visibleLength = 4): string {
