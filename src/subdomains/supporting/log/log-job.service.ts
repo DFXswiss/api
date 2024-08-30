@@ -60,14 +60,14 @@ export class LogJobService {
 
     const assetByFinancialType = [];
 
-    for (const group of financialTypeGroup.entries()) {
+    for (const [financialType, assets] of financialTypeGroup.entries()) {
       let plusBalance = 0;
 
-      for (const asset of group[1]) {
+      for (const asset of assets) {
         plusBalance += liqBalances.find((b) => b.asset.id === asset.id)?.amount ?? 0;
       }
 
-      assetByFinancialType.push({ financialType: group[0], plusBalance, minusBalance: 0 });
+      assetByFinancialType.push({ financialType, plusBalance, minusBalance: 0 });
     }
 
     await this.logService.create({
