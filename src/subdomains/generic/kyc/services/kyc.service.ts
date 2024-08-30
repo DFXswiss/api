@@ -59,22 +59,6 @@ import { IdentService } from './integration/ident.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
 
-export enum IdentCheckError {
-  USER_DATA_MERGED = 'UserDataMerged',
-  USER_DATA_BLOCKED = 'UserDataBlocked',
-  FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
-  LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
-  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
-  NATIONALITY_MISSING = 'NationalityMissing',
-  INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
-  IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
-  INVALID_RESULT = 'InvalidResult',
-  VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
-  FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
-  LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
-  ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
-}
-
 @Injectable()
 export class KycService {
   private readonly logger = new DfxLogger(KycService);
