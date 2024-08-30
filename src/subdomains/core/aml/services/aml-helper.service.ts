@@ -10,11 +10,11 @@ import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorResult, AmlErrorType } from './enums/aml-error.enum';
-import { AmlReason } from './enums/aml-reason.enum';
-import { CheckStatus } from './enums/check-status.enum';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 
 export class AmlHelperService {
   static getAmlErrors(

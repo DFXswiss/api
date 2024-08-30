@@ -202,7 +202,7 @@ export class AuthService {
 
     // create random key
     const key = randomUUID();
-    const loginUrl = `${Config.frontend.services}/mail-login?code=${key}`;
+    const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
     this.mailKeyList.set(key, {
       created: new Date(),
@@ -252,6 +252,9 @@ export class AuthService {
 
       const account = await this.userDataService.getUserData(entry.userDataId);
       const token = this.generateAccountToken(account, ip);
+
+      if (account.isDeactivated)
+        await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);

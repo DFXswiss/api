@@ -142,7 +142,10 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
       relations: ['deposit'],
     });
 
-    return routes.map((dr) => dr.deposit.address);
+    const addresses = routes.map((dr) => dr.deposit.address);
+    addresses.push(this.evmPaymentDepositAddress);
+
+    return addresses;
   }
 
   protected getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
