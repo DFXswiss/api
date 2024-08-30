@@ -253,6 +253,9 @@ export class AuthService {
       const account = await this.userDataService.getUserData(entry.userDataId);
       const token = this.generateAccountToken(account, ip);
 
+      if (account.isDeactivated)
+        await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
+
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);
       return url.toString();
