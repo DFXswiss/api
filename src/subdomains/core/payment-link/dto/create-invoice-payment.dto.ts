@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { PaymentStandard } from '../entities/standard.config';
 
 export class CreateInvoicePaymentDto {
   @ApiProperty()
@@ -66,4 +67,13 @@ export class CreateInvoicePaymentDto {
   @IsDate()
   @Type(() => Date)
   d: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(PaymentStandard)
+  standard?: PaymentStandard;
+
+  @IsOptional()
+  @IsEnum(PaymentStandard)
+  s?: PaymentStandard;
 }

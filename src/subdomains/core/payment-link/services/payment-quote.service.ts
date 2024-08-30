@@ -1,8 +1,7 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
-import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -17,7 +16,7 @@ import { PaymentQuoteStatus } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
-export class PaymentQuoteService implements OnModuleInit {
+export class PaymentQuoteService {
   private readonly logger = new DfxLogger(PaymentQuoteService);
 
   static readonly PREFIX_UNIQUE_ID = 'plq';
@@ -29,19 +28,16 @@ export class PaymentQuoteService implements OnModuleInit {
     Blockchain.OPTIMISM,
     Blockchain.BASE,
     Blockchain.POLYGON,
+    Blockchain.MONERO,
   ];
-
-  private evmDepositAddress: string;
 
   constructor(
     private paymentQuoteRepo: PaymentQuoteRepository,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
-  ) {}
-
-  onModuleInit() {
-    this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
+  ) {
+    void this.createOrderedPaymentAssetMap(Object.values(Blockchain)).then(console.log);
   }
 
   async processActualQuotes(): Promise<void> {
@@ -109,7 +105,7 @@ export class PaymentQuoteService implements OnModuleInit {
   private async createTransferAmounts(payment: PaymentLinkPayment): Promise<TransferAmount[]> {
     const transferAmounts: TransferAmount[] = [];
 
-    const paymentAssetMap = await this.createOrderedPaymentAssetMap();
+    const paymentAssetMap = await this.createOrderedPaymentAssetMap(payment.link.configObj.blockchains);
 
     for (const [blockchain, assets] of paymentAssetMap.entries()) {
       const transferAmount = await this.createTransferAmount(blockchain, assets, payment);
@@ -149,19 +145,19 @@ export class PaymentQuoteService implements OnModuleInit {
     return this.evmGasPriceService.getGasPrice(blockchain);
   }
 
-  private async createOrderedPaymentAssetMap(): Promise<Map<Blockchain, Asset[]>> {
+  private async createOrderedPaymentAssetMap(blockchains: Blockchain[]): Promise<Map<Blockchain, Asset[]>> {
     const paymentAssets = await this.assetService.getPaymentAssets();
 
-    const paymentAssetMap = new Map<Blockchain, Asset[]>();
+    const availableAssets = paymentAssets
+      .filter((a) => blockchains.includes(a.blockchain))
+      .sort((a, b) => this.getBlockchainSortOrder(a.blockchain) - this.getBlockchainSortOrder(b.blockchain));
 
-    for (const blockchain of this.transferAmountOrder) {
-      paymentAssetMap.set(
-        blockchain,
-        paymentAssets.filter((a) => a.blockchain === blockchain),
-      );
-    }
+    return Util.groupBy<Asset, Blockchain>(availableAssets, 'blockchain');
+  }
 
-    return paymentAssetMap;
+  private getBlockchainSortOrder(blockchain: Blockchain): number {
+    const index = this.transferAmountOrder.indexOf(blockchain);
+    return index < 0 ? Infinity : index;
   }
 
   private async getTransferAmountAsset(

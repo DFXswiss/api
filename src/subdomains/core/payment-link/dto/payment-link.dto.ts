@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentStandard } from '../entities/standard.config';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 
 export type TransferMethod = Blockchain;
@@ -33,6 +34,8 @@ export interface PaymentLinkPayRequestDto {
   maxSendable: number;
   metadata: string;
   displayName: string;
+  standard: PaymentStandard;
+  possibleStandards: PaymentStandard[];
   recipient: PaymentLinkRecipientDto;
   quote: {
     id: string;
