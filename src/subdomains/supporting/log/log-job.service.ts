@@ -41,7 +41,10 @@ export class LogJobService {
     const assets = await this.assetService
       .getAllAssets()
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
-    const financialTypeMap = Util.groupBy(assets, 'financialType');
+    const financialTypeMap = Util.groupBy(
+      assets.filter((a) => a.financialType),
+      'financialType',
+    );
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
