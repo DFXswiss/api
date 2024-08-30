@@ -187,7 +187,7 @@ export class PaymentLinkPaymentService {
     const pendingPayment = await this.getPendingPaymentByAsset(cryptoInput.asset, cryptoInput.amount);
 
     if (!pendingPayment) {
-      this.logger.error(`CryptoInput ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
+      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No pending payment found by asset ${cryptoInput.asset.id}`);
       return;
     }
 
