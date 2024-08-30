@@ -41,7 +41,7 @@ export class LogJobService {
     const assets = await this.assetService
       .getAllAssets()
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
-    const financialTypeGroup = Util.groupBy(assets, 'financialType');
+    const financialTypeMap = Util.groupBy(assets, 'financialType');
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
@@ -58,23 +58,23 @@ export class LogJobService {
       return prev;
     }, {});
 
-    const assetByFinancialType = [];
-
-    for (const [financialType, assets] of financialTypeGroup.entries()) {
-      let plusBalance = 0;
-
-      for (const asset of assets) {
-        plusBalance += liqBalances.find((b) => b.asset.id === asset.id)?.amount ?? 0;
-      }
-
-      assetByFinancialType.push({ financialType, plusBalance, minusBalance: 0 });
-    }
+    const balancesByFinancialType = Array.from(financialTypeMap.entries()).map(([financialType, assets]) => ({
+      financialType,
+      plusBalance: assets.reduce(
+        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
+        0,
+      ),
+    }));
 
     await this.logService.create({
       system: 'LogService',
       subsystem: 'TradingLog',
       severity: LogSeverity.INFO,
-      message: JSON.stringify({ assets: assetLog, tradings: tradingLog, assetByFinancialType }),
+      message: JSON.stringify({
+        assets: assetLog,
+        tradings: tradingLog,
+        balancesByFinancialType,
+      }),
     });
   }
 }
