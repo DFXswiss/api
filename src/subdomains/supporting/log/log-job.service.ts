@@ -5,7 +5,6 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
@@ -74,13 +73,11 @@ export class LogJobService {
           0,
         ),
         buyCrypto: pendingBuyCrypto.reduce(
-          (sum, tx) =>
-            sum + (tx.amlCheck != CheckStatus.PASS && tx.cryptoInput?.asset?.id === curr.id ? tx.inputAmount : 0),
+          (sum, tx) => sum + (!tx.outputAmount && tx.cryptoInput?.asset?.id === curr.id ? tx.inputAmount : 0),
           0,
         ),
         buyCryptoPass: pendingBuyCrypto.reduce(
-          (sum, tx) =>
-            sum + (tx.amlCheck === CheckStatus.PASS && tx.outputAsset?.id === curr.id ? tx.outputAmount ?? 0 : 0),
+          (sum, tx) => sum + (tx.outputAmount && tx.outputAsset?.id === curr.id ? tx.outputAmount ?? 0 : 0),
           0,
         ),
       };
