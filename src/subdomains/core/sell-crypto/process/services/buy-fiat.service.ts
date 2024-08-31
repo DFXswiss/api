@@ -18,7 +18,7 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, In } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -90,21 +90,6 @@ export class BuyFiatService {
     await this.triggerWebhook(entity);
 
     return entity;
-  }
-
-  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
-    if (request) {
-      await this.transactionRequestService.complete(request.id);
-    } else {
-      request = await this.transactionRequestService.findAndComplete(
-        entity.inputAmount,
-        entity.sell.id,
-        entity.cryptoInput.asset.id,
-        entity.sell.fiat.id,
-      );
-    }
-
-    return request;
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -354,7 +339,29 @@ export class BuyFiatService {
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: { amlCheck: Not(In([CheckStatus.PASS, CheckStatus.FAIL])), isComplete: false },
+      relations: { cryptoInput: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.sell.id,
+        entity.cryptoInput.asset.id,
+        entity.sell.fiat.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {
