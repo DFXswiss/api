@@ -517,11 +517,11 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [
         {
-          amlCheck: Not(In([CheckStatus.PASS, CheckStatus.FAIL])),
+          amlCheck: Not(CheckStatus.PASS),
           isComplete: false,
           cryptoInput: { id: Not(IsNull()) },
         },
-        { amlCheck: CheckStatus.PASS, isComplete: false, cryptoInput: { id: IsNull() } },
+        { amlCheck: CheckStatus.PASS, isComplete: false },
       ],
       relations: { cryptoInput: true },
     });
