@@ -30,6 +30,7 @@ import {
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { IdentCheckError } from '../dto/ident-check-error.enum';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
@@ -57,22 +58,6 @@ import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
-
-export enum IdentCheckError {
-  USER_DATA_MERGED = 'UserDataMerged',
-  USER_DATA_BLOCKED = 'UserDataBlocked',
-  FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
-  LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
-  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
-  NATIONALITY_MISSING = 'NationalityMissing',
-  INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
-  IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
-  INVALID_RESULT = 'InvalidResult',
-  VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
-  FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
-  LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
-  ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
-}
 
 @Injectable()
 export class KycService {
