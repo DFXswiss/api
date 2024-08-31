@@ -5,6 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
@@ -53,6 +54,11 @@ export class LogJobService {
     const assets = await this.assetService
       .getAllAssets()
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
+    const financialTypeMap = Util.groupBy(
+      assets.filter((a) => a.financialType),
+      'financialType',
+    );
+
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
@@ -87,11 +93,24 @@ export class LogJobService {
       return prev;
     }, {});
 
+    const balancesByFinancialType = Array.from(financialTypeMap.entries()).map(([financialType, assets]) => ({
+      financialType,
+      plusBalance: assets.reduce(
+        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
+        0,
+      ),
+      minusBalance: 0,
+    }));
+
     await this.logService.create({
       system: 'LogService',
       subsystem: 'TradingLog',
       severity: LogSeverity.INFO,
-      message: JSON.stringify({ assets: assetLog, tradings: tradingLog }),
+      message: JSON.stringify({
+        assets: assetLog,
+        tradings: tradingLog,
+        balancesByFinancialType,
+      }),
     });
   }
 }
