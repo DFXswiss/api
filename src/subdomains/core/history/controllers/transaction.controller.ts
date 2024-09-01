@@ -282,7 +282,7 @@ export class TransactionController {
     if (transaction.cryptoInput)
       return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto.refundAddress);
 
-    return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto.refundAddress);
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, dto.refundIban);
   }
 
   // --- HELPER METHODS --- //
