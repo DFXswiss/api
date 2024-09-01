@@ -44,9 +44,9 @@ export class BankAccountService {
   }
 
   async createBankAccount(userDataId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { kycType } = await this.userDataService.getUserData(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId);
 
-    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
+    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userData);
 
     return this.updateEntity(dto, bankAccount);
   }
@@ -75,8 +75,8 @@ export class BankAccountService {
   }
 
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
-    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
-    return this.getOrCreateBankAccountInternal(iban, userDataId, kycType);
+    const userData = await this.userDataService.getUserDataByUser(userId);
+    return this.getOrCreateBankAccountInternal(iban, userData);
   }
 
   // --- HELPER METHODS --- //
@@ -95,29 +95,28 @@ export class BankAccountService {
     return this.bankAccountRepo.save(bankAccount);
   }
 
-  async getOrCreateBankAccountInternal(iban: string, userDataId: number, kycType: KycType): Promise<BankAccount> {
+  async getOrCreateBankAccountInternal(iban: string, userData: UserData): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
       where: { iban },
-      relations: ['userData'],
+      relations: { userData: true },
     });
 
     return (
-      bankAccounts.find((b) => b.userData.id === userDataId) ??
-      (await this.createBankAccountInternal(iban, userDataId, kycType, bankAccounts[0]))
+      bankAccounts.find((b) => b.userData.id === userData.id) ??
+      (await this.createBankAccountInternal(iban, userData, bankAccounts[0]))
     );
   }
 
   private async createBankAccountInternal(
     iban: string,
-    userDataId: number,
-    kycType: KycType,
+    userData: UserData,
     copyFrom?: BankAccount,
   ): Promise<BankAccount> {
-    if (!(await this.isValidIbanCountry(iban, kycType)))
+    if (!(await this.isValidIbanCountry(iban, userData.kycType)))
       throw new BadRequestException('Iban country is currently not supported');
 
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
-    bankAccount.userData = { id: userDataId } as UserData;
+    bankAccount.userData = userData;
 
     return this.bankAccountRepo.save(bankAccount);
   }

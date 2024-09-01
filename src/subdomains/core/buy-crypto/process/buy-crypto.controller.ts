@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { RefundCryptoInputDto } from '../../sell-crypto/process/dto/refund-crypto-input.dto';
+import { RefundInternalDto } from '../../sell-crypto/process/dto/refund-crypto-input.dto';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { BuyCrypto } from './entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from './services/buy-crypto-webhook.service';
@@ -29,7 +29,7 @@ export class BuyCryptoController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @ApiExcludeEndpoint()
-  async refundBuyCrypto(@Param('id') id: string, @Body() dto: RefundCryptoInputDto): Promise<void> {
+  async refundBuyCrypto(@Param('id') id: string, @Body() dto: RefundInternalDto): Promise<void> {
     return this.buyCryptoService.refundBuyCrypto(+id, dto);
   }
 

@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BuyFiat } from './buy-fiat.entity';
-import { RefundCryptoInputDto } from './dto/refund-crypto-input.dto';
+import { RefundInternalDto } from './dto/refund-crypto-input.dto';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 import { BuyFiatService } from './services/buy-fiat.service';
 
@@ -25,7 +25,7 @@ export class BuyFiatController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @ApiExcludeEndpoint()
-  async refundBuyFiat(@Param('id') id: string, @Body() dto: RefundCryptoInputDto): Promise<void> {
+  async refundBuyFiat(@Param('id') id: string, @Body() dto: RefundInternalDto): Promise<void> {
     return this.buyFiatService.refundBuyFiat(+id, dto);
   }
 

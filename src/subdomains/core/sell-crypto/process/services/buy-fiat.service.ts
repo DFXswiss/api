@@ -30,7 +30,7 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
-import { RefundCryptoInputDto } from '../dto/refund-crypto-input.dto';
+import { RefundInternalDto } from '../dto/refund-crypto-input.dto';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 
 @Injectable()
@@ -234,7 +234,7 @@ export class BuyFiatService {
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
   }
 
-  async refundBuyFiat(buyFiatId: number, dto: RefundCryptoInputDto): Promise<void> {
+  async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id: buyFiatId },
       relations: {
@@ -259,7 +259,7 @@ export class BuyFiatService {
       ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
       : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
 
-    TransactionUtilService.validateRefund(buyFiat, refundUser, chargebackAmount);
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
 
     if (chargebackAmount)
       await this.payInService.returnPayIn(

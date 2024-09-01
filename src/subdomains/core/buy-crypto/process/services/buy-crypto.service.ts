@@ -18,7 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { RefundCryptoInputDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
+import { RefundInternalDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -28,6 +28,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
@@ -79,6 +80,7 @@ export class BuyCryptoService {
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly userDataService: UserDataService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -346,7 +348,7 @@ export class BuyCryptoService {
     return entity;
   }
 
-  async refundBuyCrypto(buyCryptoId: number, dto: RefundCryptoInputDto): Promise<void> {
+  async refundBuyCrypto(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({
       where: { id: buyCryptoId },
       relations: {
@@ -359,9 +361,9 @@ export class BuyCryptoService {
     if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
     if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
     if (buyCrypto.cryptoInput)
-      return this.refundCryptoInput(buyCrypto, buyCrypto.chargebackIban, dto.refundUser?.id, dto.chargebackAmount);
+      return this.refundCryptoInput(buyCrypto, undefined, dto.refundUser?.id, dto.chargebackAmount);
 
-    throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
+    return this.refundBankTx(buyCrypto, dto.refundIban, dto.chargebackAmount);
   }
 
   async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {
@@ -385,17 +387,18 @@ export class BuyCryptoService {
 
   async refundCryptoInput(
     buyCrypto: BuyCrypto,
-    refundUserAddress: string,
+    refundUserAddress?: string,
     refundUserId?: number,
     chargebackAmount?: number,
   ): Promise<void> {
-    if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
+    if (!refundUserAddress && !refundUserId && !buyCrypto.chargebackIban)
+      throw new BadRequestException('You have to define a chargebackAddress');
 
     const refundUser = refundUserId
       ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
       : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
 
-    TransactionUtilService.validateRefund(buyCrypto, refundUser, chargebackAmount);
+    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
 
     if (chargebackAmount)
       await this.payInService.returnPayIn(
@@ -407,6 +410,25 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(buyCrypto.id, {
       chargebackDate: chargebackAmount ? new Date() : null,
       chargebackIban: refundUser.address ?? buyCrypto.chargebackIban,
+    });
+  }
+
+  async refundBankTx(buyCrypto: BuyCrypto, refundIban?: string, chargebackAmount?: number): Promise<void> {
+    if (!refundIban || buyCrypto.chargebackIban) throw new BadRequestException('You have to define a chargebackIban');
+
+    TransactionUtilService.validateRefund(buyCrypto, { refundIban, chargebackAmount });
+    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(refundIban, buyCrypto.userData);
+    if (!bankAccount || !bankAccount.bic) throw new BadRequestException('BIC not available');
+
+    await this.buyCryptoRepo.update(buyCrypto.id, {
+      chargebackDate: chargebackAmount ? new Date() : null,
+      chargebackIban: refundIban ?? buyCrypto.chargebackIban,
+      chargebackOutput: chargebackAmount
+        ? await this.fiatOutputService.create({
+            buyCryptoId: buyCrypto.id,
+            type: 'BuyCryptoFail',
+          })
+        : null,
     });
   }
 
