@@ -67,7 +67,12 @@ export class LogJobService {
         (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
         0,
       ),
+      plusBalanceChf: assets.reduce(
+        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount * curr.approxPriceChf ?? 0),
+        0,
+      ),
       minusBalance: 0,
+      minusBalanceChf: 0,
     }));
 
     await this.logService.create({
