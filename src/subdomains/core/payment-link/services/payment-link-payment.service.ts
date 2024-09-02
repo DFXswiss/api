@@ -50,7 +50,7 @@ export class PaymentLinkPaymentService {
   }
 
   async updatePayment(id: number, dto: UpdatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    let entity = await this.paymentLinkPaymentRepo.findOneBy({ id });
+    const entity = await this.paymentLinkPaymentRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Payment not found');
 
     return this.paymentLinkPaymentRepo.save(Object.assign(entity, dto));
