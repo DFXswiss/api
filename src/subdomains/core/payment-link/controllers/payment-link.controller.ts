@@ -172,7 +172,7 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserAdmin(
+  async updatePaymentLinkPayment(
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkPayment> {
