@@ -54,7 +54,7 @@ export class LogJobService {
     );
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
-    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions');
+    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     const assetLog = assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
