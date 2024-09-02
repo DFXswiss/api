@@ -27,3 +27,10 @@ export enum PaymentLinkPaymentMode {
   SINGLE = 'Single',
   MULTIPLE = 'Multiple',
 }
+
+export enum PaymentStandard {
+  OPEN_CRYPTO_PAY = 'OpenCryptoPay',
+  FRANKENCOIN_PAY = 'FrankencoinPay',
+  LIGHTNING_BOLT11 = 'LightningBolt11',
+  PAY_TO_ADDRESS = 'PayToAddress',
+}

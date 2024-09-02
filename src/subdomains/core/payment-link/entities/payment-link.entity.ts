@@ -1,11 +1,11 @@
-import { Blockchain } from '@defichain/jellyfish-api-core/dist/category/blockchain';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
-import { PaymentLinkStatus } from '../enums';
+import { PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
-import { PaymentLinkConfig, PaymentStandard } from './standard.config';
+import { PaymentLinkConfig } from './standard.config';
 
 @Entity()
 export class PaymentLink extends IEntity {

@@ -7,7 +7,7 @@ import {
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
-import { PaymentStandard } from 'src/subdomains/core/payment-link/entities/standard.config';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
