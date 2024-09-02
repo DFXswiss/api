@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -10,6 +11,11 @@ import { TradingRuleService } from 'src/subdomains/core/trading/services/trading
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
 
+type ManualDebtPosition = {
+  assetId: number;
+  value: number;
+};
+
 @Injectable()
 export class LogJobService {
   constructor(
@@ -17,6 +23,7 @@ export class LogJobService {
     private readonly assetService: AssetService,
     private readonly liqManagementBalanceService: LiquidityManagementBalanceService,
     private readonly logService: LogService,
+    private readonly settingService: SettingService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -47,14 +54,17 @@ export class LogJobService {
     );
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions');
 
     const assetLog = assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
+      const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
         plusBalance: liquidityBalance,
+        manualDebtPosition,
         minusBalance: 0,
       };
 
