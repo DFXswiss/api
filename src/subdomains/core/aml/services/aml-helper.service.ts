@@ -120,7 +120,14 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
-        if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_BIC], entity.bankTx.bic)))
+        if (
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_BIC, SpecialExternalAccountType.BANNED_BIC_BUY],
+              entity.bankTx.bic,
+            ),
+          )
+        )
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
           blacklist.some((b) =>
