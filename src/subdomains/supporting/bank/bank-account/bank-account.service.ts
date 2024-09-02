@@ -107,7 +107,7 @@ export class BankAccountService {
         (await this.createBankAccountInternal(iban, userDataId, kycType, bankAccounts[0]))
       );
 
-    return bankAccounts.length ? bankAccounts[0] : await this.createBankAccountInternal(iban);
+    return bankAccounts.length ? bankAccounts[0] : this.createBankAccountInternal(iban);
   }
 
   private async createBankAccountInternal(
