@@ -17,6 +17,7 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
+import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -46,6 +47,13 @@ export class PaymentLinkPaymentService {
 
   getDeviceActivationObservable(): Observable<PaymentDevice> {
     return this.deviceActivationSubject.asObservable();
+  }
+
+  async updatePayment(id: number, dto: UpdatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+    let entity = await this.paymentLinkPaymentRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('Payment not found');
+
+    return this.paymentLinkPaymentRepo.save(Object.assign(entity, dto));
   }
 
   // --- HANDLE PENDING PAYMENTS --- //

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
@@ -19,7 +19,10 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
+import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
+import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
 
 @ApiTags('Payment Link')
@@ -29,6 +32,7 @@ export class PaymentLinkController {
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly lnurlForwardService: LnUrlForwardService,
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
   ) {}
 
   @Get()
@@ -84,6 +88,8 @@ export class PaymentLinkController {
       .update(+jwt.user, dto, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
+
+  // --- PAYMENT --- //
 
   @Get('payment')
   @ApiExcludeEndpoint()
@@ -159,6 +165,21 @@ export class PaymentLinkController {
       .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
+
+  // --- ADMIN --- //
+
+  @Put('payment/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateUserAdmin(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentLinkPaymentDto,
+  ): Promise<PaymentLinkPayment> {
+    return this.paymentLinkPaymentService.updatePayment(+id, dto);
+  }
+
+  // --- HELPER METHODS --- //
 
   private async checkPaymentLinksAllowed(userDataId: number): Promise<void> {
     const userData = await this.userDataService.getUserData(userDataId);
