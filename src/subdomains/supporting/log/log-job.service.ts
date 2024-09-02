@@ -77,7 +77,7 @@ export class LogJobService {
 
     await this.logService.create({
       system: 'LogService',
-      subsystem: 'TradingLog',
+      subsystem: 'FinancialDataLog',
       severity: LogSeverity.INFO,
       message: JSON.stringify({
         assets: assetLog,
