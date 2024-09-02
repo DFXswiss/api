@@ -12,6 +12,7 @@ import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
+import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
 
 @Injectable()
@@ -24,6 +25,7 @@ export class KycAdminService {
     @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly kycService: KycService,
     private readonly countryService: CountryService,
+    private readonly kycNotificationService: KycNotificationService,
   ) {}
 
   async getKycSteps(userDataId: number): Promise<KycStep[]> {
@@ -39,25 +41,31 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
 
-    if (kycStep.isCompleted) {
-      if (kycStep.name === KycStepName.COMMERCIAL_REGISTER) {
-        kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
-      }
-      if (kycStep.name === KycStepName.IDENT) {
-        const result = kycStep.getResult<IdentResultDto>();
-        const nationality = result.userdata?.nationality?.value
-          ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
-          : null;
+    switch (kycStep.name) {
+      case KycStepName.COMMERCIAL_REGISTER:
+        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+        break;
 
-        kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
+      case KycStepName.IDENT:
+        if (kycStep.isCompleted) {
+          const result = kycStep.getResult<IdentResultDto>();
+          const nationality = result.userdata?.nationality?.value
+            ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
+            : null;
 
-        if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-          await this.bankDataService.createBankData(kycStep.userData, {
-            name: kycStep.userName,
-            iban: `Ident${kycStep.identDocumentId}`,
-            type: BankDataType.IDENT,
-          });
-      }
+          kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
+
+          if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+            await this.bankDataService.createBankData(kycStep.userData, {
+              name: kycStep.userName,
+              iban: `Ident${kycStep.identDocumentId}`,
+              type: BankDataType.IDENT,
+            });
+        }
+        if (kycStep.isFailed)
+          await this.kycNotificationService.identFailed(kycStep.userData, kycStep.identErrorsMailString);
+
+        break;
     }
 
     await this.kycStepRepo.save(kycStep);
