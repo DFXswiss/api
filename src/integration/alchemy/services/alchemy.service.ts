@@ -10,6 +10,7 @@ import {
   AssetTransfersWithMetadataResponse,
   AssetTransfersWithMetadataResult,
   TokenBalance,
+  TransactionResponse,
 } from 'alchemy-sdk';
 import { Observable, Subject, filter, map } from 'rxjs';
 import { Config } from 'src/config/config';
@@ -134,6 +135,11 @@ export class AlchemyService {
 
       this.assetTransfersSubject.next({ blockchain, assetTransfers });
     }
+  }
+
+  async sendTransaction(chainId: ChainId, tx: string): Promise<TransactionResponse> {
+    const alchemy = this.getAlchemy(chainId);
+    return alchemy.transact.sendTransaction(tx);
   }
 
   // --- Alchemy Setup --- //

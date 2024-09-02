@@ -8,7 +8,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { LessThan } from 'typeorm';
+import { Equal, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
@@ -62,7 +62,7 @@ export class PaymentQuoteService {
   private async getActualQuoteByUniqueId(uniqueId: string): Promise<PaymentQuote | null> {
     return this.paymentQuoteRepo.findOne({
       where: {
-        uniqueId: uniqueId,
+        uniqueId: Equal(uniqueId),
         status: PaymentQuoteStatus.ACTUAL,
       },
     });
@@ -74,7 +74,7 @@ export class PaymentQuoteService {
   ): Promise<PaymentQuote | undefined> {
     const actualQuotes = await this.paymentQuoteRepo.find({
       where: {
-        payment: { id: paymentId },
+        payment: { id: Equal(paymentId) },
         status: PaymentQuoteStatus.ACTUAL,
       },
       order: { expiryDate: 'DESC' },
@@ -195,5 +195,17 @@ export class PaymentQuoteService {
     for (const actualQuote of actualQuotes) {
       await this.paymentQuoteRepo.save(actualQuote.cancel());
     }
+  }
+
+  async saveTransaction(uniqueId: string, tx: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_RECEIVED, tx });
+  }
+
+  async saveMempoolAccepted(uniqueId: string, txId: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_MEMPOOL_ACCEPTED, txId });
+  }
+
+  async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FAILED, errorMessage });
   }
 }

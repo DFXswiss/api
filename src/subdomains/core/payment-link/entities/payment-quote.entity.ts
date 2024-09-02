@@ -21,6 +21,15 @@ export class PaymentQuote extends IEntity {
   @Column({ type: 'datetime2', nullable: false })
   expiryDate: Date;
 
+  @Column({ length: 'MAX', nullable: true })
+  tx: string;
+
+  @Column({ length: 256, nullable: true })
+  txId: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  errorMessage: string;
+
   // --- ENTITY METHODS --- //
 
   cancel(): this {

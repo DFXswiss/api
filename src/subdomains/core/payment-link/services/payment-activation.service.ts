@@ -1,6 +1,8 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { TransactionResponse } from 'alchemy-sdk';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
@@ -12,11 +14,11 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
-import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentLinkEvmHexPaymentDto, PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
-import { PaymentActivationStatus, PaymentLinkPaymentMode } from '../enums';
+import { PaymentActivationStatus, PaymentLinkEvmHexPaymentStatus, PaymentLinkPaymentMode } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -35,6 +37,7 @@ export class PaymentActivationService implements OnModuleInit {
     @Inject(forwardRef(() => PaymentLinkPaymentService))
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
+    private readonly evmRegistryService: EvmRegistryService,
     private readonly assetService: AssetService,
   ) {
     this.client = lightningService.getDefaultClient();
@@ -99,7 +102,16 @@ export class PaymentActivationService implements OnModuleInit {
   async createPaymentActivationRequest(
     uniqueId: string,
     transferInfo: TransferInfo,
-  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto | PaymentLinkEvmHexPaymentDto> {
+    if (transferInfo.method !== Blockchain.LIGHTNING && transferInfo.quoteUniqueId && transferInfo.hex) {
+      return this.doCreateWithHexRequest(uniqueId, transferInfo);
+    }
+
+    const activation = await this.doCreateRequest(uniqueId, transferInfo);
+    return PaymentRequestMapper.toPaymentRequest(activation);
+  }
+
+  private async doCreateRequest(uniqueId: string, transferInfo: TransferInfo): Promise<PaymentActivation> {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
 
@@ -137,7 +149,73 @@ export class PaymentActivationService implements OnModuleInit {
         activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
     }
 
-    return PaymentRequestMapper.toPaymentRequest(activation);
+    return activation;
+  }
+
+  private async doCreateWithHexRequest(
+    uniqueId: string,
+    transferInfo: TransferInfo,
+  ): Promise<PaymentLinkEvmHexPaymentDto> {
+    try {
+      await this.doCreateRequest(uniqueId, transferInfo);
+      await this.paymentQuoteService.saveTransaction(transferInfo.quoteUniqueId, transferInfo.hex);
+
+      const evmClient = this.evmRegistryService.getClient(transferInfo.method);
+      const transactionResponse = await evmClient.sendSignedTransaction(transferInfo.hex);
+
+      return transactionResponse.error
+        ? await this.handleHexTransactionError(transferInfo, transactionResponse.error)
+        : await this.handleHexTransactionResponse(transferInfo, transactionResponse.response);
+    } catch (e) {
+      this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
+
+      const message = e.message ?? 'Transaction failed';
+      await this.paymentQuoteService.saveErrorMessage(transferInfo.quoteUniqueId, message);
+
+      return {
+        blockchain: transferInfo.method,
+        amount: transferInfo.amount,
+        asset: transferInfo.asset,
+        status: PaymentLinkEvmHexPaymentStatus.FAILED,
+        txId: undefined,
+        message: message,
+      };
+    }
+  }
+
+  private async handleHexTransactionError(
+    transferInfo: TransferInfo,
+    transactionError: { code: number; message: string },
+  ): Promise<PaymentLinkEvmHexPaymentDto> {
+    const errorMessage = transactionError.message;
+
+    await this.paymentQuoteService.saveErrorMessage(transferInfo.quoteUniqueId, errorMessage);
+
+    return {
+      blockchain: transferInfo.method,
+      amount: transferInfo.amount,
+      asset: transferInfo.asset,
+      status: PaymentLinkEvmHexPaymentStatus.FAILED,
+      txId: undefined,
+      message: errorMessage,
+    };
+  }
+
+  private async handleHexTransactionResponse(
+    transferInfo: TransferInfo,
+    transactionResponse: TransactionResponse,
+  ): Promise<PaymentLinkEvmHexPaymentDto> {
+    const txId = transactionResponse.hash;
+    await this.paymentQuoteService.saveMempoolAccepted(transferInfo.quoteUniqueId, txId);
+
+    return {
+      blockchain: transferInfo.method,
+      amount: transferInfo.amount,
+      asset: transferInfo.asset,
+      status: PaymentLinkEvmHexPaymentStatus.SUCCESS,
+      txId: txId,
+      message: 'Transaction successfully sent to mempool',
+    };
   }
 
   private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
