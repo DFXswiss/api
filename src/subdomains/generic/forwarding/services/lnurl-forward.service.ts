@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
+  PaymentLinkEvmHexPaymentDto,
   PaymentLinkEvmPaymentDto,
   PaymentLinkPayRequestDto,
   TransferInfo,
@@ -111,6 +112,11 @@ export class LnUrlForwardService {
     return this.client.getLnurlpInvoice(id, params);
   }
 
+  async txHexForward(id: string, params: any): Promise<PaymentLinkEvmHexPaymentDto> {
+    const transferInfo = this.getPaymentTransferInfo(params);
+    return this.paymentQuoteService.executeHexPayment(id, transferInfo);
+  }
+
   private getPaymentTransferInfo(params: any): TransferInfo {
     const isMsat = !params.asset;
 
@@ -123,6 +129,7 @@ export class LnUrlForwardService {
       asset: asset,
       amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
+      hex: params.hex,
     };
   }
 

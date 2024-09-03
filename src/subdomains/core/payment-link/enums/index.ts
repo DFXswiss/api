@@ -14,6 +14,12 @@ export enum PaymentQuoteStatus {
   ACTUAL = 'Actual',
   CANCELLED = 'Cancelled',
   EXPIRED = 'Expired',
+
+  TX_RECEIVED = 'TxReceived',
+  TX_MEMPOOL = 'TxMempool',
+  TX_BLOCKCHAIN = 'TxBlockchain',
+  TX_FINALLY = 'TxFinally',
+  TX_FAILED = 'TxFailed',
 }
 
 export enum PaymentActivationStatus {
@@ -21,6 +27,11 @@ export enum PaymentActivationStatus {
   EXPIRED = 'Expired',
   CANCELLED = 'Cancelled',
   COMPLETED = 'Completed',
+}
+
+export enum PaymentLinkEvmHexPaymentStatus {
+  SUCCESS = 'Success',
+  FAILED = 'Failed',
 }
 
 export enum PaymentLinkPaymentMode {
