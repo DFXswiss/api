@@ -101,22 +101,25 @@ export class BankAccountService {
       relations: { userData: true },
     });
 
-    return (
-      bankAccounts.find((b) => b.userData.id === userData.id) ??
-      (await this.createBankAccountInternal(iban, userData, bankAccounts[0]))
-    );
+    if (userData)
+      return (
+        bankAccounts.find((b) => b.userData.id === userData.id) ??
+        (await this.createBankAccountInternal(iban, userData, bankAccounts[0]))
+      );
+
+    return bankAccounts.length ? bankAccounts[0] : this.createBankAccountInternal(iban);
   }
 
   private async createBankAccountInternal(
     iban: string,
-    userData: UserData,
+    userData?: UserData,
     copyFrom?: BankAccount,
   ): Promise<BankAccount> {
     if (!(await this.isValidIbanCountry(iban, userData.kycType)))
       throw new BadRequestException('Iban country is currently not supported');
 
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
-    bankAccount.userData = userData;
+    if (userData) bankAccount.userData = userData;
 
     return this.bankAccountRepo.save(bankAccount);
   }

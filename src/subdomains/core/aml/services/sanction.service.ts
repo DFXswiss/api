@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Environment } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -31,18 +32,20 @@ interface SanctionList {
 @Injectable()
 export class SanctionService {
   private readonly fileUrl = 'https://www.treasury.gov/ofac/downloads/sanctions/1.0/sdn_advanced.xml';
-  private readonly filePath = 'sdn_advanced.xml';
+  private readonly fileName = 'sdn_advanced.xml';
 
   constructor(private readonly http: HttpService, private readonly sanctionRepo: SanctionRepository) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_WEEKEND)
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
   @Lock()
   async syncList() {
     if (DisabledProcess(Process.SANCTION_SYNC)) return;
 
-    await this.http.downloadFile(this.fileUrl, this.filePath);
-    const file = await Util.readFileFromDisk(this.filePath);
+    const filePath = Config.environment === Environment.LOC ? this.fileName : `/home/${this.fileName}`;
+
+    await this.http.downloadFile(this.fileUrl, filePath);
+    const file = await Util.readFileFromDisk(filePath);
     const sanctions = this.parseSanctionedAddresses(file);
 
     const currencyMap = Util.groupBy<Sanction, string>(sanctions, 'currency');

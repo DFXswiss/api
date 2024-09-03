@@ -92,21 +92,6 @@ export class BuyFiatService {
     return entity;
   }
 
-  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
-    if (request) {
-      await this.transactionRequestService.complete(request.id);
-    } else {
-      request = await this.transactionRequestService.findAndComplete(
-        entity.inputAmount,
-        entity.sell.id,
-        entity.cryptoInput.asset.id,
-        entity.sell.fiat.id,
-      );
-    }
-
-    return request;
-  }
-
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
@@ -354,7 +339,29 @@ export class BuyFiatService {
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: { isComplete: false },
+      relations: { cryptoInput: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.sell.id,
+        entity.cryptoInput.asset.id,
+        entity.sell.fiat.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {

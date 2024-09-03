@@ -117,6 +117,8 @@ export class KycNotificationService {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: { url: userData.kycUrl },
               },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              { key: `${MailTranslationKey.GENERAL}.support` },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],
           },
