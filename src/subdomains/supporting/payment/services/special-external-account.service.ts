@@ -38,6 +38,8 @@ export class SpecialExternalAccountService {
           SpecialExternalAccountType.BANNED_IBAN_BUY,
           SpecialExternalAccountType.BANNED_IBAN_SELL,
           SpecialExternalAccountType.BANNED_BIC,
+          SpecialExternalAccountType.BANNED_BIC_BUY,
+          SpecialExternalAccountType.BANNED_BIC_SELL,
           SpecialExternalAccountType.BANNED_MAIL,
         ],
       ),

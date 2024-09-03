@@ -172,7 +172,7 @@ export class PaymentQuoteService implements OnModuleInit {
     const transferAmount = await this.getTransferAmount(currency, asset, amount);
     if (!transferAmount) return;
 
-    const decimals = asset.decimals ?? 18;
+    const decimals = Math.min(asset.decimals ?? Infinity, 8);
 
     return {
       asset: asset.name,

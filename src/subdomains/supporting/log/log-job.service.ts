@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -20,6 +21,11 @@ type pendingBalance = {
   buyCrypto: number;
 };
 
+type ManualDebtPosition = {
+  assetId: number;
+  value: number;
+};
+
 @Injectable()
 export class LogJobService {
   constructor(
@@ -30,6 +36,7 @@ export class LogJobService {
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly settingService: SettingService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -63,9 +70,12 @@ export class LogJobService {
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
+    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     const assetLog = assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
+      const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+
       const pendingBalance: pendingBalance = {
         cryptoInput: pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0),
         buyFiat: pendingBuyFiat.reduce(
@@ -86,6 +96,7 @@ export class LogJobService {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
         plusBalance: liquidityBalance,
+        manualDebtPosition,
         minusBalance: 0,
         pendingBalance,
       };
@@ -99,12 +110,17 @@ export class LogJobService {
         (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
         0,
       ),
+      plusBalanceChf: assets.reduce(
+        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount * curr.approxPriceChf ?? 0),
+        0,
+      ),
       minusBalance: 0,
+      minusBalanceChf: 0,
     }));
 
     await this.logService.create({
       system: 'LogService',
-      subsystem: 'TradingLog',
+      subsystem: 'FinancialDataLog',
       severity: LogSeverity.INFO,
       message: JSON.stringify({
         assets: assetLog,
