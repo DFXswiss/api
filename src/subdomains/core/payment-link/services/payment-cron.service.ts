@@ -26,9 +26,9 @@ export class PaymentCronService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock()
-  async processQuoteTransactions(): Promise<void> {
-    if (DisabledProcess(Process.UPDATE_QUOTE_TRANSACTION)) return;
+  async checkTxConfirmations(): Promise<void> {
+    if (DisabledProcess(Process.CHECK_TX_CONFIRMATIONS)) return;
 
-    await this.paymentQuoteService.processTransactions();
+    await this.paymentQuoteService.checkTxConfirmations();
   }
 }

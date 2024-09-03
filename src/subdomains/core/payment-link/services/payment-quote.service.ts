@@ -59,7 +59,7 @@ export class PaymentQuoteService {
     }
   }
 
-  async processTransactions(): Promise<void> {
+  async checkTxConfirmations(): Promise<void> {
     const blockchainPaymentLinkQuotes = await this.paymentQuoteRepo.find({
       where: {
         status: PaymentQuoteStatus.TX_BLOCKCHAIN,
@@ -72,14 +72,12 @@ export class PaymentQuoteService {
       const blockchain = blockchainPaymentLinkQuote.activations[0]?.method;
 
       if (blockchain) {
-        const client = this.evmRegistryService.getClient(blockchain);
-        const transaction = await client.getTransaction(blockchainPaymentLinkQuote.txId);
-
         const minNumberOfConfirmations = blockchain === Blockchain.ETHEREUM ? 6 : 100;
 
-        if (transaction?.confirmations >= minNumberOfConfirmations) {
-          await this.saveFinallyConfirmed(blockchainPaymentLinkQuote.uniqueId);
-        }
+        const client = this.evmRegistryService.getClient(blockchain);
+        const isTxComplete = await client.isTxComplete(blockchainPaymentLinkQuote.txId, minNumberOfConfirmations);
+
+        if (isTxComplete) await this.saveFinallyConfirmed(blockchainPaymentLinkQuote.uniqueId);
       }
     }
   }
@@ -242,9 +240,8 @@ export class PaymentQuoteService {
       this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
 
       const errorMessage = e.message ?? 'Transaction failed';
-      await this.saveErrorMessage(transferInfo.quoteUniqueId, errorMessage);
 
-      return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.FAILED, errorMessage);
+      return this.handleHexTransactionError(transferInfo, { code: -1, message: errorMessage });
     }
   }
 
@@ -270,7 +267,7 @@ export class PaymentQuoteService {
     return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.SUCCESS, message, txId);
   }
 
-  createPaymentLinkEvmHexPayment(
+  private createPaymentLinkEvmHexPayment(
     transferInfo: TransferInfo,
     status: PaymentLinkEvmHexPaymentStatus,
     message: string,
