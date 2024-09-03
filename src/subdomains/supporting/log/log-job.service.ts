@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -61,7 +62,7 @@ export class LogJobService {
     const assets = await this.assetService
       .getAllAssets()
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
-    const financialTypeMap = Util.groupBy(
+    const financialTypeMap = Util.groupBy<Asset, string>(
       assets.filter((a) => a.financialType),
       'financialType',
     );
@@ -104,19 +105,22 @@ export class LogJobService {
       return prev;
     }, {});
 
-    const balancesByFinancialType = Array.from(financialTypeMap.entries()).map(([financialType, assets]) => ({
-      financialType,
-      plusBalance: assets.reduce(
-        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
-        0,
-      ),
-      plusBalanceChf: assets.reduce(
-        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount * curr.approxPriceChf ?? 0),
-        0,
-      ),
-      minusBalance: 0,
-      minusBalanceChf: 0,
-    }));
+    const balancesByFinancialType = Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
+      acc[financialType] = {
+        financialType,
+        plusBalance: assets.reduce(
+          (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
+          0,
+        ),
+        plusBalanceChf: assets.reduce(
+          (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount * curr.approxPriceChf ?? 0),
+          0,
+        ),
+        minusBalance: 0,
+        minusBalanceChf: 0,
+      };
+      return acc;
+    }, {});
 
     await this.logService.create({
       system: 'LogService',
