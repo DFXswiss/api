@@ -53,6 +53,7 @@ export enum Process {
   ASSET_DECIMALS = 'AssetDecimals',
   UPDATE_GAS_PRICE = 'UpdateGasPrice',
   SANCTION_SYNC = 'SanctionSync',
+  UPDATE_QUOTE_TRANSACTION = 'UpdateQuoteTransaction',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

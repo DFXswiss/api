@@ -16,6 +16,7 @@ import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto'
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentQuote } from '../entities/payment-quote.entity';
 import { PaymentActivationStatus, PaymentLinkPaymentMode } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
@@ -130,7 +131,13 @@ export class PaymentActivationService implements OnModuleInit {
     let activation: PaymentActivation;
 
     if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
-      activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
+      activation = await this.createNewPaymentActivationRequest(
+        pendingPayment,
+        actualQuote,
+        transferInfo,
+        expirySec,
+        expiryDate,
+      );
     } else {
       activation = await this.getExistingActivation(transferInfo);
 
@@ -139,7 +146,13 @@ export class PaymentActivationService implements OnModuleInit {
       // throw new ConflictException('Duplicate payment request');
 
       if (!activation || activation.payment.id !== pendingPayment.id)
-        activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
+        activation = await this.createNewPaymentActivationRequest(
+          pendingPayment,
+          actualQuote,
+          transferInfo,
+          expirySec,
+          expiryDate,
+        );
     }
 
     return activation;
@@ -161,6 +174,7 @@ export class PaymentActivationService implements OnModuleInit {
 
   private async createNewPaymentActivationRequest(
     payment: PaymentLinkPayment,
+    quote: PaymentQuote,
     transferInfo: TransferInfo,
     expirySec: number,
     expiryDate: Date,
@@ -170,7 +184,7 @@ export class PaymentActivationService implements OnModuleInit {
         ? await this.createLightningRequest(payment, transferInfo, expirySec)
         : await this.createEvmRequest(transferInfo);
 
-    return this.savePaymentActivationRequest(payment, request, transferInfo, expiryDate);
+    return this.savePaymentActivationRequest(payment, quote, request, transferInfo, expiryDate);
   }
 
   private async createLightningRequest(
@@ -228,6 +242,7 @@ export class PaymentActivationService implements OnModuleInit {
 
   private async savePaymentActivationRequest(
     payment: PaymentLinkPayment,
+    quote: PaymentQuote,
     pr: string,
     transferInfo: TransferInfo,
     expiryDate: Date,
@@ -242,6 +257,7 @@ export class PaymentActivationService implements OnModuleInit {
       paymentRequest: pr,
       expiryDate: expiryDate,
       payment: payment,
+      quote: quote,
     });
 
     return this.paymentActivationRepo.save(newPaymentActivation);

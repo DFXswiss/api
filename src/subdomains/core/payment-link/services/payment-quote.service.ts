@@ -19,7 +19,7 @@ import {
 } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
-import { PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
@@ -56,6 +56,31 @@ export class PaymentQuoteService {
 
     for (const actualPaymentLinkQuote of actualPaymentLinkQuotes) {
       await this.paymentQuoteRepo.save(actualPaymentLinkQuote.expire());
+    }
+  }
+
+  async processTransactions(): Promise<void> {
+    const blockchainPaymentLinkQuotes = await this.paymentQuoteRepo.find({
+      where: {
+        status: PaymentQuoteStatus.TX_BLOCKCHAIN,
+        activations: { status: PaymentActivationStatus.COMPLETED },
+      },
+      relations: { activations: true },
+    });
+
+    for (const blockchainPaymentLinkQuote of blockchainPaymentLinkQuotes) {
+      const blockchain = blockchainPaymentLinkQuote.activations[0]?.method;
+
+      if (blockchain) {
+        const client = this.evmRegistryService.getClient(blockchain);
+        const transaction = await client.getTransaction(blockchainPaymentLinkQuote.txId);
+
+        const minNumberOfConfirmations = blockchain === Blockchain.ETHEREUM ? 6 : 100;
+
+        if (transaction?.confirmations >= minNumberOfConfirmations) {
+          await this.saveFinallyConfirmed(blockchainPaymentLinkQuote.uniqueId);
+        }
+      }
     }
   }
 
@@ -270,7 +295,11 @@ export class PaymentQuoteService {
   }
 
   async saveBlockchainConfirmed(txId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ txId }, { status: PaymentQuoteStatus.TX_BLOCKCHAIN, txId });
+    await this.paymentQuoteRepo.update({ txId }, { status: PaymentQuoteStatus.TX_BLOCKCHAIN });
+  }
+
+  private async saveFinallyConfirmed(uniqueId: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FINALLY });
   }
 
   private async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {

@@ -23,4 +23,12 @@ export class PaymentCronService {
     await this.paymentActivationService.processPendingActivations();
     await this.paymentQuoteService.processActualQuotes();
   }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
+  async processQuoteTransactions(): Promise<void> {
+    if (DisabledProcess(Process.UPDATE_QUOTE_TRANSACTION)) return;
+
+    await this.paymentQuoteService.processTransactions();
+  }
 }

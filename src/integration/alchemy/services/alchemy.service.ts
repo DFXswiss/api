@@ -142,6 +142,11 @@ export class AlchemyService {
     return alchemy.transact.sendTransaction(tx);
   }
 
+  async getTransaction(chainId: ChainId, txId: string): Promise<TransactionResponse | null> {
+    const alchemy = this.getAlchemy(chainId);
+    return alchemy.transact.getTransaction(txId);
+  }
+
   // --- Alchemy Setup --- //
 
   private getAlchemy(chainId: ChainId): Alchemy {

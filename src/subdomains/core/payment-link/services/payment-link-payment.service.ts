@@ -20,7 +20,7 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -83,7 +83,7 @@ export class PaymentLinkPaymentService {
   async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
     const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
-        activations: { asset: { id: asset.id }, amount },
+        activations: { status: PaymentActivationStatus.PENDING, asset: { id: asset.id }, amount },
         status: PaymentLinkPaymentStatus.PENDING,
       },
       relations: {
