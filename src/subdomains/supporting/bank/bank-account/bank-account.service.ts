@@ -95,7 +95,7 @@ export class BankAccountService {
     return this.bankAccountRepo.save(bankAccount);
   }
 
-  async getOrCreateBankAccountInternal(iban: string, userData: UserData): Promise<BankAccount> {
+  async getOrCreateBankAccountInternal(iban: string, userData?: UserData): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
       where: { iban },
       relations: { userData: true },
