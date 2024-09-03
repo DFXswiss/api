@@ -86,9 +86,6 @@ export class PaymentLinkPaymentService {
         activations: { asset: { id: asset.id }, amount },
         status: PaymentLinkPaymentStatus.PENDING,
       },
-      relations: {
-        activations: true,
-      },
     });
 
     if (!pendingPayment) return null;

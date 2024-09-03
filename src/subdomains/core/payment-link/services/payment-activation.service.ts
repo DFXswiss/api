@@ -1,4 +1,12 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -16,7 +24,7 @@ import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto'
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
-import { PaymentActivationStatus, PaymentLinkPaymentMode } from '../enums';
+import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentStandard } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -122,19 +130,22 @@ export class PaymentActivationService implements OnModuleInit {
     const expirySec = Util.secondsDiff(new Date(), expiryDate);
     if (expirySec < 1) throw new BadRequestException('Payment is expired');
 
-    let activation: PaymentActivation;
+    let activation = await this.getExistingActivation(transferInfo);
+    if (
+      actualQuote.standard === PaymentStandard.PAY_TO_ADDRESS &&
+      activation &&
+      activation.payment.id !== pendingPayment.id
+    )
+      throw new ConflictException('Duplicate payment request');
 
-    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
-      activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
-    } else {
-      activation = await this.getExistingActivation(transferInfo);
-
-      // TODO: reactivate unique check for sub-standard
-      // if (activation && activation.payment.id !== pendingPayment.id)
-      // throw new ConflictException('Duplicate payment request');
-
-      if (!activation || activation.payment.id !== pendingPayment.id)
-        activation = await this.createNewPaymentActivationRequest(pendingPayment, transferInfo, expirySec, expiryDate);
+    if (!activation || pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
+      activation = await this.createNewPaymentActivationRequest(
+        pendingPayment,
+        transferInfo,
+        expirySec,
+        expiryDate,
+        actualQuote.standard,
+      );
     }
 
     return PaymentRequestMapper.toPaymentRequest(activation);
@@ -159,13 +170,14 @@ export class PaymentActivationService implements OnModuleInit {
     transferInfo: TransferInfo,
     expirySec: number,
     expiryDate: Date,
+    standard: PaymentStandard,
   ): Promise<PaymentActivation> {
     const request =
       transferInfo.method === Blockchain.LIGHTNING
         ? await this.createLightningRequest(payment, transferInfo, expirySec)
         : await this.createEvmRequest(transferInfo);
 
-    return this.savePaymentActivationRequest(payment, request, transferInfo, expiryDate);
+    return this.savePaymentActivationRequest(payment, request, transferInfo, expiryDate, standard);
   }
 
   private async createLightningRequest(
@@ -226,6 +238,7 @@ export class PaymentActivationService implements OnModuleInit {
     pr: string,
     transferInfo: TransferInfo,
     expiryDate: Date,
+    standard: PaymentStandard,
   ): Promise<PaymentActivation> {
     const asset = await this.getAssetByInfo(transferInfo);
 
@@ -236,6 +249,7 @@ export class PaymentActivationService implements OnModuleInit {
       amount: transferInfo.amount,
       paymentRequest: pr,
       expiryDate: expiryDate,
+      standard: standard,
       payment: payment,
     });
 

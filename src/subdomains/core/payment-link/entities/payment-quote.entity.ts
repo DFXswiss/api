@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferMethod } from '../dto/payment-link.dto';
-import { PaymentQuoteStatus } from '../enums';
+import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 @Entity()
@@ -20,6 +20,9 @@ export class PaymentQuote extends IEntity {
 
   @Column({ type: 'datetime2', nullable: false })
   expiryDate: Date;
+
+  @Column({ length: 256, default: PaymentStandard.OPEN_CRYPTO_PAY })
+  standard: PaymentStandard;
 
   // --- ENTITY METHODS --- //
 
