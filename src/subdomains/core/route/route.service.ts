@@ -17,7 +17,7 @@ export class RouteService {
   ) {}
 
   async createRoute(dto: CreateRouteDto): Promise<Route> {
-    let entity = this.routeRepo.create(dto);
+    const entity = this.routeRepo.create(dto);
 
     if (dto.buy) {
       entity.buy = await this.buyService.get(undefined, dto.buy.id);
@@ -38,7 +38,7 @@ export class RouteService {
   }
 
   async updateRoute(id: number, dto: UpdateRouteDto): Promise<Route> {
-    let entity = await this.routeRepo.findOne({
+    const entity = await this.routeRepo.findOne({
       where: { id },
       relations: { buy: true, sell: true, swap: true },
     });
