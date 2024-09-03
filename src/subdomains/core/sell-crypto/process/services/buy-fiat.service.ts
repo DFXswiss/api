@@ -18,7 +18,7 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, In, Not } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -341,7 +341,7 @@ export class BuyFiatService {
 
   async getPendingTransactions(): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
-      where: { amlCheck: Not(In([CheckStatus.PASS, CheckStatus.FAIL])), isComplete: false },
+      where: { isComplete: false },
       relations: { cryptoInput: true },
     });
   }

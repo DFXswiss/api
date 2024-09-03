@@ -515,14 +515,7 @@ export class BuyCryptoService {
 
   async getPendingTransactions(): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
-      where: [
-        {
-          amlCheck: Not(CheckStatus.PASS),
-          isComplete: false,
-          cryptoInput: { id: Not(IsNull()) },
-        },
-        { amlCheck: CheckStatus.PASS, isComplete: false },
-      ],
+      where: { isComplete: false },
       relations: { cryptoInput: true },
     });
   }
