@@ -87,6 +87,10 @@ export class PayInService {
     });
   }
 
+  async getPendingPayIns(): Promise<CryptoInput[]> {
+    return this.payInRepository.findBy({ status: PayInStatus.ACKNOWLEDGED, action: IsNull() });
+  }
+
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
