@@ -4,7 +4,6 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { TransferMethod } from '../dto/payment-link.dto';
 import { PaymentActivationStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
-import { PaymentQuote } from './payment-quote.entity';
 
 @Entity()
 @Index((activation: PaymentActivation) => [activation.method, activation.asset, activation.amount], {
@@ -35,9 +34,6 @@ export class PaymentActivation extends IEntity {
 
   @ManyToOne(() => PaymentLinkPayment, (p) => p.activations, { nullable: false })
   payment: PaymentLinkPayment;
-
-  @ManyToOne(() => PaymentQuote, (q) => q.activations, { nullable: true })
-  quote: PaymentQuote;
 
   // --- ENTITY METHODS --- //
 

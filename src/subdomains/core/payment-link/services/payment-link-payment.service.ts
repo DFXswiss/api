@@ -188,7 +188,7 @@ export class PaymentLinkPaymentService {
       return;
     }
 
-    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.inTxId);
+    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     const pendingActivationData = this.paymentActivationService.getPendingActivation(
       pendingPayment,

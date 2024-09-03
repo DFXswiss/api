@@ -19,7 +19,7 @@ import {
 } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
-import { PaymentActivationStatus, PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import { PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
@@ -60,16 +60,12 @@ export class PaymentQuoteService {
   }
 
   async checkTxConfirmations(): Promise<void> {
-    const blockchainPaymentLinkQuotes = await this.paymentQuoteRepo.find({
-      where: {
-        status: PaymentQuoteStatus.TX_BLOCKCHAIN,
-        activations: { status: PaymentActivationStatus.COMPLETED },
-      },
-      relations: { activations: true },
+    const blockchainPaymentLinkQuotes = await this.paymentQuoteRepo.findBy({
+      status: PaymentQuoteStatus.TX_BLOCKCHAIN,
     });
 
     for (const blockchainPaymentLinkQuote of blockchainPaymentLinkQuotes) {
-      const blockchain = blockchainPaymentLinkQuote.activations[0]?.method;
+      const blockchain = blockchainPaymentLinkQuote.txBlockchain;
 
       if (blockchain) {
         const minNumberOfConfirmations = blockchain === Blockchain.ETHEREUM ? 6 : 100;
@@ -227,9 +223,9 @@ export class PaymentQuoteService {
     }
   }
 
-  async executeHexPayment(uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkEvmHexPaymentDto> {
+  async executeHexPayment(_uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkEvmHexPaymentDto> {
     try {
-      await this.saveTransaction(transferInfo.quoteUniqueId, transferInfo.hex);
+      await this.saveTransaction(transferInfo.quoteUniqueId, transferInfo.method, transferInfo.hex);
 
       const evmClient = this.evmRegistryService.getClient(transferInfo.method);
       const transactionResponse = await evmClient.sendSignedTransaction(transferInfo.hex);
@@ -284,16 +280,19 @@ export class PaymentQuoteService {
     };
   }
 
-  private async saveTransaction(uniqueId: string, tx: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_RECEIVED, tx });
+  private async saveTransaction(uniqueId: string, txBlockchain: Blockchain, tx: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_RECEIVED, txBlockchain, tx });
   }
 
   private async saveMempoolAccepted(uniqueId: string, txId: string): Promise<void> {
     await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_MEMPOOL, txId });
   }
 
-  async saveBlockchainConfirmed(txId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ txId }, { status: PaymentQuoteStatus.TX_BLOCKCHAIN });
+  async saveBlockchainConfirmed(blockchain: Blockchain, txId: string): Promise<void> {
+    const status =
+      blockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_FINALLY : PaymentQuoteStatus.TX_BLOCKCHAIN;
+
+    await this.paymentQuoteRepo.update({ txId }, { status });
   }
 
   private async saveFinallyConfirmed(uniqueId: string): Promise<void> {
