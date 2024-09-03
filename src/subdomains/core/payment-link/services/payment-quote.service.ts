@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { TransactionResponse } from 'alchemy-sdk';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -9,10 +11,15 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, LessThan } from 'typeorm';
-import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
+import {
+  PaymentLinkEvmHexPaymentDto,
+  TransferAmount,
+  TransferAmountAsset,
+  TransferInfo,
+} from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
-import { PaymentQuoteStatus } from '../enums';
+import { PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
@@ -33,12 +40,11 @@ export class PaymentQuoteService {
 
   constructor(
     private paymentQuoteRepo: PaymentQuoteRepository,
+    private readonly evmRegistryService: EvmRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
-  ) {
-    void this.createOrderedPaymentAssetMap(Object.values(Blockchain)).then(console.log);
-  }
+  ) {}
 
   async processActualQuotes(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
@@ -197,19 +203,77 @@ export class PaymentQuoteService {
     }
   }
 
-  async saveTransaction(uniqueId: string, tx: string): Promise<void> {
+  async executeHexPayment(uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkEvmHexPaymentDto> {
+    try {
+      await this.saveTransaction(transferInfo.quoteUniqueId, transferInfo.hex);
+
+      const evmClient = this.evmRegistryService.getClient(transferInfo.method);
+      const transactionResponse = await evmClient.sendSignedTransaction(transferInfo.hex);
+
+      return transactionResponse.error
+        ? await this.handleHexTransactionError(transferInfo, transactionResponse.error)
+        : await this.handleHexTransactionResponse(transferInfo, transactionResponse.response);
+    } catch (e) {
+      this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
+
+      const errorMessage = e.message ?? 'Transaction failed';
+      await this.saveErrorMessage(transferInfo.quoteUniqueId, errorMessage);
+
+      return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.FAILED, errorMessage);
+    }
+  }
+
+  private async handleHexTransactionError(
+    transferInfo: TransferInfo,
+    transactionError: { code: number; message: string },
+  ): Promise<PaymentLinkEvmHexPaymentDto> {
+    const errorMessage = transactionError.message;
+
+    await this.saveErrorMessage(transferInfo.quoteUniqueId, errorMessage);
+
+    return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.FAILED, errorMessage);
+  }
+
+  private async handleHexTransactionResponse(
+    transferInfo: TransferInfo,
+    transactionResponse: TransactionResponse,
+  ): Promise<PaymentLinkEvmHexPaymentDto> {
+    const txId = transactionResponse.hash;
+    await this.saveMempoolAccepted(transferInfo.quoteUniqueId, txId);
+
+    const message = 'Transaction successfully sent to mempool';
+    return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.SUCCESS, message, txId);
+  }
+
+  createPaymentLinkEvmHexPayment(
+    transferInfo: TransferInfo,
+    status: PaymentLinkEvmHexPaymentStatus,
+    message: string,
+    txId?: string,
+  ) {
+    return {
+      blockchain: transferInfo.method,
+      amount: transferInfo.amount,
+      asset: transferInfo.asset,
+      status,
+      message,
+      txId,
+    };
+  }
+
+  private async saveTransaction(uniqueId: string, tx: string): Promise<void> {
     await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_RECEIVED, tx });
   }
 
-  async saveMempoolAccepted(uniqueId: string, txId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_MEMPOOL_ACCEPTED, txId });
+  private async saveMempoolAccepted(uniqueId: string, txId: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_MEMPOOL, txId });
   }
 
   async saveBlockchainConfirmed(txId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ txId }, { status: PaymentQuoteStatus.TX_BLOCKCHAIN_CONFIRMED, txId });
+    await this.paymentQuoteRepo.update({ txId }, { status: PaymentQuoteStatus.TX_BLOCKCHAIN, txId });
   }
 
-  async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {
+  private async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {
     await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FAILED, errorMessage });
   }
 }

@@ -191,6 +191,8 @@ export class PaymentLinkPaymentService {
       return;
     }
 
+    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.inTxId);
+
     const pendingActivationData = this.paymentActivationService.getPendingActivation(
       pendingPayment,
       cryptoInput.asset.blockchain,
@@ -198,8 +200,6 @@ export class PaymentLinkPaymentService {
     );
 
     if (!pendingActivationData) return;
-
-    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.inTxId);
 
     return this.doUpdateStatus(
       pendingActivationData.pendingActivation,

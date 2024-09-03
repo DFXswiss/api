@@ -8,7 +8,7 @@ import {
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
-import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
+import { PaymentLinkEvmHexPaymentStatus, PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
@@ -96,10 +96,7 @@ export class LnUrlForwardService {
     return payRequest;
   }
 
-  async lnurlpCallbackForward(
-    id: string,
-    params: any,
-  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto | PaymentLinkEvmHexPaymentDto> {
+  async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
@@ -113,6 +110,23 @@ export class LnUrlForwardService {
 
   private async createLnurlpInvoice(id: string, params: any): Promise<LnurlpInvoiceDto> {
     return this.client.getLnurlpInvoice(id, params);
+  }
+
+  async txHexForward(id: string, params: any): Promise<PaymentLinkEvmHexPaymentDto> {
+    const transferInfo = this.getPaymentTransferInfo(params);
+
+    if (
+      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
+      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
+    ) {
+      return this.paymentQuoteService.executeHexPayment(id, transferInfo);
+    }
+
+    return this.paymentQuoteService.createPaymentLinkEvmHexPayment(
+      transferInfo,
+      PaymentLinkEvmHexPaymentStatus.FAILED,
+      `Unknown id ${id}`,
+    );
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {

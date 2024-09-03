@@ -16,9 +16,9 @@ export enum PaymentQuoteStatus {
   EXPIRED = 'Expired',
 
   TX_RECEIVED = 'TxReceived',
-  TX_MEMPOOL_ACCEPTED = 'TxMempoolAccepted',
-  TX_BLOCKCHAIN_CONFIRMED = 'TxBlockchainConfirmed',
-  TX_FINALLY_CONFIRMED = 'TxFinallyConfirmed',
+  TX_MEMPOOL = 'TxMempool',
+  TX_BLOCKCHAIN = 'TxBlockchain',
+  TX_FINALLY = 'TxFinally',
   TX_FAILED = 'TxFailed',
 }
 
