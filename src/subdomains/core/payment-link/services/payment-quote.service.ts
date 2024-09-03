@@ -36,9 +36,7 @@ export class PaymentQuoteService {
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
-  ) {
-    void this.createOrderedPaymentAssetMap(Object.values(Blockchain)).then(console.log);
-  }
+  ) {}
 
   async processActualQuotes(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
