@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class CreateSupportMessageDto {
@@ -6,10 +6,10 @@ export class CreateSupportMessageDto {
   @IsString()
   author: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  message: string;
+  message?: string;
 
   @ApiPropertyOptional({ description: 'Base64 encoded file' })
   @IsOptional()

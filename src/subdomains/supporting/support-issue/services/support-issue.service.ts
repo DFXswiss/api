@@ -1,10 +1,5 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
@@ -14,6 +9,9 @@ import { In, Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
+import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
+import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
+import { SupportIssueDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
@@ -88,12 +86,6 @@ export class SupportIssueService {
   }
 
   async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<void> {
-    const existing = await this.messageRepo.findOneBy({
-      message: dto.message,
-      issue: { id },
-    });
-    if (existing) throw new ConflictException('Support message already exists');
-
     const entity = this.messageRepo.create(dto);
 
     entity.issue = await this.supportIssueRepo.findOne({
@@ -121,6 +113,31 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+  }
+
+  async getSupportIssue(userDataId: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
+    if (!query.type && !query.id) throw new BadRequestException('Type or id is required');
+
+    const supportIssue = await this.supportIssueRepo.findOneBy({
+      userData: { id: userDataId },
+      type: query.type,
+      id: query.id,
+    });
+
+    if (!supportIssue) throw new NotFoundException('Support issue not found');
+
+    const messages = await this.messageRepo.findBy({ issue: { id: supportIssue.id } });
+    supportIssue.messages = query.fromMessageId > 0 ? messages.filter((m) => m.id > query.fromMessageId) : messages;
+
+    return SupportIssueDtoMapper.mapSupportIssue(supportIssue);
+  }
+
+  async getSupportIssueFile(userDataId: number, name: string): Promise<BlobContent> {
+    const allDocuments = await this.storageService.listUserFiles(userDataId);
+    const document = allDocuments.find((d) => d.name.includes(name));
+    if (!document) throw new NotFoundException('File not found');
+
+    return this.storageService.downloadFile(userDataId, document.type, document.name);
   }
 
   async getUserSupportTickets(
