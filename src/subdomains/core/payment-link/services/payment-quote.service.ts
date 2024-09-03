@@ -19,7 +19,7 @@ import {
 } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
-import { PaymentActivationStatus, PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
@@ -119,13 +119,14 @@ export class PaymentQuoteService {
     return transferAmountAsset?.amount;
   }
 
-  async createQuote(payment: PaymentLinkPayment): Promise<PaymentQuote> {
+  async createQuote(payment: PaymentLinkPayment, standard: PaymentStandard): Promise<PaymentQuote> {
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(payment).then(JSON.stringify),
       expiryDate: Util.secondsAfter(Config.payment.quoteTimeout),
-      payment: payment,
+      standard,
+      payment,
     });
 
     return this.paymentQuoteRepo.save(quote);
