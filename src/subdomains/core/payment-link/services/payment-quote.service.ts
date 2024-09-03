@@ -205,6 +205,10 @@ export class PaymentQuoteService {
     await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_MEMPOOL_ACCEPTED, txId });
   }
 
+  async saveBlockchainConfirmed(txId: string): Promise<void> {
+    await this.paymentQuoteRepo.update({ txId }, { status: PaymentQuoteStatus.TX_BLOCKCHAIN_CONFIRMED, txId });
+  }
+
   async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {
     await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FAILED, errorMessage });
   }
