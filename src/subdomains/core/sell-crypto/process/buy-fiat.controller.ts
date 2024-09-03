@@ -3,8 +3,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
 import { BuyFiat } from './buy-fiat.entity';
-import { RefundInternalDto } from './dto/refund-crypto-input.dto';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 import { BuyFiatService } from './services/buy-fiat.service';
 

@@ -277,12 +277,16 @@ export class TransactionController {
       throw new ForbiddenException('You can only refund your own transaction');
 
     if (transaction.targetEntity instanceof BuyFiat)
-      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto.refundAddress);
+      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
+        refundUserAddress: dto.refundAddress,
+      });
 
     if (transaction.cryptoInput)
-      return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto.refundAddress);
+      return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
+        refundUserAddress: dto.refundAddress,
+      });
 
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, dto.refundIban);
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, { refundIban: dto.refundIban });
   }
 
   // --- HELPER METHODS --- //
