@@ -147,7 +147,7 @@ export class Configuration {
   i18n: I18nOptions = {
     fallbackLanguage: this.defaults.language.toLowerCase(),
     loaderOptions: {
-      path: join(__dirname, '../shared/i18n/'),
+      path: join(process.cwd(), 'src/shared/i18n/'),
       watch: true,
     },
     resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
@@ -236,7 +236,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: join(__dirname, '../subdomains/supporting/notification/templates'),
+        dir: join(process.cwd(), 'src/subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
