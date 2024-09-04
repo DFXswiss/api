@@ -514,7 +514,6 @@ export class Util {
   }
 
   static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
-    const enumKey = Object.keys(enumObj).find((k) => k.toLowerCase() === value?.toLowerCase());
-    return enumObj[enumKey as keyof T];
+    return Object.values(enumObj).find((e) => e.toLowerCase() === value?.toLowerCase());
   }
 }

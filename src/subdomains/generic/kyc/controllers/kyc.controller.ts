@@ -162,7 +162,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_stock-register_user-upload_${data.fileName}`;
+    data.fileName = this.fileName('stock-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
   }
 
@@ -185,7 +185,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`;
+    data.fileName = this.fileName('commercial-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
@@ -208,7 +208,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_authority_user-upload_${data.fileName}`;
+    data.fileName = this.fileName('authority', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
   }
 
@@ -308,5 +308,9 @@ export class KycController {
       .filter((p) => !p.includes('frame-ancestors'))
       .join(';');
     res.setHeader('Content-Security-Policy', updatedPolicy);
+  }
+
+  private fileName(type: string, file: string): string {
+    return `${Util.isoDateTime(new Date())}_${type}_user-upload_${Util.randomId()}_${file}`;
   }
 }
