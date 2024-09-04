@@ -38,6 +38,24 @@ export class PaymentQuoteService {
     Blockchain.MONERO,
   ];
 
+  private static readonly DEFAULT_TIMEOUT = 300;
+
+  private readonly paymentStandardTimeoutSecondsMap = new Map<PaymentStandard, number>([
+    [PaymentStandard.OPEN_CRYPTO_PAY, PaymentQuoteService.DEFAULT_TIMEOUT],
+    [PaymentStandard.FRANKENCOIN_PAY, PaymentQuoteService.DEFAULT_TIMEOUT],
+    [PaymentStandard.LIGHTNING_BOLT11, PaymentQuoteService.DEFAULT_TIMEOUT],
+    [PaymentStandard.PAY_TO_ADDRESS, 7200],
+  ]);
+
+  private static readonly DEFAULT_FEE = 0.01;
+
+  private readonly paymentStandardFeeMap = new Map<PaymentStandard, number>([
+    [PaymentStandard.OPEN_CRYPTO_PAY, PaymentQuoteService.DEFAULT_FEE],
+    [PaymentStandard.FRANKENCOIN_PAY, PaymentQuoteService.DEFAULT_FEE],
+    [PaymentStandard.LIGHTNING_BOLT11, PaymentQuoteService.DEFAULT_FEE],
+    [PaymentStandard.PAY_TO_ADDRESS, 0.02],
+  ]);
+
   constructor(
     private paymentQuoteRepo: PaymentQuoteRepository,
     private readonly evmRegistryService: EvmRegistryService,
@@ -115,12 +133,14 @@ export class PaymentQuoteService {
     return transferAmountAsset?.amount;
   }
 
-  async createQuote(payment: PaymentLinkPayment, standard: PaymentStandard): Promise<PaymentQuote> {
+  async createQuote(standard: PaymentStandard, payment: PaymentLinkPayment): Promise<PaymentQuote> {
+    const timeoutSeconds = this.paymentStandardTimeoutSecondsMap.get(standard) ?? PaymentQuoteService.DEFAULT_TIMEOUT;
+
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID),
       status: PaymentQuoteStatus.ACTUAL,
-      transferAmounts: await this.createTransferAmounts(payment).then(JSON.stringify),
-      expiryDate: Util.secondsAfter(Config.payment.quoteTimeout),
+      transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
+      expiryDate: Util.secondsAfter(timeoutSeconds),
       standard,
       payment,
     });
@@ -128,13 +148,16 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.save(quote);
   }
 
-  private async createTransferAmounts(payment: PaymentLinkPayment): Promise<TransferAmount[]> {
+  private async createTransferAmounts(
+    standard: PaymentStandard,
+    payment: PaymentLinkPayment,
+  ): Promise<TransferAmount[]> {
     const transferAmounts: TransferAmount[] = [];
 
     const paymentAssetMap = await this.createOrderedPaymentAssetMap(payment.link.configObj.blockchains);
 
     for (const [blockchain, assets] of paymentAssetMap.entries()) {
-      const transferAmount = await this.createTransferAmount(blockchain, assets, payment);
+      const transferAmount = await this.createTransferAmount(standard, payment, blockchain, assets);
 
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
@@ -143,9 +166,10 @@ export class PaymentQuoteService {
   }
 
   private async createTransferAmount(
+    standard: PaymentStandard,
+    payment: PaymentLinkPayment,
     blockchain: Blockchain,
     assets: Asset[],
-    payment: PaymentLinkPayment,
   ): Promise<TransferAmount> {
     const minFee = await this.getMinFee(blockchain);
 
@@ -157,7 +181,12 @@ export class PaymentQuoteService {
 
     if (minFee != null) {
       for (const asset of assets) {
-        const transferAmountAsset = await this.getTransferAmountAsset(payment.currency, asset, payment.amount);
+        const transferAmountAsset = await this.getTransferAmountAsset(
+          standard,
+          payment.currency,
+          asset,
+          payment.amount,
+        );
         if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
       }
     }
@@ -187,11 +216,12 @@ export class PaymentQuoteService {
   }
 
   private async getTransferAmountAsset(
+    standard: PaymentStandard,
     currency: Fiat,
     asset: Asset,
     amount: number,
   ): Promise<TransferAmountAsset | undefined> {
-    const transferAmount = await this.getTransferAmount(currency, asset, amount);
+    const transferAmount = await this.getTransferAmount(standard, currency, asset, amount);
     if (!transferAmount) return;
 
     const decimals = asset.decimals ?? 18;
@@ -202,12 +232,19 @@ export class PaymentQuoteService {
     };
   }
 
-  private async getTransferAmount(currency: Fiat, asset: Asset, amount: number): Promise<number | undefined> {
+  private async getTransferAmount(
+    standard: PaymentStandard,
+    currency: Fiat,
+    asset: Asset,
+    amount: number,
+  ): Promise<number | undefined> {
     if (currency.name === 'CHF' && asset.name === 'ZCHF') return amount;
 
     try {
       const price = await this.pricingService.getPrice(asset, currency, true);
-      return price.invert().convert(amount / (1 - Config.payment.fee), 8);
+      const fee = this.paymentStandardFeeMap.get(standard) ?? PaymentQuoteService.DEFAULT_FEE;
+
+      return price.invert().convert(amount / (1 - fee), 8);
     } catch (e) {
       this.logger.error(`Quote: Failed to get price of currency ${currency.name} and asset ${asset.uniqueName}`, e);
     }

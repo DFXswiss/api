@@ -57,7 +57,7 @@ export class LnUrlForwardService {
     const { standards } = pendingPayment.link.configObj;
     const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
 
-    const actualQuote = await this.paymentQuoteService.createQuote(pendingPayment, usedStandard);
+    const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
 
     const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
     if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
