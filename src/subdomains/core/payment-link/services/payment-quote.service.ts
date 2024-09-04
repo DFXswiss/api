@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { TransactionResponse } from 'alchemy-sdk';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -261,6 +261,8 @@ export class PaymentQuoteService {
   }
 
   async executeHexPayment(_uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkEvmHexPaymentDto> {
+    await this.checkHexPayment(transferInfo);
+
     try {
       await this.saveTransaction(transferInfo.quoteUniqueId, transferInfo.method, transferInfo.hex);
 
@@ -277,6 +279,17 @@ export class PaymentQuoteService {
 
       return this.handleHexTransactionError(transferInfo, { code: -1, message: errorMessage });
     }
+  }
+
+  private async checkHexPayment(transferInfo: TransferInfo): Promise<void> {
+    const quoteUniqueId = transferInfo.quoteUniqueId;
+
+    if (!quoteUniqueId) throw new BadRequestException('Quote parameter not found');
+    if (!transferInfo.method) throw new BadRequestException('Method parameter not found');
+    if (!transferInfo.hex) throw new BadRequestException('Hex parameter not found');
+
+    const actualQuote = await this.getActualQuoteByUniqueId(quoteUniqueId);
+    if (!actualQuote) throw new NotFoundException(`Actual quote ${quoteUniqueId} not found`);
   }
 
   private async handleHexTransactionError(
