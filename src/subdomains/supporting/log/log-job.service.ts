@@ -107,7 +107,6 @@ export class LogJobService {
 
     const balancesByFinancialType = Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
       acc[financialType] = {
-        financialType,
         plusBalance: assets.reduce(
           (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
           0,
