@@ -3,10 +3,12 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
+  PaymentLinkEvmHexPaymentDto,
   PaymentLinkEvmPaymentDto,
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
@@ -34,22 +36,28 @@ export class LnUrlForwardService {
   }
 
   // --- LNURLp --- //
-  async lnurlpForward(id: string): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto> {
+  async lnurlpForward(id: string, params: any): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto> {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
-      return this.createPaymentLinkPayRequest(id);
+      return this.createPaymentLinkPayRequest(id, Util.toEnum(PaymentStandard, params.standard));
     }
 
     return this.createLnurlpPayRequest(id);
   }
 
-  async createPaymentLinkPayRequest(uniqueId: string): Promise<PaymentLinkPayRequestDto> {
+  async createPaymentLinkPayRequest(
+    uniqueId: string,
+    standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
+  ): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    const actualQuote = await this.paymentQuoteService.createQuote(pendingPayment);
+    const { standards } = pendingPayment.link.configObj;
+    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+
+    const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
 
     const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
     if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
@@ -63,6 +71,8 @@ export class LnUrlForwardService {
       maxSendable: msatTransferAmount,
       metadata: LightningHelper.createLnurlMetadata(pendingPayment.memo),
       displayName: pendingPayment.displayName,
+      standard: usedStandard,
+      possibleStandards: standards,
       recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
       quote: {
         id: actualQuote.uniqueId,
@@ -102,7 +112,14 @@ export class LnUrlForwardService {
     return this.client.getLnurlpInvoice(id, params);
   }
 
+  async txHexForward(id: string, params: any): Promise<PaymentLinkEvmHexPaymentDto> {
+    const transferInfo = this.getPaymentTransferInfo(params);
+    return this.paymentQuoteService.executeHexPayment(id, transferInfo);
+  }
+
   private getPaymentTransferInfo(params: any): TransferInfo {
+    const standard = Util.toEnum(PaymentStandard, params.standard) ?? PaymentStandard.OPEN_CRYPTO_PAY;
+
     const isMsat = !params.asset;
 
     const amount = params.amount ? Number(params.amount) : 0;
@@ -110,10 +127,12 @@ export class LnUrlForwardService {
     const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
-      method: method,
-      asset: asset,
+      standard,
+      method,
+      asset,
       amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
+      hex: params.hex,
     };
   }
 

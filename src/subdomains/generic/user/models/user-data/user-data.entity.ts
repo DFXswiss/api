@@ -320,6 +320,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   paymentLinksName: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  paymentLinksConfig: string; // PaymentLinkConfig
+
   // References
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()

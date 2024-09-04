@@ -65,7 +65,7 @@ describe('LnurlForward', () => {
         }),
       );
 
-      const result = await lnurlpForward.lnUrlPForward('ABC123');
+      const result = await lnurlpForward.lnUrlPForward('ABC123', undefined);
 
       expect(result).toEqual(
         createCustomLnurlpLRequest({

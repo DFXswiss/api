@@ -14,6 +14,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { WalletAccount } from './domain/wallet-account';
+import { EvmSignedTransactionResponse } from './dto/evm-signed-transaction-reponse.dto';
 import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
@@ -251,12 +252,26 @@ export abstract class EvmClient {
     return result.hash;
   }
 
+  async sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse> {
+    return this.alchemyService
+      .sendTransaction(this.chainId, tx)
+      .then((r) => ({
+        response: r,
+      }))
+      .catch((e) => ({
+        error: {
+          code: e.code,
+          message: e.message,
+        },
+      }));
+  }
+
   // --- PUBLIC API - UTILITY --- //
 
-  async isTxComplete(txHash: string): Promise<boolean> {
+  async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
     const transaction = await this.getTxReceipt(txHash);
 
-    if (transaction?.confirmations > 0) {
+    if (transaction?.confirmations > confirmations) {
       if (transaction.status) return true;
 
       throw new Error(`Transaction ${txHash} has failed`);
