@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankTxBatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service';
-import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
@@ -18,6 +19,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     private readonly bankService: BankService,
     private readonly bankTxBatchService: BankTxBatchService,
     private readonly olkypayService: OlkypayService,
+    private readonly checkoutService: CheckoutService,
   ) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
@@ -29,7 +31,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     const balances = await Util.doGetFulfilled(
       Array.from(liquidityManagementAssets.entries()).map(([e, a]) =>
         this.getForBank(
-          Object.values(BankName).find((b) => b === e),
+          [...Object.values(IbanBankName), ...Object.values(CardBankName)].find((b) => b === e),
           a,
         ),
       ),
@@ -44,15 +46,27 @@ export class BankAdapter implements LiquidityBalanceIntegration {
 
   // --- HELPER METHODS --- //
 
-  async getForBank(bankName: BankName, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
+  async getForBank(
+    bankName: IbanBankName | CardBankName,
+    assets: LiquidityManagementAsset[],
+  ): Promise<LiquidityBalance[]> {
     const balances: LiquidityBalance[] = [];
+    const checkoutBalances = bankName === CardBankName.CHECKOUT ? await this.checkoutService.getBalances() : undefined;
     try {
       for (const asset of assets) {
         let balance = 0;
 
         switch (bankName) {
-          case BankName.OLKY:
+          case IbanBankName.OLKY:
             balance = await this.olkypayService.getBalance().then((b) => b.balance);
+
+            break;
+
+          case CardBankName.CHECKOUT:
+            balance = checkoutBalances
+              .filter((b) => b.holding_currency === asset.dexName)
+              .map((b) => b.balances.collateral / 100)
+              .reduce((sum, cur) => sum + cur);
 
             break;
 
