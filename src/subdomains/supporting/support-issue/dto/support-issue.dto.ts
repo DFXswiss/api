@@ -3,20 +3,6 @@ import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/l
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 
-export class FileDto {
-  @ApiProperty()
-  url: string;
-
-  @ApiProperty()
-  name: string;
-
-  @ApiProperty()
-  size: number;
-
-  @ApiProperty()
-  type: string;
-}
-
 export class SupportMessageDto {
   @ApiProperty()
   id: number;
@@ -30,8 +16,8 @@ export class SupportMessageDto {
   @ApiProperty()
   message: string;
 
-  @ApiPropertyOptional({ type: FileDto })
-  file?: FileDto;
+  @ApiPropertyOptional()
+  fileUrl?: string;
 }
 
 export class SupportIssueDto {

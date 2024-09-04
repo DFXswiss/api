@@ -1,6 +1,6 @@
 import { SupportIssue } from '../entities/support-issue.entity';
 import { SupportMessage } from '../entities/support-message.entity';
-import { FileDto, SupportIssueDto, SupportMessageDto } from './support-issue.dto';
+import { SupportIssueDto, SupportMessageDto } from './support-issue.dto';
 
 export class SupportIssueDtoMapper {
   static mapSupportIssue(supportIssue: SupportIssue): SupportIssueDto {
@@ -26,20 +26,9 @@ export class SupportIssueDtoMapper {
       author: supportMessage.author,
       created: supportMessage.created,
       message: supportMessage.message,
-      file: supportMessage.fileUrl && SupportIssueDtoMapper.mapFile(supportMessage.fileUrl),
+      fileUrl: supportMessage.fileUrl,
     };
 
     return Object.assign(new SupportMessageDto(), dto);
-  }
-
-  private static mapFile(fileUrl: string): FileDto {
-    const dto: FileDto = {
-      url: fileUrl,
-      name: fileUrl.split('/').pop(),
-      size: 0,
-      type: 'application/pdf',
-    };
-
-    return Object.assign(new FileDto(), dto);
   }
 }
