@@ -244,20 +244,25 @@ export class BuyFiatService {
       ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
       : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
 
-    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount: dto.chargebackAmount });
+    const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
-    if (dto.chargebackAllowedDate)
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
+
+    if (dto.chargebackAllowedDate && chargebackAmount)
       await this.payInService.returnPayIn(
         buyFiat.cryptoInput,
         refundUser.address ?? buyFiat.chargebackAddress,
-        dto.chargebackAmount,
+        chargebackAmount,
       );
 
-    await this.buyFiatRepo.update(buyFiat.id, {
-      chargebackDate: dto.chargebackAllowedDate ? new Date() : null,
-      chargebackAllowedDate: dto.chargebackAllowedDate,
-      chargebackAddress: refundUser.address ?? buyFiat.chargebackAddress,
-    });
+    await this.buyFiatRepo.update(
+      ...buyFiat.chargebackFillUp(
+        refundUser.address ?? buyFiat.chargebackAddress,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+      ),
+    );
   }
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {

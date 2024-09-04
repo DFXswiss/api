@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import { IsDate, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 
 export class RefundInternalDto {
   @IsOptional()
@@ -26,10 +27,12 @@ export class RefundInternalDto {
 export class BaseRefund {
   chargebackAmount?: number;
   chargebackAllowedDate?: Date;
+  chargebackAllowedDateUser?: Date;
 }
 
 export class BankTxRefund extends BaseRefund {
   refundIban: string;
+  chargebackOutput?: FiatOutput;
 }
 
 export class CryptoInputRefund extends BaseRefund {

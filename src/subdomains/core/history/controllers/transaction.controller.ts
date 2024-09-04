@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -13,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -23,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -38,6 +41,7 @@ import {
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
 import {
@@ -63,10 +67,17 @@ import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 import { ExportType, HistoryService } from '../services/history.service';
 
+interface TransactionRefundData {
+  expiryDate: Date;
+  feeAmount: number;
+  chargebackAmount: number;
+}
+
 @ApiTags('Transaction')
 @Controller('transaction')
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
+  private readonly refundList = new Map<number, TransactionRefundData>();
 
   constructor(
     private readonly historyService: HistoryService,
@@ -79,7 +90,16 @@ export class TransactionController {
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly feeService: FeeService,
   ) {}
+
+  // --- JOBS --- //
+  @Cron(CronExpression.EVERY_MINUTE)
+  checkLists() {
+    for (const [key, refundData] of this.refundList.entries()) {
+      if (!this.isRefundDataValid(refundData)) this.refundList.delete(key);
+    }
+  }
 
   // --- OPEN ENDPOINTS --- //
   @Get()
@@ -253,6 +273,38 @@ export class TransactionController {
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
   }
 
+  @Get(':id/refund')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiExcludeEndpoint()
+  async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<TransactionRefundData> {
+    const transaction = await this.transactionService.getTransactionById(+id, {
+      user: { userData: true },
+      buyCrypto: { cryptoInput: { route: { user: true } } },
+      buyFiat: { cryptoInput: { route: { user: true } } },
+    });
+
+    if (
+      !transaction ||
+      (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat))
+    )
+      throw new NotFoundException('Transaction not found');
+    if (jwt.account !== transaction.userData.id)
+      throw new ForbiddenException('You can only refund your own transaction');
+
+    const feeAmount = await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false);
+
+    const refundData = {
+      expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+      chargebackAmount: transaction.targetEntity.inputAmount - feeAmount,
+      feeAmount,
+    };
+
+    this.refundList.set(transaction.id, refundData);
+
+    return refundData;
+  }
+
   @Put(':id/refund')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
@@ -276,20 +328,33 @@ export class TransactionController {
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
 
+    const refundData = this.refundList.get(transaction.id);
+    if (!refundData) throw new BadRequestException('Request refund data first');
+    if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
+    this.refundList.delete(transaction.id);
+
+    const refundDto = { chargebackAmount: refundData.chargebackAmount, chargebackAllowedDateUser: new Date() };
+
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
         refundUserAddress: dto.refundAddress,
+        ...refundDto,
       });
 
     if (transaction.cryptoInput)
       return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
         refundUserAddress: dto.refundAddress,
+        ...refundDto,
       });
 
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, { refundIban: dto.refundIban });
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, { refundIban: dto.refundIban, ...refundDto });
   }
 
   // --- HELPER METHODS --- //
+
+  private isRefundDataValid(refundData: TransactionRefundData): boolean {
+    return Util.secondsDiff(refundData.expiryDate) <= 0;
+  }
 
   public async getHistoryData<T extends ExportType>(
     query: HistoryQueryUser,

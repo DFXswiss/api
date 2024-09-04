@@ -365,30 +365,34 @@ export class BuyCryptoService {
       ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
       : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
 
-    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount: dto.chargebackAmount });
+    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
 
-    if (dto.chargebackAllowedDate)
+    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
+
+    if (dto.chargebackAllowedDate && chargebackAmount)
       await this.payInService.returnPayIn(
         buyCrypto.cryptoInput,
         refundUser.address ?? buyCrypto.chargebackIban,
-        dto.chargebackAmount,
+        chargebackAmount,
       );
 
-    await this.buyCryptoRepo.update(buyCrypto.id, {
-      chargebackDate: dto.chargebackAllowedDate ? new Date() : null,
-      chargebackAllowedDate: dto.chargebackAllowedDate,
-      chargebackIban: refundUser.address ?? buyCrypto.chargebackIban,
-    });
+    await this.buyCryptoRepo.update(
+      ...buyCrypto.chargebackFillUp(
+        refundUser.address ?? buyCrypto.chargebackIban,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+      ),
+    );
   }
 
   async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
     if (!dto.refundIban && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackIban');
 
-    TransactionUtilService.validateRefund(buyCrypto, {
-      refundIban: dto.refundIban,
-      chargebackAmount: dto.chargebackAmount,
-    });
+    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+
+    TransactionUtilService.validateRefund(buyCrypto, { refundIban: dto.refundIban, chargebackAmount });
 
     const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(
       dto.refundIban,
@@ -396,16 +400,22 @@ export class BuyCryptoService {
     );
     if (!bankAccount || !bankAccount.bic) throw new BadRequestException('BIC not available');
 
-    await this.buyCryptoRepo.update(buyCrypto.id, {
-      chargebackDate: dto.chargebackAllowedDate ? new Date() : null,
-      chargebackIban: dto.refundIban ?? buyCrypto.chargebackIban,
-      chargebackOutput: dto.chargebackAllowedDate
-        ? await this.fiatOutputService.create({
-            buyCryptoId: buyCrypto.id,
-            type: 'BuyCryptoFail',
-          })
-        : null,
-    });
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      dto.chargebackOutput = await this.fiatOutputService.create({
+        buyCryptoId: buyCrypto.id,
+        type: 'BuyCryptoFail',
+      });
+    }
+
+    await this.buyCryptoRepo.update(
+      ...buyCrypto.chargebackFillUp(
+        dto.refundIban ?? buyCrypto.chargebackIban,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+        dto.chargebackOutput,
+      ),
+    );
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
