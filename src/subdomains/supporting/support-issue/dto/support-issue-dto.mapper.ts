@@ -20,7 +20,7 @@ export class SupportIssueDtoMapper {
     return Object.assign(new SupportIssueDto(), dto);
   }
 
-  private static mapSupportMessage(supportMessage: SupportMessage): SupportMessageDto {
+  static mapSupportMessage(supportMessage: SupportMessage): SupportMessageDto {
     const dto: SupportMessageDto = {
       id: supportMessage.id,
       author: supportMessage.author,

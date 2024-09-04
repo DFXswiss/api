@@ -10,7 +10,7 @@ import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportFile } from './dto/get-support-file.dto';
 import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
-import { SupportIssueDto } from './dto/support-issue.dto';
+import { SupportIssueDto, SupportMessageDto } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
@@ -24,7 +24,7 @@ export class SupportIssueController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<void> {
+  async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     return this.supportIssueService.createIssue(jwt.account, dto);
   }
 
@@ -42,7 +42,7 @@ export class SupportIssueController {
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
-  ): Promise<void> {
+  ): Promise<SupportMessageDto> {
     return this.supportIssueService.createSupportMessage(
       +id,
       [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role) ? dto : { ...dto, author: CustomerAuthor },

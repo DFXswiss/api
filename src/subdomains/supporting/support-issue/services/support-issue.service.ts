@@ -11,7 +11,7 @@ import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/cre
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
-import { SupportIssueDto } from '../dto/support-issue.dto';
+import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
@@ -38,7 +38,7 @@ export class SupportIssueService {
     await this.supportIssueRepo.save(newIssue);
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
@@ -74,6 +74,8 @@ export class SupportIssueService {
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
 
     await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
+
+    return this.getSupportIssue(userDataId, { type: entity.type, id: entity.id, lastMessages: 1 });
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
@@ -85,7 +87,7 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<void> {
+  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<SupportMessageDto> {
     const entity = this.messageRepo.create(dto);
 
     entity.issue = await this.supportIssueRepo.findOne({
@@ -113,6 +115,8 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+
+    return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
   async getSupportIssue(userDataId: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
@@ -127,7 +131,12 @@ export class SupportIssueService {
     if (!supportIssue) throw new NotFoundException('Support issue not found');
 
     const messages = await this.messageRepo.findBy({ issue: { id: supportIssue.id } });
-    supportIssue.messages = query.fromMessageId > 0 ? messages.filter((m) => m.id > query.fromMessageId) : messages;
+    supportIssue.messages =
+      query.fromMessageId > 0
+        ? messages.filter((m) => m.id > query.fromMessageId)
+        : query.lastMessages > 0
+        ? messages.slice(-query.lastMessages)
+        : messages;
 
     return SupportIssueDtoMapper.mapSupportIssue(supportIssue);
   }

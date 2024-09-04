@@ -20,4 +20,10 @@ export class GetSupportIssueFilter {
   @Transform(({ value }) => +value)
   @IsInt()
   fromMessageId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => +value)
+  @IsInt()
+  lastMessages?: number;
 }
