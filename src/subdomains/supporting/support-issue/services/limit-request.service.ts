@@ -41,7 +41,7 @@ export class LimitRequestService {
       const documentProofUrl = await this.storageService.uploadFile(
         user.id,
         FileType.USER_NOTES,
-        `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
+        `${Util.isoDateTime(new Date())}_limit-request_user-upload_${Util.randomId()}_${dto.documentProofName}`,
         buffer,
         contentType as ContentType,
       );

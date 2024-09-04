@@ -112,7 +112,7 @@ export class SupportIssueService {
       entity.fileUrl = await this.storageService.uploadFile(
         entity.userData.id,
         FileType.SUPPORT_ISSUE,
-        `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
+        `${Util.isoDateTime(new Date())}_support-issue_user-upload_${Util.randomId()}_${dto.fileName}`,
         buffer,
         contentType as ContentType,
       );
