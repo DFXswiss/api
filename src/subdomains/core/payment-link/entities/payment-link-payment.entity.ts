@@ -43,7 +43,7 @@ export class PaymentLinkPayment extends IEntity {
   txCount: number;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
-  cryptoInput: CryptoInput;
+  cryptoInputs: CryptoInput[];
 
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
