@@ -13,6 +13,7 @@ import {
 export type TransferMethod = Blockchain;
 
 export interface TransferInfo {
+  standard: PaymentStandard;
   asset: string;
   amount: number;
   method: TransferMethod;

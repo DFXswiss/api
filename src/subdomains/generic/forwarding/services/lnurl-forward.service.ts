@@ -118,6 +118,8 @@ export class LnUrlForwardService {
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {
+    const standard = Util.toEnum(PaymentStandard, params.standard) ?? PaymentStandard.OPEN_CRYPTO_PAY;
+
     const isMsat = !params.asset;
 
     const amount = params.amount ? Number(params.amount) : 0;
@@ -125,8 +127,9 @@ export class LnUrlForwardService {
     const method = Util.toEnum(Blockchain, params.method) ?? Blockchain.LIGHTNING;
 
     return {
-      method: method,
-      asset: asset,
+      standard,
+      method,
+      asset,
       amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
       hex: params.hex,

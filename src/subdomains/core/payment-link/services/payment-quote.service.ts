@@ -115,10 +115,13 @@ export class PaymentQuoteService {
     paymentId: number,
     transferInfo: TransferInfo,
   ): Promise<PaymentQuote | undefined> {
+    const standard = transferInfo.standard ?? PaymentStandard.OPEN_CRYPTO_PAY;
+
     const actualQuotes = await this.paymentQuoteRepo.find({
       where: {
         payment: { id: Equal(paymentId) },
-        status: PaymentQuoteStatus.ACTUAL,
+        status: Equal(PaymentQuoteStatus.ACTUAL),
+        standard: Equal(standard),
       },
       order: { expiryDate: 'DESC' },
     });
