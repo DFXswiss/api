@@ -67,10 +67,21 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
-    const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
+    const additionalSelect = Array.from(
+      new Set(
+        query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || [],
+      ),
+    );
+
+    const data = await this.getRawDbData({
+      ...query,
+      select: [...query.select?.filter((s) => !s.includes('-')), ...additionalSelect],
+    });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);
+
+    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -111,6 +122,48 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
+
+  private setJsonData(data: any[], selects: string[]): void {
+    const jsonSelects = selects.filter((s) => s.includes('-') && !s.includes('documents'));
+
+    for (const select of jsonSelects) {
+      const [field, jsonPath] = select.split('-');
+
+      data.map((d) => {
+        const parsedJsonData = this.getParsedJsonData(d[field], jsonPath);
+
+        d[select] =
+          typeof parsedJsonData === 'object' && parsedJsonData !== null
+            ? JSON.stringify(parsedJsonData)
+            : parsedJsonData;
+
+        return d;
+      });
+    }
+  }
+
+  private getParsedJsonData(jsonString: string, jsonPath: string) {
+    try {
+      const jsonValue = JSON.parse(jsonString);
+
+      const parsedJsonData = jsonPath.split('.').reduce((o, k) => {
+        if (o) {
+          if (Array.isArray(o) && k.includes('=')) {
+            const [key, value] = k.split('=');
+            return o.find((e) => e[key]?.toString() === value?.toString());
+          }
+
+          return o[k];
+        }
+      }, jsonValue);
+
+      if (parsedJsonData == jsonValue) return null;
+
+      return parsedJsonData;
+    } catch {
+      return null;
+    }
+  }
 
   private async setUserDataDocs(data: UserData[], select: string[], sorting: 'ASC' | 'DESC'): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
