@@ -62,6 +62,14 @@ export class PaymentLink extends IEntity {
     return this.externalId ?? `${this.id}`;
   }
 
+  displayName(paymentMetaId?: string): string {
+    const defaultDisplayName = paymentMetaId
+      ? `Payment ${paymentMetaId} to ${this.metaId}`
+      : `Payment link ${this.metaId}`;
+
+    return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
+  }
+
   get hasRecipient(): boolean {
     return !!(
       this.name ||

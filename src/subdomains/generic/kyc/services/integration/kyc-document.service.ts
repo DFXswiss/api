@@ -49,6 +49,11 @@ export class KycDocumentService {
     return this.storageService.getBlob(this.toFileId(userDataId, type, name));
   }
 
+  async downloadFileByUrl(url: string): Promise<BlobContent> {
+    const fileId = this.storageService.blobName(url);
+    return this.storageService.getBlob(fileId);
+  }
+
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
     await this.storageService.copyBlobs(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
     await this.storageService.copyBlobs(
