@@ -652,17 +652,14 @@ export class KycService {
     if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
       errors.push(IdentCheckError.INVALID_RESULT);
 
-    if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
-      errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
-    } else if (entity.userData.verifiedName) {
-      if (entity.userData.accountType === AccountType.PERSONAL) {
+    if (entity.userData.accountType === AccountType.PERSONAL) {
+      if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
+        errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
+      } else if (entity.userData.verifiedName) {
         if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
           errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
         if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
           errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
-      } else {
-        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.organizationName))
-          errors.push(IdentCheckError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     }
 
