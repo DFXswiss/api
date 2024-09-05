@@ -123,30 +123,14 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
-  private setJsonData(data: any[], selects: string[]) {
+  private setJsonData(data: any[], selects: string[]): void {
     const jsonSelects = selects.filter((s) => s.includes('-') && !s.includes('documents'));
 
     for (const select of jsonSelects) {
-      const jsonSource = select.split('-');
+      const [field, jsonPath] = select.split('-');
 
       data.map((d) => {
-        let parsedJsonData = null;
-        try {
-          const jsonValue = JSON.parse(d[jsonSource[0]]);
-
-          parsedJsonData = jsonSource[1].split('.').reduce((o, k) => {
-            if (o) {
-              if (Array.isArray(o) && k.includes('=')) {
-                const searchSplit = k.split('=');
-                return o.find((e) => e[searchSplit[0]]?.toString() === searchSplit[1]?.toString());
-              }
-
-              return o[k];
-            }
-          }, jsonValue);
-
-          if (parsedJsonData == jsonValue) parsedJsonData = null;
-        } catch {}
+        const parsedJsonData = this.getParsedJsonData(d[field], jsonPath);
 
         d[select] =
           typeof parsedJsonData === 'object' && parsedJsonData !== null
@@ -155,6 +139,29 @@ export class GsService {
 
         return d;
       });
+    }
+  }
+
+  private getParsedJsonData(jsonString: string, jsonPath: string) {
+    try {
+      const jsonValue = JSON.parse(jsonString);
+
+      const parsedJsonData = jsonPath.split('.').reduce((o, k) => {
+        if (o) {
+          if (Array.isArray(o) && k.includes('=')) {
+            const [key, value] = k.split('=');
+            return o.find((e) => e[key]?.toString() === value?.toString());
+          }
+
+          return o[k];
+        }
+      }, jsonValue);
+
+      if (parsedJsonData == jsonValue) return null;
+
+      return parsedJsonData;
+    } catch {
+      return null;
     }
   }
 
