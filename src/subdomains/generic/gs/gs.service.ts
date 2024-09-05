@@ -16,8 +16,8 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { File } from '../kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
+import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
@@ -57,7 +57,7 @@ export class GsService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly dataSource: DataSource,
-    private readonly documentStorageService: DocumentStorageService,
+    private readonly kycDocumentService: KycDocumentService,
     private readonly transactionService: TransactionService,
     private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
@@ -122,7 +122,7 @@ export class GsService {
 
       const docs = Util.sort(
         commonPathPrefix
-          ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+          ? await this.kycDocumentService.listFilesByPrefix(commonPathPrefix)
           : await this.getAllUserDocuments(userDataId, userData.accountType),
         'created',
         sorting,
@@ -135,13 +135,11 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<File[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFile[]> {
     return [
-      ...(await this.documentStorageService.listUserFiles(userDataId)),
-      ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-      ...(accountType !== AccountType.PERSONAL
-        ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-        : []),
+      ...(await this.kycDocumentService.listUserFiles(userDataId)),
+      ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
+      ...(accountType !== AccountType.PERSONAL ? await this.kycDocumentService.listSpiderFiles(userDataId, true) : []),
     ];
   }
 

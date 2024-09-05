@@ -53,9 +53,9 @@ import {
 } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
-import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
+import { KycDocumentService } from './integration/kyc-document.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
 
@@ -67,7 +67,7 @@ export class KycService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
     private readonly financialService: FinancialService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly kycStepRepo: KycStepRepository,
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
@@ -285,7 +285,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.storageService.uploadFile(
+    const url = await this.documentService.uploadFile(
       user.id,
       fileType,
       data.fileName,
@@ -743,7 +743,7 @@ export class KycService {
     const documents = await this.identService.getDocuments(kycStep);
 
     for (const { name, content, contentType } of documents) {
-      await this.storageService.uploadFile(
+      await this.documentService.uploadFile(
         user.id,
         FileType.IDENTIFICATION,
         `${namePrefix}${name}`,

@@ -23,7 +23,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
@@ -63,7 +63,7 @@ export class UserDataService {
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
-    private readonly documentStorageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
   ) {}
 
@@ -575,7 +575,7 @@ export class UserDataService {
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
     // copy all documents
-    void this.documentStorageService
+    void this.documentService
       .copyFiles(slave.id, master.id)
       .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
 

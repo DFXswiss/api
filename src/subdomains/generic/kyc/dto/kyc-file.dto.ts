@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Blob } from 'src/integration/infrastructure/azure-storage.service';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
 
 export enum FileType {
@@ -7,7 +8,6 @@ export enum FileType {
   IDENTIFICATION = 'Identification',
   USER_NOTES = 'UserNotes',
   TRANSACTION_NOTES = 'TransactionNotes',
-  SUPPORT_ISSUE = 'SupportIssue',
   STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
   AUTHORITY = 'Authority',
@@ -28,14 +28,9 @@ export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
 
-export interface File {
+export interface KycFile extends Blob {
   type: FileType;
-  name: string;
-  url: string;
   contentType: ContentType;
-  created: Date;
-  updated: Date;
-  metadata: Record<string, string>;
 }
 
 export class KycReportDto {
