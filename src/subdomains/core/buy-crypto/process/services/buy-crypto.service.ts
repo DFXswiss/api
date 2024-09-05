@@ -26,8 +26,8 @@ import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
@@ -61,6 +61,7 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
     private readonly userService: UserService,
     private readonly assetService: AssetService,
@@ -74,6 +75,7 @@ export class BuyCryptoService {
     private readonly siftService: SiftService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly checkoutService: CheckoutService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly userDataService: UserDataService,
@@ -157,7 +159,7 @@ export class BuyCryptoService {
     });
   }
 
-  async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap): Promise<void> {
+  async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap, request?: TransactionRequest): Promise<BuyCrypto> {
     // create entity
     const entity = this.buyCryptoRepo.create({
       cryptoInput,
@@ -169,32 +171,13 @@ export class BuyCryptoService {
       transaction: { id: cryptoInput.transaction.id },
     });
 
-    await this.createEntity(entity, {
-      type: TransactionTypeInternal.CRYPTO_CRYPTO,
-      user: swap.user,
-    });
-  }
-
-  private async createEntity(entity: BuyCrypto, dto: UpdateTransactionDto): Promise<void> {
-    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
-
-    // transaction
-    const request = await this.getTxRequest(entity);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
-
-    entity = await this.buyCryptoRepo.save(entity);
-
-    await this.buyCryptoWebhookService.triggerWebhook(entity);
-  }
-
-  private async getTxRequest(entity: BuyCrypto): Promise<TransactionRequest> {
-    const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
-
-    return this.transactionRequestService.findAndComplete(
-      entity.inputAmount,
-      entity.route.id,
-      inputCurrency.id,
-      entity.outputAsset.id,
+    return this.createEntity(
+      entity,
+      {
+        type: TransactionTypeInternal.CRYPTO_CRYPTO,
+        user: swap.user,
+      },
+      request,
     );
   }
 
@@ -530,7 +513,49 @@ export class BuyCryptoService {
       .then((history) => history.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: { isComplete: false },
+      relations: { cryptoInput: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async createEntity(
+    entity: BuyCrypto,
+    dto: UpdateTransactionDto,
+    request?: TransactionRequest,
+  ): Promise<BuyCrypto> {
+    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
+
+    // transaction
+    request = await this.getAndCompleteTxRequest(entity, request);
+    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
+
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
+
+    return entity;
+  }
+
+  private async getAndCompleteTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
+
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.route.id,
+        inputCurrency.id,
+        entity.outputAsset.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {

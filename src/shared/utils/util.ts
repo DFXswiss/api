@@ -124,7 +124,10 @@ export class Util {
   static includesSameName(reference: string, testedName: string): boolean {
     if (!reference || !testedName) return false;
 
-    return this.removeSpecialChars(reference).includes(this.removeSpecialChars(testedName));
+    const referenceArray = this.removeSpecialChars(reference).split(' ');
+    const testedNameArray = this.removeSpecialChars(testedName).split(' ');
+
+    return testedNameArray.some((n) => referenceArray.includes(n));
   }
 
   static removeSpecialChars(name: string): string {
@@ -140,6 +143,8 @@ export class Util {
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
+      .replace(/[ł]/g, 'l')
+      .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
       .replace(/[ßșš]/g, 's')
       .replace(/ss/g, 's')
@@ -461,7 +466,9 @@ export class Util {
       throw validationResult;
     }
 
-    return new XMLParser({ ignoreAttributes: false }).parse(file);
+    return new XMLParser({ ignoreAttributes: false, numberParseOptions: { leadingZeros: false, hex: false } }).parse(
+      file,
+    );
   }
 
   static blankStart(value: string, visibleLength = 4): string {
@@ -507,7 +514,6 @@ export class Util {
   }
 
   static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
-    const enumKey = Object.keys(enumObj).find((k) => k.toLowerCase() === value?.toLowerCase());
-    return enumObj[enumKey as keyof T];
+    return Object.values(enumObj).find((e) => e.toLowerCase() === value?.toLowerCase());
   }
 }

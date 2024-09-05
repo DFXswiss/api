@@ -1,21 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
-import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { CryptoInput, PayInConfirmationType } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
-import { SendStrategy, SendType } from './base/send.strategy';
+import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 @Injectable()
-export class MoneroStrategy extends SendStrategy {
+export class MoneroStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(MoneroStrategy);
 
-  constructor(private readonly payInMoneroService: PayInMoneroService, private readonly payInRepo: PayInRepository) {
-    super();
+  constructor(private readonly moneroService: PayInMoneroService, readonly payInRepo: PayInRepository) {
+    super(moneroService, payInRepo);
   }
 
   get blockchain(): Blockchain {
@@ -26,44 +26,12 @@ export class MoneroStrategy extends SendStrategy {
     return undefined;
   }
 
-  async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    const isHealthy = await this.payInMoneroService.isHealthy();
-    if (!isHealthy) throw new Error('Monero Node is unhealthy');
-
-    for (const payIn of payIns) {
-      try {
-        this.designateSend(payIn, type);
-
-        const { txid, fee } = await this.payInMoneroService.sendTransfer(payIn);
-        this.updatePayInWithSendData(payIn, type, txid, fee);
-
-        await this.payInRepo.save(payIn);
-      } catch (e) {
-        const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
-        this.logger.log(logLevel, `Failed to send Monero input ${payIn.id} of type ${type}:`, e);
-      }
-    }
-  }
-
-  async checkConfirmations(payIns: CryptoInput[]): Promise<void> {
-    const isHealthy = await this.payInMoneroService.isHealthy();
-    if (!isHealthy) throw new Error('Monero Node is unhealthy');
-
-    for (const payIn of payIns) {
-      try {
-        const transaction = await this.payInMoneroService.getTransaction(payIn.inTxId);
-
-        if (MoneroHelper.isTransactionComplete(transaction)) {
-          payIn.confirm();
-          await this.payInRepo.save(payIn);
-        }
-      } catch (e) {
-        this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
-      }
-    }
-  }
-
   protected getForwardAddress(): BlockchainAddress {
-    throw new Error('Method not implemented.');
+    return BlockchainAddress.create(Config.blockchain.monero.walletAddress, Blockchain.MONERO);
+  }
+
+  protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
+    const transaction = await this.moneroService.getTransaction(payIn.confirmationTxId(direction));
+    return MoneroHelper.isTransactionComplete(transaction);
   }
 }

@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -13,9 +13,9 @@ import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/pri
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { AmlHelperService } from '../../aml/services/aml-helper.service';
 import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
 

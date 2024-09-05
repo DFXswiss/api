@@ -23,7 +23,8 @@ export enum AmlError {
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
-  IBAN_COUNTRY_NOT_ALLOWED = 'IbanCountryNotAllowed',
+  IBAN_COUNTRY_FATF_NOT_ALLOWED = 'IbanCountryFatfNotAllowed',
+  CHECKOUT_COUNTRY_NOT_ALLOWED = 'CheckoutCountryNotAllowed',
   NO_BANK_TX_VERIFICATION = 'NoBankTxVerification',
   NO_LETTER = 'NoLetter',
   NO_AML_LIST = 'NoAmlList',
@@ -112,7 +113,12 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
-  [AmlError.IBAN_COUNTRY_NOT_ALLOWED]: {
+  [AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
+  },
+  [AmlError.CHECKOUT_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,

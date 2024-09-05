@@ -96,4 +96,8 @@ export class Asset extends IEntity {
   get minimalPriceReferenceAmount() {
     return this.approxPriceChf ? 1 / this.approxPriceChf : 1;
   }
+
+  isBuyableOn(blockchains: Blockchain[]): boolean {
+    return blockchains.includes(this.blockchain) || this.type === AssetType.CUSTOM;
+  }
 }

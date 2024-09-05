@@ -20,9 +20,9 @@ import { NameCheckLogRepository } from './repositories/name-check-log.repository
 import { StepLogRepository } from './repositories/step-log.repository';
 import { TfaLogRepository } from './repositories/tfa-log.repository';
 import { DilisenseService } from './services/integration/dilisense.service';
-import { DocumentStorageService } from './services/integration/document-storage.service';
 import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
+import { KycDocumentService } from './services/integration/kyc-document.service';
 import { KycAdminService } from './services/kyc-admin.service';
 import { KycClientService } from './services/kyc-client.service';
 import { KycLogService } from './services/kyc-log.service';
@@ -48,7 +48,7 @@ import { TfaService } from './services/tfa.service';
     KycAdminService,
     KycLogService,
     TfaService,
-    DocumentStorageService,
+    KycDocumentService,
     NameCheckService,
     NameCheckLogRepository,
     StepLogRepository,
@@ -61,6 +61,6 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycClientService,
   ],
-  exports: [DocumentStorageService, NameCheckService, KycAdminService, KycLogService, KycNotificationService],
+  exports: [KycDocumentService, NameCheckService, KycAdminService, KycLogService, KycNotificationService],
 })
 export class KycModule {}

@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -237,5 +238,12 @@ export class KycStep extends IEntity {
       .filter((n) => n)
       .map((n) => n.trim())
       .join(' ');
+  }
+
+  get identErrorsMailString(): string {
+    return `<ul>${this.comment
+      .split(';')
+      .map((c) => `<li>${IdentCheckErrorMap[c as IdentCheckError]}</li>`)
+      .join('')}</ul>`;
   }
 }

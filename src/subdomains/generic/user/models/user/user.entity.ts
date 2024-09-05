@@ -20,10 +20,28 @@ export enum UserStatus {
   DELETED = 'Deleted',
 }
 
+export enum UserAddressType {
+  BITCOIN_LEGACY = 'BitcoinLegacy',
+  BITCOIN_BECH32 = 'BitcoinBech32',
+  EVM = 'EVM',
+  LN_URL = 'LNURL',
+  LN_NID = 'LNNID',
+  LND_HUB = 'LNDHUB',
+  UMA = 'UMA',
+  MONERO = 'Monero',
+  LIQUID = 'Liquid',
+  ARWEAVE = 'Arweave',
+  CARDANO = 'Cardano',
+  OTHER = 'Other',
+}
+
 @Entity()
 export class User extends IEntity {
   @Column({ length: 256, unique: true })
   address: string;
+
+  @Column({ length: 256, nullable: true })
+  addressType: UserAddressType;
 
   @Column({ length: 'MAX', nullable: true })
   signature: string;
@@ -140,11 +158,16 @@ export class User extends IEntity {
     return [this.id, update];
   }
 
-  activateUser(ref: string): UpdateResult<User> {
-    const update: Partial<User> = {
-      status: UserStatus.ACTIVE,
-      ref,
-    };
+  activateUser(): UpdateResult<User> {
+    const update: Partial<User> = { status: UserStatus.ACTIVE };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setRef(ref: string): UpdateResult<User> {
+    const update: Partial<User> = { ref };
 
     Object.assign(this, update);
 
@@ -152,9 +175,7 @@ export class User extends IEntity {
   }
 
   setLabel(label: string): UpdateResult<User> {
-    const update: Partial<User> = {
-      label,
-    };
+    const update: Partial<User> = { label };
 
     Object.assign(this, update);
 

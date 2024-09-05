@@ -11,21 +11,47 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
 
   async getAllPaymentLinks(userId: number): Promise<PaymentLink[]> {
     return this.find({
-      where: { route: { user: { id: userId } } },
+      where: { route: { user: { id: userId }, active: true } },
       relations: { route: { user: { userData: true } } },
     });
   }
 
-  async getPaymentLinkById(userId: number, id: number): Promise<PaymentLink | null> {
+  async getPaymentLinkById(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<PaymentLink | null> {
+    if (linkId) return this.getPaymentLinkByLinkId(userId, linkId);
+    if (externalLinkId) return this.getPaymentLinkByExternalId(userId, externalLinkId);
+    if (externalPaymentId) return this.getPaymentLinkByExternalPaymentId(userId, externalPaymentId);
+
+    return null;
+  }
+
+  private async getPaymentLinkByLinkId(userId: number, linkId: number): Promise<PaymentLink | null> {
     return this.findOne({
-      where: { id: Equal(id), route: { user: { id: Equal(userId) } } },
+      where: { id: Equal(linkId), route: { user: { id: Equal(userId) }, active: true } },
       relations: { route: { user: { userData: true } } },
     });
   }
 
-  async getPaymentLinkByExternalId(userId: number, externalId: string): Promise<PaymentLink | null> {
+  private async getPaymentLinkByExternalId(userId: number, externalLinkId: string): Promise<PaymentLink | null> {
     return this.findOne({
-      where: { externalId: Equal(externalId), route: { user: { id: Equal(userId) } } },
+      where: { externalId: Equal(externalLinkId), route: { user: { id: Equal(userId) }, active: true } },
+      relations: { route: { user: { userData: true } } },
+    });
+  }
+
+  private async getPaymentLinkByExternalPaymentId(
+    userId: number,
+    externalPaymentId: string,
+  ): Promise<PaymentLink | null> {
+    return this.findOne({
+      where: {
+        payments: { externalId: Equal(externalPaymentId) },
+        route: { user: { id: Equal(userId) }, active: true },
+      },
       relations: { route: { user: { userData: true } } },
     });
   }

@@ -1,4 +1,4 @@
-import { BankTx } from '../bank-tx.entity';
+import { BankTx } from '../entities/bank-tx.entity';
 import { createDefaultBankTxBatch } from './bank-tx-batch.entity.mock';
 
 const defaultBankTx: Partial<BankTx> = {

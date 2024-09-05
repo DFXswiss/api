@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -16,10 +17,11 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
+import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
-import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -32,6 +34,7 @@ export class PaymentLinkPaymentService {
   static readonly PREFIX_UNIQUE_ID = 'plp';
 
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
+  private readonly deviceActivationSubject = new Subject<PaymentDevice>();
 
   constructor(
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
@@ -41,6 +44,17 @@ export class PaymentLinkPaymentService {
     private readonly paymentActivationService: PaymentActivationService,
     private readonly fiatService: FiatService,
   ) {}
+
+  getDeviceActivationObservable(): Observable<PaymentDevice> {
+    return this.deviceActivationSubject.asObservable();
+  }
+
+  async updatePayment(id: number, dto: UpdatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+    const entity = await this.paymentLinkPaymentRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('Payment not found');
+
+    return this.paymentLinkPaymentRepo.save(Object.assign(entity, dto));
+  }
 
   // --- HANDLE PENDING PAYMENTS --- //
   async processPendingPayments(): Promise<void> {
@@ -77,11 +91,8 @@ export class PaymentLinkPaymentService {
   async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
     const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
-        activations: { asset: { id: asset.id }, amount },
+        activations: { status: PaymentActivationStatus.PENDING, asset: { id: asset.id }, amount },
         status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        activations: true,
       },
     });
 
@@ -96,6 +107,12 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async getPaymentByExternalId(externalPaymentId: string): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: { externalId: externalPaymentId },
+    });
+  }
+
   async getMostRecentPayment(uniqueId: string): Promise<PaymentLinkPayment | null> {
     return this.paymentLinkPaymentRepo.findOne({
       where: [
@@ -106,9 +123,6 @@ export class PaymentLinkPaymentService {
           uniqueId: uniqueId,
         },
       ],
-      relations: {
-        link: true,
-      },
       order: { updated: 'DESC' },
     });
   }
@@ -178,9 +192,11 @@ export class PaymentLinkPaymentService {
     const pendingPayment = await this.getPendingPaymentByAsset(cryptoInput.asset, cryptoInput.amount);
 
     if (!pendingPayment) {
-      this.logger.error(`CryptoInput ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
+      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No pending payment found by asset ${cryptoInput.asset.id}`);
       return;
     }
+
+    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     const pendingActivationData = this.paymentActivationService.getPendingActivation(
       pendingPayment,
@@ -208,6 +224,9 @@ export class PaymentLinkPaymentService {
 
     if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
       this.paymentWaitMap.resolve(pendingPayment.id, pendingPayment);
+
+      if (pendingPayment.device) this.deviceActivationSubject.next(pendingPayment.device);
+
       return pendingPayment;
     }
 

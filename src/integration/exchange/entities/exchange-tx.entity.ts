@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index } from 'typeorm';
+import { ExchangeName } from '../enums/exchange.enum';
 
 export enum ExchangeTxType {
   WITHDRAWAL = 'Withdrawal',
@@ -15,7 +16,7 @@ export type ExchangeTxDto = Omit<ExchangeTx, keyof IEntity>;
 })
 export class ExchangeTx extends IEntity {
   @Column({ length: 256 })
-  exchange: string;
+  exchange: ExchangeName;
 
   @Column({ length: 256 })
   type: ExchangeTxType;
@@ -94,13 +95,17 @@ export class ExchangeTx extends IEntity {
 }
 
 export interface ExchangeSync {
-  exchange: string;
+  exchange: ExchangeName;
   tradeTokens?: string[];
   tokens?: string[];
   tokenReplacements: [string, string][];
 }
 
 export const ExchangeSyncs: ExchangeSync[] = [
-  { exchange: 'Kraken', tokens: ['EUR', 'CHF', 'USD', 'BTC', 'USDT', 'USDC', 'ETH', 'DAI'], tokenReplacements: [] },
-  { exchange: 'Binance', tradeTokens: ['BTC', 'USDT'], tokenReplacements: [['BTCB', 'BTC']] },
+  {
+    exchange: ExchangeName.KRAKEN,
+    tokens: ['EUR', 'CHF', 'USD', 'BTC', 'USDT', 'USDC', 'ETH', 'DAI'],
+    tokenReplacements: [],
+  },
+  { exchange: ExchangeName.BINANCE, tradeTokens: ['BTC', 'USDT'], tokenReplacements: [['BTCB', 'BTC']] },
 ];

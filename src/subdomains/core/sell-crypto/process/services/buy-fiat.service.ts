@@ -11,7 +11,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -51,6 +51,7 @@ export class BuyFiatService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
   ) {}
@@ -67,7 +68,7 @@ export class BuyFiatService {
     });
 
     // transaction
-    request = await this.getTxRequest(entity, request);
+    request = await this.getAndCompleteTxRequest(entity, request);
     entity.transaction = await this.transactionService.update(entity.transaction.id, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
@@ -89,21 +90,6 @@ export class BuyFiatService {
     await this.triggerWebhook(entity);
 
     return entity;
-  }
-
-  private async getTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
-    if (request) {
-      await this.transactionRequestService.complete(request.id);
-    } else {
-      request = await this.transactionRequestService.findAndComplete(
-        entity.inputAmount,
-        entity.sell.id,
-        entity.cryptoInput.asset.id,
-        entity.sell.fiat.id,
-      );
-    }
-
-    return request;
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -182,7 +168,7 @@ export class BuyFiatService {
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
-      dto.cryptoReturnDate
+      dto.chargebackDate
     )
       await this.triggerWebhook(entity);
 
@@ -353,7 +339,29 @@ export class BuyFiatService {
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: { isComplete: false },
+      relations: { cryptoInput: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.sell.id,
+        entity.cryptoInput.asset.id,
+        entity.sell.fiat.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {

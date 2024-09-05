@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { PaymentStandard } from '../enums';
 
 export class CreateInvoicePaymentDto {
   @ApiProperty()
@@ -14,16 +15,27 @@ export class CreateInvoicePaymentDto {
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.routeId || b.r))
   r: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.externalId || !b.e))
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.externalId || !(b.e || b.message || b.m)))
   externalId: string;
 
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.externalId || b.e))
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.e || !(b.externalId || b.message || b.m)))
   e: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @IsString()
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.message || !(b.m || b.externalId || b.e)))
+  message: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.m || !(b.message || b.externalId || b.e)))
+  m: string;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -55,4 +67,13 @@ export class CreateInvoicePaymentDto {
   @IsDate()
   @Type(() => Date)
   d: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(PaymentStandard)
+  standard?: PaymentStandard;
+
+  @IsOptional()
+  @IsEnum(PaymentStandard)
+  s?: PaymentStandard;
 }

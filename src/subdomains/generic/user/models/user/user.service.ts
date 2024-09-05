@@ -158,7 +158,7 @@ export class UserService {
     wallet?: Wallet,
     discountCode?: string,
   ): Promise<User> {
-    let user = this.userRepo.create({ address, signature });
+    let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
     user.ip = userIp;
     user.ipCountry = this.geoLocationService.getCountry(userIp);
@@ -442,7 +442,7 @@ export class UserService {
   }
 
   async activateUser(user: User): Promise<void> {
-    await this.userRepo.activateUser(user);
+    await this.userRepo.update(...user.activateUser());
     await this.userDataRepo.activateUserData(user.userData);
   }
 

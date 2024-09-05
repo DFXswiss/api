@@ -13,9 +13,9 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { CheckStatus } from './enums/check-status.enum';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { CheckStatus } from '../enums/check-status.enum';
 
 @Injectable()
 export class AmlService {
@@ -92,7 +92,7 @@ export class AmlService {
       entity.userData.kycLevel >= KycLevel.LEVEL_50
     ) {
       const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
-      await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId });
+      await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
     }
 
     if (entity instanceof BuyFiat) return { bankData, blacklist };

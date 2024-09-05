@@ -1,6 +1,6 @@
 import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserAddressType, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 
 export class UpdateUserAdminDto {
   @IsOptional()
@@ -34,4 +34,8 @@ export class UpdateUserAdminDto {
   @IsOptional()
   @IsBoolean()
   approved: boolean;
+
+  @IsOptional()
+  @IsEnum(UserAddressType)
+  addressType: UserAddressType;
 }

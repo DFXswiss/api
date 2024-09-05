@@ -4,7 +4,11 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInConfirmationType,
+  PayInStatus,
+} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -47,7 +51,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   abstract get assetType(): AssetType;
 
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
-  abstract checkConfirmations(payIns: CryptoInput[]): Promise<void>;
+  abstract checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void>;
 
   protected abstract getForwardAddress(): BlockchainAddress;
 
@@ -62,7 +66,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
         return payIn.forward(outTxId, feeAmount);
 
       case SendType.RETURN:
-        return payIn.return(outTxId);
+        return payIn.return(outTxId, feeAmount);
 
       default:
         this.logger.warn(`Unsupported SendType for updating with send data for pay-in ${payIn.id}`);
@@ -89,8 +93,12 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     return this.transactionHelper.getBlockchainFee(asset, true);
   }
 
-  protected async getEstimatedFee(asset: Asset, amount: number): Promise<{ nativeFee: number; targetFee: number }> {
-    const nativeFee = await this.payoutService.estimateFee(asset, this.getForwardAddress().address, amount, asset);
+  protected async getEstimatedFee(
+    asset: Asset,
+    amount: number,
+    targetAddress: string,
+  ): Promise<{ nativeFee: number; targetFee: number }> {
+    const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
     const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
 
     return { nativeFee: nativeFee.amount, targetFee };

@@ -1,6 +1,7 @@
 import { HttpService as Http } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
+import { createWriteStream } from 'fs';
 import { firstValueFrom } from 'rxjs';
 import { Util } from '../utils/util';
 
@@ -22,11 +23,7 @@ export class HttpService {
   }
 
   public async getRaw<T>(url: string, config?: HttpRequestConfig): Promise<AxiosResponse<T>> {
-    return Util.retry(
-      () => firstValueFrom(this.http.get<T>(url, config)),
-      config?.tryCount ?? 1,
-      config?.retryDelay,
-    );
+    return Util.retry(() => firstValueFrom(this.http.get<T>(url, config)), config?.tryCount ?? 1, config?.retryDelay);
   }
 
   public async put<T>(url: string, data: any, config?: HttpRequestConfig): Promise<T> {
@@ -73,5 +70,24 @@ export class HttpService {
     return (
       await Util.retry(() => firstValueFrom(this.http.request<T>(config)), config?.tryCount ?? 1, config?.retryDelay)
     ).data;
+  }
+
+  async downloadFile(fileUrl: string, filePath: string) {
+    const stream = await this.http.axiosRef.request({ method: 'GET', url: fileUrl, responseType: 'stream' });
+    const writer = createWriteStream(filePath);
+
+    return new Promise((resolve, reject) => {
+      stream.data.pipe(writer);
+
+      let error = null;
+
+      writer.on('error', (err) => {
+        error = err;
+        writer.close();
+        reject(err);
+      });
+
+      writer.on('close', () => !error && resolve(true));
+    });
   }
 }

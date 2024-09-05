@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -458,13 +457,15 @@ export class TransactionHelper implements OnModuleInit {
     // KYC checks
     if (isBuy) {
       if (
-        ((user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_2 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-          (user?.status === UserStatus.NA &&
-            user?.wallet.amlRule === AmlRule.RULE_3 &&
-            user?.userData.kycLevel < KycLevel.LEVEL_50)) &&
-        to.blockchain !== Blockchain.LIGHTNING
+        user?.status === UserStatus.NA &&
+        ((user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+          (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50) ||
+          (user?.wallet.amlRule === AmlRule.RULE_6 &&
+            paymentMethodIn === FiatPaymentMethod.CARD &&
+            user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+          (user?.wallet.amlRule === AmlRule.RULE_7 &&
+            paymentMethodIn === FiatPaymentMethod.CARD &&
+            user?.userData.kycLevel < KycLevel.LEVEL_50))
       )
         return QuoteError.KYC_REQUIRED;
     }

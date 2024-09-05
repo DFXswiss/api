@@ -8,7 +8,7 @@ import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.
 import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
-import { BankTx } from '../../bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';

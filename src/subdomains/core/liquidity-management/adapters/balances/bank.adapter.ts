@@ -1,21 +1,79 @@
 import { Injectable } from '@nestjs/common';
-import { isFiat } from 'src/shared/models/active';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { BankTxBatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service';
+import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
-import { LiquidityBalanceIntegration } from '../../interfaces';
+import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
 
 @Injectable()
 export class BankAdapter implements LiquidityBalanceIntegration {
-  getBalances(fiats: (Fiat & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {
-    if (!fiats.every(isFiat)) {
-      throw new Error(`BankAdapter supports only Fiat.`);
-    }
+  private readonly logger = new DfxLogger(BankAdapter);
 
-    throw new Error(`Method not implemented.`);
+  constructor(
+    private readonly bankService: BankService,
+    private readonly bankTxBatchService: BankTxBatchService,
+    private readonly olkypayService: OlkypayService,
+  ) {}
+
+  async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
+    const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(
+      assets,
+      'context',
+    );
+
+    const balances = await Util.doGetFulfilled(
+      Array.from(liquidityManagementAssets.entries()).map(([e, a]) =>
+        this.getForBank(
+          Object.values(BankName).find((b) => b === e),
+          a,
+        ),
+      ),
+    );
+
+    return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  getNumberOfPendingOrders(_fiat: Fiat): Promise<number> {
-    throw new Error(`Method not implemented.`);
+  async getNumberOfPendingOrders(_asset: Asset): Promise<number> {
+    return 0;
+  }
+
+  // --- HELPER METHODS --- //
+
+  async getForBank(bankName: BankName, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
+    const balances: LiquidityBalance[] = [];
+    try {
+      for (const asset of assets) {
+        let balance = 0;
+
+        switch (bankName) {
+          case BankName.OLKY:
+            balance = await this.olkypayService.getBalance().then((b) => b.balance);
+
+            break;
+
+          default:
+            const bank = await this.bankService.getBankInternal(bankName, asset.dexName);
+            const bankTxBatch = await this.bankTxBatchService.getBankTxBatchByIban(bank.iban);
+            if (!bankTxBatch) break;
+
+            balance =
+              bankTxBatch.balanceAfterCdi === 'CRDT' ? bankTxBatch.balanceAfterAmount : -bankTxBatch.balanceAfterAmount;
+
+            break;
+        }
+
+        balances.push(LiquidityBalance.create(asset, balance));
+      }
+
+      return balances;
+    } catch (e) {
+      this.logger.error(`Failed to update liquidity management balance for ${bankName}:`, e);
+      throw e;
+    }
   }
 }

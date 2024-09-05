@@ -87,6 +87,10 @@ export class PayInService {
     });
   }
 
+  async getPendingPayIns(): Promise<CryptoInput[]> {
+    return this.payInRepository.findBy({ status: PayInStatus.ACKNOWLEDGED, action: IsNull() });
+  }
+
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
@@ -153,10 +157,12 @@ export class PayInService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
-  async checkInputConfirmations(): Promise<void> {
+  async checkConfirmations(): Promise<void> {
     if (DisabledProcess(Process.PAY_IN)) return;
 
-    await this.checkConfirmations();
+    await this.checkInputConfirmations();
+    await this.checkOutputConfirmations();
+    await this.checkReturnConfirmations();
   }
 
   //*** HELPER METHODS ***//
@@ -177,6 +183,46 @@ export class PayInService {
       try {
         const strategy = group[0];
         await strategy.doSend(group[1], SendType.FORWARD);
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  private async checkOutputConfirmations(): Promise<void> {
+    const payIns = await this.payInRepository.find({
+      where: { status: PayInStatus.FORWARDED },
+      take: 10000,
+    });
+
+    if (payIns.length === 0) return;
+
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
+
+    for (const group of groups.entries()) {
+      try {
+        const strategy = group[0];
+        await strategy.checkConfirmations(group[1], 'Output');
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  private async checkReturnConfirmations(): Promise<void> {
+    const payIns = await this.payInRepository.find({
+      where: { status: PayInStatus.RETURNED },
+      take: 10000,
+    });
+
+    if (payIns.length === 0) return;
+
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
+
+    for (const group of groups.entries()) {
+      try {
+        const strategy = group[0];
+        await strategy.checkConfirmations(group[1], 'Return');
       } catch {
         continue;
       }
@@ -206,7 +252,7 @@ export class PayInService {
     }
   }
 
-  private async checkConfirmations(): Promise<void> {
+  private async checkInputConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       isConfirmed: false,
       status: Not(PayInStatus.FAILED),
@@ -219,7 +265,7 @@ export class PayInService {
     for (const group of groups.entries()) {
       try {
         const strategy = group[0];
-        await strategy.checkConfirmations(group[1]);
+        await strategy.checkConfirmations(group[1], 'Input');
       } catch {
         continue;
       }

@@ -6,6 +6,7 @@ export enum BankName {
   OLKY = 'Olkypay',
   MAERKI = 'Maerki Baumann',
   REVOLUT = 'Revolut',
+  KALEIDO = 'Kaleido',
 }
 
 @Entity()

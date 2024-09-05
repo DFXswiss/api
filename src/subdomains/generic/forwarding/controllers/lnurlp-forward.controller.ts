@@ -9,12 +9,17 @@ export class LnUrlPForwardController {
   constructor(private forwardService: LnUrlForwardService) {}
 
   @Get(':id')
-  async lnUrlPForward(@Param('id') id: string): Promise<LnurlPayRequestDto> {
-    return this.forwardService.lnurlpForward(id);
+  async lnUrlPForward(@Param('id') id: string, @Query() params: any): Promise<LnurlPayRequestDto> {
+    return this.forwardService.lnurlpForward(id, params);
   }
 
   @Get('cb/:id')
   async lnUrlPCallbackForward(@Param('id') id: string, @Query() params: any): Promise<any> {
     return this.forwardService.lnurlpCallbackForward(id, params);
+  }
+
+  @Get('tx/:id')
+  async txHexForward(@Param('id') id: string, @Query() params: any): Promise<any> {
+    return this.forwardService.txHexForward(id, params);
   }
 }

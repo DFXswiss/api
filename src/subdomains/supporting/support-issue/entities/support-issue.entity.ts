@@ -17,6 +17,7 @@ export enum SupportIssueType {
   KYC_ISSUE = 'KycIssue',
   LIMIT_REQUEST = 'LimitRequest',
   PARTNERSHIP_REQUEST = 'PartnershipRequest',
+  NOTIFICATION_OF_CHANGES = 'NotificationOfChanges',
 }
 
 export enum SupportIssueReason {

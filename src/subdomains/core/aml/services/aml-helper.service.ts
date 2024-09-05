@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -11,11 +10,11 @@ import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorResult, AmlErrorType } from './enums/aml-error.enum';
-import { AmlReason } from './enums/aml-reason.enum';
-import { CheckStatus } from './enums/check-status.enum';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 
 export class AmlHelperService {
   static getAmlErrors(
@@ -44,8 +43,7 @@ export class AmlHelperService {
     if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable) {
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
     }
-    if (ibanCountry && (!ibanCountry.fatfEnable || ibanCountry.symbol === 'AE'))
-      errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
+    if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
@@ -100,29 +98,36 @@ export class AmlHelperService {
             errors.push(AmlError.IP_MISMATCH);
           break;
         case AmlRule.RULE_2:
-          if (
-            entity.user.status === UserStatus.NA &&
-            entity.userData.kycLevel < KycLevel.LEVEL_30 &&
-            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
-          )
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
             errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
         case AmlRule.RULE_3:
-          if (
-            entity.user.status === UserStatus.NA &&
-            entity.userData.kycLevel < KycLevel.LEVEL_50 &&
-            entity.outputAsset.blockchain !== Blockchain.LIGHTNING
-          )
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
         case AmlRule.RULE_4:
           if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
+        case AmlRule.RULE_6:
+          if (entity.user.status === UserStatus.NA && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_30)
+            errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
+          break;
+        case AmlRule.RULE_7:
+          if (entity.user.status === UserStatus.NA && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_50)
+            errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+          break;
       }
 
       if (entity.bankTx) {
         // bank
-        if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_BIC], entity.bankTx.bic)))
+        if (
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_BIC, SpecialExternalAccountType.BANNED_BIC_BUY],
+              entity.bankTx.bic,
+            ),
+          )
+        )
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
           blacklist.some((b) =>
@@ -146,6 +151,7 @@ export class AmlHelperService {
         )
           errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
+        if (ibanCountry && !ibanCountry.checkoutEnable) errors.push(AmlError.CHECKOUT_COUNTRY_NOT_ALLOWED);
         if (
           blacklist.some((b) =>
             b.matches(

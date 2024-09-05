@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { ContentType, File, FileType } from '../../dto/kyc-file.dto';
+import { ContentType, FileType, KycFile } from '../../dto/kyc-file.dto';
 
 @Injectable()
-export class DocumentStorageService {
+export class KycDocumentService {
   private readonly storageService: AzureStorageService;
 
   constructor() {
     this.storageService = new AzureStorageService('kyc');
   }
 
-  async listUserFiles(userDataId: number): Promise<File[]> {
+  async listUserFiles(userDataId: number): Promise<KycFile[]> {
     return this.listFilesByPrefix(`user/${userDataId}/`);
   }
 
-  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<File[]> {
+  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<KycFile[]> {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
-  async listFilesByPrefix(prefix: string): Promise<File[]> {
+  async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
     const blobs = await this.storageService.listBlobs(prefix);
     return blobs.map((b) => {
       const [_, type, name] = this.fromFileId(b.name);
