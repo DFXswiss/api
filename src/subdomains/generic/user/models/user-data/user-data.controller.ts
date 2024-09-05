@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
@@ -23,7 +23,7 @@ export class UserDataController {
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
     private readonly feeService: FeeService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly kycLogService: KycLogService,
   ) {}
 
@@ -110,7 +110,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
-    const url = await this.storageService.uploadFile(
+    const url = await this.documentService.uploadFile(
       +id,
       dto.documentType,
       dto.originalName,
