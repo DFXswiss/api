@@ -3,7 +3,7 @@ import { mock } from 'jest-mock-extended';
 import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
-import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
+import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
 import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LightningService } from '../../../../../integration/lightning/services/lightning.service';
 import { createCustomLnurlpLRequest } from '../../dto/__mocks__/lnurlp.dto.mock';
@@ -14,7 +14,7 @@ import { LnUrlWForwardController } from '../lnurlw-forward.controller';
 
 describe('LnurlForward', () => {
   let httpServiceMock: HttpService;
-  let paymentLinkPaymentServiceMock: PaymentLinkPaymentService;
+  let paymentLinkServiceMock: PaymentLinkService;
   let paymentQuoteServiceMock: PaymentQuoteService;
   let paymentActivationServiceMock: PaymentActivationService;
   let lnurlpForward: LnUrlPForwardController;
@@ -35,7 +35,7 @@ describe('LnurlForward', () => {
     };
 
     httpServiceMock = mock<HttpService>();
-    paymentLinkPaymentServiceMock = mock<PaymentLinkPaymentService>();
+    paymentLinkServiceMock = mock<PaymentLinkService>();
     paymentQuoteServiceMock = mock<PaymentQuoteService>();
     paymentActivationServiceMock = mock<PaymentActivationService>();
 
@@ -44,7 +44,7 @@ describe('LnurlForward', () => {
       providers: [
         TestUtil.provideConfig(config),
         { provide: HttpService, useValue: httpServiceMock },
-        { provide: PaymentLinkPaymentService, useValue: paymentLinkPaymentServiceMock },
+        { provide: PaymentLinkService, useValue: paymentLinkServiceMock },
         { provide: PaymentQuoteService, useValue: paymentQuoteServiceMock },
         { provide: PaymentActivationService, useValue: paymentActivationServiceMock },
         LightningService,

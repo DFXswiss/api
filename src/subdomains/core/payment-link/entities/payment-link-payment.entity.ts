@@ -82,11 +82,7 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get displayName(): string {
-    return (
-      this.link.route.userData.paymentLinksName ??
-      this.link.route.userData.verifiedName ??
-      `Payment ${this.metaId} to ${this.link.metaId}`
-    );
+    return this.link.displayName(this.metaId);
   }
 
   get memo(): string {

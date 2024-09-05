@@ -52,6 +52,17 @@ export interface PaymentLinkPayRequestDto {
   transferAmounts: TransferAmount[];
 }
 
+export interface PaymentLinkPaymentNotFoundDto {
+  statusCode: number;
+  message: string;
+  error: string;
+
+  displayName: string;
+  standard: PaymentStandard;
+  possibleStandards: PaymentStandard[];
+  recipient: PaymentLinkRecipientDto;
+}
+
 export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;

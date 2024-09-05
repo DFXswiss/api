@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/utils/util';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -7,11 +8,14 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
+import { PaymentLinkPaymentNotFoundDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkStatus } from '../enums';
+import { PaymentLinkPaymentMode, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
+import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
@@ -20,6 +24,7 @@ export class PaymentLinkService {
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentQuoteService: PaymentQuoteService,
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
   ) {}
@@ -137,6 +142,73 @@ export class PaymentLinkService {
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
+  }
+
+  async createPaymentLinkPayRequest(
+    uniqueId: string,
+    standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
+  ): Promise<PaymentLinkPayRequestDto> {
+    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
+
+    const { standards } = pendingPayment.link.configObj;
+    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+
+    const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
+
+    const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
+    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
+
+    const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
+
+    const payRequest: PaymentLinkPayRequestDto = {
+      tag: 'payRequest',
+      callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
+      minSendable: msatTransferAmount,
+      maxSendable: msatTransferAmount,
+      metadata: LightningHelper.createLnurlMetadata(pendingPayment.memo),
+      displayName: pendingPayment.displayName,
+      standard: usedStandard,
+      possibleStandards: standards,
+      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
+      quote: {
+        id: actualQuote.uniqueId,
+        expiration: actualQuote.expiryDate,
+      },
+      requestedAmount: {
+        asset: pendingPayment.currency.name,
+        amount: pendingPayment.amount,
+      },
+      transferAmounts: actualQuote.transferAmountsAsObj,
+    };
+
+    return payRequest;
+  }
+
+  private async noPendingPaymentResponse(
+    uniqueId: string,
+    standardParam: PaymentStandard,
+  ): Promise<PaymentLinkPaymentNotFoundDto | string> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { uniqueId, status: PaymentLinkStatus.ACTIVE },
+      relations: { route: { user: { userData: true } } },
+    });
+
+    if (!paymentLink) return `Active payment link not found by id ${uniqueId}`;
+
+    const { standards } = paymentLink.configObj;
+    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+
+    return {
+      statusCode: new NotFoundException().getStatus(),
+      message: 'No pending payment found',
+      error: 'Not Found',
+
+      displayName: paymentLink.displayName(),
+      standard: usedStandard,
+      possibleStandards: standards,
+      recipient: PaymentLinkDtoMapper.toRecipientDto(paymentLink),
+    };
   }
 
   async update(
