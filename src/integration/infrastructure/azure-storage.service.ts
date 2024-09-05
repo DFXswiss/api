@@ -1,18 +1,20 @@
-import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import { BlobGetPropertiesResponse, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import { Config, GetConfig } from 'src/config/config';
 
-export interface Blob {
-  name: string;
-  url: string;
+export interface BlobMetaData {
   contentType: string;
   created: Date;
   updated: Date;
   metadata: Record<string, string>;
 }
 
-export interface BlobContent {
+export interface Blob extends BlobMetaData {
+  name: string;
+  url: string;
+}
+
+export interface BlobContent extends BlobMetaData {
   data: Buffer;
-  contentType: string;
 }
 
 export class AzureStorageService {
@@ -34,11 +36,9 @@ export class AzureStorageService {
       const batch = await iterator.next();
 
       const items: Blob[] = batch.value?.segment?.blobItems?.map((i) => ({
+        ...this.mapProperties(i.properties),
         name: i.name,
         url: this.blobUrl(i.name),
-        contentType: i.properties.contentType,
-        created: i.properties.createdOn,
-        updated: i.properties.lastModified,
         metadata: i.metadata,
       }));
       if (items) blobs.push(...items);
@@ -51,8 +51,11 @@ export class AzureStorageService {
 
   async getBlob(name: string): Promise<BlobContent> {
     const blobClient = this.client.getBlockBlobClient(name);
-    const { contentType } = await blobClient.getProperties();
-    return { contentType: contentType, data: await blobClient.downloadToBuffer() };
+    const properties = await blobClient.getProperties();
+    return {
+      ...this.mapProperties(properties),
+      data: await blobClient.downloadToBuffer(),
+    };
   }
 
   async uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
@@ -73,11 +76,22 @@ export class AzureStorageService {
     }
   }
 
-  private blobUrl(name: string): string {
-    const urlEncodedName = name
-      .split('/')
-      .map((p) => encodeURIComponent(p))
-      .join('/');
+  blobUrl(name: string): string {
+    const urlEncodedName = name.split('/').map(encodeURIComponent).join('/');
     return `${Config.azure.storage.url}${this.container}/${urlEncodedName}`;
+  }
+
+  blobName(url: string): string {
+    const filePath = url.split(`${this.container}/`)[1];
+    return filePath.split('/').map(decodeURIComponent).join('/');
+  }
+
+  private mapProperties(properties: BlobGetPropertiesResponse): BlobMetaData {
+    return {
+      contentType: properties.contentType,
+      created: properties.createdOn,
+      updated: properties.lastModified,
+      metadata: properties.metadata,
+    };
   }
 }
