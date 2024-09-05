@@ -1,7 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
-import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmHexPaymentDto,
   PaymentLinkEvmPaymentDto,
@@ -14,7 +13,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
 import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
-import { LnurlWithdrawRequestDto, LnurlwInvoiceDto } from '../../../../integration/lightning/dto/lnurlw.dto';
+import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
 import { LightningHelper } from '../../../../integration/lightning/lightning-helper';
 import { LightningService } from '../../../../integration/lightning/services/lightning.service';
@@ -28,7 +27,7 @@ export class LnUrlForwardService {
 
   constructor(
     lightningService: LightningService,
-    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
   ) {
@@ -41,51 +40,10 @@ export class LnUrlForwardService {
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
-      return this.createPaymentLinkPayRequest(id, Util.toEnum(PaymentStandard, params.standard));
+      return this.paymentLinkService.createPaymentLinkPayRequest(id, Util.toEnum(PaymentStandard, params.standard));
     }
 
     return this.createLnurlpPayRequest(id);
-  }
-
-  async createPaymentLinkPayRequest(
-    uniqueId: string,
-    standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
-  ): Promise<PaymentLinkPayRequestDto> {
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException('No pending payment found');
-
-    const { standards } = pendingPayment.link.configObj;
-    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
-
-    const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
-
-    const btcTransferAmount = actualQuote.getTransferAmountFor(Blockchain.LIGHTNING, 'BTC');
-    if (!btcTransferAmount) throw new NotFoundException('No BTC transfer amount found');
-
-    const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
-
-    const payRequest: PaymentLinkPayRequestDto = {
-      tag: 'payRequest',
-      callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
-      minSendable: msatTransferAmount,
-      maxSendable: msatTransferAmount,
-      metadata: LightningHelper.createLnurlMetadata(pendingPayment.memo),
-      displayName: pendingPayment.displayName,
-      standard: usedStandard,
-      possibleStandards: standards,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
-      quote: {
-        id: actualQuote.uniqueId,
-        expiration: actualQuote.expiryDate,
-      },
-      requestedAmount: {
-        asset: pendingPayment.currency.name,
-        amount: pendingPayment.amount,
-      },
-      transferAmounts: actualQuote.transferAmountsAsObj,
-    };
-
-    return payRequest;
   }
 
   private async createLnurlpPayRequest(lnurlpId: string): Promise<LnurlPayRequestDto> {
