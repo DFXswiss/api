@@ -131,6 +131,13 @@ export class PaymentQuoteService {
     );
   }
 
+  async getQuoteByTxId(txId: string) {
+    return this.paymentQuoteRepo.findOne({
+      where: { txId: Equal(txId) },
+      relations: { payment: true },
+    });
+  }
+
   async getAmountFromQuote(actualQuote: PaymentQuote, transferInfo: TransferInfo): Promise<number | undefined> {
     const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
     return transferAmountAsset?.amount;
@@ -331,6 +338,10 @@ export class PaymentQuoteService {
       message,
       txId,
     };
+  }
+
+  async saveTransactionId(id: number, txId: string, txBlockchain: Blockchain): Promise<void> {
+    await this.paymentQuoteRepo.update(id, { txId, txBlockchain });
   }
 
   private async saveTransaction(uniqueId: string, txBlockchain: Blockchain, tx: string): Promise<void> {
