@@ -20,7 +20,7 @@ export class SupportIssueDtoMapper {
       name: supportIssue.name,
       created: supportIssue.created,
       transaction: SupportIssueDtoMapper.mapTransaction(supportIssue.transaction),
-      messages: supportIssue.messages.map(SupportIssueDtoMapper.mapSupportMessage),
+      messages: supportIssue.messages?.map(SupportIssueDtoMapper.mapSupportMessage),
       limitRequest: SupportIssueDtoMapper.mapLimitRequest(supportIssue.limitRequest),
     };
 

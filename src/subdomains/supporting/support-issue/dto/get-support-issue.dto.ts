@@ -1,9 +1,16 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, ValidateIf } from 'class-validator';
-import { SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.entity';
 
 export class GetSupportIssueFilter {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => +value)
+  @IsInt()
+  @ValidateIf((o: GetSupportIssueFilter) => Boolean(!o.type || o.id))
+  id?: number;
+
   @ApiPropertyOptional({ enum: SupportIssueType })
   @IsOptional()
   @IsEnum(SupportIssueType)
@@ -13,19 +20,18 @@ export class GetSupportIssueFilter {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => +value)
+  @IsEnum(SupportIssueReason)
+  reason?: SupportIssueReason;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => +value)
   @IsInt()
-  @ValidateIf((o: GetSupportIssueFilter) => Boolean(!o.type || o.id))
-  id?: number;
+  transactionId?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => +value)
   @IsInt()
   fromMessageId?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Transform(({ value }) => +value)
-  @IsInt()
-  maxLastMessages?: number;
 }

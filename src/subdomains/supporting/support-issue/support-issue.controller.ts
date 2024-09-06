@@ -49,13 +49,13 @@ export class SupportIssueController {
     );
   }
 
-  @Get(':id/message/:message-id/file')
+  @Get(':id/message/:messageId/file')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async getFile(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Param('message-id') messageId: string,
+    @Param('messageId') messageId: string,
   ): Promise<BlobContent> {
     return this.supportIssueService.getSupportIssueFile(jwt.account, +id, +messageId);
   }

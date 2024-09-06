@@ -124,15 +124,18 @@ export class SupportIssueService {
   async getSupportIssue(userDataId: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
     const supportIssue = await this.supportIssueRepo.findOneBy({
       userData: { id: userDataId },
-      type: query.type,
       id: query.id,
+      type: query.type,
+      reason: query.reason,
+      transaction: { id: query.transactionId },
+      state: Not(SupportIssueState.COMPLETED),
     });
 
     if (!supportIssue) throw new NotFoundException('Support issue not found');
 
-    supportIssue.messages = await this.messageRepo.find({
-      where: { issue: { id: supportIssue.id }, id: MoreThan(query.fromMessageId) },
-      take: query.maxLastMessages,
+    supportIssue.messages = await this.messageRepo.findBy({
+      issue: { id: supportIssue.id },
+      id: MoreThan(query.fromMessageId ?? 0),
     });
 
     return SupportIssueDtoMapper.mapSupportIssue(supportIssue);
@@ -142,7 +145,8 @@ export class SupportIssueService {
     const message = await this.messageRepo.findOneBy({ id: messageId, issue: { id } });
 
     const allDocuments = await this.storageService.listUserFiles(userDataId);
-    const document = allDocuments.find((d) => d.name.includes(message.fileUrl));
+
+    const document = allDocuments.find((d) => d.url === message.fileUrl);
     if (!document) throw new NotFoundException('File not found');
 
     return this.storageService.downloadFile(userDataId, document.type, document.name);
