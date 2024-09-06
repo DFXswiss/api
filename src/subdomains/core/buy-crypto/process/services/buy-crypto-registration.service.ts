@@ -41,16 +41,20 @@ export class BuyCryptoRegistrationService {
 
     if (newPayIns.length === 0) return;
 
-    const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
+    try {
+      const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
 
-    buyCryptoPayIns.length > 0 &&
-      this.logger.verbose(
-        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
-          (s) => s[0].id,
-        )}`,
-      );
+      buyCryptoPayIns.length > 0 &&
+        this.logger.verbose(
+          `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
+            (s) => s[0].id,
+          )}`,
+        );
 
-    await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
+      await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
+    } catch (e) {
+      this.logger.error('Error while registering new buyCrypto cryptoInput payIns');
+    }
   }
 
   //*** HELPER METHODS ***//

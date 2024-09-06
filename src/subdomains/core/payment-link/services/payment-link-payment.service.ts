@@ -17,10 +17,11 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
+import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -46,6 +47,13 @@ export class PaymentLinkPaymentService {
 
   getDeviceActivationObservable(): Observable<PaymentDevice> {
     return this.deviceActivationSubject.asObservable();
+  }
+
+  async updatePayment(id: number, dto: UpdatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+    const entity = await this.paymentLinkPaymentRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('Payment not found');
+
+    return this.paymentLinkPaymentRepo.save(Object.assign(entity, dto));
   }
 
   // --- HANDLE PENDING PAYMENTS --- //
@@ -83,11 +91,8 @@ export class PaymentLinkPaymentService {
   async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
     const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
-        activations: { asset: { id: asset.id }, amount },
+        activations: { status: PaymentActivationStatus.PENDING, asset: { id: asset.id }, amount },
         status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        activations: true,
       },
     });
 
@@ -190,6 +195,8 @@ export class PaymentLinkPaymentService {
       this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No pending payment found by asset ${cryptoInput.asset.id}`);
       return;
     }
+
+    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     const pendingActivationData = this.paymentActivationService.getPendingActivation(
       pendingPayment,

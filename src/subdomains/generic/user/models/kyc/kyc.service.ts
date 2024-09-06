@@ -11,8 +11,8 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { ContentType, File, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { ContentType, FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import {
   Blank,
   BlankType,
@@ -43,7 +43,7 @@ export class KycService {
     private readonly walletRepo: WalletRepository,
     private readonly countryService: CountryService,
     private readonly http: HttpService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
   ) {}
 
   // --- KYC DATA --- //
@@ -99,10 +99,10 @@ export class KycService {
   ): Promise<boolean> {
     const userData = await this.getUser(code, userDataId);
 
-    const upload = await this.storageService.uploadFile(
+    const upload = await this.documentService.uploadFile(
       userData.id,
       kycDocument,
-      `${Util.isoDate(new Date()).split('-').join('')}-incorporation-certificate-${document.filename}`,
+      `${Util.isoDateTime(new Date())}-incorporation-certificate-${Util.randomId()}-${document.filename}`,
       document.buffer,
       document.mimetype as ContentType,
     );
@@ -177,7 +177,7 @@ export class KycService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const allDocuments = await this.documentService.listUserFiles(user.userData.id);
 
     return Object.values(KycDocumentType)
       .map((type) => ({ type, info: this.getFileFor(type, allDocuments) }))
@@ -192,11 +192,11 @@ export class KycService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const allDocuments = await this.documentService.listUserFiles(user.userData.id);
     const document = this.getFileFor(type, allDocuments);
     if (!document) throw new NotFoundException('File not found');
 
-    return this.storageService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+    return this.documentService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //
@@ -208,11 +208,11 @@ export class KycService {
     };
   }
 
-  private toKycFileDto(type: KycDocumentType, { contentType }: File): KycFileDto {
+  private toKycFileDto(type: KycDocumentType, { contentType }: KycFile): KycFileDto {
     return { type, contentType };
   }
 
-  private getFileFor(type: KycDocumentType, documents: File[]): File | undefined {
+  private getFileFor(type: KycDocumentType, documents: KycFile[]): KycFile | undefined {
     switch (type) {
       case KycDocumentType.IDENTIFICATION:
         return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);

@@ -92,7 +92,7 @@ export class AmlService {
       entity.userData.kycLevel >= KycLevel.LEVEL_50
     ) {
       const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
-      await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId });
+      await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
     }
 
     if (entity instanceof BuyFiat) return { bankData, blacklist };

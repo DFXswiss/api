@@ -16,8 +16,8 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { File } from '../kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
+import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
@@ -57,7 +57,7 @@ export class GsService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly dataSource: DataSource,
-    private readonly documentStorageService: DocumentStorageService,
+    private readonly kycDocumentService: KycDocumentService,
     private readonly transactionService: TransactionService,
     private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
@@ -67,10 +67,21 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
-    const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
+    const additionalSelect = Array.from(
+      new Set(
+        query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || [],
+      ),
+    );
+
+    const data = await this.getRawDbData({
+      ...query,
+      select: [...query.select?.filter((s) => !s.includes('-')), ...additionalSelect],
+    });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);
+
+    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -112,6 +123,48 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
+  private setJsonData(data: any[], selects: string[]): void {
+    const jsonSelects = selects.filter((s) => s.includes('-') && !s.includes('documents'));
+
+    for (const select of jsonSelects) {
+      const [field, jsonPath] = select.split('-');
+
+      data.map((d) => {
+        const parsedJsonData = this.getParsedJsonData(d[field], jsonPath);
+
+        d[select] =
+          typeof parsedJsonData === 'object' && parsedJsonData !== null
+            ? JSON.stringify(parsedJsonData)
+            : parsedJsonData;
+
+        return d;
+      });
+    }
+  }
+
+  private getParsedJsonData(jsonString: string, jsonPath: string) {
+    try {
+      const jsonValue = JSON.parse(jsonString);
+
+      const parsedJsonData = jsonPath.split('.').reduce((o, k) => {
+        if (o) {
+          if (Array.isArray(o) && k.includes('=')) {
+            const [key, value] = k.split('=');
+            return o.find((e) => e[key]?.toString() === value?.toString());
+          }
+
+          return o[k];
+        }
+      }, jsonValue);
+
+      if (parsedJsonData == jsonValue) return null;
+
+      return parsedJsonData;
+    } catch {
+      return null;
+    }
+  }
+
   private async setUserDataDocs(data: UserData[], select: string[], sorting: 'ASC' | 'DESC'): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
     const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
@@ -122,7 +175,7 @@ export class GsService {
 
       const docs = Util.sort(
         commonPathPrefix
-          ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+          ? await this.kycDocumentService.listFilesByPrefix(commonPathPrefix)
           : await this.getAllUserDocuments(userDataId, userData.accountType),
         'created',
         sorting,
@@ -135,13 +188,11 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<File[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFile[]> {
     return [
-      ...(await this.documentStorageService.listUserFiles(userDataId)),
-      ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-      ...(accountType !== AccountType.PERSONAL
-        ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-        : []),
+      ...(await this.kycDocumentService.listUserFiles(userDataId)),
+      ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
+      ...(accountType !== AccountType.PERSONAL ? await this.kycDocumentService.listSpiderFiles(userDataId, true) : []),
     ];
   }
 

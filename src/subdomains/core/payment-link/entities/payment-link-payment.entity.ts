@@ -42,20 +42,20 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ nullable: false, default: 0 })
   txCount: number;
 
+  @Column({ length: 256, nullable: true })
+  deviceId: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  deviceCommand: string;
+
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
-  cryptoInput: CryptoInput;
+  cryptoInputs: CryptoInput[];
 
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
 
   @OneToMany(() => PaymentQuote, (quote) => quote.payment, { nullable: true })
   quotes: PaymentQuote[];
-
-  @Column({ length: 256, nullable: true })
-  deviceId: string;
-
-  @Column({ length: 'MAX', nullable: true })
-  deviceCommand: string;
 
   // --- ENTITY METHODS --- //
 
@@ -82,11 +82,7 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get displayName(): string {
-    return (
-      this.link.route.userData.paymentLinksName ??
-      this.link.route.userData.verifiedName ??
-      `Payment ${this.metaId} to ${this.link.metaId}`
-    );
+    return this.link.displayName(this.metaId);
   }
 
   get memo(): string {
