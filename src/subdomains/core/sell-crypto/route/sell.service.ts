@@ -40,6 +40,7 @@ export class SellService {
     private readonly userDataService: UserDataService,
     private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
