@@ -337,17 +337,17 @@ export class TransactionController {
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
-        refundUserAddress: dto.refundAddress,
+        refundUserAddress: dto.refundTarget,
         ...refundDto,
       });
 
     if (transaction.cryptoInput)
       return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
-        refundUserAddress: dto.refundAddress,
+        refundUserAddress: dto.refundTarget,
         ...refundDto,
       });
 
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, { refundIban: dto.refundIban, ...refundDto });
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, { refundIban: dto.refundTarget, ...refundDto });
   }
 
   // --- HELPER METHODS --- //
