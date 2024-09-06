@@ -39,4 +39,21 @@ export class AssetPricesService {
       }
     }
   }
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Lock(3600)
+  async updatePaymentPrices() {
+    if (DisabledProcess(Process.PRICING)) return;
+
+    const relevantFiats = await this.fiatService.getActiveFiat();
+    const relevantAssets = await this.assetService.getPaymentAssets();
+
+    for (const asset of relevantAssets) {
+      try {
+        await Promise.all(relevantFiats.map((f) => this.pricingService.getPrice(asset, f, false)));
+      } catch (e) {
+        this.logger.error(`Failed to update price of payment asset ${asset.uniqueName}:`, e);
+      }
+    }
+  }
 }

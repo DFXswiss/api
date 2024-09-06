@@ -49,7 +49,7 @@ export class PaymentLinkPayment extends IEntity {
   deviceCommand: string;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
-  cryptoInput: CryptoInput;
+  cryptoInputs: CryptoInput[];
 
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
@@ -82,11 +82,7 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get displayName(): string {
-    return (
-      this.link.route.userData.paymentLinksName ??
-      this.link.route.userData.verifiedName ??
-      `Payment ${this.metaId} to ${this.link.metaId}`
-    );
+    return this.link.displayName(this.metaId);
   }
 
   get memo(): string {

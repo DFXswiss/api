@@ -21,7 +21,7 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -91,11 +91,8 @@ export class PaymentLinkPaymentService {
   async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
     const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
-        activations: { asset: { id: asset.id }, amount },
+        activations: { status: PaymentActivationStatus.PENDING, asset: { id: asset.id }, amount },
         status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        activations: true,
       },
     });
 
@@ -198,6 +195,8 @@ export class PaymentLinkPaymentService {
       this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No pending payment found by asset ${cryptoInput.asset.id}`);
       return;
     }
+
+    await this.paymentQuoteService.saveBlockchainConfirmed(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     const pendingActivationData = this.paymentActivationService.getPendingActivation(
       pendingPayment,

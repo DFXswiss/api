@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
@@ -22,7 +22,7 @@ export class LimitRequestService {
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly userDataService: UserDataService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
     private readonly supportIssueRepo: SupportIssueRepository,
@@ -38,10 +38,10 @@ export class LimitRequestService {
     if (dto.documentProof) {
       const { contentType, buffer } = Util.fromBase64(dto.documentProof);
 
-      const documentProofUrl = await this.storageService.uploadFile(
+      const documentProofUrl = await this.documentService.uploadFile(
         user.id,
         FileType.USER_NOTES,
-        `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
+        `${Util.isoDateTime(new Date())}_limit-request_user-upload_${Util.randomId()}_${dto.documentProofName}`,
         buffer,
         contentType as ContentType,
       );

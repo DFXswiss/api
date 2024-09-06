@@ -122,7 +122,7 @@ export class CryptoInput extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
   buyCrypto: BuyCrypto;
 
-  @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInput, { nullable: true })
+  @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInputs, { nullable: true })
   paymentLinkPayment: PaymentLinkPayment;
 
   //*** FACTORY METHODS ***//

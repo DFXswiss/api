@@ -67,13 +67,14 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   defaultMessage(args: ValidationArguments): string | undefined {
     // IBAN tools
     const { valid } = IbanTools.validateIBAN(args.value);
-    if (!valid) return `${args.property} not valid`;
+    if (!valid || (!this.currentBIC && !args.value.startsWith('CH') && !args.value.startsWith('LI')))
+      return `${args.property} not valid`;
 
     // check blocked IBANs
     const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(args.value.toLowerCase()));
     if (isBlocked) return `${args.property} not allowed`;
 
-    if (this.blockedBICs.some((b) => new RegExp(b.toLowerCase()).test(this.currentBIC.toLowerCase())))
+    if (this.blockedBICs.some((b) => new RegExp(b.toLowerCase()).test(this.currentBIC?.toLowerCase())))
       return `${args.property} BIC not allowed`;
   }
 }
