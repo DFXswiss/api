@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { TradingOrderService } from './trading-order.service';
@@ -8,8 +7,6 @@ import { TradingRuleService } from './trading-rule.service';
 
 @Injectable()
 export class TradingJobService {
-  private readonly logger = new DfxLogger(TradingJobService);
-
   constructor(private readonly ruleService: TradingRuleService, private readonly orderService: TradingOrderService) {}
 
   // --- RULES --- //

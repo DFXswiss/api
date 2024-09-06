@@ -20,7 +20,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Like, Not } from 'typeorm';
+import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
@@ -93,6 +93,10 @@ export class SellService {
     });
 
     return sells.filter((s) => s.deposit.blockchainList.some((b) => sellableBlockchains.includes(b)));
+  }
+
+  async getSellWithoutRoute(): Promise<Sell[]> {
+    return this.sellRepo.findBy({ route: { id: IsNull() } });
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {

@@ -97,6 +97,10 @@ export class SwapService {
       .then((r) => r.volume);
   }
 
+  async getSwapWithoutRoute(): Promise<Swap[]> {
+    return this.swapRepo.findBy({ route: { id: IsNull() } });
+  }
+
   // --- SWAPS --- //
   async get(userId: number, id: number): Promise<Swap> {
     return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });

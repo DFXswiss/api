@@ -8,7 +8,7 @@ import { Sell } from '../sell-crypto/route/sell.entity';
 
 @Entity()
 export class Route extends IEntity {
-  @Column({ length: 256, unique: true })
+  @Column({ length: 256, unique: true, nullable: true })
   label: string;
 
   // References

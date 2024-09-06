@@ -54,6 +54,7 @@ export enum Process {
   UPDATE_GAS_PRICE = 'UpdateGasPrice',
   SANCTION_SYNC = 'SanctionSync',
   CHECK_TX_CONFIRMATIONS = 'CheckTxConfirmations',
+  ROUTE_SYNC = 'RouteSync',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
