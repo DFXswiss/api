@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
-import { Transaction } from '../../payment/entities/transaction.entity';
+import {
+  FundOrigin,
+  InvestmentDate,
+  LimitRequestDecision,
+} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
+import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 
 export class SupportMessageDto {
@@ -18,6 +22,49 @@ export class SupportMessageDto {
 
   @ApiPropertyOptional()
   fileUrl?: string;
+
+  @ApiPropertyOptional()
+  fileName?: string;
+}
+
+export class SupportIssueTransactionDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  uid: string;
+
+  @ApiProperty()
+  externalId: string;
+
+  @ApiProperty()
+  sourceType: TransactionSourceType;
+
+  @ApiProperty()
+  type: TransactionTypeInternal;
+
+  @ApiProperty()
+  url: string;
+}
+
+export class SupportIssueLimitRequestDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiProperty()
+  investmentDate: InvestmentDate;
+
+  @ApiProperty()
+  fundOrigin: FundOrigin;
+
+  @ApiProperty()
+  fundOriginText: string;
+
+  @ApiProperty()
+  decision: LimitRequestDecision;
 }
 
 export class SupportIssueDto {
@@ -45,9 +92,9 @@ export class SupportIssueDto {
   @ApiPropertyOptional()
   information?: string;
 
-  @ApiPropertyOptional({ type: Transaction })
-  transaction?: Transaction;
+  @ApiPropertyOptional({ type: SupportIssueTransactionDto })
+  transaction?: SupportIssueTransactionDto;
 
-  @ApiPropertyOptional({ type: LimitRequest })
-  limitRequest?: LimitRequest;
+  @ApiPropertyOptional({ type: SupportIssueLimitRequestDto })
+  limitRequest?: SupportIssueLimitRequestDto;
 }

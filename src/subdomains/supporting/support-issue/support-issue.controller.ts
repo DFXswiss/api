@@ -8,7 +8,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
-import { GetSupportFile } from './dto/get-support-file.dto';
 import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
 import { SupportIssueDto, SupportMessageDto } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
@@ -50,11 +49,15 @@ export class SupportIssueController {
     );
   }
 
-  @Get('/file')
+  @Get(':id/message/:message-id/file')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async getFile(@GetJwt() jwt: JwtPayload, @Query() query: GetSupportFile): Promise<BlobContent> {
-    return this.supportIssueService.getSupportIssueFile(jwt.account, query.name);
+  async getFile(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Param('message-id') messageId: string,
+  ): Promise<BlobContent> {
+    return this.supportIssueService.getSupportIssueFile(jwt.account, +id, +messageId);
   }
 
   // --- SUPPORT --- //

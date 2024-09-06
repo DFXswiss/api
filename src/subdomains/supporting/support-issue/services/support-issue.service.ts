@@ -5,7 +5,7 @@ import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.d
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { In, Not } from 'typeorm';
+import { In, MoreThan, Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -73,9 +73,11 @@ export class SupportIssueService {
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
 
-    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
+    const supportMessage = await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
 
-    return this.getSupportIssue(userDataId, { type: entity.type, id: entity.id, lastMessages: 1 });
+    const supportIssue = SupportIssueDtoMapper.mapSupportIssue(entity);
+
+    return { ...supportIssue, messages: [supportMessage] };
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
@@ -120,8 +122,6 @@ export class SupportIssueService {
   }
 
   async getSupportIssue(userDataId: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
-    if (!query.type && !query.id) throw new BadRequestException('Type or id is required');
-
     const supportIssue = await this.supportIssueRepo.findOneBy({
       userData: { id: userDataId },
       type: query.type,
@@ -130,20 +130,19 @@ export class SupportIssueService {
 
     if (!supportIssue) throw new NotFoundException('Support issue not found');
 
-    const messages = await this.messageRepo.findBy({ issue: { id: supportIssue.id } });
-    supportIssue.messages =
-      query.fromMessageId > 0
-        ? messages.filter((m) => m.id > query.fromMessageId)
-        : query.lastMessages > 0
-        ? messages.slice(-query.lastMessages)
-        : messages;
+    supportIssue.messages = await this.messageRepo.find({
+      where: { issue: { id: supportIssue.id }, id: MoreThan(query.fromMessageId) },
+      take: query.maxLastMessages,
+    });
 
     return SupportIssueDtoMapper.mapSupportIssue(supportIssue);
   }
 
-  async getSupportIssueFile(userDataId: number, name: string): Promise<BlobContent> {
+  async getSupportIssueFile(userDataId: number, id: number, messageId: number): Promise<BlobContent> {
+    const message = await this.messageRepo.findOneBy({ id: messageId, issue: { id } });
+
     const allDocuments = await this.storageService.listUserFiles(userDataId);
-    const document = allDocuments.find((d) => d.name.includes(name));
+    const document = allDocuments.find((d) => d.name.includes(message.fileUrl));
     if (!document) throw new NotFoundException('File not found');
 
     return this.storageService.downloadFile(userDataId, document.type, document.name);

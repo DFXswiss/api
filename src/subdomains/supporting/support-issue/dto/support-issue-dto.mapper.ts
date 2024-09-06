@@ -1,6 +1,14 @@
+import { Config } from 'src/config/config';
+import { Transaction } from '../../payment/entities/transaction.entity';
+import { LimitRequest } from '../entities/limit-request.entity';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { SupportMessage } from '../entities/support-message.entity';
-import { SupportIssueDto, SupportMessageDto } from './support-issue.dto';
+import {
+  SupportIssueDto,
+  SupportIssueLimitRequestDto,
+  SupportIssueTransactionDto,
+  SupportMessageDto,
+} from './support-issue.dto';
 
 export class SupportIssueDtoMapper {
   static mapSupportIssue(supportIssue: SupportIssue): SupportIssueDto {
@@ -11,10 +19,9 @@ export class SupportIssueDtoMapper {
       reason: supportIssue.reason,
       name: supportIssue.name,
       created: supportIssue.created,
-      information: supportIssue.information,
-      transaction: supportIssue.transaction,
+      transaction: SupportIssueDtoMapper.mapTransaction(supportIssue.transaction),
       messages: supportIssue.messages.map(SupportIssueDtoMapper.mapSupportMessage),
-      limitRequest: supportIssue.limitRequest,
+      limitRequest: SupportIssueDtoMapper.mapLimitRequest(supportIssue.limitRequest),
     };
 
     return Object.assign(new SupportIssueDto(), dto);
@@ -26,9 +33,36 @@ export class SupportIssueDtoMapper {
       author: supportMessage.author,
       created: supportMessage.created,
       message: supportMessage.message,
-      fileUrl: supportMessage.fileUrl,
+      fileUrl: `${Config.url()}/support/issue/${supportMessage.issue.id}/message/${supportMessage.id}/file`,
+      fileName: supportMessage.fileUrl?.split('/').pop(),
     };
 
     return Object.assign(new SupportMessageDto(), dto);
+  }
+
+  static mapTransaction(transaction: Transaction): SupportIssueTransactionDto {
+    if (!transaction) return null;
+
+    return {
+      id: transaction.id,
+      uid: transaction.uid,
+      externalId: transaction.externalId,
+      sourceType: transaction.sourceType,
+      type: transaction.type,
+      url: transaction.url,
+    };
+  }
+
+  static mapLimitRequest(limitRequest: LimitRequest): SupportIssueLimitRequestDto {
+    if (!limitRequest) return null;
+
+    return {
+      id: limitRequest.id,
+      limit: limitRequest.limit,
+      investmentDate: limitRequest.investmentDate,
+      fundOrigin: limitRequest.fundOrigin,
+      fundOriginText: limitRequest.fundOriginText,
+      decision: limitRequest.decision,
+    };
   }
 }
