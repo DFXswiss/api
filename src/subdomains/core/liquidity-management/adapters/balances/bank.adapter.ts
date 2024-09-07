@@ -51,37 +51,43 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     assets: LiquidityManagementAsset[],
   ): Promise<LiquidityBalance[]> {
     const balances: LiquidityBalance[] = [];
-    const checkoutBalances = bankName === CardBankName.CHECKOUT ? await this.checkoutService.getBalances() : undefined;
+
     try {
-      for (const asset of assets) {
-        let balance = 0;
+      switch (bankName) {
+        case IbanBankName.OLKY:
+          const balance = await this.olkypayService.getBalance().then((b) => b.balance);
+          assets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance)));
 
-        switch (bankName) {
-          case IbanBankName.OLKY:
-            balance = await this.olkypayService.getBalance().then((b) => b.balance);
+          break;
 
-            break;
+        case CardBankName.CHECKOUT:
+          const checkoutBalances =
+            bankName === CardBankName.CHECKOUT ? await this.checkoutService.getBalances() : undefined;
 
-          case CardBankName.CHECKOUT:
-            balance = checkoutBalances
+          assets.forEach((asset) => {
+            const balance = checkoutBalances
               .filter((b) => b.holding_currency === asset.dexName)
               .map((b) => b.balances.collateral / 100)
               .reduce((sum, cur) => sum + cur);
 
-            break;
+            balances.push(LiquidityBalance.create(asset, balance));
+          });
 
-          default:
+          break;
+
+        default:
+          for (const asset of assets) {
             const bank = await this.bankService.getBankInternal(bankName, asset.dexName);
             const bankTxBatch = await this.bankTxBatchService.getBankTxBatchByIban(bank.iban);
             if (!bankTxBatch) break;
 
-            balance =
+            const balance =
               bankTxBatch.balanceAfterCdi === 'CRDT' ? bankTxBatch.balanceAfterAmount : -bankTxBatch.balanceAfterAmount;
 
-            break;
-        }
+            balances.push(LiquidityBalance.create(asset, balance));
+          }
 
-        balances.push(LiquidityBalance.create(asset, balance));
+          break;
       }
 
       return balances;
