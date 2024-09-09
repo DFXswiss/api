@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -71,12 +70,8 @@ export class PayInService {
         { status: PayInStatus.CREATED, txType: IsNull() },
         { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
       ],
-      relations: { transaction: true },
+      relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },
     });
-  }
-
-  async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {

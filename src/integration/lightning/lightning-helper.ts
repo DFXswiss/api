@@ -124,6 +124,13 @@ export class LightningHelper {
     return decodedInvoice.payeeNodeKey;
   }
 
+  static getPaymentHashOfInvoice(invoice: string): string {
+    const decodedInvoice = bolt11Decode(invoice);
+
+    const paymentHashTag = decodedInvoice.tags.find((t) => t.tagName === 'payment_hash');
+    return (paymentHashTag?.data as string) ?? '';
+  }
+
   // --- HELPER FUNCTIONS --- //
   private static getMessageHash(message: string) {
     return this.sha256(this.sha256(this.MSG_SIGNATURE_PREFIX + message));

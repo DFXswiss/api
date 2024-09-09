@@ -131,6 +131,13 @@ export class PaymentQuoteService {
     );
   }
 
+  async getQuoteByTxId(txId: string) {
+    return this.paymentQuoteRepo.findOne({
+      where: { txId: Equal(txId) },
+      relations: { payment: true },
+    });
+  }
+
   async getAmountFromQuote(actualQuote: PaymentQuote, transferInfo: TransferInfo): Promise<number | undefined> {
     const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
     return transferAmountAsset?.amount;
@@ -333,6 +340,10 @@ export class PaymentQuoteService {
     };
   }
 
+  async saveTransactionId(id: number, txId: string, txBlockchain: Blockchain): Promise<void> {
+    await this.paymentQuoteRepo.update(id, { txId, txBlockchain });
+  }
+
   private async saveTransaction(uniqueId: string, txBlockchain: Blockchain, tx: string): Promise<void> {
     await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_RECEIVED, txBlockchain, tx });
   }
@@ -343,13 +354,13 @@ export class PaymentQuoteService {
 
   async saveBlockchainConfirmed(blockchain: Blockchain, txId: string): Promise<void> {
     const status =
-      blockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_FINALLY : PaymentQuoteStatus.TX_BLOCKCHAIN;
+      blockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
 
     await this.paymentQuoteRepo.update({ txId }, { status });
   }
 
   private async saveFinallyConfirmed(uniqueId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FINALLY });
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_COMPLETED });
   }
 
   private async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {

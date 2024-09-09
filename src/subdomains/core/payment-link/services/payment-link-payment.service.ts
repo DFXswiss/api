@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -21,7 +22,13 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import {
+  PaymentActivationStatus,
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -84,25 +91,6 @@ export class PaymentLinkPaymentService {
       ],
       relations: {
         link: { route: { deposit: true, user: { userData: true } } },
-      },
-    });
-  }
-
-  async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
-    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
-      where: {
-        activations: { status: PaymentActivationStatus.PENDING, asset: { id: asset.id }, amount },
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-    });
-
-    if (!pendingPayment) return null;
-
-    return this.paymentLinkPaymentRepo.findOne({
-      where: { id: pendingPayment.id },
-      relations: {
-        link: true,
-        activations: true,
       },
     });
   }
@@ -189,10 +177,12 @@ export class PaymentLinkPaymentService {
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
     if (cryptoInput.txType !== PayInType.PAYMENT) return;
 
-    const pendingPayment = await this.getPendingPaymentByAsset(cryptoInput.asset, cryptoInput.amount);
+    const pendingPayment = await this.getPendingPayment(cryptoInput);
 
     if (!pendingPayment) {
-      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No pending payment found by asset ${cryptoInput.asset.id}`);
+      this.logger.error(
+        `CryptoInput ${cryptoInput.inTxId}: No pending payment found by asset ${cryptoInput.asset.id} and amount ${cryptoInput.amount}`,
+      );
       return;
     }
 
@@ -211,6 +201,62 @@ export class PaymentLinkPaymentService {
       pendingActivationData.otherPendingActivations,
       pendingPayment,
     );
+  }
+
+  private async getPendingPayment(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | null> {
+    const pendingPayment =
+      cryptoInput.address.blockchain === Blockchain.LIGHTNING
+        ? await this.getPaymentFromActivation(cryptoInput.inTxId)
+        : await this.getPaymentFromQuote(cryptoInput.inTxId);
+
+    if (pendingPayment) return pendingPayment;
+
+    return this.getPendingPaymentByAsset(cryptoInput.asset, cryptoInput.amount);
+  }
+
+  private async getPaymentFromActivation(txId: string): Promise<PaymentLinkPayment | null> {
+    const activation = await this.paymentActivationService.getActivationByTxId(txId);
+    if (!activation) return null;
+
+    const quote = activation.quote;
+    if (quote && !quote.txId) await this.paymentQuoteService.saveTransactionId(quote.id, txId, activation.method);
+
+    return this.getPaymentById(activation.payment.id);
+  }
+
+  private async getPaymentFromQuote(txId: string): Promise<PaymentLinkPayment | null> {
+    const quote = await this.paymentQuoteService.getQuoteByTxId(txId);
+    if (!quote) return null;
+
+    return this.getPaymentById(quote.payment.id);
+  }
+
+  private async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        activations: {
+          status: PaymentActivationStatus.PENDING,
+          standard: PaymentStandard.PAY_TO_ADDRESS,
+          asset: { id: asset.id },
+          amount,
+        },
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+    });
+
+    if (!pendingPayment) return null;
+
+    return this.getPaymentById(pendingPayment.id);
+  }
+
+  private async getPaymentById(id: number): Promise<PaymentLinkPayment | null> {
+    return this.paymentLinkPaymentRepo.findOne({
+      where: { id },
+      relations: {
+        link: true,
+        activations: true,
+      },
+    });
   }
 
   private async doUpdateStatus(

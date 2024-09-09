@@ -18,7 +18,7 @@ export enum PaymentQuoteStatus {
   TX_RECEIVED = 'TxReceived',
   TX_MEMPOOL = 'TxMempool',
   TX_BLOCKCHAIN = 'TxBlockchain',
-  TX_FINALLY = 'TxFinally',
+  TX_COMPLETED = 'TxCompleted',
   TX_FAILED = 'TxFailed',
 }
 
