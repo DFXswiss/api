@@ -61,14 +61,11 @@ export class BankAdapter implements LiquidityBalanceIntegration {
           break;
 
         case CardBankName.CHECKOUT:
-          const checkoutBalances =
-            bankName === CardBankName.CHECKOUT ? await this.checkoutService.getBalances() : undefined;
+          const checkoutBalances = await this.checkoutService.getBalances();
 
           assets.forEach((asset) => {
-            const balance = checkoutBalances
-              .filter((b) => b.holding_currency === asset.dexName)
-              .map((b) => b.balances.collateral / 100)
-              .reduce((sum, cur) => sum + cur);
+            const balance =
+              checkoutBalances.find((b) => b.holding_currency === asset.dexName).balances.collateral / 100;
 
             balances.push(LiquidityBalance.create(asset, balance));
           });
