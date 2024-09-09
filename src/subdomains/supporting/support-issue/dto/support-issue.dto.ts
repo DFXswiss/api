@@ -1,9 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  FundOrigin,
-  InvestmentDate,
-  LimitRequestDecision,
-} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 
 export class SupportMessageDto {
@@ -40,18 +35,6 @@ export class SupportIssueLimitRequestDto {
 
   @ApiProperty()
   limit: number;
-
-  @ApiProperty()
-  investmentDate: InvestmentDate;
-
-  @ApiProperty()
-  fundOrigin: FundOrigin;
-
-  @ApiProperty()
-  fundOriginText: string;
-
-  @ApiProperty()
-  decision: LimitRequestDecision;
 }
 
 export class SupportIssueDto {

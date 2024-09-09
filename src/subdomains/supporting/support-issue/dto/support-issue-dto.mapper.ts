@@ -55,10 +55,6 @@ export class SupportIssueDtoMapper {
     return {
       id: limitRequest.id,
       limit: limitRequest.limit,
-      investmentDate: limitRequest.investmentDate,
-      fundOrigin: limitRequest.fundOrigin,
-      fundOriginText: limitRequest.fundOriginText,
-      decision: limitRequest.decision,
     };
   }
 }
