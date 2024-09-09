@@ -37,7 +37,7 @@ export class SanctionService {
   constructor(private readonly http: HttpService, private readonly sanctionRepo: SanctionRepository) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  @Cron(CronExpression.EVERY_WEEKEND)
   @Lock()
   async syncList() {
     if (DisabledProcess(Process.SANCTION_SYNC)) return;

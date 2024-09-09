@@ -1,8 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
-import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { In, MoreThan, Not } from 'typeorm';
@@ -18,6 +17,7 @@ import { CustomerAuthor, SupportMessage } from '../entities/support-message.enti
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { LimitRequestService } from './limit-request.service';
+import { SupportDocumentService } from './support-document.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
 
 @Injectable()
@@ -25,7 +25,7 @@ export class SupportIssueService {
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: SupportDocumentService,
     private readonly userDataService: UserDataService,
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
@@ -104,14 +104,14 @@ export class SupportIssueService {
     if (dto.author === CustomerAuthor && entity.userData.id !== userDataId)
       throw new ForbiddenException('You can only create support messages for your own support issue');
 
-    // upload document proof
+    // upload document
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
-      entity.fileUrl = await this.storageService.uploadFile(
+      entity.fileUrl = await this.documentService.uploadFile(
         entity.userData.id,
-        FileType.SUPPORT_ISSUE,
-        `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
+        entity.issue.id,
+        `${Util.isoDateTime(new Date())}_${dto.author?.toLowerCase() ?? 'support'}_${Util.randomId()}_${dto.fileName}`,
         buffer,
         contentType as ContentType,
       );

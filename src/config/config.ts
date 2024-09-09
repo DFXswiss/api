@@ -147,7 +147,7 @@ export class Configuration {
   i18n: I18nOptions = {
     fallbackLanguage: this.defaults.language.toLowerCase(),
     loaderOptions: {
-      path: join(__dirname, '../shared/i18n/'),
+      path: join(process.cwd(), 'src/shared/i18n/'),
       watch: true,
     },
     resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
@@ -236,7 +236,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: join(__dirname, '../subdomains/supporting/notification/templates'),
+        dir: join(process.cwd(), 'src/subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -259,9 +259,7 @@ export class Configuration {
   payment = {
     timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
-    quoteTimeout: +(process.env.PAYMENT_QUOTE_TIMEOUT ?? 300),
     evmSeed: process.env.PAYMENT_EVM_SEED,
-    fee: 0.02,
   };
 
   blockchain = {
