@@ -44,11 +44,7 @@ export class SupportIssueDtoMapper {
     if (!transaction) return null;
 
     return {
-      id: transaction.id,
       uid: transaction.uid,
-      externalId: transaction.externalId,
-      sourceType: transaction.sourceType,
-      type: transaction.type,
       url: transaction.url,
     };
   }
