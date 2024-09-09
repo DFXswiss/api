@@ -15,11 +15,20 @@ import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
 
-type pendingBalance = {
+type PendingBalance = {
   cryptoInput: number;
   buyFiat: number;
   buyCryptoPass: number;
   buyCrypto: number;
+};
+
+type BalancesByFinancialType = {
+  [financialType: string]: {
+    plusBalance: number;
+    plusBalanceChf: number;
+    minusBalance: number;
+    minusBalanceChf: number;
+  };
 };
 
 type ManualDebtPosition = {
@@ -77,20 +86,21 @@ export class LogJobService {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      const pendingBalance: pendingBalance = {
-        cryptoInput: pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0),
-        buyFiat: pendingBuyFiat.reduce(
-          (sum, tx) => (sum + tx.cryptoInput.asset.id === curr.id ? tx.inputAmount : 0),
-          0,
-        ),
-        buyCrypto: pendingBuyCrypto.reduce(
-          (sum, tx) => sum + (!tx.outputAmount && tx.cryptoInput?.asset?.id === curr.id ? tx.inputAmount : 0),
-          0,
-        ),
-        buyCryptoPass: pendingBuyCrypto.reduce(
-          (sum, tx) => sum + (tx.outputAmount && tx.outputAsset?.id === curr.id ? tx.outputAmount ?? 0 : 0),
-          0,
-        ),
+      const pendingBalance: PendingBalance = {
+        cryptoInput: pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) || undefined,
+        buyFiat:
+          pendingBuyFiat.reduce((sum, tx) => (sum + tx.cryptoInput.asset.id === curr.id ? tx.inputAmount : 0), 0) ||
+          undefined,
+        buyCrypto:
+          pendingBuyCrypto.reduce(
+            (sum, tx) => sum + (!tx.outputAmount && tx.cryptoInput?.asset?.id === curr.id ? tx.inputAmount : 0),
+            0,
+          ) || undefined,
+        buyCryptoPass:
+          pendingBuyCrypto.reduce(
+            (sum, tx) => sum + (tx.outputAmount && tx.outputAsset?.id === curr.id ? tx.outputAmount ?? 0 : 0),
+            0,
+          ) || undefined,
       };
 
       prev[curr.id] = {
@@ -105,28 +115,24 @@ export class LogJobService {
       return prev;
     }, {});
 
-    const balancesByFinancialType: {
-      [financialType: string]: {
-        plusBalance: number;
-        plusBalanceChf: number;
-        minusBalance: number;
-        minusBalanceChf: number;
-      };
-    } = Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
-      acc[financialType] = {
-        plusBalance: assets.reduce(
-          (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
-          0,
-        ),
-        plusBalanceChf: assets.reduce(
-          (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0) * curr.approxPriceChf,
-          0,
-        ),
-        minusBalance: 0,
-        minusBalanceChf: 0,
-      };
-      return acc;
-    }, {});
+    const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
+      (acc, [financialType, assets]) => {
+        acc[financialType] = {
+          plusBalance: assets.reduce(
+            (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
+            0,
+          ),
+          plusBalanceChf: assets.reduce(
+            (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0) * curr.approxPriceChf,
+            0,
+          ),
+          minusBalance: 0,
+          minusBalanceChf: 0,
+        };
+        return acc;
+      },
+      {},
+    );
 
     const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalance');
     const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalance');
