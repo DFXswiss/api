@@ -354,13 +354,13 @@ export class PaymentQuoteService {
 
   async saveBlockchainConfirmed(blockchain: Blockchain, txId: string): Promise<void> {
     const status =
-      blockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_FINALLY : PaymentQuoteStatus.TX_BLOCKCHAIN;
+      blockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
 
     await this.paymentQuoteRepo.update({ txId }, { status });
   }
 
   private async saveFinallyConfirmed(uniqueId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FINALLY });
+    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_COMPLETED });
   }
 
   private async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {
