@@ -151,7 +151,11 @@ export class PaymentActivationService implements OnModuleInit {
     )
       throw new ConflictException('Duplicate payment request');
 
-    if (!activation || pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
+    if (
+      !activation ||
+      activation.payment.id !== pendingPayment.id ||
+      pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE
+    ) {
       activation = await this.createNewPaymentActivationRequest(
         pendingPayment,
         actualQuote,
