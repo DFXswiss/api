@@ -39,6 +39,7 @@ export interface PaymentLinkRequestDto {
   displayName: string;
   standard: PaymentStandard;
   possibleStandards: PaymentStandard[];
+  displayQr: boolean;
   recipient: PaymentLinkRecipientDto;
 }
 

@@ -1,14 +1,8 @@
-import {
-  BadRequestException,
-  ConflictException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -18,6 +12,8 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
+import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentRequestMapper } from '../dto/payment-request.mapper';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -47,7 +43,6 @@ export class PaymentLinkPaymentService {
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
-    @Inject(forwardRef(() => PaymentActivationService))
     private readonly paymentActivationService: PaymentActivationService,
     private readonly fiatService: FiatService,
   ) {}
@@ -174,6 +169,18 @@ export class PaymentLinkPaymentService {
     return this.doSave(payment);
   }
 
+  async createActivationRequest(
+    uniqueId: string,
+    transferInfo: TransferInfo,
+  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+    const pendingPayment = await this.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
+
+    const activation = await this.paymentActivationService.doCreateRequest(pendingPayment, transferInfo);
+    return PaymentRequestMapper.toPaymentRequest(activation);
+  }
+
+  // --- GET BY INPUT --- //
   async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
     if (cryptoInput.txType !== PayInType.PAYMENT) return;
 
