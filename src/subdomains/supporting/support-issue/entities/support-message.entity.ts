@@ -22,4 +22,8 @@ export class SupportMessage extends IEntity {
   get userData(): UserData {
     return this.issue.userData;
   }
+
+  get fileName(): string {
+    return this.fileUrl?.split('/').pop();
+  }
 }

@@ -142,13 +142,9 @@ export class SupportIssueService {
 
   async getSupportIssueFile(userDataId: number, id: number, messageId: number): Promise<BlobContent> {
     const message = await this.messageRepo.findOneBy({ id: messageId, issue: { id } });
+    if (!message) throw new NotFoundException('Message not found');
 
-    const allDocuments = await this.storageService.listUserFiles(userDataId);
-
-    const document = allDocuments.find((d) => d.url === message.fileUrl);
-    if (!document) throw new NotFoundException('File not found');
-
-    return this.storageService.downloadFile(userDataId, document.type, document.name);
+    return this.documentService.downloadFile(userDataId, id, message.fileName);
   }
 
   async getUserSupportTickets(
