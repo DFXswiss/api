@@ -45,16 +45,18 @@ export class SupportIssueService {
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
-    const existingIssue = await this.supportIssueRepo.findOneBy({
-      userData: { id: userDataId },
-      type: newIssue.type,
-      information: newIssue.information,
-      reason: newIssue.reason,
-      state: Not(SupportIssueState.COMPLETED),
+    const existingIssue = await this.supportIssueRepo.findOne({
+      where: {
+        userData: { id: userDataId },
+        type: newIssue.type,
+        information: newIssue.information,
+        reason: newIssue.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
+      relations: { messages: true },
     });
 
-    // transaction issues
-    if (dto.transaction) {
+    if (!existingIssue && dto.transaction) {
       if (dto.transaction.id) {
         newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
           user: { userData: true },
@@ -67,17 +69,18 @@ export class SupportIssueService {
       newIssue.additionalInformation = dto.transaction;
     }
 
-    // limit request
-    if (dto.limitRequest && !existingIssue)
+    if (!existingIssue && dto.limitRequest) {
       newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+    }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
-
     const supportMessage = await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
 
     const supportIssue = SupportIssueDtoMapper.mapSupportIssue(entity);
+    if (!supportIssue.messages) supportIssue.messages = [];
+    supportIssue.messages.push(supportMessage);
 
-    return { ...supportIssue, messages: [supportMessage] };
+    return supportIssue;
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
@@ -125,10 +128,6 @@ export class SupportIssueService {
     const supportIssue = await this.supportIssueRepo.findOneBy({
       userData: { id: userDataId },
       id: query.id,
-      type: query.type,
-      reason: query.reason,
-      transaction: { id: query.transactionId },
-      state: Not(SupportIssueState.COMPLETED),
     });
 
     if (!supportIssue) throw new NotFoundException('Support issue not found');

@@ -1,33 +1,12 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, ValidateIf } from 'class-validator';
-import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.entity';
+import { IsInt, IsOptional } from 'class-validator';
 
 export class GetSupportIssueFilter {
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @Transform(({ value }) => +value)
   @IsInt()
-  @ValidateIf((o: GetSupportIssueFilter) => Boolean(!o.type || o.id))
-  id?: number;
-
-  @ApiPropertyOptional({ enum: SupportIssueType })
-  @IsOptional()
-  @IsEnum(SupportIssueType)
-  @ValidateIf((o: GetSupportIssueFilter) => Boolean(!o.id || o.type))
-  type?: SupportIssueType;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Transform(({ value }) => +value)
-  @IsEnum(SupportIssueReason)
-  reason?: SupportIssueReason;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Transform(({ value }) => +value)
-  @IsInt()
-  transactionId?: number;
+  id: number;
 
   @ApiPropertyOptional()
   @IsOptional()
