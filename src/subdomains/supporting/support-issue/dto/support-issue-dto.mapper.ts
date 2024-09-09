@@ -34,7 +34,7 @@ export class SupportIssueDtoMapper {
       created: supportMessage.created,
       message: supportMessage.message,
       fileUrl: `${Config.url()}/support/issue/${supportMessage.issue.id}/message/${supportMessage.id}/file`,
-      fileName: supportMessage.fileUrl?.split('/').pop(),
+      fileName: supportMessage.fileName,
     };
 
     return Object.assign(new SupportMessageDto(), dto);

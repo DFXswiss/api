@@ -24,6 +24,7 @@ export class SupportMessage extends IEntity {
   }
 
   get fileName(): string {
-    return this.fileUrl?.split('/').pop();
+    const fileName = this.fileUrl?.split('/').pop();
+    return fileName ? decodeURIComponent(fileName) : '';
   }
 }
