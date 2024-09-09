@@ -105,7 +105,14 @@ export class LogJobService {
       return prev;
     }, {});
 
-    const balancesByFinancialType = Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
+    const balancesByFinancialType: {
+      [financialType: string]: {
+        plusBalance: number;
+        plusBalanceChf: number;
+        minusBalance: number;
+        minusBalanceChf: number;
+      };
+    } = Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
       acc[financialType] = {
         plusBalance: assets.reduce(
           (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
@@ -121,6 +128,9 @@ export class LogJobService {
       return acc;
     }, {});
 
+    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalance');
+    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalance');
+
     await this.logService.create({
       system: 'LogService',
       subsystem: 'FinancialDataLog',
@@ -129,6 +139,11 @@ export class LogJobService {
         assets: assetLog,
         tradings: tradingLog,
         balancesByFinancialType,
+        balancesTotal: {
+          plusBalanceChf,
+          minusBalanceChf,
+          totalBalanceChf: plusBalanceChf - minusBalanceChf,
+        },
       }),
     });
   }
