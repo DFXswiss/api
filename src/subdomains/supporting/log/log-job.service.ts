@@ -134,8 +134,8 @@ export class LogJobService {
       {},
     );
 
-    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalance');
-    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalance');
+    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
+    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
 
     await this.logService.create({
       system: 'LogService',
