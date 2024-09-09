@@ -9,6 +9,7 @@ import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
+import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -37,6 +38,15 @@ interface AssetTransfersParams {
   toAddress?: string;
   fromBlock: number;
   categories: AssetTransfersCategory[];
+}
+
+interface UniswapPosition {
+  token0: string;
+  token1: string;
+  fee: FeeAmount;
+  tickLower: number;
+  tickUpper: number;
+  liquidity: EthersNumber;
 }
 
 export abstract class EvmClient {
@@ -327,6 +337,50 @@ export abstract class EvmClient {
   }
 
   // --- PUBLIC API - SWAPS --- //
+
+  async getUniswapLiquidity(nftContract: string, positionId: number): Promise<[number, number]> {
+    const position = await this.getUniswapPosition(nftContract, positionId);
+
+    // extract pool infos
+    const [token0, token1] = await Promise.all([
+      this.getTokenByAddress(position.token0),
+      this.getTokenByAddress(position.token1),
+    ]);
+    const pool = this.getPoolContract(Pool.getAddress(token0, token1, position.fee));
+    const slot0 = await pool.slot0();
+    const sqrtPriceX96 = slot0.sqrtPriceX96;
+
+    // calculate amount
+    const [amount0, amount1] = this.getUniswapPositionAmounts(position, sqrtPriceX96);
+    return [
+      EvmUtil.fromWeiAmount(BigInt(amount0).toString(), token0.decimals),
+      EvmUtil.fromWeiAmount(BigInt(amount1).toString(), token1.decimals),
+    ];
+  }
+
+  private getUniswapPositionAmounts(position: UniswapPosition, sqrtPriceX96: any): [number, number] {
+    const sqrtRatioA = Math.sqrt(1.0001 ** position.tickLower);
+    const sqrtRatioB = Math.sqrt(1.0001 ** position.tickUpper);
+    const currentTick = Math.log((sqrtPriceX96 / 2 ** 96) ** 2) / Math.log(1.0001);
+    const sqrtPrice = sqrtPriceX96 / 2 ** 96;
+
+    if (currentTick <= position.tickLower) {
+      return [+position.liquidity * ((sqrtRatioB - sqrtRatioA) / (sqrtRatioA * sqrtRatioB)), 0];
+    } else if (currentTick > position.tickUpper) {
+      return [0, +position.liquidity * (sqrtRatioB - sqrtRatioA)];
+    } else if (currentTick >= position.tickLower && currentTick < position.tickUpper) {
+      return [
+        +position.liquidity * ((sqrtRatioB - sqrtPrice) / (sqrtPrice * sqrtRatioB)),
+        +position.liquidity * (sqrtPrice - sqrtRatioA),
+      ];
+    }
+  }
+
+  private async getUniswapPosition(positionsNft: string, positionId: number): Promise<UniswapPosition> {
+    const contract = new ethers.Contract(positionsNft, UNISWAP_V3_NFT_MANAGER_ABI, this.wallet);
+    return contract.positions(positionId);
+  }
+
   async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
     const [token1, token2] = await this.getTokenPair(asset1, asset2);
 

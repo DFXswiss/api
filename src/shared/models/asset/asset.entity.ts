@@ -8,6 +8,8 @@ export enum AssetType {
   COIN = 'Coin',
   TOKEN = 'Token',
   CUSTOM = 'Custom',
+  CUSTODY = 'Custody',
+  POOL = 'Pool',
 }
 
 export enum AssetCategory {
