@@ -342,7 +342,7 @@ export class BuyFiatService {
   async getPendingTransactions(): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { isComplete: false },
-      relations: { cryptoInput: true },
+      relations: { cryptoInput: true, sell: true },
     });
   }
 
