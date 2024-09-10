@@ -172,7 +172,7 @@ export class CryptoInput extends IEntity {
   acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;
-    this.status = PayInStatus.ACKNOWLEDGED;
+    this.status = this.txType === PayInType.PAYMENT ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
 
     return this;
   }
