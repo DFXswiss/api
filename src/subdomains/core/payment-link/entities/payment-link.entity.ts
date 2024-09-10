@@ -3,9 +3,9 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
-import { PaymentLinkStatus, PaymentStandard } from '../enums';
+import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
-import { PaymentLinkConfig } from './standard.config';
+import { PaymentLinkConfig } from './payment-link.config';
 
 @Entity()
 export class PaymentLink extends IEntity {
@@ -88,6 +88,8 @@ export class PaymentLink extends IEntity {
     const defaultConfig: PaymentLinkConfig = {
       standards: Object.values(PaymentStandard),
       blockchains: Object.values(Blockchain),
+      minCompletionStatus: PaymentQuoteStatus.TX_BLOCKCHAIN,
+      displayQr: false,
     };
 
     const config = this.config ?? this.route.userData.paymentLinksConfig;
