@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferMethod } from '../dto/payment-link.dto';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
@@ -40,6 +41,9 @@ export class PaymentQuote extends IEntity {
 
   @OneToMany(() => PaymentActivation, (p) => p.quote, { nullable: true })
   activations: PaymentActivation[];
+
+  @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentQuote, { nullable: true })
+  cryptoInputs: CryptoInput[];
 
   // --- ENTITY METHODS --- //
 

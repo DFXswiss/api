@@ -14,7 +14,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
@@ -221,14 +221,9 @@ export class PaymentLinkPaymentService {
   }
 
   // --- HANDLE INPUTS --- //
-  async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (cryptoInput.txType !== PayInType.PAYMENT) return;
-
+  async getPaymentQuoteByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | undefined> {
     const quote = await this.getQuoteForInput(cryptoInput);
-    if (!quote) {
-      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No matching quote found `);
-      return;
-    }
+    if (!quote) throw new Error(`No matching quote found`);
 
     await this.paymentQuoteService.saveBlockchainConfirmed(quote, cryptoInput.address.blockchain, cryptoInput.inTxId);
 
@@ -238,6 +233,8 @@ export class PaymentLinkPaymentService {
     });
 
     await this.handleQuoteChange(payment, quote);
+
+    return quote;
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
