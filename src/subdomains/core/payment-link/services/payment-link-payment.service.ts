@@ -237,7 +237,7 @@ export class PaymentLinkPaymentService {
       relations: { link: { route: { user: { userData: true } } } },
     });
 
-    await this.handleQuoteChange(payment, quote);
+    return this.handleQuoteChange(payment, quote);
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
@@ -265,7 +265,10 @@ export class PaymentLinkPaymentService {
     return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId);
   }
 
-  private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {
+  private async handleQuoteChange(
+    payment: PaymentLinkPayment,
+    quote: PaymentQuote,
+  ): Promise<PaymentLinkPayment | undefined> {
     // close activations
     if (PaymentQuoteFinalStates.includes(quote.status))
       if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
@@ -274,20 +277,19 @@ export class PaymentLinkPaymentService {
         await this.paymentActivationService.closeAllForQuote(quote.id);
       }
 
-    if (payment.status !== PaymentLinkPaymentStatus.PENDING) return;
-
-    // update payment status
+    // check for completion
     const { minCompletionStatus } = payment.link.configObj;
 
     const isPaymentComplete =
       PaymentQuoteTxStates.indexOf(quote.status) >= PaymentQuoteTxStates.indexOf(minCompletionStatus);
-    if (isPaymentComplete) {
-      payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
+    if (!isPaymentComplete || payment.status !== PaymentLinkPaymentStatus.PENDING) return payment;
 
-      if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
+    // update payment status
+    payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
 
-      await this.doSave(payment, true);
-    }
+    if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
+
+    return this.doSave(payment, true);
   }
 
   private async doSave(payment: PaymentLinkPayment, isPaymentDone: boolean): Promise<PaymentLinkPayment> {
