@@ -86,22 +86,13 @@ export class LogJobService {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      const pendingBalance: PendingBalance = {
-        cryptoInput: pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) || undefined,
-        buyFiat:
-          pendingBuyFiat.reduce((sum, tx) => (sum + tx.cryptoInput.asset.id === curr.id ? tx.inputAmount : 0), 0) ||
-          undefined,
-        buyCrypto:
-          pendingBuyCrypto.reduce(
-            (sum, tx) => sum + (!tx.outputAmount && tx.cryptoInput?.asset?.id === curr.id ? tx.inputAmount : 0),
-            0,
-          ) || undefined,
-        buyCryptoPass:
-          pendingBuyCrypto.reduce(
-            (sum, tx) => sum + (tx.outputAmount && tx.outputAsset?.id === curr.id ? tx.outputAmount ?? 0 : 0),
-            0,
-          ) || undefined,
-      };
+      const cryptoInput =
+        pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) || undefined;
+      const buyFiat = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingAmount(curr), 0) || undefined;
+      const buyFiatPass = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingPassAmount(curr), 0) || undefined;
+
+      const buyCrypto = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingAmount(curr), 0) || undefined;
+      const buyCryptoPass = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingPassAmount(curr), 0) || undefined;
 
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
@@ -109,7 +100,10 @@ export class LogJobService {
         plusBalance: liquidityBalance,
         manualDebtPosition,
         minusBalance: 0,
-        pendingBalance,
+        pendingBalance: {
+          plusBalance: { cryptoInput },
+          minusBalance: { buyFiat, buyFiatPass, buyCrypto, buyCryptoPass },
+        },
       };
 
       return prev;

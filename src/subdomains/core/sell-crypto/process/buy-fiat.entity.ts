@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -438,6 +439,24 @@ export class BuyFiat extends IEntity {
 
   get paymentLinkPayment(): PaymentLinkPayment | undefined {
     return this.cryptoInput?.paymentLinkPayment;
+  }
+
+  pendingAmount(asset: Asset): number {
+    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+  }
+
+  pendingPassAmount(asset: Asset): number {
+    if (!this.outputAmount) return 0;
+    switch (asset.id) {
+      case 267:
+        return this.sell.fiat.name === 'EUR' ? this.outputAmount : 0;
+
+      case 268:
+        return this.sell.fiat.name === 'CHF' ? this.outputAmount : 0;
+
+      default:
+        return 0;
+    }
   }
 }
 
