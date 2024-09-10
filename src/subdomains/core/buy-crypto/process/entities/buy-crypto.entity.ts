@@ -506,6 +506,9 @@ export class BuyCrypto extends IEntity {
       case 271:
         return this.checkoutTx?.currency === 'EUR' ? this.inputReferenceAmount : 0;
 
+      case 311:
+        return this.checkoutTx?.currency === 'USD' ? this.inputReferenceAmount : 0;
+
       default:
         return this.cryptoInput?.asset.id === asset.id ? this.inputAmount : 0;
     }
