@@ -2,15 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import {
-  PaymentLinkEvmHexPaymentDto,
   PaymentLinkEvmPaymentDto,
+  PaymentLinkHexResultDto,
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
-import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
 import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
@@ -28,7 +27,6 @@ export class LnUrlForwardService {
     lightningService: LightningService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly paymentQuoteService: PaymentQuoteService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -71,9 +69,9 @@ export class LnUrlForwardService {
     return this.client.getLnurlpInvoice(id, params);
   }
 
-  async txHexForward(id: string, params: any): Promise<PaymentLinkEvmHexPaymentDto> {
+  async txHexForward(id: string, params: any): Promise<PaymentLinkHexResultDto> {
     const transferInfo = this.getPaymentTransferInfo(params);
-    return this.paymentQuoteService.executeHexPayment(id, transferInfo);
+    return this.paymentLinkPaymentService.handleHexPayment(id, transferInfo);
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {

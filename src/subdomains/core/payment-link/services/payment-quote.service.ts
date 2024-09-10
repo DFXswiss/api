@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TransactionResponse } from 'alchemy-sdk';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
@@ -10,16 +9,17 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Equal, LessThan } from 'typeorm';
-import {
-  PaymentLinkEvmHexPaymentDto,
-  TransferAmount,
-  TransferAmountAsset,
-  TransferInfo,
-} from '../dto/payment-link.dto';
+import { Equal, In, LessThan } from 'typeorm';
+import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
-import { PaymentLinkEvmHexPaymentStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import {
+  PaymentActivationStatus,
+  PaymentLinkPaymentStatus,
+  PaymentQuoteStatus,
+  PaymentQuoteTxStates,
+  PaymentStandard,
+} from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
 @Injectable()
@@ -57,14 +57,15 @@ export class PaymentQuoteService {
   ]);
 
   constructor(
-    private paymentQuoteRepo: PaymentQuoteRepository,
+    private readonly paymentQuoteRepo: PaymentQuoteRepository,
     private readonly evmRegistryService: EvmRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
   ) {}
 
-  async processActualQuotes(): Promise<void> {
+  // --- JOBS --- //
+  async processExpiredQuotes(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
     const actualPaymentLinkQuotes = await this.paymentQuoteRepo.findBy({
@@ -77,25 +78,7 @@ export class PaymentQuoteService {
     }
   }
 
-  async checkTxConfirmations(): Promise<void> {
-    const blockchainPaymentLinkQuotes = await this.paymentQuoteRepo.findBy({
-      status: PaymentQuoteStatus.TX_BLOCKCHAIN,
-    });
-
-    for (const blockchainPaymentLinkQuote of blockchainPaymentLinkQuotes) {
-      const blockchain = blockchainPaymentLinkQuote.txBlockchain;
-
-      if (blockchain) {
-        const minNumberOfConfirmations = blockchain === Blockchain.ETHEREUM ? 6 : 100;
-
-        const client = this.evmRegistryService.getClient(blockchain);
-        const isTxComplete = await client.isTxComplete(blockchainPaymentLinkQuote.txId, minNumberOfConfirmations);
-
-        if (isTxComplete) await this.saveFinallyConfirmed(blockchainPaymentLinkQuote.uniqueId);
-      }
-    }
-  }
-
+  // --- CRUD --- //
   async getActualQuote(paymentId: number, transferInfo: TransferInfo): Promise<PaymentQuote | undefined> {
     return transferInfo.quoteUniqueId
       ? this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined
@@ -131,18 +114,81 @@ export class PaymentQuoteService {
     );
   }
 
-  async getQuoteByTxId(txId: string) {
+  async getQuoteByAsset(asset: Asset, amount: number): Promise<PaymentQuote | null> {
     return this.paymentQuoteRepo.findOne({
-      where: { txId: Equal(txId) },
+      where: {
+        activations: {
+          status: PaymentActivationStatus.OPEN,
+          standard: PaymentStandard.PAY_TO_ADDRESS,
+          asset: { id: asset.id },
+          amount,
+        },
+        payment: { status: PaymentLinkPaymentStatus.PENDING },
+      },
       relations: { payment: true },
     });
   }
 
-  async getAmountFromQuote(actualQuote: PaymentQuote, transferInfo: TransferInfo): Promise<number | undefined> {
-    const transferAmountAsset = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset);
-    return transferAmountAsset?.amount;
+  async getQuoteByTxId(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+    return this.paymentQuoteRepo.findOne({
+      where: { txBlockchain: Equal(txBlockchain), txId: Equal(txId) },
+      relations: { payment: true },
+    });
   }
 
+  async getConfirmingQuotes(): Promise<PaymentQuote[]> {
+    return this.paymentQuoteRepo.find({
+      where: { status: PaymentQuoteStatus.TX_BLOCKCHAIN },
+      relations: { payment: { link: true } },
+    });
+  }
+
+  async cancelAllForPayment(paymentId: number): Promise<void> {
+    const actualQuotes = await this.paymentQuoteRepo.find({
+      where: { payment: { id: paymentId }, status: PaymentQuoteStatus.ACTUAL },
+    });
+
+    for (const actualQuote of actualQuotes) {
+      await this.paymentQuoteRepo.save(actualQuote.cancel());
+    }
+  }
+
+  async saveTransaction(quote: PaymentQuote, txBlockchain: Blockchain, txId: string): Promise<PaymentQuote> {
+    const update = { txBlockchain, txId };
+
+    Object.assign(quote, update);
+    await this.paymentQuoteRepo.update(quote.id, update);
+
+    return quote;
+  }
+
+  async saveBlockchainConfirmed(quote: PaymentQuote, txBlockchain: Blockchain, txId: string): Promise<PaymentQuote> {
+    const status =
+      txBlockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
+
+    const update = { status, txBlockchain, txId };
+
+    Object.assign(quote, update);
+    await this.paymentQuoteRepo.update(quote.id, update);
+
+    return quote;
+  }
+
+  async saveFinallyConfirmed(quote: PaymentQuote): Promise<PaymentQuote> {
+    const update = { status: PaymentQuoteStatus.TX_COMPLETED };
+
+    Object.assign(quote, update);
+    await this.paymentQuoteRepo.update(quote.id, update);
+
+    return quote;
+  }
+
+  async getCompletedQuoteCount(payment: PaymentLinkPayment, minCompletionStatus: PaymentQuoteStatus): Promise<number> {
+    const allowedStates = PaymentQuoteTxStates.slice(PaymentQuoteTxStates.indexOf(minCompletionStatus));
+    return this.paymentQuoteRepo.countBy({ payment: { id: payment.id }, status: In(allowedStates) });
+  }
+
+  // --- CREATE --- //
   async createQuote(standard: PaymentStandard, payment: PaymentLinkPayment): Promise<PaymentQuote> {
     const timeoutSeconds = this.paymentStandardTimeoutSecondsMap.get(standard) ?? PaymentQuoteService.DEFAULT_TIMEOUT;
 
@@ -260,110 +306,38 @@ export class PaymentQuoteService {
     }
   }
 
-  async cancel(paymentId: number): Promise<void> {
-    const actualQuotes = await this.paymentQuoteRepo.find({
-      where: { payment: { id: paymentId }, status: PaymentQuoteStatus.ACTUAL },
-    });
+  // --- HEX PAYMENT --- //
+  async executeHexPayment(transferInfo: TransferInfo): Promise<PaymentQuote> {
+    const quote = await this.getAndCheckQuote(transferInfo);
 
-    for (const actualQuote of actualQuotes) {
-      await this.paymentQuoteRepo.save(actualQuote.cancel());
-    }
-  }
-
-  async executeHexPayment(_uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkEvmHexPaymentDto> {
-    await this.checkHexPayment(transferInfo);
+    quote.txReceived(transferInfo.method, transferInfo.hex);
 
     try {
-      await this.saveTransaction(transferInfo.quoteUniqueId, transferInfo.method, transferInfo.hex);
-
       const evmClient = this.evmRegistryService.getClient(transferInfo.method);
       const transactionResponse = await evmClient.sendSignedTransaction(transferInfo.hex);
 
-      return transactionResponse.error
-        ? await this.handleHexTransactionError(transferInfo, transactionResponse.error)
-        : await this.handleHexTransactionResponse(transferInfo, transactionResponse.response);
+      transactionResponse.error
+        ? quote.txFailed(transactionResponse.error.message)
+        : quote.txMempool(transactionResponse.response.hash);
     } catch (e) {
       this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
 
-      const errorMessage = e.message ?? 'Transaction failed';
-
-      return this.handleHexTransactionError(transferInfo, { code: -1, message: errorMessage });
+      quote.txFailed(e.message ?? 'Transaction failed');
     }
+
+    return this.paymentQuoteRepo.save(quote);
   }
 
-  private async checkHexPayment(transferInfo: TransferInfo): Promise<void> {
+  private async getAndCheckQuote(transferInfo: TransferInfo): Promise<PaymentQuote> {
     const quoteUniqueId = transferInfo.quoteUniqueId;
 
-    if (!quoteUniqueId) throw new BadRequestException('Quote parameter not found');
-    if (!transferInfo.method) throw new BadRequestException('Method parameter not found');
-    if (!transferInfo.hex) throw new BadRequestException('Hex parameter not found');
+    if (!quoteUniqueId) throw new BadRequestException('Quote parameter missing');
+    if (!transferInfo.method) throw new BadRequestException('Method parameter missing');
+    if (!transferInfo.hex) throw new BadRequestException('Hex parameter missing');
 
     const actualQuote = await this.getActualQuoteByUniqueId(quoteUniqueId);
-    if (!actualQuote) throw new NotFoundException(`Actual quote ${quoteUniqueId} not found`);
-  }
+    if (!actualQuote) throw new NotFoundException(`No actual quote with ID ${quoteUniqueId} found`);
 
-  private async handleHexTransactionError(
-    transferInfo: TransferInfo,
-    transactionError: { code: number; message: string },
-  ): Promise<PaymentLinkEvmHexPaymentDto> {
-    const errorMessage = transactionError.message;
-
-    await this.saveErrorMessage(transferInfo.quoteUniqueId, errorMessage);
-
-    return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.FAILED, errorMessage);
-  }
-
-  private async handleHexTransactionResponse(
-    transferInfo: TransferInfo,
-    transactionResponse: TransactionResponse,
-  ): Promise<PaymentLinkEvmHexPaymentDto> {
-    const txId = transactionResponse.hash;
-    await this.saveMempoolAccepted(transferInfo.quoteUniqueId, txId);
-
-    const message = 'Transaction successfully sent to mempool';
-    return this.createPaymentLinkEvmHexPayment(transferInfo, PaymentLinkEvmHexPaymentStatus.SUCCESS, message, txId);
-  }
-
-  private createPaymentLinkEvmHexPayment(
-    transferInfo: TransferInfo,
-    status: PaymentLinkEvmHexPaymentStatus,
-    message: string,
-    txId?: string,
-  ) {
-    return {
-      blockchain: transferInfo.method,
-      amount: transferInfo.amount,
-      asset: transferInfo.asset,
-      status,
-      message,
-      txId,
-    };
-  }
-
-  async saveTransactionId(id: number, txId: string, txBlockchain: Blockchain): Promise<void> {
-    await this.paymentQuoteRepo.update(id, { txId, txBlockchain });
-  }
-
-  private async saveTransaction(uniqueId: string, txBlockchain: Blockchain, tx: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_RECEIVED, txBlockchain, tx });
-  }
-
-  private async saveMempoolAccepted(uniqueId: string, txId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_MEMPOOL, txId });
-  }
-
-  async saveBlockchainConfirmed(blockchain: Blockchain, txId: string): Promise<void> {
-    const status =
-      blockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
-
-    await this.paymentQuoteRepo.update({ txId }, { status });
-  }
-
-  private async saveFinallyConfirmed(uniqueId: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_COMPLETED });
-  }
-
-  private async saveErrorMessage(uniqueId: string, errorMessage: string): Promise<void> {
-    await this.paymentQuoteRepo.update({ uniqueId }, { status: PaymentQuoteStatus.TX_FAILED, errorMessage });
+    return actualQuote;
   }
 }

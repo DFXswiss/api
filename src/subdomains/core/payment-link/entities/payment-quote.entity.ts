@@ -55,6 +55,28 @@ export class PaymentQuote extends IEntity {
     return this;
   }
 
+  txReceived(blockchain: Blockchain, tx: string): this {
+    this.status = PaymentQuoteStatus.TX_RECEIVED;
+    this.txBlockchain = blockchain;
+    this.tx = tx;
+
+    return this;
+  }
+
+  txMempool(txId: string): this {
+    this.status = PaymentQuoteStatus.TX_MEMPOOL;
+    this.txId = txId;
+
+    return this;
+  }
+
+  txFailed(error: string): this {
+    this.status = PaymentQuoteStatus.TX_FAILED;
+    this.errorMessage = error;
+
+    return this;
+  }
+
   get transferAmountsAsObj(): TransferAmount[] {
     return JSON.parse(this.transferAmounts);
   }

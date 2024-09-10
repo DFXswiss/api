@@ -40,62 +40,36 @@ export class PaymentActivationService implements OnModuleInit {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
   }
 
-  // --- HANDLE PENDING ACTIVATIONS --- //
-  async processPendingActivations(): Promise<void> {
-    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
-
-    const pendingPaymentActivations = await this.paymentActivationRepo.findBy({
-      status: PaymentActivationStatus.PENDING,
-      expiryDate: LessThan(maxDate),
-    });
-
-    for (const pendingPaymentActivation of pendingPaymentActivations) {
-      await this.paymentActivationRepo.save(pendingPaymentActivation.expire());
-    }
+  async close(activation: PaymentActivation): Promise<void> {
+    await this.paymentActivationRepo.update({ id: activation.id }, { status: PaymentActivationStatus.CLOSED });
   }
 
-  getPendingActivation(
-    pendingPayment: PaymentLinkPayment,
-    blockchain: Blockchain,
-    receivedAmount: number,
-  ): { pendingActivation: PaymentActivation; otherPendingActivations: PaymentActivation[] } | undefined {
-    const allPendingActivations = pendingPayment.activations.filter(
-      (a) => a.status === PaymentActivationStatus.PENDING,
-    );
-
-    if (!allPendingActivations.length) {
-      this.logger.error(`${blockchain} transaction ${pendingPayment.id}: No pending activations`);
-      return;
-    }
-
-    const pendingActivation = allPendingActivations.find((a) => a.method === blockchain && a.amount === receivedAmount);
-
-    if (!pendingActivation) {
-      this.logger.error(
-        `${blockchain} transaction ${pendingPayment.id}: No pending ${blockchain} activation with amount ${receivedAmount}`,
-      );
-      return;
-    }
-
-    const otherPendingActivations = allPendingActivations.filter((a) => a.id !== pendingActivation.id);
-
-    return { pendingActivation, otherPendingActivations };
+  async closeAllForPayment(paymentId: number): Promise<void> {
+    await this.paymentActivationRepo.update({ payment: { id: paymentId } }, { status: PaymentActivationStatus.CLOSED });
   }
 
-  async getNumberOfCompletedActivations(paymentId: number): Promise<number> {
-    return this.paymentActivationRepo.count({
-      where: {
-        payment: { id: paymentId },
-        status: PaymentActivationStatus.COMPLETED,
-      },
-    });
+  async closeAllForQuote(quoteId: number): Promise<void> {
+    await this.paymentActivationRepo.update({ quote: { id: quoteId } }, { status: PaymentActivationStatus.CLOSED });
   }
 
   async getActivationByTxId(txHash: string): Promise<PaymentActivation | null> {
     return this.paymentActivationRepo.findOne({
       where: { paymentHash: Equal(txHash) },
-      relations: { payment: true, quote: true },
+      relations: { quote: { payment: true } },
     });
+  }
+
+  // --- HANDLE PENDING ACTIVATIONS --- //
+  async processExpiredActivations(): Promise<void> {
+    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
+
+    await this.paymentActivationRepo.update(
+      {
+        status: PaymentActivationStatus.OPEN,
+        expiryDate: LessThan(maxDate),
+      },
+      { status: PaymentActivationStatus.CLOSED },
+    );
   }
 
   // --- CREATE ACTIVATIONS --- //
@@ -105,7 +79,7 @@ export class PaymentActivationService implements OnModuleInit {
     if (!actualQuote) throw new NotFoundException(`No actual quote found for payment ${pendingPayment.uniqueId}`);
 
     if (transferInfo.quoteUniqueId) {
-      const transferAmount = await this.paymentQuoteService.getAmountFromQuote(actualQuote, transferInfo);
+      const transferAmount = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset)?.amount;
 
       if (!transferAmount)
         throw new NotFoundException(
@@ -149,7 +123,7 @@ export class PaymentActivationService implements OnModuleInit {
   private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
     return this.paymentActivationRepo.findOne({
       where: {
-        status: PaymentActivationStatus.PENDING,
+        status: PaymentActivationStatus.OPEN,
         amount: transferInfo.amount,
         method: transferInfo.method,
         asset: { uniqueName: `${transferInfo.method}/${transferInfo.asset}` },
@@ -255,7 +229,7 @@ export class PaymentActivationService implements OnModuleInit {
     const asset = await this.getAssetByInfo(transferInfo);
 
     const newPaymentActivation = this.paymentActivationRepo.create({
-      status: PaymentActivationStatus.PENDING,
+      status: PaymentActivationStatus.OPEN,
       method: transferInfo.method,
       amount: transferInfo.amount,
       asset,
@@ -277,25 +251,5 @@ export class PaymentActivationService implements OnModuleInit {
     if (!asset) throw new NotFoundException(`Asset ${uniqueName} not found`);
 
     return asset;
-  }
-
-  async complete(activation: PaymentActivation) {
-    await this.paymentActivationRepo.save(activation.complete());
-  }
-
-  async expire(activations: PaymentActivation[]) {
-    for (const activation of activations) {
-      await this.paymentActivationRepo.save(activation.expire());
-    }
-  }
-
-  async cancel(paymentId: number): Promise<void> {
-    const pendingPayments = await this.paymentActivationRepo.find({
-      where: { payment: { id: paymentId }, status: PaymentActivationStatus.PENDING },
-    });
-
-    for (const pendingPayment of pendingPayments) {
-      await this.paymentActivationRepo.save(pendingPayment.cancel());
-    }
   }
 }
