@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  UnsupportedMediaTypeException,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -31,12 +32,13 @@ export class BankTxController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @UseInterceptors(FilesInterceptor('files'))
   async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<(BankTxBatch | Error)[]> {
     const batches = [];
     for (const file of files) {
       try {
+        if (file.mimetype !== 'text/xml') throw new UnsupportedMediaTypeException('Only XML files are allowed');
         const batch = await this.bankTxService.storeSepaFile(file.buffer.toString());
         batches.push(batch);
       } catch (e) {
