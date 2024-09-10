@@ -172,7 +172,7 @@ export class CryptoInput extends IEntity {
   acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;
-    this.status = this.txType === PayInType.PAYMENT ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
+    this.status = this.isPayment ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
 
     return this;
   }
@@ -293,5 +293,9 @@ export class CryptoInput extends IEntity {
 
   get amlReason(): AmlReason {
     return this.route instanceof Staking ? AmlReason.STAKING_DISCONTINUED : AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE;
+  }
+
+  get isPayment(): boolean {
+    return this.txType === PayInType.PAYMENT;
   }
 }

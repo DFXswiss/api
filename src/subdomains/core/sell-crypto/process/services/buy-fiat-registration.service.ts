@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInPurpose, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
@@ -80,7 +80,7 @@ export class BuyFiatRegistrationService {
         (r) =>
           (payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
             r.blockchains.includes(payIn.address.blockchain)) ||
-          (payIn.txType === PayInType.PAYMENT && payIn.paymentLinkPayment?.link.route.id === r.id),
+          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -100,7 +100,7 @@ export class BuyFiatRegistrationService {
         const alreadyExists = await this.buyFiatRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
-          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
+          const result = await this.transactionHelper.validateInput(payIn);
 
           if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
