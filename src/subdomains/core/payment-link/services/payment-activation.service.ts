@@ -10,7 +10,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { Equal, LessThan } from 'typeorm';
+import { Equal, LessThan, Not } from 'typeorm';
 import { TransferInfo } from '../dto/payment-link.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -41,15 +41,24 @@ export class PaymentActivationService implements OnModuleInit {
   }
 
   async close(activation: PaymentActivation): Promise<void> {
-    await this.paymentActivationRepo.update({ id: activation.id }, { status: PaymentActivationStatus.CLOSED });
+    await this.paymentActivationRepo.update(
+      { id: activation.id, status: Not(PaymentActivationStatus.CLOSED) },
+      { status: PaymentActivationStatus.CLOSED },
+    );
   }
 
   async closeAllForPayment(paymentId: number): Promise<void> {
-    await this.paymentActivationRepo.update({ payment: { id: paymentId } }, { status: PaymentActivationStatus.CLOSED });
+    await this.paymentActivationRepo.update(
+      { payment: { id: paymentId }, status: Not(PaymentActivationStatus.CLOSED) },
+      { status: PaymentActivationStatus.CLOSED },
+    );
   }
 
   async closeAllForQuote(quoteId: number): Promise<void> {
-    await this.paymentActivationRepo.update({ quote: { id: quoteId } }, { status: PaymentActivationStatus.CLOSED });
+    await this.paymentActivationRepo.update(
+      { quote: { id: quoteId }, status: Not(PaymentActivationStatus.CLOSED) },
+      { status: PaymentActivationStatus.CLOSED },
+    );
   }
 
   async getActivationByTxId(txHash: string): Promise<PaymentActivation | null> {

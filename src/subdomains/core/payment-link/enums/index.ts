@@ -29,6 +29,15 @@ export const PaymentQuoteTxStates = [
   PaymentQuoteStatus.TX_COMPLETED,
 ];
 
+export const PaymentQuoteFinalStates = [
+  PaymentQuoteStatus.CANCELLED,
+  PaymentQuoteStatus.EXPIRED,
+  PaymentQuoteStatus.TX_MEMPOOL,
+  PaymentQuoteStatus.TX_BLOCKCHAIN,
+  PaymentQuoteStatus.TX_COMPLETED,
+  PaymentQuoteStatus.TX_FAILED,
+];
+
 export enum PaymentActivationStatus {
   OPEN = 'Open',
   CLOSED = 'Closed',

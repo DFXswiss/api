@@ -27,6 +27,7 @@ import {
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
+  PaymentQuoteFinalStates,
   PaymentQuoteStatus,
   PaymentQuoteTxStates,
 } from '../enums';
@@ -61,13 +62,15 @@ export class PaymentLinkPaymentService {
   async processExpiredPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
-    const pendingPaymentLinkPayments = await this.paymentLinkPaymentRepo.findBy({
+    const pendingPayments = await this.paymentLinkPaymentRepo.findBy({
       status: PaymentLinkPaymentStatus.PENDING,
       expiryDate: LessThan(maxDate),
     });
 
-    for (const pendingPaymentLinkPayment of pendingPaymentLinkPayments) {
-      await this.doSave(pendingPaymentLinkPayment.expire(), true);
+    for (const payment of pendingPayments) {
+      await this.doSave(payment.expire(), true);
+
+      await this.cancelQuotesForPayment(payment);
     }
   }
 
@@ -179,12 +182,18 @@ export class PaymentLinkPaymentService {
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
+    pendingPayment.link = paymentLink;
+
     await this.doSave(pendingPayment.cancel(), true);
 
-    await this.paymentQuoteService.cancelAllForPayment(pendingPayment.id);
-    await this.paymentActivationService.closeAllForPayment(pendingPayment.id);
+    await this.cancelQuotesForPayment(pendingPayment);
 
     return paymentLink;
+  }
+
+  private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.paymentQuoteService.cancelAllForPayment(payment.id);
+    await this.paymentActivationService.closeAllForPayment(payment.id);
   }
 
   // --- HANDLE CALLBACKS --- //
@@ -257,8 +266,17 @@ export class PaymentLinkPaymentService {
   }
 
   private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {
+    // close activations
+    if (PaymentQuoteFinalStates.includes(quote.status))
+      if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
+        await this.paymentActivationService.closeAllForPayment(payment.id);
+      } else {
+        await this.paymentActivationService.closeAllForQuote(quote.id);
+      }
+
     if (payment.status !== PaymentLinkPaymentStatus.PENDING) return;
 
+    // update payment status
     const { minCompletionStatus } = payment.link.configObj;
 
     const isPaymentComplete =
@@ -266,12 +284,7 @@ export class PaymentLinkPaymentService {
     if (isPaymentComplete) {
       payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
 
-      if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
-        payment.complete();
-        await this.paymentActivationService.closeAllForPayment(payment.id);
-      } else {
-        await this.paymentActivationService.closeAllForQuote(quote.id);
-      }
+      if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
 
       await this.doSave(payment, true);
     }
