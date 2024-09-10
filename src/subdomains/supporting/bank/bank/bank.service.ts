@@ -3,8 +3,9 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
-import { Bank, BankName } from './bank.entity';
+import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
+import { IbanBankName } from './dto/bank.dto';
 
 export interface BankSelectorInput {
   amount: number;
@@ -26,7 +27,7 @@ export class BankService {
     return this.bankRepo.findCachedBy(`instantBanks`, { sctInst: true });
   }
 
-  async getBankInternal(name: BankName, currency: string): Promise<Bank> {
+  async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
     return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
   }
 
@@ -47,24 +48,24 @@ export class BankService {
     if (paymentMethod === FiatPaymentMethod.INSTANT) {
       // instant + bank tx => Revolut
       if (userData.hasBankTxVerification) {
-        account = this.getMatchingBank(banks, BankName.REVOLUT, currency, fallBackCurrency);
+        account = this.getMatchingBank(banks, IbanBankName.REVOLUT, currency, fallBackCurrency);
       }
       if (!account) {
         // instant => Olkypay / EUR
-        account = this.getMatchingBank(banks, BankName.OLKY, currency, fallBackCurrency);
+        account = this.getMatchingBank(banks, IbanBankName.OLKY, currency, fallBackCurrency);
       }
     }
     if (!account && (amount > frickAmountLimit || currency === 'USD')) {
       // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingBank(banks, BankName.FRICK, currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, IbanBankName.FRICK, currency, fallBackCurrency);
     }
     if (!account && (!ibanCodeCountry || ibanCodeCountry.maerkiBaumannEnable)) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
-      account = this.getMatchingBank(banks, BankName.MAERKI, currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, IbanBankName.MAERKI, currency, fallBackCurrency);
     }
     if (!account) {
       // Default => MB
-      account = this.getMatchingBank(banks, BankName.MAERKI, currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, IbanBankName.MAERKI, currency, fallBackCurrency);
     }
 
     return account;

@@ -15,11 +15,11 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DeepPartial, In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
-import { BankName } from '../../../bank/bank/bank.entity';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
@@ -103,8 +103,8 @@ export class BankTxService {
 
     const newModificationTime = new Date().toISOString();
 
-    const olkyBank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
-    const revolutBank = await this.bankService.getBankInternal(BankName.REVOLUT, 'EUR');
+    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+    const revolutBank = await this.bankService.getBankInternal(IbanBankName.REVOLUT, 'EUR');
 
     // Get bank transactions
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
