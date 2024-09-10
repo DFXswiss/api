@@ -81,11 +81,11 @@ export class LogJobService {
 
       const cryptoInput =
         pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) || undefined;
-      const buyFiat = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingAmount(curr), 0) || undefined;
-      const buyFiatPass = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingPassAmount(curr), 0) || undefined;
+      const buyFiat = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0) || undefined;
+      const buyFiatPass = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0) || undefined;
 
-      const buyCrypto = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingAmount(curr), 0) || undefined;
-      const buyCryptoPass = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingPassAmount(curr), 0) || undefined;
+      const buyCrypto = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0) || undefined;
+      const buyCryptoPass = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0) || undefined;
 
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,

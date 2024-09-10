@@ -441,11 +441,11 @@ export class BuyFiat extends IEntity {
     return this.cryptoInput?.paymentLinkPayment;
   }
 
-  pendingAmount(asset: Asset): number {
+  pendingInputAmount(asset: Asset): number {
     return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
   }
 
-  pendingPassAmount(asset: Asset): number {
+  pendingOutputAmount(asset: Asset): number {
     return this.outputAmount &&
       asset.dexName === this.sell.fiat.name &&
       (asset.blockchain as string) === 'MaerkiBaumann'

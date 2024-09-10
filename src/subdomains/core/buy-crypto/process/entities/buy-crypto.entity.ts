@@ -488,7 +488,7 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  pendingAmount(asset: Asset): number {
+  pendingInputAmount(asset: Asset): number {
     if (this.outputAmount) return 0;
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
@@ -508,7 +508,7 @@ export class BuyCrypto extends IEntity {
     }
   }
 
-  pendingPassAmount(asset: Asset): number {
+  pendingOutputAmount(asset: Asset): number {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
