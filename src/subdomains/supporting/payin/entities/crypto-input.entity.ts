@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
+import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
@@ -124,6 +125,9 @@ export class CryptoInput extends IEntity {
 
   @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInputs, { nullable: true })
   paymentLinkPayment: PaymentLinkPayment;
+
+  @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
+  paymentQuote: PaymentQuote;
 
   //*** FACTORY METHODS ***//
 

@@ -14,7 +14,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
@@ -221,14 +221,9 @@ export class PaymentLinkPaymentService {
   }
 
   // --- HANDLE INPUTS --- //
-  async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (cryptoInput.txType !== PayInType.PAYMENT) return;
-
+  async getPaymentQuoteByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | undefined> {
     const quote = await this.getQuoteForInput(cryptoInput);
-    if (!quote) {
-      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No matching quote found `);
-      return;
-    }
+    if (!quote) throw new Error(`No matching quote found`);
 
     await this.paymentQuoteService.saveBlockchainConfirmed(quote, cryptoInput.address.blockchain, cryptoInput.inTxId);
 
@@ -237,7 +232,9 @@ export class PaymentLinkPaymentService {
       relations: { link: { route: { user: { userData: true } } } },
     });
 
-    return this.handleQuoteChange(payment, quote);
+    await this.handleQuoteChange(payment, quote);
+
+    return quote;
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
@@ -265,10 +262,7 @@ export class PaymentLinkPaymentService {
     return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId);
   }
 
-  private async handleQuoteChange(
-    payment: PaymentLinkPayment,
-    quote: PaymentQuote,
-  ): Promise<PaymentLinkPayment | undefined> {
+  private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {
     // close activations
     if (PaymentQuoteFinalStates.includes(quote.status))
       if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
@@ -277,19 +271,20 @@ export class PaymentLinkPaymentService {
         await this.paymentActivationService.closeAllForQuote(quote.id);
       }
 
-    // check for completion
+    if (payment.status !== PaymentLinkPaymentStatus.PENDING) return;
+
+    // update payment status
     const { minCompletionStatus } = payment.link.configObj;
 
     const isPaymentComplete =
       PaymentQuoteTxStates.indexOf(quote.status) >= PaymentQuoteTxStates.indexOf(minCompletionStatus);
-    if (!isPaymentComplete || payment.status !== PaymentLinkPaymentStatus.PENDING) return payment;
+    if (isPaymentComplete) {
+      payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
 
-    // update payment status
-    payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
+      if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
 
-    if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
-
-    return this.doSave(payment, true);
+      await this.doSave(payment, true);
+    }
   }
 
   private async doSave(payment: PaymentLinkPayment, isPaymentDone: boolean): Promise<PaymentLinkPayment> {

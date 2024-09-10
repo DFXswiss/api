@@ -274,16 +274,16 @@ export class BuyFiat extends IEntity {
   setPaymentLinkPayment(
     amountInEur: number,
     amountInChf: number,
+    feeRate: number,
     totalFee: number,
     totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
     outputReferenceAsset: Fiat,
     outputAmount: number,
     outputAsset: Fiat,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
-    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
-    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> =

@@ -278,11 +278,9 @@ export class PaymentQuoteService {
     asset: Asset,
     amount: number,
   ): Promise<number | undefined> {
-    if (currency.name === 'CHF' && asset.name === 'ZCHF') return amount;
-
     try {
       const price = await this.pricingService.getPrice(asset, currency, true);
-      const fee = Config.payment.fee(standard);
+      const fee = Config.payment.fee(standard, currency, asset);
 
       return price.invert().convert(amount / (1 - fee), 8);
     } catch (e) {
