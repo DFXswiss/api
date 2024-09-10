@@ -490,24 +490,18 @@ export class BuyCrypto extends IEntity {
 
   pendingAmount(asset: Asset): number {
     if (this.outputAmount) return 0;
-    switch (asset.id) {
-      case 267:
-        return this.bankTx?.accountIban === 'CH6808573177975201814' ? this.inputReferenceAmount : 0;
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+        return (asset.dexName === 'EUR' && this.bankTx?.accountIban === 'CH6808573177975201814') ||
+          (asset.dexName === 'CHF' && this.bankTx?.accountIban === 'CH3408573177975200001')
+          ? this.inputReferenceAmount
+          : 0;
 
-      case 268:
-        return this.bankTx?.accountIban === 'CH3408573177975200001' ? this.inputReferenceAmount : 0;
-
-      case 269:
+      case 'Olkypay':
         return this.bankTx?.accountIban === 'LU116060002000005040' ? this.inputReferenceAmount : 0;
 
-      case 270:
-        return this.checkoutTx?.currency === 'CHF' ? this.inputReferenceAmount : 0;
-
-      case 271:
-        return this.checkoutTx?.currency === 'EUR' ? this.inputReferenceAmount : 0;
-
-      case 311:
-        return this.checkoutTx?.currency === 'USD' ? this.inputReferenceAmount : 0;
+      case 'Checkout':
+        return this.checkoutTx?.currency === asset.dexName ? this.inputReferenceAmount : 0;
 
       default:
         return this.cryptoInput?.asset.id === asset.id ? this.inputAmount : 0;

@@ -446,17 +446,11 @@ export class BuyFiat extends IEntity {
   }
 
   pendingPassAmount(asset: Asset): number {
-    if (!this.outputAmount) return 0;
-    switch (asset.id) {
-      case 267:
-        return this.sell.fiat.name === 'EUR' ? this.outputAmount : 0;
-
-      case 268:
-        return this.sell.fiat.name === 'CHF' ? this.outputAmount : 0;
-
-      default:
-        return 0;
-    }
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      (asset.blockchain as string) === 'MaerkiBaumann'
+      ? this.outputAmount
+      : 0;
   }
 }
 

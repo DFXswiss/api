@@ -15,13 +15,6 @@ import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
 
-type PendingBalance = {
-  cryptoInput: number;
-  buyFiat: number;
-  buyCryptoPass: number;
-  buyCrypto: number;
-};
-
 type BalancesByFinancialType = {
   [financialType: string]: {
     plusBalance: number;
