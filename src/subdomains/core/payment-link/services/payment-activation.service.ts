@@ -54,7 +54,7 @@ export class PaymentActivationService implements OnModuleInit {
 
   async getActivationByTxId(txHash: string): Promise<PaymentActivation | null> {
     return this.paymentActivationRepo.findOne({
-      where: { paymentHash: Equal(txHash) },
+      where: { paymentHash: Equal(txHash), status: PaymentActivationStatus.OPEN },
       relations: { quote: { payment: true } },
     });
   }
@@ -76,15 +76,12 @@ export class PaymentActivationService implements OnModuleInit {
 
   async doCreateRequest(pendingPayment: PaymentLinkPayment, transferInfo: TransferInfo): Promise<PaymentActivation> {
     const actualQuote = await this.paymentQuoteService.getActualQuote(pendingPayment.id, transferInfo);
-    if (!actualQuote) throw new NotFoundException(`No actual quote found for payment ${pendingPayment.uniqueId}`);
+    if (!actualQuote) throw new NotFoundException(`No matching actual quote found`);
 
     if (transferInfo.quoteUniqueId) {
       const transferAmount = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset)?.amount;
 
-      if (!transferAmount)
-        throw new NotFoundException(
-          `Transfer amount not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
-        );
+      if (!transferAmount) throw new BadRequestException(`Invalid method or asset`);
 
       transferInfo.amount = transferAmount;
     }
@@ -92,21 +89,17 @@ export class PaymentActivationService implements OnModuleInit {
     const expiryDate = new Date(Math.min(pendingPayment.expiryDate.getTime(), actualQuote.expiryDate.getTime()));
 
     const expirySec = Util.secondsDiff(new Date(), expiryDate);
-    if (expirySec < 1) throw new BadRequestException('Payment is expired');
+    if (expirySec < 1) throw new BadRequestException('Quote is expired');
 
-    let activation = await this.getExistingActivation(transferInfo);
+    const activations = await this.getExistingActivations(transferInfo);
     if (
       actualQuote.standard === PaymentStandard.PAY_TO_ADDRESS &&
-      activation &&
-      activation.payment.id !== pendingPayment.id
+      activations.some((a) => a.standard === PaymentStandard.PAY_TO_ADDRESS && a.quote.id !== actualQuote.id)
     )
       throw new ConflictException('Duplicate payment request');
 
-    if (
-      !activation ||
-      activation.payment.id !== pendingPayment.id ||
-      pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE
-    ) {
+    let activation = activations.find((a) => a.quote.id === actualQuote.id);
+    if (!activation || pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
       activation = await this.createNewPaymentActivationRequest(
         pendingPayment,
         actualQuote,
@@ -120,8 +113,8 @@ export class PaymentActivationService implements OnModuleInit {
     return activation;
   }
 
-  private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
-    return this.paymentActivationRepo.findOne({
+  private async getExistingActivations(transferInfo: TransferInfo): Promise<PaymentActivation[]> {
+    return this.paymentActivationRepo.find({
       where: {
         status: PaymentActivationStatus.OPEN,
         amount: transferInfo.amount,
@@ -130,6 +123,7 @@ export class PaymentActivationService implements OnModuleInit {
       },
       relations: {
         payment: true,
+        quote: true,
       },
     });
   }

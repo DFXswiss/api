@@ -78,10 +78,8 @@ export class PaymentLinkPaymentService {
       const blockchain = quote.txBlockchain;
 
       if (blockchain) {
-        const minNumberOfConfirmations = blockchain === Blockchain.ETHEREUM ? 6 : 100;
-
         const client = this.evmRegistryService.getClient(blockchain);
-        const isTxComplete = await client.isTxComplete(quote.txId, minNumberOfConfirmations);
+        const isTxComplete = await client.isTxComplete(quote.txId, Config.payment.minConfirmations(blockchain));
 
         if (isTxComplete) {
           await this.paymentQuoteService.saveFinallyConfirmed(quote);
@@ -166,7 +164,7 @@ export class PaymentLinkPaymentService {
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.timeout),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.defaultPaymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
@@ -219,7 +217,7 @@ export class PaymentLinkPaymentService {
 
     const quote = await this.getQuoteForInput(cryptoInput);
     if (!quote) {
-      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No pending payment found `);
+      this.logger.error(`CryptoInput ${cryptoInput.inTxId}: No matching quote found `);
       return;
     }
 
@@ -227,7 +225,7 @@ export class PaymentLinkPaymentService {
 
     const payment = await this.paymentLinkPaymentRepo.findOne({
       where: { id: quote.payment.id },
-      relations: { link: true },
+      relations: { link: { route: { user: { userData: true } } } },
     });
 
     await this.handleQuoteChange(payment, quote);
@@ -282,7 +280,7 @@ export class PaymentLinkPaymentService {
   private async doSave(payment: PaymentLinkPayment, isPaymentDone: boolean): Promise<PaymentLinkPayment> {
     const savedPayment = await this.paymentLinkPaymentRepo.save(payment);
 
-    await this.sendWebhook(savedPayment);
+    if (savedPayment.link.webhookUrl) await this.sendWebhook(savedPayment);
 
     if (isPaymentDone) {
       this.paymentWaitMap.resolve(savedPayment.id, savedPayment);

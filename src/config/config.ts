@@ -8,6 +8,7 @@ import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Process } from 'src/shared/services/process.service';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -257,9 +258,36 @@ export class Configuration {
   };
 
   payment = {
-    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+
+    defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+
+    defaultFee: 0.01,
+    addressFee: 0.02,
+    defaultQuoteTimeout: 300, // sec
+    addressQuoteTimeout: 7200, // sec
+
+    fee: (standard: PaymentStandard): number => {
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressFee;
+
+        default:
+          return this.payment.defaultFee;
+      }
+    },
+
+    quoteTimeout: (standard: PaymentStandard): number => {
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressQuoteTimeout;
+
+        default:
+          return this.payment.defaultQuoteTimeout;
+      }
+    },
   };
 
   blockchain = {

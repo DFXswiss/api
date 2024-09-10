@@ -38,24 +38,6 @@ export class PaymentQuoteService {
     Blockchain.MONERO,
   ];
 
-  private static readonly DEFAULT_TIMEOUT = 300;
-
-  private readonly paymentStandardTimeoutSecondsMap = new Map<PaymentStandard, number>([
-    [PaymentStandard.OPEN_CRYPTO_PAY, PaymentQuoteService.DEFAULT_TIMEOUT],
-    [PaymentStandard.FRANKENCOIN_PAY, PaymentQuoteService.DEFAULT_TIMEOUT],
-    [PaymentStandard.LIGHTNING_BOLT11, PaymentQuoteService.DEFAULT_TIMEOUT],
-    [PaymentStandard.PAY_TO_ADDRESS, 7200],
-  ]);
-
-  private static readonly DEFAULT_FEE = 0.01;
-
-  private readonly paymentStandardFeeMap = new Map<PaymentStandard, number>([
-    [PaymentStandard.OPEN_CRYPTO_PAY, PaymentQuoteService.DEFAULT_FEE],
-    [PaymentStandard.FRANKENCOIN_PAY, PaymentQuoteService.DEFAULT_FEE],
-    [PaymentStandard.LIGHTNING_BOLT11, PaymentQuoteService.DEFAULT_FEE],
-    [PaymentStandard.PAY_TO_ADDRESS, 0.02],
-  ]);
-
   constructor(
     private readonly paymentQuoteRepo: PaymentQuoteRepository,
     private readonly evmRegistryService: EvmRegistryService,
@@ -131,7 +113,7 @@ export class PaymentQuoteService {
 
   async getQuoteByTxId(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
     return this.paymentQuoteRepo.findOne({
-      where: { txBlockchain: Equal(txBlockchain), txId: Equal(txId) },
+      where: { txBlockchain: Equal(txBlockchain), txId: Equal(txId), status: PaymentQuoteStatus.TX_MEMPOOL },
       relations: { payment: true },
     });
   }
@@ -139,7 +121,7 @@ export class PaymentQuoteService {
   async getConfirmingQuotes(): Promise<PaymentQuote[]> {
     return this.paymentQuoteRepo.find({
       where: { status: PaymentQuoteStatus.TX_BLOCKCHAIN },
-      relations: { payment: { link: true } },
+      relations: { payment: { link: { route: { user: { userData: true } } } } },
     });
   }
 
@@ -190,13 +172,15 @@ export class PaymentQuoteService {
 
   // --- CREATE --- //
   async createQuote(standard: PaymentStandard, payment: PaymentLinkPayment): Promise<PaymentQuote> {
-    const timeoutSeconds = this.paymentStandardTimeoutSecondsMap.get(standard) ?? PaymentQuoteService.DEFAULT_TIMEOUT;
+    const timeoutSeconds = Config.payment.quoteTimeout(standard);
+
+    const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
-      expiryDate: Util.secondsAfter(timeoutSeconds),
+      expiryDate,
       standard,
       payment,
     });
@@ -298,7 +282,7 @@ export class PaymentQuoteService {
 
     try {
       const price = await this.pricingService.getPrice(asset, currency, true);
-      const fee = this.paymentStandardFeeMap.get(standard) ?? PaymentQuoteService.DEFAULT_FEE;
+      const fee = Config.payment.fee(standard);
 
       return price.invert().convert(amount / (1 - fee), 8);
     } catch (e) {
