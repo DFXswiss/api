@@ -9,11 +9,13 @@ export class CreateSupportMessageDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.file || m.message))
   message?: string;
 
   @ApiPropertyOptional({ description: 'Base64 encoded file' })
   @IsOptional()
   @IsString()
+  @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.message || m.file))
   file?: string;
 
   @ApiPropertyOptional({ description: 'Name of the file' })

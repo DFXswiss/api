@@ -124,10 +124,10 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
-  async getSupportIssue(userDataId: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
+  async getSupportIssue(userDataId: number, id: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
     const supportIssue = await this.supportIssueRepo.findOneBy({
       userData: { id: userDataId },
-      id: query.id,
+      id: id,
     });
 
     if (!supportIssue) throw new NotFoundException('Support issue not found');

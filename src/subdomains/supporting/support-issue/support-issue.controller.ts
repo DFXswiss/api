@@ -27,11 +27,15 @@ export class SupportIssueController {
     return this.supportIssueService.createIssue(jwt.account, dto);
   }
 
-  @Get()
+  @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async getIssue(@GetJwt() jwt: JwtPayload, @Query() query: GetSupportIssueFilter): Promise<SupportIssueDto> {
-    return this.supportIssueService.getSupportIssue(jwt.account, query);
+  async getIssue(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Query() query: GetSupportIssueFilter,
+  ): Promise<SupportIssueDto> {
+    return this.supportIssueService.getSupportIssue(jwt.account, +id, query);
   }
 
   @Post(':id/message')
