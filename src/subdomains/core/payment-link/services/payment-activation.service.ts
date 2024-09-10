@@ -1,17 +1,8 @@
-import {
-  BadRequestException,
-  ConflictException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-  OnModuleInit,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
-import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -19,15 +10,13 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { Equal, LessThan } from 'typeorm';
-import { PaymentLinkEvmPaymentDto, TransferInfo } from '../dto/payment-link.dto';
-import { PaymentRequestMapper } from '../dto/payment-request.mapper';
+import { Equal, LessThan, Not } from 'typeorm';
+import { TransferInfo } from '../dto/payment-link.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentStandard } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
-import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
@@ -41,8 +30,6 @@ export class PaymentActivationService implements OnModuleInit {
   constructor(
     readonly lightningService: LightningService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
-    @Inject(forwardRef(() => PaymentLinkPaymentService))
-    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
   ) {
@@ -53,87 +40,57 @@ export class PaymentActivationService implements OnModuleInit {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
   }
 
-  // --- HANDLE PENDING ACTIVATIONS --- //
-  async processPendingActivations(): Promise<void> {
-    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
-
-    const pendingPaymentActivations = await this.paymentActivationRepo.findBy({
-      status: PaymentActivationStatus.PENDING,
-      expiryDate: LessThan(maxDate),
-    });
-
-    for (const pendingPaymentActivation of pendingPaymentActivations) {
-      await this.paymentActivationRepo.save(pendingPaymentActivation.expire());
-    }
-  }
-
-  getPendingActivation(
-    pendingPayment: PaymentLinkPayment,
-    blockchain: Blockchain,
-    receivedAmount: number,
-  ): { pendingActivation: PaymentActivation; otherPendingActivations: PaymentActivation[] } | undefined {
-    const allPendingActivations = pendingPayment.activations.filter(
-      (a) => a.status === PaymentActivationStatus.PENDING,
+  async close(activation: PaymentActivation): Promise<void> {
+    await this.paymentActivationRepo.update(
+      { id: activation.id, status: Not(PaymentActivationStatus.CLOSED) },
+      { status: PaymentActivationStatus.CLOSED },
     );
-
-    if (!allPendingActivations.length) {
-      this.logger.error(`${blockchain} transaction ${pendingPayment.id}: No pending activations`);
-      return;
-    }
-
-    const pendingActivation = allPendingActivations.find((a) => a.method === blockchain && a.amount === receivedAmount);
-
-    if (!pendingActivation) {
-      this.logger.error(
-        `${blockchain} transaction ${pendingPayment.id}: No pending ${blockchain} activation with amount ${receivedAmount}`,
-      );
-      return;
-    }
-
-    const otherPendingActivations = allPendingActivations.filter((a) => a.id !== pendingActivation.id);
-
-    return { pendingActivation, otherPendingActivations };
   }
 
-  async getNumberOfCompletedActivations(paymentId: number): Promise<number> {
-    return this.paymentActivationRepo.count({
-      where: {
-        payment: { id: paymentId },
-        status: PaymentActivationStatus.COMPLETED,
-      },
-    });
+  async closeAllForPayment(paymentId: number): Promise<void> {
+    await this.paymentActivationRepo.update(
+      { payment: { id: paymentId }, status: Not(PaymentActivationStatus.CLOSED) },
+      { status: PaymentActivationStatus.CLOSED },
+    );
+  }
+
+  async closeAllForQuote(quoteId: number): Promise<void> {
+    await this.paymentActivationRepo.update(
+      { quote: { id: quoteId }, status: Not(PaymentActivationStatus.CLOSED) },
+      { status: PaymentActivationStatus.CLOSED },
+    );
   }
 
   async getActivationByTxId(txHash: string): Promise<PaymentActivation | null> {
     return this.paymentActivationRepo.findOne({
-      where: { paymentHash: Equal(txHash) },
-      relations: { payment: true, quote: true },
+      where: { paymentHash: Equal(txHash), status: PaymentActivationStatus.OPEN },
+      relations: { quote: { payment: true } },
     });
   }
 
-  // --- CREATE ACTIVATIONS --- //
-  async createPaymentActivationRequest(
-    uniqueId: string,
-    transferInfo: TransferInfo,
-  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    const activation = await this.doCreateRequest(uniqueId, transferInfo);
-    return PaymentRequestMapper.toPaymentRequest(activation);
+  // --- HANDLE PENDING ACTIVATIONS --- //
+  async processExpiredActivations(): Promise<void> {
+    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
+
+    await this.paymentActivationRepo.update(
+      {
+        status: PaymentActivationStatus.OPEN,
+        expiryDate: LessThan(maxDate),
+      },
+      { status: PaymentActivationStatus.CLOSED },
+    );
   }
 
-  private async doCreateRequest(uniqueId: string, transferInfo: TransferInfo): Promise<PaymentActivation> {
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
+  // --- CREATE ACTIVATIONS --- //
 
+  async doCreateRequest(pendingPayment: PaymentLinkPayment, transferInfo: TransferInfo): Promise<PaymentActivation> {
     const actualQuote = await this.paymentQuoteService.getActualQuote(pendingPayment.id, transferInfo);
-    if (!actualQuote) throw new NotFoundException(`Actual quote not found for payment ${uniqueId}`);
+    if (!actualQuote) throw new NotFoundException(`No matching actual quote found`);
 
     if (transferInfo.quoteUniqueId) {
-      const transferAmount = await this.paymentQuoteService.getAmountFromQuote(actualQuote, transferInfo);
+      const transferAmount = actualQuote.getTransferAmountFor(transferInfo.method, transferInfo.asset)?.amount;
 
-      if (!transferAmount)
-        throw new NotFoundException(
-          `Transfer amount not found by method ${transferInfo.method} and asset ${transferInfo.asset}`,
-        );
+      if (!transferAmount) throw new BadRequestException(`Invalid method or asset`);
 
       transferInfo.amount = transferAmount;
     }
@@ -141,21 +98,17 @@ export class PaymentActivationService implements OnModuleInit {
     const expiryDate = new Date(Math.min(pendingPayment.expiryDate.getTime(), actualQuote.expiryDate.getTime()));
 
     const expirySec = Util.secondsDiff(new Date(), expiryDate);
-    if (expirySec < 1) throw new BadRequestException('Payment is expired');
+    if (expirySec < 1) throw new BadRequestException('Quote is expired');
 
-    let activation = await this.getExistingActivation(transferInfo);
+    const activations = await this.getExistingActivations(transferInfo);
     if (
       actualQuote.standard === PaymentStandard.PAY_TO_ADDRESS &&
-      activation &&
-      activation.payment.id !== pendingPayment.id
+      activations.some((a) => a.standard === PaymentStandard.PAY_TO_ADDRESS && a.quote.id !== actualQuote.id)
     )
       throw new ConflictException('Duplicate payment request');
 
-    if (
-      !activation ||
-      activation.payment.id !== pendingPayment.id ||
-      pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE
-    ) {
+    let activation = activations.find((a) => a.quote.id === actualQuote.id);
+    if (!activation || pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
       activation = await this.createNewPaymentActivationRequest(
         pendingPayment,
         actualQuote,
@@ -169,16 +122,17 @@ export class PaymentActivationService implements OnModuleInit {
     return activation;
   }
 
-  private async getExistingActivation(transferInfo: TransferInfo): Promise<PaymentActivation | null> {
-    return this.paymentActivationRepo.findOne({
+  private async getExistingActivations(transferInfo: TransferInfo): Promise<PaymentActivation[]> {
+    return this.paymentActivationRepo.find({
       where: {
-        status: PaymentActivationStatus.PENDING,
+        status: PaymentActivationStatus.OPEN,
         amount: transferInfo.amount,
         method: transferInfo.method,
         asset: { uniqueName: `${transferInfo.method}/${transferInfo.asset}` },
       },
       relations: {
         payment: true,
+        quote: true,
       },
     });
   }
@@ -278,7 +232,7 @@ export class PaymentActivationService implements OnModuleInit {
     const asset = await this.getAssetByInfo(transferInfo);
 
     const newPaymentActivation = this.paymentActivationRepo.create({
-      status: PaymentActivationStatus.PENDING,
+      status: PaymentActivationStatus.OPEN,
       method: transferInfo.method,
       amount: transferInfo.amount,
       asset,
@@ -300,25 +254,5 @@ export class PaymentActivationService implements OnModuleInit {
     if (!asset) throw new NotFoundException(`Asset ${uniqueName} not found`);
 
     return asset;
-  }
-
-  async complete(activation: PaymentActivation) {
-    await this.paymentActivationRepo.save(activation.complete());
-  }
-
-  async expire(activations: PaymentActivation[]) {
-    for (const activation of activations) {
-      await this.paymentActivationRepo.save(activation.expire());
-    }
-  }
-
-  async cancel(paymentId: number): Promise<void> {
-    const pendingPayments = await this.paymentActivationRepo.find({
-      where: { payment: { id: paymentId }, status: PaymentActivationStatus.PENDING },
-    });
-
-    for (const pendingPayment of pendingPayments) {
-      await this.paymentActivationRepo.save(pendingPayment.cancel());
-    }
   }
 }

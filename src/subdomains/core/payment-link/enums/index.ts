@@ -22,16 +22,25 @@ export enum PaymentQuoteStatus {
   TX_FAILED = 'TxFailed',
 }
 
-export enum PaymentActivationStatus {
-  PENDING = 'Pending',
-  EXPIRED = 'Expired',
-  CANCELLED = 'Cancelled',
-  COMPLETED = 'Completed',
-}
+export const PaymentQuoteTxStates = [
+  PaymentQuoteStatus.TX_RECEIVED,
+  PaymentQuoteStatus.TX_MEMPOOL,
+  PaymentQuoteStatus.TX_BLOCKCHAIN,
+  PaymentQuoteStatus.TX_COMPLETED,
+];
 
-export enum PaymentLinkEvmHexPaymentStatus {
-  SUCCESS = 'Success',
-  FAILED = 'Failed',
+export const PaymentQuoteFinalStates = [
+  PaymentQuoteStatus.CANCELLED,
+  PaymentQuoteStatus.EXPIRED,
+  PaymentQuoteStatus.TX_MEMPOOL,
+  PaymentQuoteStatus.TX_BLOCKCHAIN,
+  PaymentQuoteStatus.TX_COMPLETED,
+  PaymentQuoteStatus.TX_FAILED,
+];
+
+export enum PaymentActivationStatus {
+  OPEN = 'Open',
+  CLOSED = 'Closed',
 }
 
 export enum PaymentLinkPaymentMode {

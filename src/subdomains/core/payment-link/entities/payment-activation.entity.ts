@@ -9,7 +9,7 @@ import { PaymentQuote } from './payment-quote.entity';
 @Entity()
 @Index((activation: PaymentActivation) => [activation.method, activation.asset, activation.amount], {
   unique: true,
-  where: `status = '${PaymentActivationStatus.PENDING}' AND standard = '${PaymentStandard.PAY_TO_ADDRESS}'`,
+  where: `status = '${PaymentActivationStatus.OPEN}' AND standard = '${PaymentStandard.PAY_TO_ADDRESS}'`,
 })
 export class PaymentActivation extends IEntity {
   @Column()
@@ -41,24 +41,4 @@ export class PaymentActivation extends IEntity {
 
   @ManyToOne(() => PaymentQuote, (q) => q.activations, { nullable: true })
   quote: PaymentQuote;
-
-  // --- ENTITY METHODS --- //
-
-  complete(): this {
-    this.status = PaymentActivationStatus.COMPLETED;
-
-    return this;
-  }
-
-  cancel(): this {
-    this.status = PaymentActivationStatus.CANCELLED;
-
-    return this;
-  }
-
-  expire(): this {
-    this.status = PaymentActivationStatus.EXPIRED;
-
-    return this;
-  }
 }
