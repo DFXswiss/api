@@ -4,11 +4,12 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { TransferMethod } from '../dto/payment-link.dto';
 import { PaymentActivationStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
+import { PaymentQuote } from './payment-quote.entity';
 
 @Entity()
 @Index((activation: PaymentActivation) => [activation.method, activation.asset, activation.amount], {
   unique: true,
-  where: `status = '${PaymentActivationStatus.PENDING}' AND standard = '${PaymentStandard.PAY_TO_ADDRESS}'`,
+  where: `status = '${PaymentActivationStatus.OPEN}' AND standard = '${PaymentStandard.PAY_TO_ADDRESS}'`,
 })
 export class PaymentActivation extends IEntity {
   @Column()
@@ -26,6 +27,9 @@ export class PaymentActivation extends IEntity {
   @Column({ length: 'MAX' })
   paymentRequest: string;
 
+  @Column({ length: 256, nullable: true })
+  paymentHash: string;
+
   @Column({ type: 'datetime2' })
   expiryDate: Date;
 
@@ -35,23 +39,6 @@ export class PaymentActivation extends IEntity {
   @ManyToOne(() => PaymentLinkPayment, (p) => p.activations, { nullable: false })
   payment: PaymentLinkPayment;
 
-  // --- ENTITY METHODS --- //
-
-  complete(): this {
-    this.status = PaymentActivationStatus.COMPLETED;
-
-    return this;
-  }
-
-  cancel(): this {
-    this.status = PaymentActivationStatus.CANCELLED;
-
-    return this;
-  }
-
-  expire(): this {
-    this.status = PaymentActivationStatus.EXPIRED;
-
-    return this;
-  }
+  @ManyToOne(() => PaymentQuote, (q) => q.activations, { nullable: true })
+  quote: PaymentQuote;
 }

@@ -13,3 +13,15 @@ export class BankDto {
   @ApiProperty()
   currency: string;
 }
+
+export enum IbanBankName {
+  FRICK = 'Bank Frick',
+  OLKY = 'Olkypay',
+  MAERKI = 'Maerki Baumann',
+  REVOLUT = 'Revolut',
+  KALEIDO = 'Kaleido',
+}
+
+export enum CardBankName {
+  CHECKOUT = 'Checkout',
+}

@@ -74,8 +74,9 @@ export class BuyCryptoRegistrationService {
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
         (r) =>
-          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          r.deposit.blockchainList.includes(payIn.address.blockchain),
+          (payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
+            r.deposit.blockchainList.includes(payIn.address.blockchain)) ||
+          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -90,7 +91,7 @@ export class BuyCryptoRegistrationService {
         const alreadyExists = await this.buyCryptoRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
-          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
+          const result = await this.transactionHelper.validateInput(payIn);
 
           if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);

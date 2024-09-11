@@ -3,13 +3,7 @@ import { Type } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ErrorDto } from 'src/shared/dto/error.dto';
-import {
-  PaymentLinkEvmHexPaymentStatus,
-  PaymentLinkPaymentMode,
-  PaymentLinkPaymentStatus,
-  PaymentLinkStatus,
-  PaymentStandard,
-} from '../enums';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 
 export type TransferMethod = Blockchain;
 
@@ -39,6 +33,7 @@ export interface PaymentLinkRequestDto {
   displayName: string;
   standard: PaymentStandard;
   possibleStandards: PaymentStandard[];
+  displayQr: boolean;
   recipient: PaymentLinkRecipientDto;
 }
 
@@ -64,13 +59,8 @@ export interface PaymentLinkEvmPaymentDto {
   uri: string;
 }
 
-export interface PaymentLinkEvmHexPaymentDto {
-  status: PaymentLinkEvmHexPaymentStatus;
-  blockchain: Blockchain;
-  amount: number;
-  asset: string;
+export interface PaymentLinkHexResultDto {
   txId: string;
-  message: string;
 }
 
 export class PaymentLinkRecipientAddressDto {

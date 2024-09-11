@@ -2,16 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import {
-  PaymentLinkEvmHexPaymentDto,
   PaymentLinkEvmPaymentDto,
+  PaymentLinkHexResultDto,
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
-import { PaymentActivationService } from 'src/subdomains/core/payment-link/services/payment-activation.service';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
-import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
 import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
@@ -28,13 +26,13 @@ export class LnUrlForwardService {
   constructor(
     lightningService: LightningService,
     private readonly paymentLinkService: PaymentLinkService,
-    private readonly paymentQuoteService: PaymentQuoteService,
-    private readonly paymentActivationService: PaymentActivationService,
+    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
 
   // --- LNURLp --- //
+  // pay request
   async lnurlpForward(id: string, params: any): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto> {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
@@ -54,13 +52,14 @@ export class LnUrlForwardService {
     return payRequest;
   }
 
+  // callback
   async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
       const transferInfo = this.getPaymentTransferInfo(params);
-      return this.paymentActivationService.createPaymentActivationRequest(id, transferInfo);
+      return this.paymentLinkPaymentService.createActivationRequest(id, transferInfo);
     }
 
     return this.createLnurlpInvoice(id, params);
@@ -70,9 +69,9 @@ export class LnUrlForwardService {
     return this.client.getLnurlpInvoice(id, params);
   }
 
-  async txHexForward(id: string, params: any): Promise<PaymentLinkEvmHexPaymentDto> {
+  async txHexForward(id: string, params: any): Promise<PaymentLinkHexResultDto> {
     const transferInfo = this.getPaymentTransferInfo(params);
-    return this.paymentQuoteService.executeHexPayment(id, transferInfo);
+    return this.paymentLinkPaymentService.handleHexPayment(id, transferInfo);
   }
 
   private getPaymentTransferInfo(params: any): TransferInfo {
