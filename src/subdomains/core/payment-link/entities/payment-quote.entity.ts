@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferMethod } from '../dto/payment-link.dto';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
@@ -41,6 +42,9 @@ export class PaymentQuote extends IEntity {
   @OneToMany(() => PaymentActivation, (p) => p.quote, { nullable: true })
   activations: PaymentActivation[];
 
+  @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentQuote, { nullable: true })
+  cryptoInputs: CryptoInput[];
+
   // --- ENTITY METHODS --- //
 
   cancel(): this {
@@ -51,6 +55,28 @@ export class PaymentQuote extends IEntity {
 
   expire(): this {
     this.status = PaymentQuoteStatus.EXPIRED;
+
+    return this;
+  }
+
+  txReceived(blockchain: Blockchain, tx: string): this {
+    this.status = PaymentQuoteStatus.TX_RECEIVED;
+    this.txBlockchain = blockchain;
+    this.tx = tx;
+
+    return this;
+  }
+
+  txMempool(txId: string): this {
+    this.status = PaymentQuoteStatus.TX_MEMPOOL;
+    this.txId = txId;
+
+    return this;
+  }
+
+  txFailed(error: string): this {
+    this.status = PaymentQuoteStatus.TX_FAILED;
+    this.errorMessage = error;
 
     return this;
   }

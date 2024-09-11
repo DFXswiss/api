@@ -16,6 +16,10 @@ export class UpdateUserAdminDto {
   usedRef: string;
 
   @IsOptional()
+  @IsBoolean()
+  setRef: boolean;
+
+  @IsOptional()
   @IsEnum(UserRole)
   role: UserRole;
 

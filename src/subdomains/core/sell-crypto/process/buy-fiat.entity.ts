@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -273,16 +274,16 @@ export class BuyFiat extends IEntity {
   setPaymentLinkPayment(
     amountInEur: number,
     amountInChf: number,
+    feeRate: number,
     totalFee: number,
     totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
     outputReferenceAsset: Fiat,
     outputAmount: number,
     outputAsset: Fiat,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
-    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
-    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> =
@@ -438,6 +439,18 @@ export class BuyFiat extends IEntity {
 
   get paymentLinkPayment(): PaymentLinkPayment | undefined {
     return this.cryptoInput?.paymentLinkPayment;
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      (asset.blockchain as string) === 'MaerkiBaumann'
+      ? this.outputAmount
+      : 0;
   }
 }
 

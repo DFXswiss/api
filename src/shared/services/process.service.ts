@@ -44,12 +44,12 @@ export enum Process {
   BANK_DATA_VERIFICATION = 'BankDataVerification',
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
   NETWORK_START_FEE = 'NetworkStartFee',
-  UPDATE_PAYMENT = 'UpdatePayment',
   TRADING_LOG = 'TradingLog',
   ASSET_DECIMALS = 'AssetDecimals',
   UPDATE_GAS_PRICE = 'UpdateGasPrice',
   SANCTION_SYNC = 'SanctionSync',
-  CHECK_TX_CONFIRMATIONS = 'CheckTxConfirmations',
+  PAYMENT_EXPIRATION = 'PaymentExpiration',
+  PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

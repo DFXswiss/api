@@ -53,7 +53,8 @@ export class PayInService {
 
       if (!exists) {
         payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
-        payIn.paymentLinkPayment = await this.paymentLinkPaymentService.getPaymentByCryptoInput(payIn);
+
+        if (payIn.isPayment) await this.fetchPayment(payIn);
 
         await this.payInRepository.save(payIn);
 
@@ -62,6 +63,16 @@ export class PayInService {
     }
 
     return payIns;
+  }
+
+  private async fetchPayment(payIn: CryptoInput): Promise<void> {
+    try {
+      payIn.paymentQuote = await this.paymentLinkPaymentService.getPaymentQuoteByCryptoInput(payIn);
+      payIn.paymentLinkPayment = payIn.paymentQuote.payment;
+    } catch (e) {
+      this.logger.error(`Failed to fetch payment for pay-in ${payIn.inTxId}:`, e);
+      payIn.status = PayInStatus.FAILED;
+    }
   }
 
   async getNewPayIns(): Promise<CryptoInput[]> {
@@ -83,7 +94,10 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy({ status: PayInStatus.ACKNOWLEDGED, action: IsNull() });
+    return this.payInRepository.findBy([
+      { status: PayInStatus.ACKNOWLEDGED, action: IsNull() },
+      { status: PayInStatus.ACKNOWLEDGED, action: PayInAction.WAITING },
+    ]);
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {

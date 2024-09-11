@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -67,10 +68,12 @@ export class BuyFiatPreparationService {
 
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
+        const isPayment = entity.cryptoInput.isPayment;
         const minVolume = await this.transactionHelper.getMinVolumeIn(
           entity.cryptoInput.asset,
           entity.cryptoInput.asset,
           false,
+          isPayment,
         );
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
@@ -198,7 +201,7 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
-        cryptoInput: { paymentLinkPayment: true },
+        cryptoInput: { paymentLinkPayment: true, paymentQuote: true },
         transaction: { user: { wallet: true, userData: true } },
       },
     });
@@ -214,32 +217,41 @@ export class BuyFiatPreparationService {
         const outputCurrency = entity.sell.fiat;
         const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
 
+        // fees
+        const feeRate = Config.payment.fee(
+          entity.cryptoInput.paymentQuote.standard,
+          outputReferenceCurrency,
+          inputCurrency,
+        );
+        const totalFee = entity.inputReferenceAmount * feeRate;
+        const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
+
+        // prices
         const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
         const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
-        const outputReferencePrice = await this.pricingService.getPrice(outputReferenceCurrency, outputCurrency, false);
+
         const referencePrice = Price.create(
           inputCurrency.name,
           outputReferenceCurrency.name,
-          entity.inputReferenceAmount / outputReferenceAmount,
+          inputReferenceAmountMinusFee / outputReferenceAmount,
         );
-
         const priceStep = PriceStep.create(
           'Payment',
-          inputCurrency.name,
-          outputReferenceCurrency.name,
-          entity.inputAmount / outputReferenceAmount,
+          referencePrice.source,
+          referencePrice.target,
+          referencePrice.price,
         );
 
-        const totalFee = entity.inputReferenceAmount - referencePrice.invert().convert(entity.outputReferenceAmount);
-
-        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+        const outputReferencePrice = await this.pricingService.getPrice(outputReferenceCurrency, outputCurrency, false);
 
         await this.buyFiatRepo.update(
           ...entity.setPaymentLinkPayment(
             eurPrice.convert(entity.inputAmount, 2),
-            amountInChf,
+            chfPrice.convert(entity.inputAmount, 2),
+            feeRate,
             totalFee,
             chfPrice.convert(totalFee, 5),
+            inputReferenceAmountMinusFee,
             outputReferenceAmount,
             outputReferenceCurrency,
             outputReferencePrice.convert(outputReferenceAmount, 2),

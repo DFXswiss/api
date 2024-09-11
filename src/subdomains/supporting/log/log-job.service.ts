@@ -15,13 +15,6 @@ import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
 
-type PendingBalance = {
-  cryptoInput: number;
-  buyFiat: number;
-  buyCryptoPass: number;
-  buyCrypto: number;
-};
-
 type BalancesByFinancialType = {
   [financialType: string]: {
     plusBalance: number;
@@ -86,30 +79,25 @@ export class LogJobService {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      const pendingBalance: PendingBalance = {
-        cryptoInput: pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) || undefined,
-        buyFiat:
-          pendingBuyFiat.reduce((sum, tx) => (sum + tx.cryptoInput.asset.id === curr.id ? tx.inputAmount : 0), 0) ||
-          undefined,
-        buyCrypto:
-          pendingBuyCrypto.reduce(
-            (sum, tx) => sum + (!tx.outputAmount && tx.cryptoInput?.asset?.id === curr.id ? tx.inputAmount : 0),
-            0,
-          ) || undefined,
-        buyCryptoPass:
-          pendingBuyCrypto.reduce(
-            (sum, tx) => sum + (tx.outputAmount && tx.outputAsset?.id === curr.id ? tx.outputAmount ?? 0 : 0),
-            0,
-          ) || undefined,
-      };
+      const cryptoInput =
+        pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) || undefined;
+      const buyFiat = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0) || undefined;
+      const buyFiatPass = pendingBuyFiat.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0) || undefined;
+
+      const buyCrypto = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0) || undefined;
+      const buyCryptoPass = pendingBuyCrypto.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0) || undefined;
 
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
-        plusBalance: liquidityBalance,
+        plusBalance: liquidityBalance + (cryptoInput ?? 0),
         manualDebtPosition,
-        minusBalance: 0,
-        pendingBalance,
+        minusBalance:
+          manualDebtPosition + (buyFiat ?? 0) + (buyFiatPass ?? 0) + (buyCrypto ?? 0) + (buyCryptoPass ?? 0),
+        pendingBalance: {
+          plusBalance: { cryptoInput },
+          minusBalance: { buyFiat, buyFiatPass, buyCrypto, buyCryptoPass },
+        },
       };
 
       return prev;

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { CheckoutModule } from 'src/integration/checkout/checkout.module';
 import { ExchangeModule } from 'src/integration/exchange/exchange.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
@@ -57,6 +58,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     NotificationModule,
     BankModule,
     BankTxModule,
+    CheckoutModule,
   ],
   controllers: [
     LiquidityManagementRuleController,
