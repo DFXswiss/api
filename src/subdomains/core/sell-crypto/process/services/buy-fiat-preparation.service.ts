@@ -69,7 +69,7 @@ export class BuyFiatPreparationService {
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
         const isPayment = entity.cryptoInput.isPayment;
-        const minVolume = await this.transactionHelper.getMinVolumeIn(
+        const minVolume = await this.transactionHelper.getMinVolume(
           entity.cryptoInput.asset,
           entity.outputAsset,
           entity.cryptoInput.asset,

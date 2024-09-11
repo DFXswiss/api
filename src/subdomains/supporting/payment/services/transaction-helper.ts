@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -42,6 +42,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly evmRegistryService: EvmRegistryService,
@@ -61,29 +62,21 @@ export class TransactionHelper implements OnModuleInit {
   // --- SPECIFICATIONS --- //
   async validateInput(payIn: CryptoInput): Promise<boolean> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(payIn.asset, undefined, payIn.asset, true, payIn.isPayment);
+    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, true, payIn.isPayment);
     if (payIn.amount < minVolume * 0.5) return false;
 
     return true;
   }
 
   async getMinVolumeIn(
-    from: Active | undefined,
-    to: Active | undefined,
+    from: Active,
     fromReference: Active,
     allowExpiredPrice: boolean,
     isPayment: boolean,
   ): Promise<number> {
-    const inSpec =
-      isPayment && from
-        ? this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume
-        : 0;
-    const outSpec =
-      isPayment && to
-        ? this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume
-        : 0;
-
-    const minVolume = isPayment ? Config.payment.minVolume : Math.max(inSpec, outSpec);
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
 
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
@@ -96,6 +89,21 @@ export class TransactionHelper implements OnModuleInit {
 
     const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
     return this.convert(spec.minVolume, price, isFiat(to));
+  }
+
+  async getMinVolume(
+    from: Active | undefined,
+    to: Active | undefined,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
+
+    const price = await this.pricingService
+      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .then((p) => p.invert());
+    return this.convert(minVolume, price, isFiat(from));
   }
 
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
