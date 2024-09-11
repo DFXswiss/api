@@ -353,8 +353,8 @@ export abstract class EvmClient {
     // calculate amount
     const [amount0, amount1] = this.getUniswapPositionAmounts(position, sqrtPriceX96);
     return [
-      EvmUtil.fromWeiAmount(BigInt(amount0).toString(), token0.decimals),
-      EvmUtil.fromWeiAmount(BigInt(amount1).toString(), token1.decimals),
+      EvmUtil.fromWeiAmount(BigInt(Math.round(amount0)).toString(), token0.decimals),
+      EvmUtil.fromWeiAmount(BigInt(Math.round(amount1)).toString(), token1.decimals),
     ];
   }
 

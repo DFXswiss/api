@@ -206,7 +206,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         const amounts = await client.getUniswapLiquidity(positionsNft, +positionId);
 
         for (const asset of assetMap.get(pool)) {
-          const balance = amounts[+asset.chainId.split('/').slice(-1)[0]];
+          const balance = amounts[+asset.chainId.split('/').pop()];
           this.balanceCache.set(asset.id, balance);
         }
       } catch (e) {
