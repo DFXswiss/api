@@ -71,6 +71,7 @@ export class BuyFiatPreparationService {
         const isPayment = entity.cryptoInput.isPayment;
         const minVolume = await this.transactionHelper.getMinVolumeIn(
           entity.cryptoInput.asset,
+          entity.outputAsset,
           entity.cryptoInput.asset,
           false,
           isPayment,

@@ -86,6 +86,7 @@ export class BuyCryptoPreparationService {
         const isPayment = Boolean(entity.cryptoInput?.isPayment);
         const minVolume = await this.transactionHelper.getMinVolumeIn(
           inputCurrency,
+          entity.outputAsset,
           inputReferenceCurrency,
           false,
           isPayment,

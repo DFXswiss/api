@@ -61,21 +61,29 @@ export class TransactionHelper implements OnModuleInit {
   // --- SPECIFICATIONS --- //
   async validateInput(payIn: CryptoInput): Promise<boolean> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, true, payIn.isPayment);
+    const minVolume = await this.getMinVolumeIn(payIn.asset, undefined, payIn.asset, true, payIn.isPayment);
     if (payIn.amount < minVolume * 0.5) return false;
 
     return true;
   }
 
   async getMinVolumeIn(
-    from: Active,
+    from: Active | undefined,
+    to: Active | undefined,
     fromReference: Active,
     allowExpiredPrice: boolean,
     isPayment: boolean,
   ): Promise<number> {
-    const minVolume = isPayment
-      ? Config.payment.minVolume
-      : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
+    const inSpec =
+      isPayment && from
+        ? this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume
+        : 0;
+    const outSpec =
+      isPayment && to
+        ? this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume
+        : 0;
+
+    const minVolume = isPayment ? Config.payment.minVolume : Math.max(inSpec, outSpec);
 
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
