@@ -28,8 +28,6 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { LimitRequestDto } from '../../../supporting/support-issue/dto/limit-request.dto';
-import { LimitRequestService } from '../../../supporting/support-issue/services/limit-request.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import {
@@ -63,11 +61,7 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(
-    private readonly kycService: KycService,
-    private readonly tfaService: TfaService,
-    private readonly limitService: LimitRequestService,
-  ) {}
+  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
 
   @Get()
   @ApiOkResponse({ type: KycLevelDto })
@@ -281,14 +275,6 @@ export class KycController {
     @Body() dto: Verify2faDto,
   ): Promise<void> {
     return this.tfaService.verify(code, dto.token, ip);
-  }
-
-  // --- LIMIT INCREASE --- //
-  @Post('limit')
-  @ApiCreatedResponse({ description: 'Limit request initiated' })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async increaseLimit(@Headers(CodeHeaderName) code: string, @Body() request: LimitRequestDto): Promise<void> {
-    return this.limitService.increaseLimit(request, code);
   }
 
   // --- HELPER METHODS --- //
