@@ -89,18 +89,16 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
+        plusPendingBalance: { cryptoInput: cryptoInput || undefined },
         plusBalance: liquidityBalance + cryptoInput,
         manualDebtPosition,
-        minusBalance: manualDebtPosition + buyFiat + buyFiatPass + buyCrypto + buyCryptoPass,
-        pendingBalance: {
-          plusBalance: { cryptoInput: cryptoInput || undefined },
-          minusBalance: {
-            buyFiat: buyFiat || undefined,
-            buyFiatPass: buyFiatPass || undefined,
-            buyCrypto: buyCrypto || undefined,
-            buyCryptoPass: buyCryptoPass || undefined,
-          },
+        minusPendingBalance: {
+          buyFiat: buyFiat || undefined,
+          buyFiatPass: buyFiatPass || undefined,
+          buyCrypto: buyCrypto || undefined,
+          buyCryptoPass: buyCryptoPass || undefined,
         },
+        minusBalance: manualDebtPosition + buyFiat + buyFiatPass + buyCrypto + buyCryptoPass,
       };
 
       return prev;
