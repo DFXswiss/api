@@ -90,9 +90,10 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
-        plusBalance: liquidityBalance,
+        plusBalance: liquidityBalance + (cryptoInput ?? 0),
         manualDebtPosition,
-        minusBalance: 0,
+        minusBalance:
+          manualDebtPosition + (buyFiat ?? 0) + (buyFiatPass ?? 0) + (buyCrypto ?? 0) + (buyCryptoPass ?? 0),
         pendingBalance: {
           plusBalance: { cryptoInput },
           minusBalance: { buyFiat, buyFiatPass, buyCrypto, buyCryptoPass },
