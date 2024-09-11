@@ -52,20 +52,9 @@ export class RouteService {
   async createRoute(dto: CreateRouteDto): Promise<Route> {
     const entity = this.routeRepo.create(dto);
 
-    if (dto.buy) {
-      entity.buy = await this.buyService.get(undefined, dto.buy.id);
-      if (!entity.buy) throw new NotFoundException('Buy not found');
-    }
-
-    if (dto.sell) {
-      entity.sell = await this.sellService.get(undefined, dto.sell.id);
-      if (!entity.sell) throw new NotFoundException('Sell not found');
-    }
-
-    if (dto.swap) {
-      entity.swap = await this.swapService.get(undefined, dto.swap.id);
-      if (!entity.swap) throw new NotFoundException('Swap not found');
-    }
+    if (dto.buy) entity.buy = await this.buyService.get(undefined, dto.buy.id);
+    if (dto.sell) entity.sell = await this.sellService.get(undefined, dto.sell.id);
+    if (dto.swap) entity.swap = await this.swapService.get(undefined, dto.swap.id);
 
     return this.routeRepo.save(entity);
   }
