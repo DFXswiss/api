@@ -77,7 +77,6 @@ export class SupportIssueService {
     const supportMessage = await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
 
     const supportIssue = SupportIssueDtoMapper.mapSupportIssue(entity);
-    if (!supportIssue.messages) supportIssue.messages = [];
     supportIssue.messages.push(supportMessage);
 
     return supportIssue;

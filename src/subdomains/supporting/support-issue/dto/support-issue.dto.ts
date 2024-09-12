@@ -11,11 +11,8 @@ export class SupportMessageDto {
   @ApiProperty()
   created: Date;
 
-  @ApiProperty()
-  message: string;
-
   @ApiPropertyOptional()
-  fileUrl?: string;
+  message?: string;
 
   @ApiPropertyOptional()
   fileName?: string;
@@ -56,11 +53,8 @@ export class SupportIssueDto {
   @ApiProperty({ type: Date })
   created: Date;
 
-  @ApiProperty({ type: [SupportMessageDto] })
+  @ApiProperty({ type: SupportMessageDto, isArray: true })
   messages: SupportMessageDto[];
-
-  @ApiPropertyOptional()
-  information?: string;
 
   @ApiPropertyOptional({ type: SupportIssueTransactionDto })
   transaction?: SupportIssueTransactionDto;

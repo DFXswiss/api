@@ -1,4 +1,3 @@
-import { Config } from 'src/config/config';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { LimitRequest } from '../entities/limit-request.entity';
 import { SupportIssue } from '../entities/support-issue.entity';
@@ -20,7 +19,7 @@ export class SupportIssueDtoMapper {
       name: supportIssue.name,
       created: supportIssue.created,
       transaction: SupportIssueDtoMapper.mapTransaction(supportIssue.transaction),
-      messages: supportIssue.messages?.map(SupportIssueDtoMapper.mapSupportMessage),
+      messages: supportIssue.messages?.map(SupportIssueDtoMapper.mapSupportMessage) ?? [],
       limitRequest: SupportIssueDtoMapper.mapLimitRequest(supportIssue.limitRequest),
     };
 
@@ -33,7 +32,6 @@ export class SupportIssueDtoMapper {
       author: supportMessage.author,
       created: supportMessage.created,
       message: supportMessage.message,
-      fileUrl: `${Config.url()}/support/issue/${supportMessage.issue.id}/message/${supportMessage.id}/file`,
       fileName: supportMessage.fileName,
     };
 
