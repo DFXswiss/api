@@ -10,7 +10,7 @@ export class SupportMessage extends IEntity {
   @Column({ length: 256, nullable: false })
   author: string;
 
-  @Column({ length: 'MAX', nullable: false })
+  @Column({ length: 'MAX', nullable: true })
   message: string;
 
   @Column({ length: 256, nullable: true })
