@@ -5,10 +5,10 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
 import { WebhookService } from '../../../generic/user/services/webhook/webhook.service';
-import { LimitRequestInternalDto } from '../dto/limit-request.dto';
+import { LimitRequestDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
-import { SupportIssueState } from '../entities/support-issue.entity';
+import { SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 
@@ -23,11 +23,11 @@ export class LimitRequestService {
     private readonly supportIssueRepo: SupportIssueRepository,
   ) {}
 
-  async increaseLimitInternal(dto: LimitRequestInternalDto, userData: UserData): Promise<LimitRequest> {
+  async increaseLimitInternal(dto: LimitRequestDto, userData: UserData): Promise<LimitRequest> {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
 
     // create entity
-    let entity = this.limitRequestRepo.create({ ...dto, userData });
+    let entity = this.limitRequestRepo.create(dto);
 
     // save
     entity = await this.limitRequestRepo.save(entity);
@@ -45,8 +45,7 @@ export class LimitRequestService {
             { key: `Investment date: ${entity.investmentDate}` },
             { key: `Fund origin: ${entity.fundOrigin}` },
             { key: `Fund origin text: ${entity.fundOriginText}` },
-            { key: `Document url: ${entity.documentProofUrl}` },
-            { key: `UserData id: ${entity.userData.id}` },
+            { key: `UserData id: ${userData.id}` },
           ],
         },
       })
@@ -56,10 +55,7 @@ export class LimitRequestService {
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
-    const entity = await this.limitRequestRepo.findOne({
-      where: { id },
-      relations: { userData: true, supportIssue: true },
-    });
+    const entity = await this.limitRequestRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('LimitRequest not found');
 
     const update = this.limitRequestRepo.create(dto);
@@ -77,6 +73,8 @@ export class LimitRequestService {
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {
-    return this.limitRequestRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+    return this.limitRequestRepo.findBy({
+      supportIssue: { userData: { id: userDataId }, type: SupportIssueType.LIMIT_REQUEST },
+    });
   }
 }
