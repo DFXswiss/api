@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { In, MoreThan } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -50,7 +50,7 @@ export class SupportIssueService {
         userData: { id: userDataId },
         type: newIssue.type,
         reason: newIssue.reason,
-        transaction: { id: newIssue.transaction?.id },
+        transaction: { id: newIssue.transaction?.id ?? IsNull() },
       },
       relations: { messages: true },
     });

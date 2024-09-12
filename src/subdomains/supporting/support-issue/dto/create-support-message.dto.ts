@@ -7,14 +7,12 @@ export class CreateSupportMessageDto {
   author: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
   @IsNotEmpty()
   @IsString()
   @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.file || m.message))
   message?: string;
 
   @ApiPropertyOptional({ description: 'Base64 encoded file' })
-  @IsOptional()
   @IsNotEmpty()
   @IsString()
   @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.message || m.file))
