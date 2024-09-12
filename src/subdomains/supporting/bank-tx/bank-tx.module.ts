@@ -46,6 +46,6 @@ import { BankTxService } from './bank-tx/services/bank-tx.service';
     BankTxRepeatService,
     BankTxBatchService,
   ],
-  exports: [BankTxService, BankTxRepeatService, BankTxBatchService],
+  exports: [BankTxService, BankTxRepeatService, BankTxBatchService, BankTxReturnService],
 })
 export class BankTxModule {}

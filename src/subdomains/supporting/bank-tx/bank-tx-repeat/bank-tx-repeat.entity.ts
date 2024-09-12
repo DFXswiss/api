@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -35,4 +36,26 @@ export class BankTxRepeat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   amountInUsd: number;
+
+  //*** METHODS ***//
+
+  pendingInputAmount(asset: Asset): number {
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+        return (asset.dexName === 'EUR' && this.bankTx.accountIban === 'CH6808573177975201814') ||
+          (asset.dexName === 'CHF' && this.bankTx.accountIban === 'CH3408573177975200001')
+          ? this.bankTx.amount
+          : 0;
+
+      case 'Olkypay':
+        return this.bankTx.accountIban === 'LU116060002000005040' ? this.bankTx.amount : 0;
+
+      default:
+        return 0;
+    }
+  }
+
+  pendingOutputAmount(_: Asset): number {
+    return 0;
+  }
 }

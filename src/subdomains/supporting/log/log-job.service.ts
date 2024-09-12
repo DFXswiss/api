@@ -13,6 +13,12 @@ import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
+import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
+import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
+import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
@@ -42,6 +48,9 @@ export class LogJobService {
     private readonly buyFiatService: BuyFiatService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly settingService: SettingService,
+    private readonly bankTxService: BankTxService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly bankTxReturnService: BankTxReturnService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -75,6 +84,9 @@ export class LogJobService {
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
+    const pendingBankTx = await this.bankTxService.getPendingTx();
+    const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
+    const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     const assetLog = assets.reduce((prev, curr) => {
@@ -86,6 +98,26 @@ export class LogJobService {
       const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
       const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
 
+      const bankTxNull = this.getPendingAmounts(
+        [curr],
+        pendingBankTx.filter((b) => !b.type),
+      ).input;
+      const bankTxPending = this.getPendingAmounts(
+        [curr],
+        pendingBankTx.filter((b) => b.type === BankTxType.PENDING),
+      ).input;
+      const bankTxUnknown = this.getPendingAmounts(
+        [curr],
+        pendingBankTx.filter((b) => b.type === BankTxType.UNKNOWN),
+      ).input;
+      const bankTxGSheet = this.getPendingAmounts(
+        [curr],
+        pendingBankTx.filter((b) => b.type === BankTxType.GSHEET),
+      ).input;
+
+      const bankTxRepeat = this.getPendingAmounts([curr], pendingBankTxRepeat).input;
+      const bankTxReturn = this.getPendingAmounts([curr], pendingBankTxReturn).input;
+
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
@@ -93,12 +125,27 @@ export class LogJobService {
         plusBalance: liquidityBalance + cryptoInput,
         manualDebtPosition: manualDebtPosition || undefined,
         minusPendingBalance:
-          buyFiat || buyFiatPass || buyCrypto || buyCryptoPass
+          buyFiat ||
+          buyFiatPass ||
+          buyCrypto ||
+          buyCryptoPass ||
+          bankTxNull ||
+          bankTxPending ||
+          bankTxUnknown ||
+          bankTxGSheet ||
+          bankTxRepeat ||
+          bankTxReturn
             ? {
                 buyFiat: buyFiat || undefined,
                 buyFiatPass: buyFiatPass || undefined,
                 buyCrypto: buyCrypto || undefined,
                 buyCryptoPass: buyCryptoPass || undefined,
+                bankTxNull: bankTxNull || undefined,
+                bankTxPending: bankTxPending || undefined,
+                bankTxUnknown: bankTxUnknown || undefined,
+                bankTxGSheet: bankTxGSheet || undefined,
+                bankTxRepeat: bankTxRepeat || undefined,
+                bankTxReturn: bankTxReturn || undefined,
               }
             : undefined,
         minusBalance: manualDebtPosition + buyFiat + buyFiatPass + buyCrypto + buyCryptoPass,
@@ -176,7 +223,10 @@ export class LogJobService {
     });
   }
 
-  private getPendingAmounts(assets: Asset[], pendingTx: (BuyCrypto | BuyFiat)[]): { input: number; output: number } {
+  private getPendingAmounts(
+    assets: Asset[],
+    pendingTx: (BuyCrypto | BuyFiat | BankTx | BankTxReturn | BankTxRepeat)[],
+  ): { input: number; output: number } {
     return {
       input: assets.reduce(
         (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0),

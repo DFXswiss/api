@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
+import { IsNull } from 'typeorm';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { BankTx, BankTxType } from '../bank-tx/entities/bank-tx.entity';
@@ -51,5 +52,12 @@ export class BankTxReturnService {
     Util.removeNullFields(entity);
 
     return this.bankTxReturnRepo.save({ ...update, ...entity });
+  }
+
+  async getPendingTx(): Promise<BankTxReturn[]> {
+    return this.bankTxReturnRepo.find({
+      where: { chargebackBankTx: { id: IsNull() } },
+      relations: { chargebackBankTx: true, bankTx: true },
+    });
   }
 }

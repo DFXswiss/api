@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -257,6 +258,28 @@ export class BankTx extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    if ([BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
+
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+        return (asset.dexName === 'EUR' && this.accountIban === 'CH6808573177975201814') ||
+          (asset.dexName === 'CHF' && this.accountIban === 'CH3408573177975200001')
+          ? this.amount
+          : 0;
+
+      case 'Olkypay':
+        return this.accountIban === 'LU116060002000005040' ? this.amount : 0;
+
+      default:
+        return 0;
+    }
+  }
+
+  pendingOutputAmount(_: Asset): number {
+    return 0;
   }
 }
 
