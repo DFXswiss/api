@@ -26,7 +26,7 @@ export class UserDtoMapper {
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
-        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.isKycClient)
+        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
         .map((u) => this.mapAddress(u)),
       activeAddress: activeUser && this.mapAddress(activeUser),
       paymentLink: {
