@@ -90,6 +90,6 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     KrakenAdapter,
     LiquidityPipelineAdapter,
   ],
-  exports: [LiquidityManagementService, LiquidityManagementBalanceService],
+  exports: [LiquidityManagementService, LiquidityManagementBalanceService, LiquidityManagementPipelineService],
 })
 export class LiquidityManagementModule {}
