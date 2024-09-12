@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { In, MoreThan, Not } from 'typeorm';
+import { In, MoreThan } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -12,7 +12,7 @@ import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
+import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -49,9 +49,8 @@ export class SupportIssueService {
       where: {
         userData: { id: userDataId },
         type: newIssue.type,
-        information: newIssue.information,
         reason: newIssue.reason,
-        state: Not(SupportIssueState.COMPLETED),
+        transaction: { id: newIssue.transaction?.id },
       },
       relations: { messages: true },
     });
