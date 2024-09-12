@@ -90,6 +90,21 @@ export class TransactionHelper implements OnModuleInit {
     return this.convert(spec.minVolume, price, isFiat(to));
   }
 
+  async getMinVolume(
+    from: Active | undefined,
+    to: Active | undefined,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
+
+    const price = await this.pricingService
+      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .then((p) => p.invert());
+    return this.convert(minVolume, price, isFiat(from));
+  }
+
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
     return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
   }
