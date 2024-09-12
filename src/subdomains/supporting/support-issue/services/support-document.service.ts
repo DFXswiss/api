@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { AzureStorageService, Blob, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 
@@ -41,6 +41,10 @@ export class SupportDocumentService {
     contentType: ContentType,
     metadata?: Record<string, string>,
   ): Promise<string> {
+    if (!this.isPermittedFileType(contentType)) {
+      throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
+    }
+
     return this.storageService.uploadBlob(this.toFileId(userDataId, issueId, name), data, contentType, metadata);
   }
 
@@ -56,5 +60,9 @@ export class SupportDocumentService {
   private fromFileId(fileId: string): [number, number, string] {
     const [_u, userDataId, _i, issueId, name] = fileId.split('/');
     return [+userDataId, +issueId, name];
+  }
+
+  private isPermittedFileType(fileType: ContentType): boolean {
+    return [ContentType.PNG, ContentType.JPEG, ContentType.JPG, ContentType.PDF].includes(fileType);
   }
 }
