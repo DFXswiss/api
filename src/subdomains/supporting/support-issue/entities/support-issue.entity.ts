@@ -30,7 +30,7 @@ export enum SupportIssueReason {
 
 @Entity()
 export class SupportIssue extends IEntity {
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, unique: true })
   uid: string;
 
   @Column({ length: 256, default: SupportIssueState.CREATED })
