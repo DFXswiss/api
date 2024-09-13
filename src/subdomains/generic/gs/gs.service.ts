@@ -101,7 +101,7 @@ export class GsService {
     const userIds = userData.users.map((u) => u.id);
     const refCodes = userData.users.map((u) => u.ref);
 
-    const { supportIssues, supportMessages } = await this.supportIssueService.getUserSupportTickets(userData.id);
+    const { supportIssues, supportMessages } = await this.supportIssueService.getUserIssues(userData.id);
 
     return {
       userData,
