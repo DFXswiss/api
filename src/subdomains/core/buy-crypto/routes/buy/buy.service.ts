@@ -122,6 +122,10 @@ export class BuyService {
     return entity;
   }
 
+  async getBuyWithoutRoute(): Promise<Buy[]> {
+    return this.buyRepo.findBy({ route: { id: IsNull() } });
+  }
+
   async getUserBuys(userId: number): Promise<Buy[]> {
     return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
   }
