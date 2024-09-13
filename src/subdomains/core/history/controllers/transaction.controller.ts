@@ -70,7 +70,7 @@ import { ExportType, HistoryService } from '../services/history.service';
 interface TransactionRefundData {
   expiryDate: Date;
   feeAmount: number;
-  chargebackAmount: number;
+  refundAmount: number;
 }
 
 @ApiTags('Transaction')
@@ -296,7 +296,7 @@ export class TransactionController {
 
     const refundData = {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-      chargebackAmount: transaction.targetEntity.inputAmount - feeAmount,
+      refundAmount: transaction.targetEntity.inputAmount - feeAmount,
       feeAmount,
     };
 
@@ -333,7 +333,7 @@ export class TransactionController {
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
     this.refundList.delete(transaction.id);
 
-    const refundDto = { chargebackAmount: refundData.chargebackAmount, chargebackAllowedDateUser: new Date() };
+    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
