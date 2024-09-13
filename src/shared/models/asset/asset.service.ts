@@ -150,7 +150,7 @@ export class AssetService {
 
   async getPolygonCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'MATIC',
+      dexName: 'POL',
       blockchain: Blockchain.POLYGON,
       type: AssetType.COIN,
     });
