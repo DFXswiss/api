@@ -1,14 +1,15 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, OneToOne } from 'typeorm';
+import { Column, Entity, Index, OneToOne } from 'typeorm';
 import { Buy } from '../buy-crypto/routes/buy/buy.entity';
 import { Swap } from '../buy-crypto/routes/swap/swap.entity';
 import { Sell } from '../sell-crypto/route/sell.entity';
 
 @Entity()
 export class Route extends IEntity {
-  @Column({ length: 256, unique: true, nullable: true })
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'label IS NOT NULL' })
   label: string;
 
   // References
