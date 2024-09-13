@@ -92,6 +92,6 @@ import { SwapService } from './routes/swap/swap.service';
     BuyCryptoPreparationService,
     BuyCryptoJobService,
   ],
-  exports: [BuyController, SwapController, BuyCryptoService, BuyService, BuyCryptoWebhookService],
+  exports: [BuyController, SwapController, BuyCryptoService, BuyService, BuyCryptoWebhookService, SwapService],
 })
 export class BuyCryptoModule {}
