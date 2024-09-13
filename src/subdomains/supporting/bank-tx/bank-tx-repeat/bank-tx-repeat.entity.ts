@@ -1,6 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { BankService } from '../../bank/bank/bank.service';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
@@ -42,13 +43,8 @@ export class BankTxRepeat extends IEntity {
   pendingInputAmount(asset: Asset): number {
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
-        return (asset.dexName === 'EUR' && this.bankTx.accountIban === 'CH6808573177975201814') ||
-          (asset.dexName === 'CHF' && this.bankTx.accountIban === 'CH3408573177975200001')
-          ? this.bankTx.amount
-          : 0;
-
       case 'Olkypay':
-        return this.bankTx.accountIban === 'LU116060002000005040' ? this.bankTx.amount : 0;
+        return BankService.isBankMatching(asset, this.bankTx.accountIban) ? this.bankTx.amount : 0;
 
       default:
         return 0;

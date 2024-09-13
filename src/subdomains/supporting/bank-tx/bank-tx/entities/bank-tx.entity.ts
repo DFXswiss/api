@@ -4,6 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -265,13 +266,8 @@ export class BankTx extends IEntity {
 
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
-        return (asset.dexName === 'EUR' && this.accountIban === 'CH6808573177975201814') ||
-          (asset.dexName === 'CHF' && this.accountIban === 'CH3408573177975200001')
-          ? this.amount
-          : 0;
-
       case 'Olkypay':
-        return this.accountIban === 'LU116060002000005040' ? this.amount : 0;
+        return BankService.isBankMatching(asset, this.accountIban) ? this.amount : 0;
 
       default:
         return 0;
