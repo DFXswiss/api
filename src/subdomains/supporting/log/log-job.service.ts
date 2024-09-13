@@ -10,6 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
@@ -42,6 +43,7 @@ export class LogJobService {
     private readonly buyFiatService: BuyFiatService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly settingService: SettingService,
+    private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -75,6 +77,7 @@ export class LogJobService {
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
+    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     const assetLog = assets.reduce((prev, curr) => {
@@ -82,6 +85,10 @@ export class LogJobService {
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const exchangeOrders = pendingExchangeOrders.reduce(
+        (sum, tx) => (sum + tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        0,
+      );
 
       const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
       const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
@@ -89,7 +96,10 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         liquidityBalance,
-        plusPendingBalance: cryptoInput ? { cryptoInput: cryptoInput || undefined } : undefined,
+        plusPendingBalance:
+          cryptoInput || exchangeOrders
+            ? { cryptoInput: cryptoInput || undefined, exchangeOrders: exchangeOrders || undefined }
+            : undefined,
         plusBalance: liquidityBalance + cryptoInput,
         manualDebtPosition: manualDebtPosition || undefined,
         minusPendingBalance:

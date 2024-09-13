@@ -69,6 +69,13 @@ export class LiquidityManagementPipelineService {
     });
   }
 
+  async getPendingTx(): Promise<LiquidityManagementOrder[]> {
+    return this.orderRepo.findBy({
+      status: LiquidityManagementOrderStatus.IN_PROGRESS,
+      action: { command: In(['withdraw', 'deposit', 'transfer']) },
+    });
+  }
+
   async getPipelineStatus(pipelineId: number): Promise<LiquidityManagementPipelineStatus> {
     const pipeline = await this.pipelineRepo.findOneBy({ id: pipelineId });
 
