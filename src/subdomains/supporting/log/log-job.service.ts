@@ -158,7 +158,18 @@ export class LogJobService {
                 bankTxReturn: bankTxReturn || undefined,
               }
             : undefined,
-        minusBalance: manualDebtPosition + buyFiat + buyFiatPass + buyCrypto + buyCryptoPass,
+        minusBalance:
+          manualDebtPosition +
+          buyFiat +
+          buyFiatPass +
+          buyCrypto +
+          buyCryptoPass +
+          bankTxNull +
+          bankTxPending +
+          bankTxUnknown +
+          bankTxGSheet +
+          bankTxRepeat +
+          bankTxReturn,
       };
 
       return prev;
