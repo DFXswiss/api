@@ -83,11 +83,18 @@ export class TransactionHelper implements OnModuleInit {
     return this.convert(minVolume, price, isFiat(from));
   }
 
-  async getMinVolumeOut(to: Active, toReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
+  async getMinVolumeOut(
+    to: Active,
+    toReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
     const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
-    return this.convert(spec.minVolume, price, isFiat(to));
+    return this.convert(minVolume, price, isFiat(to));
   }
 
   async getMinVolume(
