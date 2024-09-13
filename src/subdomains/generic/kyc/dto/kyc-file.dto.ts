@@ -16,6 +16,7 @@ export enum FileType {
 export enum ContentType {
   PNG = 'image/png',
   JPEG = 'image/jpeg',
+  JPG = 'image/jpg',
   JSON = 'application/json',
   PDF = 'application/pdf',
   TEXT = 'text/plain',

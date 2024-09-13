@@ -244,4 +244,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   paymentLinksName?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentLinksConfig?: string;
 }
