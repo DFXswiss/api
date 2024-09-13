@@ -100,7 +100,7 @@ export class LogJobService {
           cryptoInput || exchangeOrders
             ? { cryptoInput: cryptoInput || undefined, exchangeOrders: exchangeOrders || undefined }
             : undefined,
-        plusBalance: liquidityBalance + cryptoInput,
+        plusBalance: liquidityBalance + cryptoInput + exchangeOrders,
         manualDebtPosition: manualDebtPosition || undefined,
         minusPendingBalance:
           buyFiat || buyFiatPass || buyCrypto || buyCryptoPass
