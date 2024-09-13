@@ -1,20 +1,18 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { In, Not } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
+import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
+import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
+import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
+import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -40,23 +38,24 @@ export class SupportIssueService {
     await this.supportIssueRepo.save(newIssue);
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
-    const existingIssue = await this.supportIssueRepo.findOneBy({
-      userData: { id: userDataId },
-      type: newIssue.type,
-      information: newIssue.information,
-      reason: newIssue.reason,
-      state: Not(SupportIssueState.COMPLETED),
+    const existingIssue = await this.supportIssueRepo.findOne({
+      where: {
+        userData: { id: userDataId },
+        type: newIssue.type,
+        reason: newIssue.reason,
+        transaction: { id: newIssue.transaction?.id ?? IsNull() },
+      },
+      relations: { messages: true },
     });
 
-    // transaction issues
-    if (dto.transaction) {
+    if (!existingIssue && dto.transaction) {
       if (dto.transaction.id) {
         newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
           user: { userData: true },
@@ -69,13 +68,17 @@ export class SupportIssueService {
       newIssue.additionalInformation = dto.transaction;
     }
 
-    // limit request
-    if (dto.limitRequest && !existingIssue)
+    if (!existingIssue && dto.limitRequest) {
       newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+    }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
+    const supportMessage = await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
 
-    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
+    const supportIssue = SupportIssueDtoMapper.mapSupportIssue(entity);
+    supportIssue.messages.push(supportMessage);
+
+    return supportIssue;
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
@@ -87,13 +90,7 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<void> {
-    const existing = await this.messageRepo.findOneBy({
-      message: dto.message,
-      issue: { id },
-    });
-    if (existing) throw new ConflictException('Support message already exists');
-
+  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<SupportMessageDto> {
     const entity = this.messageRepo.create(dto);
 
     entity.issue = await this.supportIssueRepo.findOne({
@@ -121,6 +118,31 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+
+    return SupportIssueDtoMapper.mapSupportMessage(entity);
+  }
+
+  async getSupportIssue(userDataId: number, id: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
+    const supportIssue = await this.supportIssueRepo.findOneBy({
+      userData: { id: userDataId },
+      id: id,
+    });
+
+    if (!supportIssue) throw new NotFoundException('Support issue not found');
+
+    supportIssue.messages = await this.messageRepo.findBy({
+      issue: { id: supportIssue.id },
+      id: MoreThan(query.fromMessageId ?? 0),
+    });
+
+    return SupportIssueDtoMapper.mapSupportIssue(supportIssue);
+  }
+
+  async getSupportIssueFile(userDataId: number, id: number, messageId: number): Promise<BlobContent> {
+    const message = await this.messageRepo.findOneBy({ id: messageId, issue: { id } });
+    if (!message) throw new NotFoundException('Message not found');
+
+    return this.documentService.downloadFile(userDataId, id, message.fileName);
   }
 
   async getUserSupportTickets(

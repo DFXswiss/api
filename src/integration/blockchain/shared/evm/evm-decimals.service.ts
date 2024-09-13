@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -25,6 +26,7 @@ export class EvmDecimalsService {
       chainId: Not(IsNull()),
       blockchain: In(CryptoService.EthereumBasedChains),
       decimals: IsNull(),
+      type: In([AssetType.COIN, AssetType.TOKEN]),
     });
 
     for (const asset of assets) {
