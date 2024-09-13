@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -19,6 +19,7 @@ import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
@@ -41,6 +42,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly evmRegistryService: EvmRegistryService,
@@ -58,28 +60,57 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async validateInput(from: Active, amount: number): Promise<boolean> {
+  async validateInput(payIn: CryptoInput): Promise<boolean> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(from, from, true);
-    if (amount < minVolume * 0.5) return false;
+    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, true, payIn.isPayment);
+    if (payIn.amount < minVolume * 0.5) return false;
 
     return true;
   }
 
-  async getMinVolumeIn(from: Active, fromReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
+  async getMinVolumeIn(
+    from: Active,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
 
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
       .then((p) => p.invert());
-    return this.convert(spec.minVolume, price, isFiat(from));
+    return this.convert(minVolume, price, isFiat(from));
   }
 
-  async getMinVolumeOut(to: Active, toReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
+  async getMinVolumeOut(
+    to: Active,
+    toReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
     const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
-    return this.convert(spec.minVolume, price, isFiat(to));
+    return this.convert(minVolume, price, isFiat(to));
+  }
+
+  async getMinVolume(
+    from: Active | undefined,
+    to: Active | undefined,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
+
+    const price = await this.pricingService
+      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .then((p) => p.invert());
+    return this.convert(minVolume, price, isFiat(from));
   }
 
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {

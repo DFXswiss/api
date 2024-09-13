@@ -7,7 +7,10 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -258,9 +261,39 @@ export class Configuration {
   };
 
   payment = {
-    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    minVolume: 0.01, // CHF
+
+    defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+
+    defaultForexFee: 0.01,
+    addressForexFee: 0.02,
+    defaultQuoteTimeout: 300, // sec
+    addressQuoteTimeout: 7200, // sec
+
+    fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
+      if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
+
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressForexFee;
+
+        default:
+          return this.payment.defaultForexFee;
+      }
+    },
+
+    quoteTimeout: (standard: PaymentStandard): number => {
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressQuoteTimeout;
+
+        default:
+          return this.payment.defaultQuoteTimeout;
+      }
+    },
   };
 
   blockchain = {

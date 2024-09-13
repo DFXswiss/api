@@ -559,7 +559,7 @@ export class BuyCryptoService {
   async getPendingTransactions(): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { isComplete: false },
-      relations: { cryptoInput: true },
+      relations: { cryptoInput: true, checkoutTx: true, bankTx: true },
     });
   }
 

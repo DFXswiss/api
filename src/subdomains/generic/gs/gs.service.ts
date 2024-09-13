@@ -75,7 +75,7 @@ export class GsService {
 
     const data = await this.getRawDbData({
       ...query,
-      select: [...query.select?.filter((s) => !s.includes('-')), ...additionalSelect],
+      select: [...(query.select?.filter((s) => !s.includes('documents') && !s.includes('-')) ?? []), ...additionalSelect],
     });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
@@ -215,7 +215,7 @@ export class GsService {
       .where(`${query.table}.id >= :id`, { id: query.min })
       .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
 
-    if (query.select) request.select(query.select);
+    if (query.select.length) request.select(query.select);
 
     for (const where of query.where) {
       request.andWhere(where[0], where[1]);

@@ -9,8 +9,6 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { LimitRequestDto } from '../../../../supporting/support-issue/dto/limit-request.dto';
-import { LimitRequestService } from '../../../../supporting/support-issue/services/limit-request.service';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
@@ -21,7 +19,7 @@ import { KycService } from './kyc.service';
 @ApiTags('KYC')
 @Controller('kyc')
 export class KycController {
-  constructor(private readonly kycService: KycService, private readonly limitRequestService: LimitRequestService) {}
+  constructor(private readonly kycService: KycService) {}
 
   // --- TRANSFER --- //
   @Put('transfer')
@@ -59,15 +57,6 @@ export class KycController {
   @ApiOperation({ deprecated: true })
   async getKycCountriesV1(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {
     return this.kycService.getKycCountries('', jwt.account).then(CountryDtoMapper.entitiesToDto);
-  }
-
-  @Post('limit')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiOkResponse()
-  @ApiOperation({ deprecated: true })
-  async increaseLimitV1(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<void> {
-    return this.limitRequestService.increaseLimit(request, '', jwt.account);
   }
 
   @Post('data')
@@ -119,13 +108,6 @@ export class KycController {
   @ApiOperation({ deprecated: true })
   async updateKycDataByCodeV1(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
     return this.kycService.updateKycData(code, data);
-  }
-
-  @Post(':code/limit')
-  @ApiOkResponse()
-  @ApiOperation({ deprecated: true })
-  async increaseLimitByCodeV1(@Param('code') code: string, @Body() request: LimitRequestDto): Promise<void> {
-    return this.limitRequestService.increaseLimit(request, code);
   }
 
   @Post(':code/incorporationCertificate')

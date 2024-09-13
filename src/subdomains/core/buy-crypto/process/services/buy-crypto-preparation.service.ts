@@ -83,7 +83,14 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
-        const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, inputReferenceCurrency, false);
+        const isPayment = Boolean(entity.cryptoInput?.isPayment);
+        const minVolume = await this.transactionHelper.getMinVolume(
+          inputCurrency,
+          entity.outputAsset,
+          inputReferenceCurrency,
+          false,
+          isPayment,
+        );
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
