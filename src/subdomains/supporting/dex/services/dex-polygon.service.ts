@@ -7,6 +7,6 @@ import { DexEvmService } from './base/dex-evm.service';
 @Injectable()
 export class DexPolygonService extends DexEvmService {
   constructor(liquidityOrderRepo: LiquidityOrderRepository, polygonService: PolygonService) {
-    super(liquidityOrderRepo, polygonService, 'MATIC', Blockchain.POLYGON);
+    super(liquidityOrderRepo, polygonService, 'POL', Blockchain.POLYGON);
   }
 }
