@@ -75,13 +75,21 @@ export class GsService {
 
     const data = await this.getRawDbData({
       ...query,
-      select: [...(query.select?.filter((s) => !s.includes('documents') && !s.includes('-')) ?? []), ...additionalSelect],
+      select: [
+        ...(query.select?.filter((s) => !s.includes('documents') && !s.includes('-')) ?? []),
+        ...additionalSelect,
+      ],
     });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);
 
-    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
+    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) {
+      this.setJsonData(data, query.select);
+      additionalSelect.forEach((key) => {
+        if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
+      });
+    }
 
     // transform to array
     return this.transformResultArray(data, query.table);
