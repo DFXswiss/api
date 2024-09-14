@@ -68,10 +68,6 @@ export class LogJobService {
     const assets = await this.assetService
       .getAllAssets()
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
-    const financialTypeMap = Util.groupBy<Asset, string>(
-      assets.filter((a) => a.financialType),
-      'financialType',
-    );
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
     const pendingPayIns = await this.payInService.getPendingPayIns();
@@ -81,86 +77,83 @@ export class LogJobService {
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     const assetLog = assets.reduce((prev, curr) => {
+      // plus
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
-      const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
-      const exchangeOrders = pendingExchangeOrders.reduce(
+      const exchangeOrder = pendingExchangeOrders.reduce(
         (sum, tx) => (sum + tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
         0,
       );
 
+      const totalPlusPending = cryptoInput + exchangeOrder;
+      const totalPlus = liquidityBalance + totalPlusPending;
+
+      // minus
+      const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+
       const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
       const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
 
+      const totalMinusPending = buyFiat + buyFiatPass + buyCrypto + buyCryptoPass;
+      const totalMinus = manualDebtPosition + totalMinusPending;
+
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
-        liquidityBalance,
-        plusPendingBalance:
-          cryptoInput || exchangeOrders
-            ? { cryptoInput: cryptoInput || undefined, exchangeOrders: exchangeOrders || undefined }
-            : undefined,
-        plusBalance: liquidityBalance + cryptoInput + exchangeOrders,
-        manualDebtPosition: manualDebtPosition || undefined,
-        minusPendingBalance:
-          buyFiat || buyFiatPass || buyCrypto || buyCryptoPass
+        plusBalance: {
+          total: totalPlus,
+          liquidity: liquidityBalance || undefined,
+          pending: totalPlusPending
             ? {
+                total: totalPlusPending,
+                cryptoInput: cryptoInput || undefined,
+                exchangeOrder: exchangeOrder || undefined,
+              }
+            : undefined,
+        },
+        minusBalance: {
+          total: totalMinus,
+          debt: manualDebtPosition || undefined,
+          pending: totalMinusPending
+            ? {
+                total: totalMinusPending,
                 buyFiat: buyFiat || undefined,
                 buyFiatPass: buyFiatPass || undefined,
                 buyCrypto: buyCrypto || undefined,
                 buyCryptoPass: buyCryptoPass || undefined,
               }
             : undefined,
-        minusBalance: manualDebtPosition + buyFiat + buyFiatPass + buyCrypto + buyCryptoPass,
+        },
       };
 
       return prev;
     }, {});
 
+    const financialTypeMap = Util.groupBy<Asset, string>(
+      assets.filter((a) => a.financialType),
+      'financialType',
+    );
+
     const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
       (acc, [financialType, assets]) => {
-        const manualDebtPosition = assets.reduce(
-          (prev, curr) => prev + (manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0),
+        const plusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].plusBalance.total, 0);
+        const plusBalanceChf = assets.reduce(
+          (prev, curr) => prev + assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf,
           0,
         );
-        const manualDebtPositionChf = assets.reduce(
-          (prev, curr) =>
-            prev + (manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0) * curr.approxPriceChf,
-          0,
-        );
-
-        const cryptoInput = assets.reduce(
-          (prev, curr) => prev + pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0),
-          0,
-        );
-        const cryptoInputChf = assets.reduce(
-          (prev, curr) =>
-            prev +
-            pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0) * curr.approxPriceChf,
-          0,
-        );
-
-        const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts(assets, pendingBuyFiat);
-        const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts(assets, pendingBuyCrypto);
-
-        const { input: buyFiatChf, output: buyFiatPassChf } = this.getPendingChfAmounts(assets, pendingBuyFiat);
-        const { input: buyCryptoChf, output: buyCryptoPassChf } = this.getPendingChfAmounts(assets, pendingBuyCrypto);
-
-        const liqBalance = assets.reduce(
-          (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
-          0,
-        );
-        const liqBalanceChf = assets.reduce(
-          (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0) * curr.approxPriceChf,
+        const minusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].minusBalance.total, 0);
+        const minusBalanceChf = assets.reduce(
+          (prev, curr) => prev + assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf,
           0,
         );
 
         acc[financialType] = {
-          plusBalance: liqBalance + cryptoInput,
-          plusBalanceChf: liqBalanceChf + cryptoInputChf,
-          minusBalance: manualDebtPosition + buyFiat + buyFiatPass + buyCrypto + buyCryptoPass,
-          minusBalanceChf: manualDebtPositionChf + buyFiatChf + buyFiatPassChf + buyCryptoChf + buyCryptoPassChf,
+          plusBalance,
+          plusBalanceChf,
+          minusBalance,
+          minusBalanceChf,
         };
+
         return acc;
       },
       {},
@@ -194,21 +187,6 @@ export class LogJobService {
       ),
       output: assets.reduce(
         (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0),
-        0,
-      ),
-    };
-  }
-
-  private getPendingChfAmounts(assets: Asset[], pendingTx: (BuyCrypto | BuyFiat)[]): { input: number; output: number } {
-    return {
-      input: assets.reduce(
-        (prev, curr) =>
-          prev + pendingTx.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0) * curr.approxPriceChf,
-        0,
-      ),
-      output: assets.reduce(
-        (prev, curr) =>
-          prev + pendingTx.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0) * curr.approxPriceChf,
         0,
       ),
     };
