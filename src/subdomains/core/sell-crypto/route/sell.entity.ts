@@ -3,9 +3,10 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { ChildEntity, Column, ManyToOne, OneToMany } from 'typeorm';
+import { ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BankAccount } from '../../../supporting/bank/bank-account/bank-account.entity';
 import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
+import { Route } from '../../route/route.entity';
 import { BuyFiat } from '../process/buy-fiat.entity';
 
 @ChildEntity()
@@ -24,6 +25,10 @@ export class Sell extends DepositRoute {
 
   @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.sells)
   bankAccount: BankAccount;
+
+  @OneToOne(() => Route, { eager: true, nullable: true })
+  @JoinColumn()
+  route: Route;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
   cryptoInputs: CryptoInput[];

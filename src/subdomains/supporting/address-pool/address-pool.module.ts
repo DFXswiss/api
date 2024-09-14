@@ -11,7 +11,6 @@ import { DepositRepository } from './deposit/deposit.repository';
 import { DepositService } from './deposit/deposit.service';
 import { DepositRoute } from './route/deposit-route.entity';
 import { DepositRouteRepository } from './route/deposit-route.repository';
-import { RouteController } from './route/route.controller';
 
 @Module({
   imports: [
@@ -22,7 +21,7 @@ import { RouteController } from './route/route.controller';
     BlockchainModule,
     AlchemyModule,
   ],
-  controllers: [RouteController, DepositController],
+  controllers: [DepositController],
   providers: [DepositRepository, DepositRouteRepository, DepositService],
   exports: [DepositService],
 })
