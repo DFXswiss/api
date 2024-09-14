@@ -31,6 +31,9 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -71,6 +74,7 @@ interface TransactionRefundData {
   expiryDate: Date;
   feeAmount: number;
   refundAmount: number;
+  refundAsset: AssetDto | FiatDto;
 }
 
 @ApiTags('Transaction')
@@ -292,12 +296,23 @@ export class TransactionController {
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
 
-    const feeAmount = await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false);
+    const feeAmount = transaction.targetEntity.cryptoInput
+      ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
+      : 0;
+    if (feeAmount >= transaction.targetEntity.inputAmount)
+      throw new BadRequestException('Transaction fee is too expensive');
+    const refundAsset =
+      AssetDtoMapper.toDto(transaction.targetEntity.cryptoInput?.asset) ??
+      FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
 
     const refundData = {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-      refundAmount: transaction.targetEntity.inputAmount - feeAmount,
-      feeAmount,
+      refundAmount: Util.roundReadable(
+        transaction.targetEntity.inputAmount - feeAmount,
+        !transaction.targetEntity.cryptoInput,
+      ),
+      feeAmount: Util.roundReadable(feeAmount, !transaction.targetEntity.cryptoInput),
+      refundAsset,
     };
 
     this.refundList.set(transaction.id, refundData);
@@ -341,7 +356,7 @@ export class TransactionController {
         ...refundDto,
       });
 
-    if (transaction.cryptoInput)
+    if (transaction.targetEntity.cryptoInput)
       return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
         refundUserAddress: dto.refundTarget,
         ...refundDto,

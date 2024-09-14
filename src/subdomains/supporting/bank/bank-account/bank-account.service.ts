@@ -103,7 +103,7 @@ export class BankAccountService {
 
     if (userData)
       return (
-        bankAccounts.find((b) => b.userData.id === userData.id) ??
+        bankAccounts.find((b) => b.userData?.id === userData.id) ??
         (await this.createBankAccountInternal(iban, userData, bankAccounts[0]))
       );
 
