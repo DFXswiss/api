@@ -136,14 +136,14 @@ export class LogJobService {
 
     const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
       (acc, [financialType, assets]) => {
-        const plusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].plusBalance, 0);
+        const plusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].plusBalance.total, 0);
         const plusBalanceChf = assets.reduce(
-          (prev, curr) => prev + assetLog[curr.id].plusBalance * assetLog[curr.id].priceChf,
+          (prev, curr) => prev + assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf,
           0,
         );
-        const minusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].minusBalance, 0);
+        const minusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].minusBalance.total, 0);
         const minusBalanceChf = assets.reduce(
-          (prev, curr) => prev + assetLog[curr.id].minusBalance * assetLog[curr.id].priceChf,
+          (prev, curr) => prev + assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf,
           0,
         );
 
@@ -187,21 +187,6 @@ export class LogJobService {
       ),
       output: assets.reduce(
         (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0),
-        0,
-      ),
-    };
-  }
-
-  private getPendingChfAmounts(assets: Asset[], pendingTx: (BuyCrypto | BuyFiat)[]): { input: number; output: number } {
-    return {
-      input: assets.reduce(
-        (prev, curr) =>
-          prev + pendingTx.reduce((sum, tx) => sum + tx.pendingInputAmount(curr), 0) * curr.approxPriceChf,
-        0,
-      ),
-      output: assets.reduce(
-        (prev, curr) =>
-          prev + pendingTx.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0) * curr.approxPriceChf,
         0,
       ),
     };
