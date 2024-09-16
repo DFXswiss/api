@@ -42,6 +42,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
+import { ApplicantType, SumSubResult, getSumSubResult } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -56,6 +57,7 @@ import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 import { KycDocumentService } from './integration/kyc-document.service';
+import { SumSubService } from './integration/sum-sub.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
 
@@ -78,6 +80,7 @@ export class KycService {
     private readonly walletService: WalletService,
     private readonly accountMergeService: AccountMergeService,
     private readonly webhookService: WebhookService,
+    private readonly sumSubService: SumSubService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -386,6 +389,38 @@ export class KycService {
 
       default:
         this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
+    }
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+  }
+
+  async updateSumSub(dto: SumSubResult): Promise<void> {
+    const transaction = await this.getUserByTransactionOrThrow(dto.externalUserId, dto);
+
+    let user = transaction.user;
+    const kycStep = user.getStepOrThrow(transaction.stepId);
+
+    this.logger.info(`Received ident webhook call for user ${user.id} (${dto.applicantId}): ${dto.reviewStatus}`);
+
+    switch (getSumSubResult(dto)) {
+      case IdentShortResult.REVIEW:
+        user = user.externalReviewStep(kycStep, dto);
+        break;
+
+      case IdentShortResult.SUCCESS:
+        user = user.internalReviewStep(kycStep, dto);
+        await this.downloadSumSubDocuments(user);
+        break;
+
+      case IdentShortResult.FAIL:
+        user = user.failStep(kycStep, dto);
+        await this.downloadSumSubDocuments(user, 'fail/');
+        //await this.kycNotificationService.identFailed(user, getIdentReason(reason)); TODO: Create notifications
+        break;
+
+      default:
+        this.logger.error(`Unknown ident result for user ${user.id}: ${dto.reviewResult?.reviewAnswer}`);
     }
 
     await this.createStepLog(user, kycStep);
@@ -748,5 +783,17 @@ export class KycService {
         contentType,
       );
     }
+  }
+
+  private async downloadSumSubDocuments(user: UserData, namePrefix = '') {
+    const data = await this.sumSubService.getDocument('669a1dd87953b83e1ae80426', ApplicantType.INDIVIDUAL);
+
+    await this.documentService.uploadFile(
+      user.id,
+      FileType.IDENTIFICATION,
+      `${namePrefix}summary_report.pdf`,
+      data,
+      ContentType.PDF,
+    );
   }
 }

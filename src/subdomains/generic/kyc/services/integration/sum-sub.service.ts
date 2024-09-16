@@ -6,7 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IdentResultDto } from '../../dto/input/ident-result.dto';
+import { ApplicantType } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
 @Injectable()
@@ -17,24 +17,36 @@ export class SumSubService {
 
   constructor(private readonly http: HttpService) {}
 
-  async createApplicant(externalUserId: string, kycLevel: string): Promise<void> {
+  async createApplicant(user: UserData, kycStep: KycStep, kycLevel: string): Promise<void> {
     await this.callApi<{ id: string }>(
       `/resources/applicants?levelName=${kycLevel}`,
       'POST',
-      JSON.stringify({ externalUserId }),
+      JSON.stringify({ externalUserId: SumSubService.transactionId(user, kycStep) }),
     );
   }
 
-  async createWebLink(externalUserId: string, kycLevel: string, lang: string): Promise<{ url: string }> {
+  async createWebLink(transactionId: number, kycLevel: string, lang: string): Promise<{ url: string }> {
     return this.callApi<{ url: string }>(
-      `/resources/sdkIntegrations/levels/${kycLevel}/websdkLink?externalUserId=${externalUserId}&lang=${lang}`,
+      `/resources/sdkIntegrations/levels/${kycLevel}/websdkLink?externalUserId=${transactionId}&lang=${lang}`,
       'POST',
       JSON.stringify({}),
     );
   }
 
-  async getResult(kycStep: KycStep): Promise<IdentResultDto> {
-    return this.callApi<IdentResultDto>(`identifications/${kycStep.transactionId}`, 'GET');
+  async getDocument(applicantId: string, applicantType: ApplicantType): Promise<Buffer | undefined> {
+    return this.callApi<string>(
+      `/resources/applicants/${applicantId}/summary/report?report=${
+        applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
+      }`,
+      'GET',
+      JSON.stringify({}),
+      'arraybuffer',
+    )
+      .then(Buffer.from)
+      .catch((e) => {
+        this.logger.error(`Failed to fetch ${applicantType} summary report from ${applicantId}:`, e);
+        return undefined;
+      });
   }
 
   // --- STATIC HELPER METHODS --- //

@@ -1,3 +1,5 @@
+import { IdentShortResult } from './input/ident-result.dto';
+
 export interface SumSubResult {
   applicantId?: string;
   applicantActionId?: string;
@@ -17,13 +19,58 @@ export interface SumSubResult {
     reviewRejectType?: ReviewRejectType;
     buttonIds?: string[];
   };
-  reviewStatus: string;
-  videoIdentReviewStatus: string;
+  reviewStatus?: string;
+  videoIdentReviewStatus?: string;
   createdAt: Date;
-  createdAtMs: Date;
-  sandboxMode: boolean;
-  clientId: string;
-  reviewMode: string;
+  createdAtMs?: Date;
+  sandboxMode?: boolean;
+  clientId?: string;
+  reviewMode?: string;
+}
+
+export interface SumSubApplicantDocuments {
+  IDENTITY: {
+    reviewResult: {
+      reviewAnswer: ReviewAnswer;
+    };
+    country: string;
+    idDocType: 'ID_CARD';
+    imageIds: [861042510, 1897370144];
+    imageReviewResults: {
+      '861042510': {
+        reviewAnswer: 'GREEN';
+      };
+      '1897370144': {
+        reviewAnswer: 'GREEN';
+      };
+    };
+    forbidden: false;
+    partialCompletion: null;
+    stepStatuses: null;
+    imageStatuses: [];
+  };
+  SELFIE: {
+    reviewResult: {
+      reviewAnswer: 'GREEN';
+    };
+    country: 'ZAF';
+    idDocType: 'SELFIE';
+    imageIds: [325528857];
+    imageReviewResults: {
+      '325528857': {
+        reviewAnswer: 'GREEN';
+      };
+    };
+    forbidden: false;
+    partialCompletion: null;
+    stepStatuses: null;
+    imageStatuses: [];
+  };
+}
+
+export enum IdDocType {
+  COMPANY = 'ID_CARD',
+  INDIVIDUAL = 'individual',
 }
 
 export enum ApplicantType {
@@ -128,4 +175,10 @@ export enum RejectionLabels {
   THIRD_PARTY_INVOLVED = 'THIRD_PARTY_INVOLVED',
   UNSUPPORTED_LANGUAGE = 'UNSUPPORTED_LANGUAGE',
   WRONG_USER_REGION = 'WRONG_USER_REGION',
+}
+
+export function getSumSubResult(dto: SumSubResult): IdentShortResult {
+  if (dto.type == WebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
+  if (dto.type == WebhookType.APPLICANT_REVIEWED)
+    return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
 }

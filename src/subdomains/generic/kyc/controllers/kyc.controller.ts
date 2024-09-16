@@ -251,14 +251,17 @@ export class KycController {
   @Post('sumSub')
   @ApiExcludeEndpoint()
   async sumSubWebhook(@Req() req: Request, @Body() data: SumSubResult) {
-    const body = this.decryptWebhook(req, data);
-
-    if (!body) {
+    if (!this.checkWebhook(req, data)) {
       this.logger.error(`Received webhook call from invalid key ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid key ');
     }
 
-    this.logger.info(JSON.stringify(body));
+    try {
+      await this.kycService.updateSumSub(data);
+    } catch (e) {
+      this.logger.error(`Failed to handle sum sub webhook call for applicant ${data.applicantId}:`, e);
+      throw new InternalServerErrorException(e.message);
+    }
   }
 
   @Get('ident/:type/:channel/:status')
@@ -301,7 +304,8 @@ export class KycController {
     }
   }
 
-  private decryptWebhook(req: Request, data: any) {
+  private checkWebhook(req: Request, data: any): boolean {
+    return true; //TODO implement check
     const algoHeader = req.headers['x-payload-digest-alg'];
     const algoMap: { [key: string]: string } = {
       HMAC_SHA1_HEX: 'sha1',
@@ -316,7 +320,10 @@ export class KycController {
       throw new ForbiddenException('Unsupported algo');
     }
 
-    const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(data).digest('hex');
+    const key = Config.kyc.webhookKey;
+    const buffer = Buffer.from(data.toString());
+
+    const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(buffer).digest('hex');
 
     return calculatedDigest === req.headers['x-payload-digest'];
   }
