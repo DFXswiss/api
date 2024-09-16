@@ -12,7 +12,7 @@ import {
 export class SupportIssueDtoMapper {
   static mapSupportIssue(supportIssue: SupportIssue): SupportIssueDto {
     const dto: SupportIssueDto = {
-      id: supportIssue.id,
+      uid: supportIssue.uid,
       state: supportIssue.state,
       type: supportIssue.type,
       reason: supportIssue.reason,
