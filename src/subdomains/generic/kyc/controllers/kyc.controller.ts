@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import * as crypto from 'crypto';
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
@@ -48,6 +50,7 @@ import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
+import { SumSubResult } from '../dto/sum-sub.dto';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
 
@@ -251,6 +254,19 @@ export class KycController {
     }
   }
 
+  @Post('sumSub')
+  @ApiExcludeEndpoint()
+  async sumSubWebhook(@Req() req: Request, @Body() data: SumSubResult) {
+    const body = this.decryptWebhook(req, data);
+
+    if (!body) {
+      this.logger.error(`Received webhook call from invalid key ${JSON.stringify(data)}`);
+      throw new ForbiddenException('Invalid key ');
+    }
+
+    this.logger.info(JSON.stringify(body));
+  }
+
   @Get('ident/:type/:channel/:status')
   @ApiExcludeEndpoint()
   async identRedirect(
@@ -297,6 +313,26 @@ export class KycController {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');
     }
+  }
+
+  private decryptWebhook(req: Request, data: any) {
+    const algoHeader = req.headers['x-payload-digest-alg'];
+    const algoMap: { [key: string]: string } = {
+      HMAC_SHA1_HEX: 'sha1',
+      HMAC_SHA256_HEX: 'sha256',
+      HMAC_SHA512_HEX: 'sha512',
+    };
+
+    const algo = algoMap[algoHeader as string];
+
+    if (!algo) {
+      this.logger.error(`Unsupported algo`);
+      throw new ForbiddenException('Unsupported algo');
+    }
+
+    const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(data).digest('hex');
+
+    return calculatedDigest === req.headers['x-payload-digest'];
   }
 
   private allowFrameIntegration(res: Response) {

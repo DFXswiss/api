@@ -56,7 +56,7 @@
     "kycTransactionPrefix": {
       "value": "xxx"
     },
-    "kycMandator": {
+    "kycMandator": {8
       "value": "dfx"
     },
     "kycPassword": {
@@ -64,6 +64,15 @@
     },
     "kycWebhookIps": {
       "value": "193.169.187.168"
+    },
+    "kycAppToken": {
+      "value": "xxx"
+    },
+    "kycSecretKey": {
+      "value": "xxx"
+    },
+    "kycWebhookSecret": {
+      "value": "xxx"
     },
     "kycPrefix": {
       "value": ""
