@@ -16,7 +16,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { LessThan, Like } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -95,6 +95,37 @@ export class KycService {
       try {
         const result = await this.identService.getResult(identStep);
         await this.updateIdent(result);
+      } catch (e) {
+        this.logger.error(`Failed to sync KYC step ${identStep.id}:`, e);
+      }
+    }
+  }
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async syncCompletedIdentData(): Promise<void> {
+    if (DisabledProcess(Process.KYC)) return;
+
+    const completedSteps = await this.kycStepRepo.find({
+      where: [
+        {
+          name: KycStepName.IDENT,
+          status: KycStepStatus.COMPLETED,
+          result: Like('%dfxautonew%'),
+        },
+        {
+          name: KycStepName.IDENT,
+          status: KycStepStatus.COMPLETED,
+          result: Like('%dfxvidnew%'),
+        },
+      ],
+      relations: { userData: true },
+    });
+
+    for (const identStep of completedSteps) {
+      try {
+        const files = await this.documentService.listUserFiles(identStep.userData.id);
+        if (!files.some((f) => f.type === FileType.IDENTIFICATION && f.name.includes(identStep.transactionId))) {
+          await this.downloadIdentDocuments(identStep.userData, identStep);
+        }
       } catch (e) {
         this.logger.error(`Failed to sync KYC step ${identStep.id}:`, e);
       }
