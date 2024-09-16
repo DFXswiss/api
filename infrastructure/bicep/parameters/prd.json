@@ -56,7 +56,7 @@
     "kycTransactionPrefix": {
       "value": "xxx"
     },
-    "kycMandator": {8
+    "kycMandator": {
       "value": "dfx"
     },
     "kycPassword": {
