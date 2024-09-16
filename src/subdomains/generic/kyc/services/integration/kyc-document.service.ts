@@ -34,6 +34,20 @@ export class KycDocumentService {
     });
   }
 
+  async uploadUserFile(
+    userDataId: number,
+    type: FileType,
+    name: string,
+    data: Buffer,
+    contentType: ContentType,
+    metadata?: Record<string, string>,
+  ): Promise<string> {
+    if (!this.isPermittedFileType(contentType))
+      throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
+
+    return this.uploadFile(userDataId, type, name, data, contentType, metadata);
+  }
+
   async uploadFile(
     userDataId: number,
     type: FileType,
@@ -42,10 +56,6 @@ export class KycDocumentService {
     contentType: ContentType,
     metadata?: Record<string, string>,
   ): Promise<string> {
-    if (!this.isPermittedFileType(contentType)) {
-      throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
-    }
-
     return this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
   }
 

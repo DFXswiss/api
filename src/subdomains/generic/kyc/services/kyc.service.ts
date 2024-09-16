@@ -80,6 +80,27 @@ export class KycService {
     private readonly webhookService: WebhookService,
   ) {}
 
+  @Cron(CronExpression.EVERY_HOUR)
+  async syncIdentInExternalReview(): Promise<void> {
+    if (DisabledProcess(Process.KYC)) return;
+
+    const stepsInReview = await this.kycStepRepo.find({
+      where: {
+        name: KycStepName.IDENT,
+        status: KycStepStatus.EXTERNAL_REVIEW,
+      },
+    });
+
+    for (const identStep of stepsInReview) {
+      try {
+        const result = await this.identService.getResult(identStep);
+        await this.updateIdent(result);
+      } catch (e) {
+        this.logger.error(`Failed to sync KYC step ${identStep.id}:`, e);
+      }
+    }
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async checkIdentSteps(): Promise<void> {
     if (DisabledProcess(Process.KYC)) return;
@@ -285,7 +306,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.documentService.uploadFile(
+    const url = await this.documentService.uploadUserFile(
       user.id,
       fileType,
       data.fileName,
