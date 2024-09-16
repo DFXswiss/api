@@ -3,6 +3,7 @@ import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
+import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
@@ -23,6 +24,7 @@ import { HistoryService } from './services/history.service';
     StakingModule,
     TransactionModule,
     BankTxModule,
+    PaymentModule,
   ],
   controllers: [HistoryController, TransactionController],
   providers: [HistoryService, TransactionController],
