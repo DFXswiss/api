@@ -70,10 +70,10 @@ export class LogJobService {
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
-    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     const assetLog = assets.reduce((prev, curr) => {
