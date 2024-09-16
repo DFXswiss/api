@@ -56,6 +56,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
       });
     } catch (e) {
       this.logger.error(`Failed to update liquidity management balance for ${exchange}:`, e);
+      throw e;
     }
   }
 }

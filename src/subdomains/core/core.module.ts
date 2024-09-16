@@ -5,6 +5,7 @@ import { LiquidityManagementModule } from './liquidity-management/liquidity-mana
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { PaymentLinkModule } from './payment-link/payment-link.module';
 import { ReferralModule } from './referral/referral.module';
+import { RouteModule } from './route/route.module';
 import { SellCryptoModule } from './sell-crypto/sell-crypto.module';
 import { StatisticModule } from './statistic/statistic.module';
 import { TradingModule } from './trading/trading.module';
@@ -22,6 +23,7 @@ import { TransactionUtilModule } from './transaction/transaction-util.module';
     TradingModule,
     PaymentLinkModule,
     TransactionUtilModule,
+    RouteModule,
   ],
   controllers: [],
   providers: [],

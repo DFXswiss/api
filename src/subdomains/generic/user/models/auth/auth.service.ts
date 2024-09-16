@@ -202,7 +202,7 @@ export class AuthService {
 
     // create random key
     const key = randomUUID();
-    const loginUrl = `${Config.url()}/auth/mail/redirect?code=${key}`;
+    const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
     this.mailKeyList.set(key, {
       created: new Date(),
@@ -252,6 +252,9 @@ export class AuthService {
 
       const account = await this.userDataService.getUserData(entry.userDataId);
       const token = this.generateAccountToken(account, ip);
+
+      if (account.isDeactivated)
+        await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);
@@ -352,7 +355,7 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  private generateUserToken(user: User, ip: string): string {
+  generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       user: user.id,
       address: user.address,
@@ -364,7 +367,7 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  private generateAccountToken(userData: UserData, ip: string): string {
+  generateAccountToken(userData: UserData, ip: string): string {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,

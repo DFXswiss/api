@@ -171,45 +171,14 @@ export class BuyCryptoService {
       transaction: { id: cryptoInput.transaction.id },
     });
 
-    // transaction
-    request = await this.getTxRequest(entity, request);
-
-    return this.createEntity(entity, {
-      type: TransactionTypeInternal.CRYPTO_CRYPTO,
-      user: swap.user,
+    return this.createEntity(
+      entity,
+      {
+        type: TransactionTypeInternal.CRYPTO_CRYPTO,
+        user: swap.user,
+      },
       request,
-    });
-  }
-
-  private async createEntity(entity: BuyCrypto, dto: UpdateTransactionDto): Promise<BuyCrypto> {
-    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
-
-    // transaction
-    const request = await this.getTxRequest(entity);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
-
-    entity = await this.buyCryptoRepo.save(entity);
-
-    await this.buyCryptoWebhookService.triggerWebhook(entity);
-
-    return entity;
-  }
-
-  private async getTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
-    if (request) {
-      await this.transactionRequestService.complete(request.id);
-    } else {
-      const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
-
-      request = await this.transactionRequestService.findAndComplete(
-        entity.inputAmount,
-        entity.route.id,
-        inputCurrency.id,
-        entity.outputAsset.id,
-      );
-    }
-
-    return request;
+    );
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -544,7 +513,49 @@ export class BuyCryptoService {
       .then((history) => history.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: { isComplete: false },
+      relations: { cryptoInput: true, checkoutTx: true, bankTx: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async createEntity(
+    entity: BuyCrypto,
+    dto: UpdateTransactionDto,
+    request?: TransactionRequest,
+  ): Promise<BuyCrypto> {
+    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
+
+    // transaction
+    request = await this.getAndCompleteTxRequest(entity, request);
+    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
+
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
+
+    return entity;
+  }
+
+  private async getAndCompleteTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
+
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.route.id,
+        inputCurrency.id,
+        entity.outputAsset.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {

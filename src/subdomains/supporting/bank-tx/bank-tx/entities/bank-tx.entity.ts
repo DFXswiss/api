@@ -23,6 +23,7 @@ export enum BankTxType {
   TEST_FIAT_FIAT = 'TestFiatFiat',
   GSHEET = 'GSheet',
   KRAKEN = 'Kraken',
+  SCB = 'SCB',
   CHECKOUT_LTD = 'CheckoutLtd',
   REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
@@ -233,7 +234,7 @@ export class BankTx extends IEntity {
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
       if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().split(' ').join('')}`;
-      if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
+      if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().split(' ').join('')}`;
       return this.iban;
     }
 

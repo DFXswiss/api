@@ -20,10 +20,28 @@ export enum UserStatus {
   DELETED = 'Deleted',
 }
 
+export enum UserAddressType {
+  BITCOIN_LEGACY = 'BitcoinLegacy',
+  BITCOIN_BECH32 = 'BitcoinBech32',
+  EVM = 'EVM',
+  LN_URL = 'LNURL',
+  LN_NID = 'LNNID',
+  LND_HUB = 'LNDHUB',
+  UMA = 'UMA',
+  MONERO = 'Monero',
+  LIQUID = 'Liquid',
+  ARWEAVE = 'Arweave',
+  CARDANO = 'Cardano',
+  OTHER = 'Other',
+}
+
 @Entity()
 export class User extends IEntity {
   @Column({ length: 256, unique: true })
   address: string;
+
+  @Column({ length: 256, nullable: true })
+  addressType: UserAddressType;
 
   @Column({ length: 'MAX', nullable: true })
   signature: string;

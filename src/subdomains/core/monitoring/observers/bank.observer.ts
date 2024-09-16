@@ -10,8 +10,8 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 
 interface BankData {
   name: string;
@@ -54,7 +54,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
   private async getOlkypay(): Promise<BankData> {
     const { balance, balanceOperationYesterday } = await this.olkypayService.getBalance();
-    const olkyBank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const dbBalance = await this.getDbBalance(olkyBank.iban, 'EUR');
 
     return {
@@ -69,7 +69,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
   private async getRevolut(): Promise<BankData[]> {
     const revolutBalances = await this.revolutService.getBalances();
-    const revolutBank = await this.bankService.getBankInternal(BankName.REVOLUT, 'EUR');
+    const revolutBank = await this.bankService.getBankInternal(IbanBankName.REVOLUT, 'EUR');
 
     const revolutBankData = [];
     for (const balance of revolutBalances) {

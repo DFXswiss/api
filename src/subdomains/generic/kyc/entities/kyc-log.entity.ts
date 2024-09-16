@@ -18,6 +18,9 @@ export class KycLog extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  eventDate: Date;
+
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

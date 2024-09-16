@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -13,9 +14,9 @@ import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/pri
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { AmlHelperService } from '../../aml/services/aml-helper.service';
 import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
 
@@ -273,16 +274,16 @@ export class BuyFiat extends IEntity {
   setPaymentLinkPayment(
     amountInEur: number,
     amountInChf: number,
+    feeRate: number,
     totalFee: number,
     totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
     outputReferenceAsset: Fiat,
     outputAmount: number,
     outputAsset: Fiat,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
-    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
-    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> =
@@ -438,6 +439,18 @@ export class BuyFiat extends IEntity {
 
   get paymentLinkPayment(): PaymentLinkPayment | undefined {
     return this.cryptoInput?.paymentLinkPayment;
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      (asset.blockchain as string) === 'MaerkiBaumann'
+      ? this.outputAmount
+      : 0;
   }
 }
 

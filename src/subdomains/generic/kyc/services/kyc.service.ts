@@ -30,6 +30,7 @@ import {
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { IdentCheckError } from '../dto/ident-check-error.enum';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
@@ -52,26 +53,11 @@ import {
 } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
-import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
+import { KycDocumentService } from './integration/kyc-document.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
-
-export enum IdentCheckError {
-  USER_DATA_MERGED = 'UserDataMerged',
-  USER_DATA_BLOCKED = 'UserDataBlocked',
-  FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
-  LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
-  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
-  INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
-  IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
-  INVALID_RESULT = 'InvalidResult',
-  VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
-  FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
-  LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
-  ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
-}
 
 @Injectable()
 export class KycService {
@@ -81,7 +67,7 @@ export class KycService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
     private readonly financialService: FinancialService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly kycStepRepo: KycStepRepository,
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
@@ -299,7 +285,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.storageService.uploadFile(
+    const url = await this.documentService.uploadFile(
       user.id,
       fileType,
       data.fileName,
@@ -590,6 +576,11 @@ export class KycService {
 
   // --- HELPER METHODS --- //
 
+  async completeCommercialRegister(userData: UserData): Promise<UserData> {
+    if (!userData.verifiedName && userData.organizationName)
+      return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
+  }
+
   async completeIdent(result: IdentResultDto, userData: UserData, nationality?: Country): Promise<UserData> {
     const identificationType = getIdentificationType(result.identificationprocess?.companyid);
     if (
@@ -647,8 +638,11 @@ export class KycService {
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id)
+    if (!nationality) {
+      errors.push(IdentCheckError.NATIONALITY_MISSING);
+    } else if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id) {
       errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
+    }
 
     if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
@@ -658,17 +652,14 @@ export class KycService {
     if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
       errors.push(IdentCheckError.INVALID_RESULT);
 
-    if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
-      errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
-    } else if (entity.userData.verifiedName) {
-      if (entity.userData.accountType === AccountType.PERSONAL) {
+    if (entity.userData.accountType === AccountType.PERSONAL) {
+      if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
+        errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
+      } else if (entity.userData.verifiedName) {
         if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
           errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
         if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
           errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
-      } else {
-        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.organizationName))
-          errors.push(IdentCheckError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     }
 
@@ -749,7 +740,7 @@ export class KycService {
     const documents = await this.identService.getDocuments(kycStep);
 
     for (const { name, content, contentType } of documents) {
-      await this.storageService.uploadFile(
+      await this.documentService.uploadFile(
         user.id,
         FileType.IDENTIFICATION,
         `${namePrefix}${name}`,

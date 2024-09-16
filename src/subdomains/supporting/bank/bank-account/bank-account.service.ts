@@ -95,29 +95,32 @@ export class BankAccountService {
     return this.bankAccountRepo.save(bankAccount);
   }
 
-  async getOrCreateBankAccountInternal(iban: string, userDataId: number, kycType: KycType): Promise<BankAccount> {
+  async getOrCreateBankAccountInternal(iban: string, userDataId?: number, kycType?: KycType): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
       where: { iban },
       relations: ['userData'],
     });
 
-    return (
-      bankAccounts.find((b) => b.userData.id === userDataId) ??
-      (await this.createBankAccountInternal(iban, userDataId, kycType, bankAccounts[0]))
-    );
+    if (userDataId)
+      return (
+        bankAccounts.find((b) => b.userData?.id === userDataId) ??
+        (await this.createBankAccountInternal(iban, userDataId, kycType, bankAccounts[0]))
+      );
+
+    return bankAccounts.length ? bankAccounts[0] : this.createBankAccountInternal(iban);
   }
 
   private async createBankAccountInternal(
     iban: string,
-    userDataId: number,
-    kycType: KycType,
+    userDataId?: number,
+    kycType?: KycType,
     copyFrom?: BankAccount,
   ): Promise<BankAccount> {
-    if (!(await this.isValidIbanCountry(iban, kycType)))
+    if (userDataId && !(await this.isValidIbanCountry(iban, kycType)))
       throw new BadRequestException('Iban country is currently not supported');
 
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
-    bankAccount.userData = { id: userDataId } as UserData;
+    if (userDataId) bankAccount.userData = { id: userDataId } as UserData;
 
     return this.bankAccountRepo.save(bankAccount);
   }

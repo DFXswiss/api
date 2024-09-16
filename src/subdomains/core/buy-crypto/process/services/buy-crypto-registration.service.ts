@@ -41,16 +41,20 @@ export class BuyCryptoRegistrationService {
 
     if (newPayIns.length === 0) return;
 
-    const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
+    try {
+      const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
 
-    buyCryptoPayIns.length > 0 &&
-      this.logger.verbose(
-        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
-          (s) => s[0].id,
-        )}`,
-      );
+      buyCryptoPayIns.length > 0 &&
+        this.logger.verbose(
+          `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
+            (s) => s[0].id,
+          )}`,
+        );
 
-    await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
+      await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
+    } catch (e) {
+      this.logger.error('Error while registering new buyCrypto cryptoInput payIns');
+    }
   }
 
   //*** HELPER METHODS ***//
@@ -70,8 +74,9 @@ export class BuyCryptoRegistrationService {
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
         (r) =>
-          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          r.deposit.blockchainList.includes(payIn.address.blockchain),
+          (payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
+            r.deposit.blockchainList.includes(payIn.address.blockchain)) ||
+          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -86,7 +91,7 @@ export class BuyCryptoRegistrationService {
         const alreadyExists = await this.buyCryptoRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
-          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
+          const result = await this.transactionHelper.validateInput(payIn);
 
           if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);

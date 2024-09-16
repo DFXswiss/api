@@ -111,7 +111,7 @@ export class BuyService {
     if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
-    const hash = Util.createHash(userAddress + buy.asset.uniqueName + (buy.iban ?? '')).toUpperCase();
+    const hash = Util.createHash(userAddress + buy.asset.id + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
@@ -120,6 +120,10 @@ export class BuyService {
     this.cache && this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
 
     return entity;
+  }
+
+  async getBuyWithoutRoute(): Promise<Buy[]> {
+    return this.buyRepo.findBy({ route: { id: IsNull() } });
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {

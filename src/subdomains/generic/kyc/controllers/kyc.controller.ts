@@ -30,8 +30,6 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { LimitRequestDto } from '../../../supporting/support-issue/dto/limit-request.dto';
-import { LimitRequestService } from '../../../supporting/support-issue/services/limit-request.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import {
@@ -66,11 +64,7 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(
-    private readonly kycService: KycService,
-    private readonly tfaService: TfaService,
-    private readonly limitService: LimitRequestService,
-  ) {}
+  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
 
   @Get()
   @ApiOkResponse({ type: KycLevelDto })
@@ -165,7 +159,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_stock-register_user-upload_${data.fileName}`;
+    data.fileName = this.fileName('stock-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
   }
 
@@ -188,7 +182,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`;
+    data.fileName = this.fileName('commercial-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
@@ -211,7 +205,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_authority_user-upload_${data.fileName}`;
+    data.fileName = this.fileName('authority', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
   }
 
@@ -299,14 +293,6 @@ export class KycController {
     return this.tfaService.verify(code, dto.token, ip);
   }
 
-  // --- LIMIT INCREASE --- //
-  @Post('limit')
-  @ApiCreatedResponse({ description: 'Limit request initiated' })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async increaseLimit(@Headers(CodeHeaderName) code: string, @Body() request: LimitRequestDto): Promise<void> {
-    return this.limitService.increaseLimit(request, code);
-  }
-
   // --- HELPER METHODS --- //
   private checkWebhookIp(ip: string, data: IdentResultDto) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
@@ -344,5 +330,9 @@ export class KycController {
       .filter((p) => !p.includes('frame-ancestors'))
       .join(';');
     res.setHeader('Content-Security-Policy', updatedPolicy);
+  }
+
+  private fileName(type: string, file: string): string {
+    return `${Util.isoDateTime(new Date())}_${type}_user-upload_${Util.randomId()}_${file}`;
   }
 }

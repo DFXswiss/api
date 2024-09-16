@@ -78,8 +78,9 @@ export class BuyFiatRegistrationService {
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
         (r) =>
-          payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
-          r.blockchains.includes(payIn.address.blockchain),
+          (payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
+            r.blockchains.includes(payIn.address.blockchain)) ||
+          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -99,7 +100,7 @@ export class BuyFiatRegistrationService {
         const alreadyExists = await this.buyFiatRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
-          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
+          const result = await this.transactionHelper.validateInput(payIn);
 
           if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);

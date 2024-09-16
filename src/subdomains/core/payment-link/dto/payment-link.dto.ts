@@ -2,15 +2,18 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { ErrorDto } from 'src/shared/dto/error.dto';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 
 export type TransferMethod = Blockchain;
 
 export interface TransferInfo {
+  standard: PaymentStandard;
   asset: string;
   amount: number;
   method: TransferMethod;
   quoteUniqueId: string;
+  hex: string;
 }
 
 export interface TransferAmount {
@@ -26,14 +29,20 @@ export interface TransferAmountAsset {
 
 export type RequestedAmountAsset = TransferAmountAsset;
 
-export interface PaymentLinkPayRequestDto {
+export interface PaymentLinkRequestDto {
+  displayName: string;
+  standard: PaymentStandard;
+  possibleStandards: PaymentStandard[];
+  displayQr: boolean;
+  recipient: PaymentLinkRecipientDto;
+}
+
+export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
   tag: string;
   callback: string;
   minSendable: number;
   maxSendable: number;
   metadata: string;
-  displayName: string;
-  recipient: PaymentLinkRecipientDto;
   quote: {
     id: string;
     expiration: Date;
@@ -42,10 +51,16 @@ export interface PaymentLinkPayRequestDto {
   transferAmounts: TransferAmount[];
 }
 
+export interface PaymentLinkPaymentNotFoundDto extends PaymentLinkRequestDto, ErrorDto {}
+
 export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;
   uri: string;
+}
+
+export interface PaymentLinkHexResultDto {
+  txId: string;
 }
 
 export class PaymentLinkRecipientAddressDto {

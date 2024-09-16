@@ -17,10 +17,18 @@ export class PaymentCronService {
   @Cron(CronExpression.EVERY_10_SECONDS)
   @Lock()
   async processPendingPayments(): Promise<void> {
-    if (DisabledProcess(Process.UPDATE_PAYMENT)) return;
+    if (DisabledProcess(Process.PAYMENT_EXPIRATION)) return;
 
-    await this.paymentLinkPaymentService.processPendingPayments();
-    await this.paymentActivationService.processPendingActivations();
-    await this.paymentQuoteService.processActualQuotes();
+    await this.paymentLinkPaymentService.processExpiredPayments();
+    await this.paymentActivationService.processExpiredActivations();
+    await this.paymentQuoteService.processExpiredQuotes();
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
+  async checkTxConfirmations(): Promise<void> {
+    if (DisabledProcess(Process.PAYMENT_CONFIRMATIONS)) return;
+
+    await this.paymentLinkPaymentService.checkTxConfirmations();
   }
 }

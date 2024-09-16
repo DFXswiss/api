@@ -7,17 +7,20 @@ import {
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
+import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 
 @Injectable()
-export class PayInMoneroService {
+export class PayInMoneroService extends PayInBitcoinBasedService {
   private client: MoneroClient;
 
   constructor(private moneroService: MoneroService) {
+    super();
     this.client = moneroService.getDefaultClient();
   }
 
-  async isHealthy(): Promise<boolean> {
-    return this.moneroService.isHealthy();
+  async checkHealthOrThrow(): Promise<void> {
+    const isHealthy = this.moneroService.isHealthy();
+    if (!isHealthy) throw new Error('Monero node is unhealthy');
   }
 
   async getTransaction(txId: string): Promise<MoneroTransactionDto> {
@@ -28,7 +31,9 @@ export class PayInMoneroService {
     return this.client.getTransfers(MoneroTransactionType.in, startBlockHeight);
   }
 
-  async sendTransfer(payIn: CryptoInput): Promise<MoneroTransferDto> {
-    return this.client.sendTransfer(payIn.address.address, payIn.sendingAmount);
+  async sendTransfer(payIn: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+    return this.client
+      .sendTransfer(payIn.destinationAddress.address, payIn.sendingAmount)
+      .then((r) => ({ outTxId: r.txid, feeAmount: r.fee }));
   }
 }

@@ -2,7 +2,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -486,6 +486,30 @@ export class BuyCrypto extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    if (this.outputAmount) return 0;
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+        return (asset.dexName === 'EUR' && this.bankTx?.accountIban === 'CH6808573177975201814') ||
+          (asset.dexName === 'CHF' && this.bankTx?.accountIban === 'CH3408573177975200001')
+          ? this.inputReferenceAmount
+          : 0;
+
+      case 'Olkypay':
+        return this.bankTx?.accountIban === 'LU116060002000005040' ? this.inputReferenceAmount : 0;
+
+      case 'Checkout':
+        return this.checkoutTx?.currency === asset.dexName ? this.inputReferenceAmount : 0;
+
+      default:
+        return this.cryptoInput?.asset.id === asset.id ? this.inputAmount : 0;
+    }
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
   get isCryptoCryptoTransaction(): boolean {

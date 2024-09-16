@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -54,7 +53,8 @@ export class PayInService {
 
       if (!exists) {
         payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
-        payIn.paymentLinkPayment = await this.paymentLinkPaymentService.getPaymentByCryptoInput(payIn);
+
+        if (payIn.isPayment) await this.fetchPayment(payIn);
 
         await this.payInRepository.save(payIn);
 
@@ -65,18 +65,24 @@ export class PayInService {
     return payIns;
   }
 
+  private async fetchPayment(payIn: CryptoInput): Promise<void> {
+    try {
+      payIn.paymentQuote = await this.paymentLinkPaymentService.getPaymentQuoteByCryptoInput(payIn);
+      payIn.paymentLinkPayment = payIn.paymentQuote.payment;
+    } catch (e) {
+      this.logger.error(`Failed to fetch payment for pay-in ${payIn.inTxId}:`, e);
+      payIn.status = PayInStatus.FAILED;
+    }
+  }
+
   async getNewPayIns(): Promise<CryptoInput[]> {
     return this.payInRepository.find({
       where: [
         { status: PayInStatus.CREATED, txType: IsNull() },
         { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
       ],
-      relations: { transaction: true },
+      relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },
     });
-  }
-
-  async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
@@ -85,6 +91,13 @@ export class PayInService {
       relations: ['route', 'route.user'],
       order: { id: 'DESC' },
     });
+  }
+
+  async getPendingPayIns(): Promise<CryptoInput[]> {
+    return this.payInRepository.findBy([
+      { status: PayInStatus.ACKNOWLEDGED, action: IsNull() },
+      { status: PayInStatus.ACKNOWLEDGED, action: PayInAction.WAITING },
+    ]);
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {

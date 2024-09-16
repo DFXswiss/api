@@ -19,6 +19,7 @@ import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInLightningService } from './services/payin-lightning.service';
 import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
@@ -73,6 +74,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayInService,
     PayInNotificationService,
     PayInBitcoinService,
+    PayInLightningService,
     PayInMoneroService,
     PayInEthereumService,
     PayInBscService,
