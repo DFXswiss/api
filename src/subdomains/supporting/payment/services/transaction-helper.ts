@@ -99,8 +99,8 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getMinVolume(
-    from: Active | undefined,
-    to: Active | undefined,
+    from: Active,
+    to: Active,
     fromReference: Active,
     allowExpiredPrice: boolean,
     isPayment: boolean,
