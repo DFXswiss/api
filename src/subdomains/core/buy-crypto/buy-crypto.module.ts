@@ -19,6 +19,7 @@ import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { AmlModule } from '../aml/aml.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
+import { RouteModule } from '../route/route.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { TransactionUtilModule } from '../transaction/transaction-util.module';
 import { BuyCryptoController } from './process/buy-crypto.controller';
@@ -69,6 +70,7 @@ import { SwapService } from './routes/swap/swap.service';
     SiftModule,
     FiatOutputModule,
     TransactionUtilModule,
+    forwardRef(() => RouteModule),
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [

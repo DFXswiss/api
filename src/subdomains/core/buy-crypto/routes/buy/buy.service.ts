@@ -1,8 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { IsNull, Not, Repository } from 'typeorm';
@@ -19,6 +20,8 @@ export class BuyService {
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
+    @Inject(forwardRef(() => RouteService))
+    private readonly routeService: RouteService,
   ) {}
 
   // --- VOLUMES --- //
@@ -108,6 +111,7 @@ export class BuyService {
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = await this.userService.getUser(userId, { userData: true });
+    buy.route = await this.routeService.createRoute({ buy });
     if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash

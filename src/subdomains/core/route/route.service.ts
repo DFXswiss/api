@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -21,8 +21,11 @@ export class RouteService {
 
   constructor(
     private readonly routeRepo: RouteRepository,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
+    @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
   ) {}
 
