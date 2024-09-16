@@ -97,7 +97,7 @@ export class IdentService {
   // --- HELPER METHODS --- //
 
   private fileName(transactionId: string, contentType: string): string {
-    return `${Util.isoDate(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
+    return `${Util.isoDateTime(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
   }
 
   private async getDocument(

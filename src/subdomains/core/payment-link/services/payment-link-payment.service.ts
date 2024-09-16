@@ -62,9 +62,12 @@ export class PaymentLinkPaymentService {
   async processExpiredPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
-    const pendingPayments = await this.paymentLinkPaymentRepo.findBy({
-      status: PaymentLinkPaymentStatus.PENDING,
-      expiryDate: LessThan(maxDate),
+    const pendingPayments = await this.paymentLinkPaymentRepo.find({
+      where: {
+        status: PaymentLinkPaymentStatus.PENDING,
+        expiryDate: LessThan(maxDate),
+      },
+      relations: { link: true },
     });
 
     for (const payment of pendingPayments) {

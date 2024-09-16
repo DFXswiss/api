@@ -143,6 +143,12 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDateUser: Date;
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount: number;
+
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy: string;
 
@@ -228,6 +234,25 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
       mail3SendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  chargebackFillUp(
+    chargebackAddress: string,
+    chargebackAmount: number,
+    chargebackAllowedDate: Date,
+    chargebackAllowedDateUser: Date,
+  ): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      chargebackDate: chargebackAllowedDate ? new Date() : null,
+      chargebackAllowedDate,
+      chargebackAllowedDateUser,
+      chargebackAddress,
+      chargebackAmount,
     };
 
     Object.assign(this, update);

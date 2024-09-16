@@ -110,7 +110,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
-    const url = await this.documentService.uploadFile(
+    const url = await this.documentService.uploadUserFile(
       +id,
       dto.documentType,
       dto.originalName,

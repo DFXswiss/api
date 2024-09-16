@@ -23,6 +23,7 @@ import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-outpu
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
+import { CryptoInputRefund, RefundInternalDto } from '../../../history/dto/refund-internal.dto';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { SellHistoryDto } from '../../route/dto/sell-history.dto';
 import { Sell } from '../../route/sell.entity';
@@ -30,7 +31,6 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
-import { RefundCryptoInputDto } from '../dto/refund-crypto-input.dto';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 
 @Injectable()
@@ -219,7 +219,7 @@ export class BuyFiatService {
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
   }
 
-  async refundBuyFiat(buyFiatId: number, dto: RefundCryptoInputDto): Promise<void> {
+  async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id: buyFiatId },
       relations: {
@@ -229,34 +229,40 @@ export class BuyFiatService {
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
-    await this.refundBuyFiatInternal(buyFiat, buyFiat.chargebackAddress, dto.refundUser?.id, dto.chargebackAmount);
+    await this.refundBuyFiatInternal(buyFiat, {
+      refundUserId: dto.refundUser?.id,
+      chargebackAmount: dto.chargebackAmount,
+      refundUserAddress: buyFiat.chargebackAddress,
+    });
   }
 
-  async refundBuyFiatInternal(
-    buyFiat: BuyFiat,
-    refundUserAddress: string,
-    refundUserId?: number,
-    chargebackAmount?: number,
-  ): Promise<void> {
-    if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
+  async refundBuyFiatInternal(buyFiat: BuyFiat, dto: CryptoInputRefund): Promise<void> {
+    if (!dto.refundUserAddress && !dto.refundUserId && !buyFiat.chargebackAddress)
+      throw new BadRequestException('You have to define a chargebackAddress');
 
-    const refundUser = refundUserId
-      ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
-      : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
+    const refundUser = dto.refundUserId
+      ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
+      : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
 
-    TransactionUtilService.validateRefund(buyFiat, refundUser, chargebackAmount);
+    const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
-    if (chargebackAmount)
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
+
+    if (dto.chargebackAllowedDate && chargebackAmount)
       await this.payInService.returnPayIn(
         buyFiat.cryptoInput,
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
       );
 
-    await this.buyFiatRepo.update(buyFiat.id, {
-      chargebackDate: chargebackAmount ? new Date() : null,
-      chargebackAddress: refundUser.address ?? buyFiat.chargebackAddress,
-    });
+    await this.buyFiatRepo.update(
+      ...buyFiat.chargebackFillUp(
+        refundUser.address ?? buyFiat.chargebackAddress,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+      ),
+    );
   }
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
