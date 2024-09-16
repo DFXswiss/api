@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from '../buy.repository';
@@ -14,12 +15,14 @@ describe('BuyService', () => {
   let assetService: AssetService;
   let userService: UserService;
   let bankAccountService: BankAccountService;
+  let routeService: RouteService;
 
   beforeEach(async () => {
     buyRepo = createMock<BuyRepository>();
     assetService = createMock<AssetService>();
     userService = createMock<UserService>();
     bankAccountService = createMock<BankAccountService>();
+    routeService = createMock<RouteService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -29,6 +32,7 @@ describe('BuyService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: UserService, useValue: userService },
         { provide: BankAccountService, useValue: bankAccountService },
+        { provide: RouteService, useValue: routeService },
       ],
     }).compile();
 
