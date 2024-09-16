@@ -47,7 +47,7 @@ import { SellService } from './route/sell.service';
     TransactionModule,
     AmlModule,
     TransactionUtilModule,
-    forwardRef(() => RouteModule),
+    RouteModule,
   ],
   controllers: [BuyFiatController, SellController],
   providers: [
