@@ -24,6 +24,7 @@ import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
@@ -45,6 +46,8 @@ export class SellService {
     @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
     private readonly transactionUtilService: TransactionUtilService,
+    @Inject(forwardRef(() => RouteService))
+    private readonly routeService: RouteService,
   ) {}
 
   // --- SELLS --- //
@@ -131,6 +134,7 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = await this.userService.getUser(userId, { userData: true });
+    sell.route = await this.routeService.createRoute({ sell });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
