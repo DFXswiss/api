@@ -28,6 +28,7 @@ export class UserDtoMapper {
       addresses: userData.users
         .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
         .map((u) => this.mapAddress(u)),
+      disabledAddresses: userData.users.filter((u) => u.isBlockedOrDeleted).map((u) => this.mapAddress(u)),
       activeAddress: activeUser && this.mapAddress(activeUser),
       paymentLink: {
         active: userData.paymentLinksAllowed,
