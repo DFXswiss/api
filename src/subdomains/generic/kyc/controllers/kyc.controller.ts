@@ -235,20 +235,7 @@ export class KycController {
     return this.kycService.updateFinancialData(code, ip, +id, data);
   }
 
-  @Post('ident/:type')
-  @ApiExcludeEndpoint()
-  async identWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
-    this.checkWebhookIp(ip, data);
-
-    try {
-      await this.kycService.updateIdent(data);
-    } catch (e) {
-      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}:`, e);
-      throw new InternalServerErrorException(e.message);
-    }
-  }
-
-  @Post('sumSub')
+  @Post('ident/sumSub')
   @ApiExcludeEndpoint()
   async sumSubWebhook(@Req() req: Request, @Body() data: SumSubResult) {
     if (!this.checkWebhook(req, data)) {
@@ -260,6 +247,19 @@ export class KycController {
       await this.kycService.updateSumSub(data);
     } catch (e) {
       this.logger.error(`Failed to handle sum sub webhook call for applicant ${data.applicantId}:`, e);
+      throw new InternalServerErrorException(e.message);
+    }
+  }
+
+  @Post('ident/:type')
+  @ApiExcludeEndpoint()
+  async identWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+    this.checkWebhookIp(ip, data);
+
+    try {
+      await this.kycService.updateIdent(data);
+    } catch (e) {
+      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }

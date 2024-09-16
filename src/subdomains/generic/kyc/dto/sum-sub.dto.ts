@@ -28,59 +28,14 @@ export interface SumSubResult {
   reviewMode?: string;
 }
 
-export interface SumSubApplicantDocuments {
-  IDENTITY: {
-    reviewResult: {
-      reviewAnswer: ReviewAnswer;
-    };
-    country: string;
-    idDocType: 'ID_CARD';
-    imageIds: [861042510, 1897370144];
-    imageReviewResults: {
-      '861042510': {
-        reviewAnswer: 'GREEN';
-      };
-      '1897370144': {
-        reviewAnswer: 'GREEN';
-      };
-    };
-    forbidden: false;
-    partialCompletion: null;
-    stepStatuses: null;
-    imageStatuses: [];
-  };
-  SELFIE: {
-    reviewResult: {
-      reviewAnswer: 'GREEN';
-    };
-    country: 'ZAF';
-    idDocType: 'SELFIE';
-    imageIds: [325528857];
-    imageReviewResults: {
-      '325528857': {
-        reviewAnswer: 'GREEN';
-      };
-    };
-    forbidden: false;
-    partialCompletion: null;
-    stepStatuses: null;
-    imageStatuses: [];
-  };
-}
-
-export enum IdDocType {
-  COMPANY = 'ID_CARD',
-  INDIVIDUAL = 'individual',
-}
-
 export enum ApplicantType {
   COMPANY = 'company',
   INDIVIDUAL = 'individual',
 }
 
 export enum ReviewAnswer {
-  GREEN = 'green',
-  RED = 'red',
+  GREEN = 'GREEN',
+  RED = 'RED',
 }
 
 export enum ReviewRejectType {

@@ -42,7 +42,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { ApplicantType, SumSubResult, getSumSubResult } from '../dto/sum-sub.dto';
+import { SumSubResult, getSumSubResult } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -410,12 +410,12 @@ export class KycService {
 
       case IdentShortResult.SUCCESS:
         user = user.internalReviewStep(kycStep, dto);
-        await this.downloadSumSubDocuments(user);
+        await this.downloadSumSubDocuments(user, dto);
         break;
 
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
-        await this.downloadSumSubDocuments(user, 'fail/');
+        await this.downloadSumSubDocuments(user, dto, 'fail/');
         //await this.kycNotificationService.identFailed(user, getIdentReason(reason)); TODO: Create notifications
         break;
 
@@ -785,8 +785,8 @@ export class KycService {
     }
   }
 
-  private async downloadSumSubDocuments(user: UserData, namePrefix = '') {
-    const data = await this.sumSubService.getDocument('669a1dd87953b83e1ae80426', ApplicantType.INDIVIDUAL);
+  private async downloadSumSubDocuments(user: UserData, dto: SumSubResult, namePrefix = '') {
+    const data = await this.sumSubService.getDocument(dto.applicantId, dto.applicantType);
 
     await this.documentService.uploadFile(
       user.id,

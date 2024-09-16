@@ -17,19 +17,16 @@ export class SumSubService {
 
   constructor(private readonly http: HttpService) {}
 
-  async createApplicant(user: UserData, kycStep: KycStep, kycLevel: string): Promise<void> {
-    await this.callApi<{ id: string }>(
-      `/resources/applicants?levelName=${kycLevel}`,
-      'POST',
-      JSON.stringify({ externalUserId: SumSubService.transactionId(user, kycStep) }),
-    );
+  async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
+    await this.callApi<{ id: string }>(`/resources/applicants?levelName=basic-kyc-level`, 'POST', {
+      externalUserId: SumSubService.transactionId(user, kycStep),
+    });
   }
 
   async createWebLink(transactionId: number, kycLevel: string, lang: string): Promise<{ url: string }> {
     return this.callApi<{ url: string }>(
       `/resources/sdkIntegrations/levels/${kycLevel}/websdkLink?externalUserId=${transactionId}&lang=${lang}`,
       'POST',
-      JSON.stringify({}),
     );
   }
 
@@ -39,7 +36,7 @@ export class SumSubService {
         applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
       }`,
       'GET',
-      JSON.stringify({}),
+
       'arraybuffer',
     )
       .then(Buffer.from)
@@ -63,7 +60,7 @@ export class SumSubService {
     data: any = {},
     responseType?: ResponseType,
   ): Promise<T> {
-    return this.request<T>(url, method, data, responseType).catch((e: HttpError) => {
+    return this.request<T>(url, method, JSON.stringify(data), responseType).catch((e: HttpError) => {
       this.logger.verbose(`Error during sum sub request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
       throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });
     });
