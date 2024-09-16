@@ -117,6 +117,9 @@ export class UserV2Dto {
   @ApiProperty({ type: UserAddressDto, isArray: true })
   addresses: UserAddressDto[];
 
+  @ApiProperty({ type: UserAddressDto, isArray: true })
+  disabledAddresses: UserAddressDto[];
+
   @ApiPropertyOptional({ type: UserAddressDto })
   activeAddress?: UserAddressDto;
 
