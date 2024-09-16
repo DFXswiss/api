@@ -786,14 +786,18 @@ export class KycService {
   }
 
   private async downloadSumSubDocuments(user: UserData, dto: SumSubResult, namePrefix = '') {
-    const data = await this.sumSubService.getDocument(dto.applicantId, dto.applicantType);
+    const { name, content, contentType } = await this.sumSubService.getDocument(
+      dto.applicantId,
+      dto.applicantType,
+      dto.externalUserId,
+    );
 
     await this.documentService.uploadFile(
       user.id,
       FileType.IDENTIFICATION,
-      `${namePrefix}summary_report.pdf`,
-      data,
-      ContentType.PDF,
+      `${namePrefix}${name}`,
+      content,
+      contentType,
     );
   }
 }

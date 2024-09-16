@@ -39,8 +39,8 @@ export enum ReviewAnswer {
 }
 
 export enum ReviewRejectType {
-  FINAL = 'final',
-  RETRY = 'retry',
+  FINAL = 'FINAL',
+  RETRY = 'RETRY',
 }
 
 export enum WebhookType {

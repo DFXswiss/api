@@ -6,6 +6,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IdentDocument } from '../../dto/ident.dto';
+import { ContentType } from '../../dto/kyc-file.dto';
 import { ApplicantType } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
@@ -30,20 +32,16 @@ export class SumSubService {
     );
   }
 
-  async getDocument(applicantId: string, applicantType: ApplicantType): Promise<Buffer | undefined> {
-    return this.callApi<string>(
+  async getDocument(applicantId: string, applicantType: ApplicantType, transactionId: string): Promise<IdentDocument> {
+    const content = await this.callApi<string>(
       `/resources/applicants/${applicantId}/summary/report?report=${
         applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
       }`,
       'GET',
-
       'arraybuffer',
-    )
-      .then(Buffer.from)
-      .catch((e) => {
-        this.logger.error(`Failed to fetch ${applicantType} summary report from ${applicantId}:`, e);
-        return undefined;
-      });
+    ).then(Buffer.from);
+
+    return { name: this.fileName(transactionId, 'pdf'), content, contentType: ContentType.PDF };
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -88,5 +86,9 @@ export class SumSubService {
     signature.update(ts + method.toUpperCase() + url);
     signature.update(data);
     return { ts, signature: signature.digest('hex') };
+  }
+
+  private fileName(transactionId: string, contentType: string): string {
+    return `${Util.isoDate(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
   }
 }
