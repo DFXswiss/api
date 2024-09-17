@@ -239,8 +239,12 @@ export class PaymentLinkService {
       website,
     };
 
-    if (country) updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
-    if (country === null) updatePaymentLink.country = null;
+    if (country === null) {
+      updatePaymentLink.country = null;
+    } else if (country) {
+      updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
+      if (!updatePaymentLink.country) throw new NotFoundException('Country not found');
+    }
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);
 
