@@ -71,6 +71,6 @@ export class SupportIssue extends IEntity {
   }
 
   get url(): string {
-    return `${Config.frontend.services}/support/chat?issue-id=${this.uid}`;
+    return `${Config.frontend.services}/support/chat/${this.uid}`;
   }
 }
