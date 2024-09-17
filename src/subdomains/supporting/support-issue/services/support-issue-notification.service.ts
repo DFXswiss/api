@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from '../../notification/enums';
@@ -17,20 +16,18 @@ export class SupportIssueNotificationService {
     try {
       if (entity.userData.mail && !DisabledProcess(Process.SUPPORT_MESSAGE_MAIL))
         await this.notificationService.sendMail({
-          type: MailType.PERSONAL,
+          type: MailType.USER,
           context: MailContext.SUPPORT_MESSAGE,
           input: {
             userData: entity.userData,
             title: `${MailTranslationKey.SUPPORT_MESSAGE}.title`,
+            salutation: { key: `${MailTranslationKey.SUPPORT_MESSAGE}.salutation` },
             prefix: [
               {
                 key: `${MailTranslationKey.SUPPORT_MESSAGE}.message`,
                 params: { url: entity.issue.url, urlText: entity.issue.url },
               },
             ],
-            from: Config.support.message.mailAddress,
-            displayName: Config.support.message.mailName,
-            banner: Config.support.message.mailBanner,
           },
         });
     } catch (e) {
