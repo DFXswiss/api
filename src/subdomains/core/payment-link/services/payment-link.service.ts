@@ -152,7 +152,7 @@ export class PaymentLinkService {
     if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
 
     const { standards, displayQr } = pendingPayment.link.configObj;
-    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+    const usedStandard = pendingPayment.link.getMatchingStandard(standardParam);
 
     const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
 
@@ -198,7 +198,7 @@ export class PaymentLinkService {
     if (!paymentLink) return `Active payment link not found by id ${uniqueId}`;
 
     const { standards, displayQr } = paymentLink.configObj;
-    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+    const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
     return {
       statusCode: new NotFoundException().getStatus(),

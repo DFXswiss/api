@@ -24,7 +24,7 @@ export class PaymentQuote extends IEntity {
   @Column({ type: 'datetime2', nullable: false })
   expiryDate: Date;
 
-  @Column({ length: 256, default: PaymentStandard.OPEN_CRYPTO_PAY })
+  @Column({ length: 256 })
   standard: PaymentStandard;
 
   @Column({ length: 256, nullable: true })

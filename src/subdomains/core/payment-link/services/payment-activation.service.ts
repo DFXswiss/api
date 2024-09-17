@@ -84,7 +84,7 @@ export class PaymentActivationService implements OnModuleInit {
   // --- CREATE ACTIVATIONS --- //
 
   async doCreateRequest(pendingPayment: PaymentLinkPayment, transferInfo: TransferInfo): Promise<PaymentActivation> {
-    const actualQuote = await this.paymentQuoteService.getActualQuote(pendingPayment.id, transferInfo);
+    const actualQuote = await this.paymentQuoteService.getActualQuote(pendingPayment, transferInfo);
     if (!actualQuote) throw new NotFoundException(`No matching actual quote found`);
 
     if (transferInfo.quoteUniqueId) {
