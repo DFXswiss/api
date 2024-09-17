@@ -230,7 +230,7 @@
     },
     "support_message": {
         "title": "Nouveau message de soutien",
-        "message": "{supportMessage}"
+        "message": "Vous avez reçu un nouveau message dans votre ticket d'assistance. Vous pouvez accéder à votre ticket à l'URL suivante:<br>[url:{urlText}]"
     },
     "black_squad": {
         "title": "Invitation Black Squad",

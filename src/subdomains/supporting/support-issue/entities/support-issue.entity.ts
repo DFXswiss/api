@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
@@ -67,5 +68,9 @@ export class SupportIssue extends IEntity {
 
   get additionalInformation(): object | undefined {
     return this.information && JSON.parse(this.information);
+  }
+
+  get url(): string {
+    return `${Config.frontend.services}/support/chat?issue-id=${this.uid}`;
   }
 }
