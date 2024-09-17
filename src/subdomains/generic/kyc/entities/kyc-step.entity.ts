@@ -6,6 +6,7 @@ import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.en
 import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
+import { SumsubService } from '../services/integration/sum-sub.service';
 import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
@@ -76,8 +77,10 @@ export class KycStep extends IEntity {
       case KycStepName.AUTHORITY:
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
 
-      case KycStepName.IDENT:
-        return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
+      case KycStepName.IDENT: {
+        const service = this.isSumsub ? SumsubService : IdentService;
+        return { url: service.identUrl(this), type: UrlType.BROWSER };
+      }
 
       case KycStepName.FINANCIAL_DATA:
         return { url: `${apiUrl}/data/financial/${this.id}`, type: UrlType.API };
@@ -245,5 +248,9 @@ export class KycStep extends IEntity {
       .split(';')
       .map((c) => `<li>${IdentCheckErrorMap[c as IdentCheckError]}</li>`)
       .join('')}</ul>`;
+  }
+
+  get isSumsub(): boolean {
+    return this.type === KycStepType.SUMSUB_AUTO;
   }
 }

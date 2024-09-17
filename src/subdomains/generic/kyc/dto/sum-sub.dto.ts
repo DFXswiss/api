@@ -1,6 +1,6 @@
 import { IdentShortResult } from './input/ident-result.dto';
 
-export interface SumSubResult {
+export interface SumsubResult {
   applicantId?: string;
   applicantActionId?: string;
   applicantType?: ApplicantType;
@@ -132,7 +132,7 @@ export enum RejectionLabels {
   WRONG_USER_REGION = 'WRONG_USER_REGION',
 }
 
-export function getSumSubResult(dto: SumSubResult): IdentShortResult {
+export function getSumsubResult(dto: SumsubResult): IdentShortResult {
   if (dto.type == WebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
   if (dto.type == WebhookType.APPLICANT_REVIEWED)
     return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;

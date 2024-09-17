@@ -66,7 +66,14 @@ export class KycInfoMapper {
 
     // group by step and get step with highest sequence number
     const groupedSteps = steps
-      .filter((s) => !(hasVideoIdent && s.name === KycStepName.IDENT && s.type === KycStepType.AUTO))
+      .filter(
+        (s) =>
+          !(
+            hasVideoIdent &&
+            s.name === KycStepName.IDENT &&
+            [KycStepType.AUTO, KycStepType.SUMSUB_AUTO].includes(s.type)
+          ),
+      )
       .reduce((map, step) => {
         const key = step.type
           ? `${step.name}-${step.type}`

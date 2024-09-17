@@ -22,7 +22,6 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import * as crypto from 'crypto';
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
@@ -48,7 +47,8 @@ import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
-import { SumSubResult } from '../dto/sum-sub.dto';
+import { SumsubResult } from '../dto/sum-sub.dto';
+import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
 
@@ -235,18 +235,18 @@ export class KycController {
     return this.kycService.updateFinancialData(code, ip, +id, data);
   }
 
-  @Post('ident/sumSub')
+  @Post('ident/sumsub')
   @ApiExcludeEndpoint()
-  async sumSubWebhook(@Req() req: Request, @Body() data: SumSubResult) {
-    if (!this.checkWebhook(req, data)) {
-      this.logger.error(`Received webhook call from invalid key ${JSON.stringify(data)}`);
-      throw new ForbiddenException('Invalid key ');
+  async sumsubWebhook(@Req() req: Request, @Body() data: SumsubResult) {
+    if (!SumsubService.checkWebhook(req, data)) {
+      this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
+      throw new ForbiddenException('Invalid key');
     }
 
     try {
-      await this.kycService.updateSumSub(data);
+      await this.kycService.updateSumsubIdent(data);
     } catch (e) {
-      this.logger.error(`Failed to handle sum sub webhook call for applicant ${data.applicantId}:`, e);
+      this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${data.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }
@@ -257,9 +257,9 @@ export class KycController {
     this.checkWebhookIp(ip, data);
 
     try {
-      await this.kycService.updateIdent(data);
+      await this.kycService.updateIntrumIdent(data);
     } catch (e) {
-      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}:`, e);
+      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess.id}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }
@@ -302,30 +302,6 @@ export class KycController {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');
     }
-  }
-
-  private checkWebhook(req: Request, data: any): boolean {
-    return true; //TODO implement check
-    const algoHeader = req.headers['x-payload-digest-alg'];
-    const algoMap: { [key: string]: string } = {
-      HMAC_SHA1_HEX: 'sha1',
-      HMAC_SHA256_HEX: 'sha256',
-      HMAC_SHA512_HEX: 'sha512',
-    };
-
-    const algo = algoMap[algoHeader as string];
-
-    if (!algo) {
-      this.logger.error(`Unsupported algo`);
-      throw new ForbiddenException('Unsupported algo');
-    }
-
-    const key = Config.kyc.webhookKey;
-    const buffer = Buffer.from(data.toString());
-
-    const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(buffer).digest('hex');
-
-    return calculatedDigest === req.headers['x-payload-digest'];
   }
 
   private allowFrameIntegration(res: Response) {

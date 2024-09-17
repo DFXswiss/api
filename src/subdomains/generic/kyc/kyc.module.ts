@@ -23,7 +23,7 @@ import { DilisenseService } from './services/integration/dilisense.service';
 import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycDocumentService } from './services/integration/kyc-document.service';
-import { SumSubService } from './services/integration/sum-sub.service';
+import { SumsubService } from './services/integration/sum-sub.service';
 import { KycAdminService } from './services/kyc-admin.service';
 import { KycClientService } from './services/kyc-client.service';
 import { KycLogService } from './services/kyc-log.service';
@@ -61,7 +61,7 @@ import { TfaService } from './services/tfa.service';
     KycStepRepository,
     KycNotificationService,
     KycClientService,
-    SumSubService,
+    SumsubService,
   ],
   exports: [KycDocumentService, NameCheckService, KycAdminService, KycLogService, KycNotificationService],
 })

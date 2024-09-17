@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
@@ -8,31 +8,34 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
-import { ApplicantType } from '../../dto/sum-sub.dto';
+import { ApplicantType, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
 @Injectable()
-export class SumSubService {
-  private readonly logger = new DfxLogger(SumSubService);
+export class SumsubService {
+  private readonly logger = new DfxLogger(SumsubService);
 
   private readonly baseUrl = `https://api.sumsub.com`;
+  private readonly kycLevel = 'basic-kyc-level';
+  // private static readonly algoMap: { [key: string]: string } = {
+  //   HMAC_SHA1_HEX: 'sha1',
+  //   HMAC_SHA256_HEX: 'sha256',
+  //   HMAC_SHA512_HEX: 'sha512',
+  // };
 
   constructor(private readonly http: HttpService) {}
 
-  async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
-    await this.callApi<{ id: string }>(`/resources/applicants?levelName=basic-kyc-level`, 'POST', {
-      externalUserId: SumSubService.transactionId(user, kycStep),
-    });
+  async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
+    if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
+
+    await this.createApplicant(user, kycStep);
+    const { url } = await this.createWebLink(kycStep.transactionId, user.language.symbol);
+    return url.split('/').pop();
   }
 
-  async createWebLink(transactionId: number, kycLevel: string, lang: string): Promise<{ url: string }> {
-    return this.callApi<{ url: string }>(
-      `/resources/sdkIntegrations/levels/${kycLevel}/websdkLink?externalUserId=${transactionId}&lang=${lang}`,
-      'POST',
-    );
-  }
+  async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
+    const { applicantId, applicantType } = kycStep.getResult<SumsubResult>();
 
-  async getDocument(applicantId: string, applicantType: ApplicantType, transactionId: string): Promise<IdentDocument> {
     const content = await this.callApi<string>(
       `/resources/applicants/${applicantId}/summary/report?report=${
         applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
@@ -41,7 +44,7 @@ export class SumSubService {
       'arraybuffer',
     ).then(Buffer.from);
 
-    return { name: this.fileName(transactionId, 'pdf'), content, contentType: ContentType.PDF };
+    return [{ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF }];
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -51,7 +54,38 @@ export class SumSubService {
     }-${Util.randomId()}`.toLowerCase();
   }
 
+  static checkWebhook(_req: Request, _data: any): boolean {
+    return true; // TODO: implement check
+
+    // const algoHeader = req.headers['x-payload-digest-alg'];
+    // const algo = SumsubService.algoMap[algoHeader as string];
+    // if (!algo) return false;
+
+    // const buffer = Buffer.from(data.toString());
+
+    // const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(buffer).digest('hex');
+
+    // return calculatedDigest === req.headers['x-payload-digest'];
+  }
+
+  static identUrl(kycStep: KycStep): string {
+    return `https://in.sumsub.com/websdk/p/${kycStep.sessionId}`;
+  }
+
   // --- HELPER METHODS --- //
+  private async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
+    await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', {
+      externalUserId: SumsubService.transactionId(user, kycStep),
+    });
+  }
+
+  private async createWebLink(transactionId: string, lang: string): Promise<{ url: string }> {
+    return this.callApi<{ url: string }>(
+      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&lang=${lang}`,
+      'POST',
+    );
+  }
+
   private async callApi<T>(
     url: string,
     method: Method = 'GET',
@@ -89,6 +123,6 @@ export class SumSubService {
   }
 
   private fileName(transactionId: string, contentType: string): string {
-    return `${Util.isoDate(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
+    return `${Util.isoDateTime(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
   }
 }
