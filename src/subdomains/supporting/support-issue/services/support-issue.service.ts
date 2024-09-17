@@ -147,7 +147,7 @@ export class SupportIssueService {
     const message = await this.messageRepo.findOneBy({ id: messageId, issue: this.getIssueSearch(id, userDataId) });
     if (!message) throw new NotFoundException('Message not found');
 
-    return this.documentService.downloadFile(userDataId, message.issue.id, message.fileName);
+    return this.documentService.downloadFile(message.userData.id, message.issue.id, message.fileName);
   }
 
   async getUserIssues(
