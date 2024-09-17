@@ -33,7 +33,7 @@ export class PaymentActivation extends IEntity {
   @Column({ type: 'datetime2' })
   expiryDate: Date;
 
-  @Column({ length: 256, default: PaymentStandard.OPEN_CRYPTO_PAY })
+  @Column({ length: 256 })
   standard: PaymentStandard;
 
   @ManyToOne(() => PaymentLinkPayment, (p) => p.activations, { nullable: false })

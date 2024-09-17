@@ -61,10 +61,10 @@ export class PaymentQuoteService {
   }
 
   // --- CRUD --- //
-  async getActualQuote(paymentId: number, transferInfo: TransferInfo): Promise<PaymentQuote | undefined> {
+  async getActualQuote(payment: PaymentLinkPayment, transferInfo: TransferInfo): Promise<PaymentQuote | undefined> {
     return transferInfo.quoteUniqueId
       ? this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined
-      : this.getActualQuoteByPaymentId(paymentId, transferInfo);
+      : this.getActualQuoteByPaymentId(payment, transferInfo); // fallback for Lightning
   }
 
   private async getActualQuoteByUniqueId(uniqueId: string): Promise<PaymentQuote | null> {
@@ -77,14 +77,14 @@ export class PaymentQuoteService {
   }
 
   private async getActualQuoteByPaymentId(
-    paymentId: number,
+    payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
   ): Promise<PaymentQuote | undefined> {
-    const standard = transferInfo.standard ?? PaymentStandard.OPEN_CRYPTO_PAY;
+    const standard = payment.link.getMatchingStandard();
 
     const actualQuotes = await this.paymentQuoteRepo.find({
       where: {
-        payment: { id: Equal(paymentId) },
+        payment: { id: Equal(payment.id) },
         status: Equal(PaymentQuoteStatus.ACTUAL),
         standard: Equal(standard),
       },

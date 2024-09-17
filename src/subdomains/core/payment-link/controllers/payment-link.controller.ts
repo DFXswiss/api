@@ -19,8 +19,9 @@ import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
-import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
+import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
 
@@ -176,6 +177,17 @@ export class PaymentLinkController {
     @Body() dto: UpdatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkPayment> {
     return this.paymentLinkPaymentService.updatePayment(+id, dto);
+  }
+
+  @Put(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updatePaymentLinkAdmin(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentLinkInternalDto,
+  ): Promise<PaymentLink> {
+    return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
   }
 
   // --- HELPER METHODS --- //

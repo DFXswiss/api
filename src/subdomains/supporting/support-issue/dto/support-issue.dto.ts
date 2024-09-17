@@ -36,7 +36,7 @@ export class SupportIssueLimitRequestDto {
 
 export class SupportIssueDto {
   @ApiProperty()
-  id: number;
+  uid: string;
 
   @ApiProperty({ enum: SupportIssueState })
   state: SupportIssueState;

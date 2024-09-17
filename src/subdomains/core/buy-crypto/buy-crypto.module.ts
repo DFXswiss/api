@@ -70,7 +70,7 @@ import { SwapService } from './routes/swap/swap.service';
     SiftModule,
     FiatOutputModule,
     TransactionUtilModule,
-    forwardRef(() => RouteModule),
+    RouteModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [

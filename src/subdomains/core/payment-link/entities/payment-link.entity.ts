@@ -95,4 +95,12 @@ export class PaymentLink extends IEntity {
     const config = this.config ?? this.route.userData.paymentLinksConfig;
     return config ? Object.assign(defaultConfig, JSON.parse(config)) : defaultConfig;
   }
+
+  get defaultStandard(): PaymentStandard {
+    return this.configObj.standards[0];
+  }
+
+  getMatchingStandard(param?: PaymentStandard): PaymentStandard {
+    return this.configObj.standards.includes(param) ? param : this.defaultStandard;
+  }
 }

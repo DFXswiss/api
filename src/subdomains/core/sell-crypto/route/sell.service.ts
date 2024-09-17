@@ -46,7 +46,6 @@ export class SellService {
     @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
     private readonly transactionUtilService: TransactionUtilService,
-    @Inject(forwardRef(() => RouteService))
     private readonly routeService: RouteService,
   ) {}
 

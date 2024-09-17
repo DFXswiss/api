@@ -9,8 +9,8 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
-import { PaymentLinkPaymentNotFoundDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
-import { UpdatePaymentLinkDto } from '../dto/update-payment-link.dto';
+import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
+import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentMode, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
@@ -152,7 +152,7 @@ export class PaymentLinkService {
     if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
 
     const { standards, displayQr } = pendingPayment.link.configObj;
-    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+    const usedStandard = pendingPayment.link.getMatchingStandard(standardParam);
 
     const actualQuote = await this.paymentQuoteService.createQuote(usedStandard, pendingPayment);
 
@@ -198,7 +198,7 @@ export class PaymentLinkService {
     if (!paymentLink) return `Active payment link not found by id ${uniqueId}`;
 
     const { standards, displayQr } = paymentLink.configObj;
-    const usedStandard = standards.includes(standardParam) ? standardParam : standards[0];
+    const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
     return {
       statusCode: new NotFoundException().getStatus(),
@@ -239,12 +239,34 @@ export class PaymentLinkService {
       website,
     };
 
-    if (country) updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
-    if (country === null) updatePaymentLink.country = null;
+    if (country === null) {
+      updatePaymentLink.country = null;
+    } else if (country) {
+      updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
+      if (!updatePaymentLink.country) throw new NotFoundException('Country not found');
+    }
 
-    await this.paymentLinkRepo.update(paymentLink.id, updatePaymentLink);
+    await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);
 
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+  }
+
+  async updatePaymentLinkAdmin(id: number, dto: UpdatePaymentLinkInternalDto): Promise<PaymentLink> {
+    const entity = await this.paymentLinkRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('PaymentLink not found');
+
+    if (dto.country) {
+      dto.country = await this.countryService.getCountry(dto.country.id);
+      if (!dto.country) throw new NotFoundException('Country not found');
+    }
+
+    return this.updatePaymentLinkInternal(entity, dto);
+  }
+
+  private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
+    await this.paymentLinkRepo.update(paymentLink.id, dto);
+
+    return Object.assign(paymentLink, dto);
   }
 
   // --- PAYMENTS --- //

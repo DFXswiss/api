@@ -230,7 +230,8 @@
     },
     "support_message": {
         "title": "New support message",
-        "message": "{supportMessage}"
+        "salutation": "You have received a support message",
+        "message": "You have received a new message in your support ticket. You can access your ticket at the following URL:<br>[url:{urlText}]"
     },
     "black_squad": {
         "title": "Invitation Black Squad",

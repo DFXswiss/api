@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Lock } from 'src/shared/utils/lock';
@@ -20,7 +20,6 @@ export class BuyService {
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
-    @Inject(forwardRef(() => RouteService))
     private readonly routeService: RouteService,
   ) {}
 
