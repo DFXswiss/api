@@ -14,6 +14,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
+import { RouteService } from 'src/subdomains/core/route/route.service';
 import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -44,6 +45,7 @@ export class SwapService {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly routeService: RouteService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -97,6 +99,10 @@ export class SwapService {
       .then((r) => r.volume);
   }
 
+  async getSwapWithoutRoute(): Promise<Swap[]> {
+    return this.swapRepo.findBy({ route: { id: IsNull() } });
+  }
+
   // --- SWAPS --- //
   async get(userId: number, id: number): Promise<Swap> {
     return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
@@ -134,6 +140,7 @@ export class SwapService {
     // create the entity
     const swap = this.swapRepo.create({ asset });
     swap.user = await this.userService.getUser(userId);
+    swap.route = await this.routeService.createRoute({ swap });
     swap.deposit = await this.depositService.getNextDeposit(blockchain);
 
     // save

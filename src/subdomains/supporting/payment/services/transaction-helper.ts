@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -42,6 +42,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly evmRegistryService: EvmRegistryService,
@@ -98,8 +99,8 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getMinVolume(
-    from: Active | undefined,
-    to: Active | undefined,
+    from: Active,
+    to: Active,
     fromReference: Active,
     allowExpiredPrice: boolean,
     isPayment: boolean,

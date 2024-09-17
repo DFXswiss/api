@@ -20,10 +20,11 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Like, Not } from 'typeorm';
+import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
@@ -40,10 +41,12 @@ export class SellService {
     private readonly userDataService: UserDataService,
     private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly routeService: RouteService,
   ) {}
 
   // --- SELLS --- //
@@ -95,6 +98,10 @@ export class SellService {
     return sells.filter((s) => s.deposit.blockchainList.some((b) => sellableBlockchains.includes(b)));
   }
 
+  async getSellWithoutRoute(): Promise<Sell[]> {
+    return this.sellRepo.findBy({ route: { id: IsNull() } });
+  }
+
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
     // check user data
     const userData = await this.userDataService.getUserDataByUser(userId);
@@ -126,6 +133,7 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = await this.userService.getUser(userId, { userData: true });
+    sell.route = await this.routeService.createRoute({ sell });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);

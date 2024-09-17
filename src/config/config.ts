@@ -35,6 +35,7 @@ export class Configuration {
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
+  transactionRefundExpirySeconds = 30;
 
   defaults = {
     currency: 'EUR',

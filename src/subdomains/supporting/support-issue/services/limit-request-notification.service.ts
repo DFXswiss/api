@@ -28,14 +28,11 @@ export class LimitRequestNotificationService {
   }
 
   private async limitRequestAcceptedManual(): Promise<void> {
-    const entities = await this.limitRequestRepo.find({
-      where: {
-        mailSendDate: IsNull(),
-        decision: In([LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED]),
-        clerk: Not(IsNull()),
-        edited: Not(IsNull()),
-      },
-      relations: { userData: true },
+    const entities = await this.limitRequestRepo.findBy({
+      mailSendDate: IsNull(),
+      decision: In([LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED]),
+      clerk: Not(IsNull()),
+      edited: Not(IsNull()),
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'limit-request accepted' email(s)`);

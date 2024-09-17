@@ -172,6 +172,12 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDateUser: Date;
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount: number;
+
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy: string;
 
@@ -379,6 +385,27 @@ export class BuyCrypto extends IEntity {
     const update: Partial<BuyCrypto> = {
       recipientMail: null,
       mailSendDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  chargebackFillUp(
+    chargebackIban: string,
+    chargebackAmount: number,
+    chargebackAllowedDate: Date,
+    chargebackAllowedDateUser: Date,
+    chargebackOutput?: FiatOutput,
+  ): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      chargebackDate: chargebackAllowedDate ? new Date() : null,
+      chargebackAllowedDate,
+      chargebackAllowedDateUser,
+      chargebackIban,
+      chargebackAmount,
+      chargebackOutput,
     };
 
     Object.assign(this, update);

@@ -13,6 +13,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
@@ -61,6 +62,7 @@ describe('BuyCryptoService', () => {
   let payInService: PayInService;
   let fiatOutputService: FiatOutputService;
   let userDataService: UserDataService;
+  let bankAccountService: BankAccountService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -83,6 +85,7 @@ describe('BuyCryptoService', () => {
     payInService = createMock<PayInService>();
     fiatOutputService = createMock<FiatOutputService>();
     userDataService = createMock<UserDataService>();
+    bankAccountService = createMock<BankAccountService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -108,6 +111,7 @@ describe('BuyCryptoService', () => {
         { provide: PayInService, useValue: payInService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: UserDataService, useValue: userDataService },
+        { provide: BankAccountService, useValue: bankAccountService },
       ],
     }).compile();
 
