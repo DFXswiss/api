@@ -4,6 +4,7 @@ import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.modul
 import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-management/liquidity-management.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { TradingModule } from 'src/subdomains/core/trading/trading.module';
+import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { PayInModule } from '../payin/payin.module';
 import { LogJobService } from './log-job.service';
 import { LogModule } from './log.module';
@@ -17,6 +18,7 @@ import { LogModule } from './log.module';
     PayInModule,
     SellCryptoModule,
     BuyCryptoModule,
+    BankTxModule,
   ],
   controllers: [],
   providers: [LogJobService],

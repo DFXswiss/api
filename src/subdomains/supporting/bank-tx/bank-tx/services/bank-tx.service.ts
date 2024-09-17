@@ -235,6 +235,13 @@ export class BankTxService {
       .getOne();
   }
 
+  async getPendingTx(): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { type: IsNull() },
+      { type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]) },
+    ]);
+  }
+
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 

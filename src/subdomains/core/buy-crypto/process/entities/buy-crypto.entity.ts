@@ -9,6 +9,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -519,13 +520,8 @@ export class BuyCrypto extends IEntity {
     if (this.outputAmount) return 0;
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
-        return (asset.dexName === 'EUR' && this.bankTx?.accountIban === 'CH6808573177975201814') ||
-          (asset.dexName === 'CHF' && this.bankTx?.accountIban === 'CH3408573177975200001')
-          ? this.inputReferenceAmount
-          : 0;
-
       case 'Olkypay':
-        return this.bankTx?.accountIban === 'LU116060002000005040' ? this.inputReferenceAmount : 0;
+        return BankService.isBankMatching(asset, this.bankTx?.accountIban) ? this.inputReferenceAmount : 0;
 
       case 'Checkout':
         return this.checkoutTx?.currency === asset.dexName ? this.inputReferenceAmount : 0;
