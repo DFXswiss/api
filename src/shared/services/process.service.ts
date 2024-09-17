@@ -48,7 +48,6 @@ export enum Process {
   ASSET_DECIMALS = 'AssetDecimals',
   UPDATE_GAS_PRICE = 'UpdateGasPrice',
   SANCTION_SYNC = 'SanctionSync',
-  ROUTE_SYNC = 'RouteSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
 }

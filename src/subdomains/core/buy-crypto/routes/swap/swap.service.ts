@@ -45,7 +45,6 @@ export class SwapService {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly transactionUtilService: TransactionUtilService,
-    @Inject(forwardRef(() => RouteService))
     private readonly routeService: RouteService,
   ) {}
 
