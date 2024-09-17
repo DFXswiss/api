@@ -41,6 +41,7 @@ export class SumsubService {
         applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
       }`,
       'GET',
+      '{}',
       'arraybuffer',
     ).then(Buffer.from);
 
