@@ -5,9 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -40,19 +38,6 @@ export class SupportIssueService {
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
   ) {}
-
-  // TODO: remove temporary code
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock()
-  async createUids() {
-    const issuesWithoutUid = await this.supportIssueRepo.findBy({ uid: IsNull() });
-    for (const issue of issuesWithoutUid) {
-      const hash = Util.createHash(issue.type + new Date() + Util.randomId()).toUpperCase();
-      const uid = `${this.UID_PREFIX}${hash.slice(0, 16)}`;
-
-      await this.supportIssueRepo.update(issue.id, { uid });
-    }
-  }
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required

@@ -25,7 +25,7 @@ export class SupportIssueNotificationService {
             prefix: [
               {
                 key: `${MailTranslationKey.SUPPORT_MESSAGE}.message`,
-                params: { supportMessage: entity.message.split('\n').join('<br>') },
+                params: { url: entity.issue.url, urlText: entity.issue.url },
               },
             ],
             from: Config.support.message.mailAddress,
