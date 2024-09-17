@@ -251,15 +251,15 @@ export class PaymentLinkService {
     const entity = await this.paymentLinkRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('PaymentLink not found');
 
-    return this.updatePaymentLinkInternal(entity, dto);
-  }
-
-  async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
     if (dto.country) {
       dto.country = await this.countryService.getCountry(dto.country.id);
       if (!dto.country) throw new NotFoundException('Country not found');
     }
 
+    return this.updatePaymentLinkInternal(entity, dto);
+  }
+
+  private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
     await this.paymentLinkRepo.update(paymentLink.id, dto);
 
     return Object.assign(paymentLink, dto);
