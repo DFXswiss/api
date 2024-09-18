@@ -102,6 +102,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       currency: dto.currency,
       expiryDate: dto.expiryDate,
+      webhookUrl: dto.webhookUrl,
     };
 
     const route = await this.sellService.getById(+dto.routeId);

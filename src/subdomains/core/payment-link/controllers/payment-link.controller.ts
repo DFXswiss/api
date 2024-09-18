@@ -99,7 +99,7 @@ export class PaymentLinkController {
     dto.currency ??= dto.c;
     dto.expiryDate ??= dto.d;
     dto.standard ??= dto.s;
-
+    dto.webhookUrl ??= dto.w;
     dto.externalId ??= `${dto.message}/${dto.amount}${dto.currency ?? ''}`;
 
     const link = await this.paymentLinkService.createInvoice(dto);

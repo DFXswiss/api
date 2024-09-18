@@ -29,4 +29,9 @@ export class CreatePaymentLinkPaymentDto {
   @IsDate()
   @Type(() => Date)
   expiryDate?: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
 }
