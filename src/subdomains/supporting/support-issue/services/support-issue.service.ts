@@ -11,7 +11,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, Like, MoreThan } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -183,7 +182,7 @@ export class SupportIssueService {
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
-      entity.fileUrl = await this.documentService.uploadFile(
+      entity.fileUrl = await this.documentService.uploadUserFile(
         entity.userData.id,
         entity.issue.id,
         `${Util.isoDateTime(new Date())}_${dto.author?.toLowerCase() ?? 'support'}_${Util.randomId()}_${dto.fileName}`,
