@@ -247,6 +247,7 @@ export const RefRewardStatusMapper: {
 function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   state: TransactionState;
   reason: TransactionReason;
+  chargebackTxId?: string;
 } {
   if (entity instanceof RefReward) {
     return { state: RefRewardStatusMapper[entity.status], reason: null };
@@ -266,7 +267,11 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
-        return { state: TransactionState.FAILED, reason };
+        return {
+          state: TransactionState.FAILED,
+          reason,
+          chargebackTxId: entity.chargebackCryptoTxId ?? entity.chargebackBankTx.txId,
+        };
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
@@ -290,7 +295,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
-        return { state: TransactionState.FAILED, reason };
+        return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
