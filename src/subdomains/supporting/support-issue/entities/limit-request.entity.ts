@@ -22,6 +22,7 @@ export enum LimitRequestDecision {
   PARTIALLY_ACCEPTED = 'PartiallyAccepted',
   REJECTED = 'Rejected',
   EXPIRED = 'Expired',
+  CLOSED = 'Closed',
 }
 
 @Entity()
