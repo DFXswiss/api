@@ -270,7 +270,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         return {
           state: TransactionState.FAILED,
           reason,
-          chargebackTxId: entity.chargebackCryptoTxId ?? entity.chargebackBankTx.txId,
+          chargebackTxId: entity.chargebackCryptoTxId ?? entity.chargebackRemittanceInfo,
         };
 
       case CheckStatus.PASS:
