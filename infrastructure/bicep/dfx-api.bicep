@@ -39,6 +39,12 @@ param kycPassword string
 param kycPrefix string
 param kycWebhookIps string
 
+param kycAppToken string
+@secure()
+param kycSecretKey string
+@secure()
+param kycWebhookSecret string
+
 @secure()
 param githubToken string
 
@@ -584,6 +590,17 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KYC_WEBHOOK_IPS'
           value: kycWebhookIps
+        }
+        {
+          name: 'KYC_APP_TOKEN'
+          value: kycAppToken
+        }        
+        {
+          name: 'KYC_SECRET_KEY'
+          value: kycSecretKey
+        }        {
+          name: 'KYC_WEBHOOK_SECRET'
+          value: kycWebhookSecret
         }
         {
           name: 'GH_TOKEN'
