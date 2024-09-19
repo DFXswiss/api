@@ -48,6 +48,7 @@ import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumsubResult } from '../dto/sum-sub.dto';
+import { KycStepName } from '../enums/kyc.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -184,6 +185,36 @@ export class KycController {
   ): Promise<KycResultDto> {
     data.fileName = this.fileName('commercial-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+  }
+
+  @Put('data/residence/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateResidencePermitData(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    await this.kycService.getOrCreateStep(code, ip, KycStepName.RESIDENCE_PERMIT);
+
+    data.fileName = this.fileName('residence-permit', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
+  }
+
+  @Put('data/additional/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateAdditionalDocumentsData(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    await this.kycService.getOrCreateStep(code, ip, KycStepName.ADDITIONAL_DOCUMENTS);
+
+    data.fileName = this.fileName('additional-documents', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
   }
 
   @Put('data/signatory/:id')

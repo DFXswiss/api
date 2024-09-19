@@ -10,6 +10,8 @@ export enum FileType {
   TRANSACTION_NOTES = 'TransactionNotes',
   STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
+  RESIDENCE_PERMIT = 'ResidencePermit',
+  ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   AUTHORITY = 'Authority',
 }
 
