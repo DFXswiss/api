@@ -88,7 +88,7 @@ export class PaymentLink extends IEntity {
     const defaultConfig: PaymentLinkConfig = {
       standards: Object.values(PaymentStandard),
       blockchains: Object.values(Blockchain),
-      minCompletionStatus: PaymentQuoteStatus.TX_BLOCKCHAIN,
+      minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
       displayQr: false,
     };
 
