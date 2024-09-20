@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { DepositDto } from '../../../../supporting/address-pool/deposit/dto/deposit.dto';
@@ -11,7 +11,7 @@ export class SellDto {
   @ApiProperty()
   active: boolean;
 
-  @ApiProperty({ type: DepositDto })
+  @ApiPropertyOptional({ type: DepositDto })
   deposit: DepositDto;
 
   @ApiProperty()

@@ -48,7 +48,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty()
   routeId: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   remittanceInfo: string;
 
   @ApiProperty({ type: MinAmount, deprecated: true })

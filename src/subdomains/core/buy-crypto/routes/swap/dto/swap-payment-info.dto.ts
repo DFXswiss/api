@@ -16,7 +16,7 @@ export class SwapPaymentInfoDto {
   @ApiProperty()
   routeId: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   depositAddress: string;
 
   @ApiProperty({ deprecated: true })

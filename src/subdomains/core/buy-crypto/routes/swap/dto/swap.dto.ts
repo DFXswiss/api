@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { DepositDto } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit.dto';
@@ -14,7 +14,7 @@ export class SwapDto {
   @ApiProperty({ type: AssetDto })
   asset: AssetDto;
 
-  @ApiProperty({ type: DepositDto })
+  @ApiPropertyOptional({ type: DepositDto })
   deposit: DepositDto;
 
   @ApiProperty({ description: 'Volume in CHF' })
