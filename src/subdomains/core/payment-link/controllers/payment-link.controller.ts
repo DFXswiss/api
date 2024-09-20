@@ -93,7 +93,14 @@ export class PaymentLinkController {
   @Get('payment')
   @ApiExcludeEndpoint()
   async createInvoicePayment(@Query() dto: CreateInvoicePaymentDto): Promise<PaymentLinkPayRequestDto> {
-    dto.routeId ??= dto.r;
+    if (dto.r) {
+      const isRouteId = !isNaN(+dto.r);
+      if (isRouteId) {
+        dto.routeId ??= dto.r;
+      } else {
+        dto.route ??= dto.r;
+      }
+    }
     dto.externalId ??= dto.e;
     dto.message ??= dto.m;
     dto.amount ??= dto.a;

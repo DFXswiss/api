@@ -66,6 +66,10 @@ export class SellService {
     });
   }
 
+  async getByLabel(userId: number, label: string): Promise<Sell> {
+    return this.sellRepo.findOne({ where: { route: { label }, user: { id: userId } }, relations: { user: true } });
+  }
+
   async getSellByKey(key: string, value: any): Promise<Sell> {
     return this.sellRepo
       .createQueryBuilder('sell')

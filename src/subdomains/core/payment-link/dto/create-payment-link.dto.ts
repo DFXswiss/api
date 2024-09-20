@@ -13,6 +13,11 @@ export class CreatePaymentLinkDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  route?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   externalId?: string;
 
   @ApiPropertyOptional()
