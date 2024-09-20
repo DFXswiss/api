@@ -298,6 +298,8 @@ export class TransactionController {
       throw new ForbiddenException('You can only refund your own transaction');
     if (transaction.targetEntity.amlCheck !== CheckStatus.FAIL)
       throw new BadRequestException('You can only refund failed transactions');
+    if (transaction.targetEntity.chargebackAmount)
+      throw new BadRequestException('You can only refund a transaction once');
 
     const feeAmount = transaction.targetEntity.cryptoInput
       ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
