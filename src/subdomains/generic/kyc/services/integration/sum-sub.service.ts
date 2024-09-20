@@ -48,8 +48,8 @@ export class SumsubService {
     return [{ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF }];
   }
 
-  async getApplicantData(transactionId: string): Promise<DataResult> {
-    return this.callApi<DataResult>(`/resources/applicants/-;externalUserId=${transactionId}/one`, 'POST');
+  async getApplicantData(applicantId: string): Promise<DataResult> {
+    return this.callApi<DataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //

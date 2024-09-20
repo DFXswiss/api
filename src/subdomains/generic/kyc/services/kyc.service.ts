@@ -369,9 +369,9 @@ export class KycService {
 
     this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
 
-    const data = await this.sumsubService.getApplicantData(dto.externalUserId);
+    const data = await this.sumsubService.getApplicantData(dto.applicantId);
 
-    await this.updateIdent(transactionId, { webhook: dto, data } as SumsubResult, result, IdentReason.IDENT_OTHER); // TODO: map reasons
+    await this.updateIdent(transactionId, { webhook: dto, data }, result, IdentReason.IDENT_OTHER); // TODO: map reasons
   }
 
   private async updateIdent(

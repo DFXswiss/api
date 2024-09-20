@@ -7,9 +7,6 @@ export class Country extends IEntity {
   @Column({ unique: true, length: 10 })
   symbol: string;
 
-  @Column({ unique: true, length: 10 })
-  symbol3: string;
-
   @Column({ length: 256 })
   name: string;
 
@@ -36,6 +33,9 @@ export class Country extends IEntity {
 
   @Column({ default: false })
   bankTransactionVerificationEnable: boolean;
+
+  @Column({ default: '' })
+  symbol3: string;
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {
