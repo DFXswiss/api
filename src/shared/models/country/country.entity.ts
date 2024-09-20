@@ -34,7 +34,7 @@ export class Country extends IEntity {
   @Column({ default: false })
   bankTransactionVerificationEnable: boolean;
 
-  @Column({ default: '' })
+  @Column({ nullable: true, length: 10 })
   symbol3: string;
 
   isEnabled(kycType: KycType): boolean {
