@@ -114,7 +114,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
-    return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
+    return this.feeService.getBlockchainFeeInChf(asset, allowCachedBlockchainFee);
   }
 
   getMinSpecs(from: Active, to: Active): TxMinSpec {
