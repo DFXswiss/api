@@ -47,7 +47,7 @@ import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
-import { SumsubResult } from '../dto/sum-sub.dto';
+import { WebhookResult } from '../dto/sum-sub.dto';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -237,7 +237,7 @@ export class KycController {
 
   @Post('ident/sumsub')
   @ApiExcludeEndpoint()
-  async sumsubWebhook(@Req() req: Request, @Body() data: SumsubResult) {
+  async sumsubWebhook(@Req() req: Request, @Body() data: WebhookResult) {
     if (!SumsubService.checkWebhook(req, data)) {
       this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid key');

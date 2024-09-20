@@ -48,7 +48,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { SumsubResult, getSumsubResult } from '../dto/sum-sub.dto';
+import { SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -361,7 +361,7 @@ export class KycService {
     await this.updateIdent(transactionId, dto, result, reason);
   }
 
-  async updateSumsubIdent(dto: SumsubResult): Promise<void> {
+  async updateSumsubIdent(dto: WebhookResult): Promise<void> {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
@@ -369,7 +369,9 @@ export class KycService {
 
     this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
 
-    await this.updateIdent(transactionId, dto, result, IdentReason.IDENT_OTHER); // TODO: map reasons
+    const data = await this.sumsubService.getApplicantData(dto.externalUserId);
+
+    await this.updateIdent(transactionId, { webhook: dto, data } as SumsubResult, result, IdentReason.IDENT_OTHER); // TODO: map reasons
   }
 
   private async updateIdent(
