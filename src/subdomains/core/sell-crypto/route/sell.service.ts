@@ -91,6 +91,7 @@ export class SellService {
       where: {
         user: { id: userId },
         fiat: { buyable: true },
+        active: true,
       },
       relations: { deposit: true, user: true },
     });
@@ -121,7 +122,7 @@ export class SellService {
     if (existing) {
       if (existing.active && !ignoreException) throw new ConflictException('Sell route already exists');
 
-      if (!existing.active) {
+      if (!existing.active && userData.isDataComplete) {
         // reactivate deleted route
         existing.active = true;
         await this.sellRepo.save(existing);

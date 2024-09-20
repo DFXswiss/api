@@ -65,6 +65,8 @@ export class PaymentLinkService {
     const route = dto.routeId
       ? await this.sellService.get(userId, dto.routeId)
       : await this.sellService.getLatest(userId);
+    if (!route) throw new NotFoundException('Sell route not found');
+    if (!route.active) throw new BadRequestException('Sell route not active');
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
