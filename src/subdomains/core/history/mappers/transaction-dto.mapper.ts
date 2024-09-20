@@ -65,6 +65,8 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
+      chargebackAmount: buyCrypto.chargebackAmount,
+      chargebackTarget: buyCrypto.chargebackIban,
       date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
       externalTransactionId: buyCrypto.transaction.externalId,
     };
@@ -116,6 +118,8 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
+      chargebackAmount: buyFiat.chargebackAmount,
+      chargebackTarget: buyFiat.chargebackAddress,
       date: buyFiat.outputDate ?? buyFiat.chargebackDate ?? buyFiat.updated,
       externalTransactionId: buyFiat.transaction.externalId,
     };
@@ -164,6 +168,8 @@ export class TransactionDtoMapper {
       inputTxUrl: null,
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
+      chargebackAmount: undefined,
+      chargebackTarget: undefined,
       date: refReward.outputDate ?? refReward.updated,
     };
 
@@ -195,6 +201,8 @@ export class TransactionDtoMapper {
       inputPaymentMethod: FiatPaymentMethod.BANK,
       inputTxId: null,
       inputTxUrl: null,
+      chargebackAmount: undefined,
+      chargebackTarget: undefined,
       date: tx.created,
     };
   }
