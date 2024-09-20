@@ -128,7 +128,7 @@ export class SwapService {
     if (existing) {
       if (existing.active && !ignoreException) throw new ConflictException('Swap route already exists');
 
-      if (!existing.active) {
+      if (!existing.active && (userData.status === UserDataStatus.ACTIVE || userData.kycLevel >= KycLevel.LEVEL_30)) {
         // reactivate deleted route
         existing.active = true;
         await this.swapRepo.save(existing);
@@ -152,7 +152,7 @@ export class SwapService {
     if (!userData.hasBankTxVerification) return [];
 
     return this.swapRepo.find({
-      where: { user: { id: userId }, asset: { buyable: true } },
+      where: { user: { id: userId }, asset: { buyable: true }, active: true },
       relations: { user: true },
     });
   }

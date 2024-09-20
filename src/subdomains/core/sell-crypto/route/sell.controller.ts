@@ -283,7 +283,9 @@ export class SellController {
       maxVolume,
       maxVolumeTarget,
       feesTarget: feeTarget,
-      paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
+      paymentRequest: sell.active
+        ? await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount)
+        : undefined,
       isValid,
       error,
     };
