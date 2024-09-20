@@ -81,8 +81,9 @@ export class SumsubService {
   }
 
   private async createWebLink(transactionId: string, lang: string): Promise<{ url: string }> {
+    const expirySecs = 90 * 24 * 60 * 60;
     return this.callApi<{ url: string }>(
-      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&lang=${lang}`,
+      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&ttlInSecs=${expirySecs}&lang=${lang}`,
       'POST',
     );
   }
