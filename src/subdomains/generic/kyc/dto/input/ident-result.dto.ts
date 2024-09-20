@@ -74,7 +74,7 @@ export interface IdentItem {
   original?: string;
 }
 
-export interface IdentResultDto {
+export class IdentResultDto {
   identificationprocess: {
     result: IdentResult;
     reason: IdentReason;

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CountryRepository } from 'src/shared/models/country/country.repository';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Equal } from 'typeorm';
 import { Country } from './country.entity';
 
 @Injectable()
@@ -12,11 +13,15 @@ export class CountryService {
   }
 
   async getCountry(id: number): Promise<Country> {
-    return this.countryRepo.findOneCachedBy(`${id}`, { id });
+    return this.countryRepo.findOneCachedBy(`${id}`, { id: Equal(id) });
   }
 
   async getCountryWithSymbol(symbol: string): Promise<Country> {
-    return this.countryRepo.findOneCachedBy(symbol, { symbol });
+    return this.countryRepo.findOneCachedBy(symbol, { symbol: Equal(symbol) });
+  }
+
+  async getCountryWithSymbol3(symbol3: string): Promise<Country> {
+    return this.countryRepo.findOneCachedBy(symbol3, { symbol3: Equal(symbol3) });
   }
 
   async getCountriesByKycType(kycType: KycType): Promise<Country[]> {
