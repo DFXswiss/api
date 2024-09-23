@@ -1,6 +1,11 @@
 import { IdentShortResult } from './input/ident-result.dto';
 
-export interface SumsubResult {
+export class SumsubResult {
+  webhook: WebhookResult;
+  data: DataResult;
+}
+
+export interface WebhookResult {
   applicantId?: string;
   applicantActionId?: string;
   applicantType?: ApplicantType;
@@ -26,6 +31,52 @@ export interface SumsubResult {
   sandboxMode?: boolean;
   clientId?: string;
   reviewMode?: string;
+}
+
+export interface DataResult {
+  id?: string;
+  createdAt?: Date;
+  clientId?: string;
+  inspectionId?: string;
+  externalUserId?: string;
+  sourceKey?: string;
+  info?: {
+    firstName?: string;
+    firstNameEn?: string;
+    lastName?: string;
+    lastNameEn?: string;
+    dob?: string;
+    country?: string;
+    idDocs?: [
+      {
+        idDocType?: IdDocType;
+        country?: string;
+        firstName?: string;
+        firstNameEn?: string;
+        lastName?: string;
+        lastNameEn?: string;
+        validUntil?: Date;
+        number?: string;
+        dob?: Date;
+        mrzLine1?: string;
+        mrzLine2?: string;
+        mrzLine3?: string;
+      },
+    ];
+  };
+  requiredIdDocs?: string;
+  fixedInfo?: string;
+  email?: string;
+  phone?: string;
+  applicantPlatform?: string;
+  ipCountry?: string;
+  authCode?: string;
+  agreement?: { createdAt?: Date; source?: string; acceptedAt?: string; recordIds?: string[] };
+}
+
+export enum IdDocType {
+  ID_CARD = 'ID_CARD',
+  PASSPORT = 'PASSPORT',
 }
 
 export enum ApplicantType {
@@ -132,7 +183,7 @@ export enum RejectionLabels {
   WRONG_USER_REGION = 'WRONG_USER_REGION',
 }
 
-export function getSumsubResult(dto: SumsubResult): IdentShortResult {
+export function getSumsubResult(dto: WebhookResult): IdentShortResult {
   if (dto.type == WebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
   if (dto.type == WebhookType.APPLICANT_REVIEWED)
     return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;

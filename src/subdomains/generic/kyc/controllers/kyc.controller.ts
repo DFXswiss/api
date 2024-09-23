@@ -30,7 +30,7 @@ import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
+import { IdNowResult } from '../dto/input/ident-result.dto';
 import {
   KycContactData,
   KycFileData,
@@ -47,7 +47,7 @@ import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
-import { SumsubResult } from '../dto/sum-sub.dto';
+import { WebhookResult } from '../dto/sum-sub.dto';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -237,7 +237,7 @@ export class KycController {
 
   @Post('ident/sumsub')
   @ApiExcludeEndpoint()
-  async sumsubWebhook(@Req() req: Request, @Body() data: SumsubResult) {
+  async sumsubWebhook(@Req() req: Request, @Body() data: WebhookResult) {
     if (!SumsubService.checkWebhook(req, data)) {
       this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid key');
@@ -253,7 +253,7 @@ export class KycController {
 
   @Post('ident/:type')
   @ApiExcludeEndpoint()
-  async identWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+  async identWebhook(@RealIP() ip: string, @Body() data: IdNowResult) {
     this.checkWebhookIp(ip, data);
 
     try {
@@ -297,7 +297,7 @@ export class KycController {
   }
 
   // --- HELPER METHODS --- //
-  private checkWebhookIp(ip: string, data: IdentResultDto) {
+  private checkWebhookIp(ip: string, data: IdNowResult) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');
