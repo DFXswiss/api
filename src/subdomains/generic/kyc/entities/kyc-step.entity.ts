@@ -3,9 +3,9 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
-import { KycResultData, KycResultType } from '../dto/kyc-result-data.dto';
-import { SumsubResult } from '../dto/sum-sub.dto';
+import { IdNowResult } from '../dto/input/ident-result.dto';
+import { IdentResultData, KycResultType } from '../dto/kyc-result-data.dto';
+import { IdDocType, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -219,35 +219,41 @@ export class KycStep extends IEntity {
     return this;
   }
 
-  get resultData(): KycResultData {
-    const result = this.isSumsub ? this.getResult<SumsubResult>() : this.getResult<IdentResultDto>();
+  get resultData(): IdentResultData {
+    const identResultData = this.isSumsub ? this.getResult<SumsubResult>() : this.getResult<IdNowResult>();
 
-    if (result instanceof SumsubResult) {
+    if (identResultData instanceof SumsubResult) {
       return {
         type: KycResultType.SUMSUB,
-        firstname: result.data.info?.idDocs?.[0]?.firstName,
-        lastname: result.data.info?.idDocs?.[0]?.lastName,
+        firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
+        lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
         birthname: null,
-        birthday: result.data.info?.idDocs?.[0]?.dob,
-        nationality: result.data.info?.idDocs?.[0]?.country,
-        identificationDocNumber: result.data.info?.idDocs?.[0]?.number,
-        identificationDocType: result.data.info?.idDocs?.[0]?.idDocType,
-        identificationType: result.webhook.type,
-        result: result.webhook.reviewResult.reviewAnswer,
+        birthday: identResultData.data.info?.idDocs?.[0]?.dob
+          ? new Date(identResultData.data.info.idDocs[0].dob)
+          : undefined,
+        nationality: identResultData.data.info?.idDocs?.[0]?.country,
+        identificationDocNumber: identResultData.data.info?.idDocs?.[0]?.number,
+        identificationDocType: identResultData.data.info?.idDocs?.[0]?.idDocType
+          ? identResultData.data.info.idDocs[0].idDocType === IdDocType.ID_CARD
+            ? 'IDCARD'
+            : 'PASSPORT'
+          : undefined,
+        identificationType: identResultData.webhook.type,
+        result: identResultData.webhook.reviewResult.reviewAnswer,
       };
     }
 
     return {
       type: KycResultType.ID_NOW,
-      firstname: result.userdata?.firstname?.value,
-      lastname: result.userdata?.lastname?.value,
-      birthname: result.userdata?.birthname?.value,
-      birthday: result.userdata?.birthday?.value ? new Date(result.userdata.birthday.value) : null,
-      nationality: result.userdata?.nationality?.value,
-      identificationDocType: result.identificationdocument?.type?.value,
-      identificationDocNumber: result.identificationdocument?.number?.value,
-      identificationType: result.identificationprocess?.companyid,
-      result: result.identificationprocess?.result,
+      firstname: identResultData.userdata?.firstname?.value,
+      lastname: identResultData.userdata?.lastname?.value,
+      birthname: identResultData.userdata?.birthname?.value,
+      birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
+      nationality: identResultData.userdata?.nationality?.value,
+      identificationDocType: identResultData.identificationdocument?.type?.value,
+      identificationDocNumber: identResultData.identificationdocument?.number?.value,
+      identificationType: identResultData.identificationprocess?.companyid,
+      result: identResultData.identificationprocess?.result,
     };
   }
 
@@ -264,12 +270,12 @@ export class KycStep extends IEntity {
   }
 
   get identDocumentId(): string | undefined {
-    const result = this.getResult<IdentResultDto>();
+    const result = this.getResult<IdNowResult>();
     return result?.identificationdocument?.number?.value;
   }
 
   get userName(): string | undefined {
-    const result = this.getResult<IdentResultDto>();
+    const result = this.getResult<IdNowResult>();
     if (!result) return undefined;
     return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]
       .filter((n) => n)

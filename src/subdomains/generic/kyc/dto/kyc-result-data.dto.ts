@@ -3,7 +3,7 @@ export enum KycResultType {
   ID_NOW = 'IdNow',
 }
 
-export interface KycResultData {
+export interface IdentResultData {
   type: KycResultType;
   firstname: string;
   birthname: string;
