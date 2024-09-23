@@ -432,9 +432,8 @@ export class KycService {
 
     let user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
-    const identResultData = kycStep.resultData;
 
-    if (status === IdentStatus.SUCCESS && !identResultData?.result) {
+    if (status === IdentStatus.SUCCESS && !kycStep.result) {
       user = user.finishStep(kycStep);
 
       await this.updateProgress(user, false);
