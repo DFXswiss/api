@@ -206,6 +206,7 @@ export class KycStep extends IEntity {
   }
 
   getResult<T extends KycStepResult>(): T | undefined {
+    if (this.result) return undefined;
     try {
       return JSON.parse(this.result);
     } catch {}
@@ -221,6 +222,7 @@ export class KycStep extends IEntity {
 
   get resultData(): IdentResultData {
     const identResultData = this.isSumsub ? this.getResult<SumsubResult>() : this.getResult<IdNowResult>();
+    if (!identResultData) return undefined;
 
     if (identResultData instanceof SumsubResult) {
       return {
@@ -239,7 +241,7 @@ export class KycStep extends IEntity {
             : 'PASSPORT'
           : undefined,
         identificationType: identResultData.webhook.type,
-        result: identResultData.webhook.reviewResult.reviewAnswer,
+        result: identResultData.webhook.reviewResult?.reviewAnswer,
       };
     }
 
