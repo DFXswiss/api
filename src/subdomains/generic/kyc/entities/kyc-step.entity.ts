@@ -5,7 +5,7 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
 import { IdNowResult } from '../dto/input/ident-result.dto';
 import { IdentResultData, KycResultType } from '../dto/kyc-result-data.dto';
-import { IdDocType, SumsubResult } from '../dto/sum-sub.dto';
+import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -242,7 +242,7 @@ export class KycStep extends IEntity {
             : 'PASSPORT'
           : undefined,
         identificationType: identResultData.webhook.type,
-        result: identResultData.webhook.reviewResult?.reviewAnswer,
+        success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
@@ -257,7 +257,7 @@ export class KycStep extends IEntity {
         identificationDocType: identResultData.identificationdocument?.type?.value,
         identificationDocNumber: identResultData.identificationdocument?.number?.value,
         identificationType: identResultData.identificationprocess?.companyid,
-        result: identResultData.identificationprocess?.result,
+        success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
       };
     }
   }

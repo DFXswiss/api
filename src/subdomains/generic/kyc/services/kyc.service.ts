@@ -49,7 +49,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { ReviewAnswer, SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
+import { SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -688,8 +688,7 @@ export class KycService {
 
     if (!data.identificationDocNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
 
-    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS', ReviewAnswer.GREEN].includes(data.result))
-      errors.push(IdentCheckError.INVALID_RESULT);
+    if (!data.success) errors.push(IdentCheckError.INVALID_RESULT);
 
     if (entity.userData.accountType === AccountType.PERSONAL) {
       if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {

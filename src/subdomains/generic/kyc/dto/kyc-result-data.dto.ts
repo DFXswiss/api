@@ -11,7 +11,7 @@ export interface IdentResultData {
   identificationDocType: string;
   identificationDocNumber: string;
   identificationType: string;
-  result: string;
   birthday: Date;
   nationality: string;
+  success: boolean;
 }
