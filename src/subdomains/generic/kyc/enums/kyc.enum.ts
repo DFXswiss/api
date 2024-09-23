@@ -17,9 +17,9 @@ export enum KycStepName {
   AUTHORITY = 'Authority',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
-  DFX_APPROVAL = 'DfxApproval',
   ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   RESIDENCE_PERMIT = 'ResidencePermit',
+  DFX_APPROVAL = 'DfxApproval',
 }
 
 export function getKycStepIndex(stepName: KycStepName): number {
