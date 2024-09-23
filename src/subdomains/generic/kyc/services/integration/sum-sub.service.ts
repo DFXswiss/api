@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
-import { ApplicantType, SumsubResult } from '../../dto/sum-sub.dto';
+import { ApplicantType, DataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
 @Injectable()
@@ -34,11 +34,11 @@ export class SumsubService {
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
-    const { applicantId, applicantType } = kycStep.getResult<SumsubResult>();
+    const { webhook } = kycStep.getResult<SumsubResult>();
 
     const content = await this.callApi<string>(
-      `/resources/applicants/${applicantId}/summary/report?report=${
-        applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
+      `/resources/applicants/${webhook.applicantId}/summary/report?report=${
+        webhook.applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
       }`,
       'GET',
       '{}',
@@ -46,6 +46,10 @@ export class SumsubService {
     ).then(Buffer.from);
 
     return [{ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF }];
+  }
+
+  async getApplicantData(applicantId: string): Promise<DataResult> {
+    return this.callApi<DataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -75,14 +79,32 @@ export class SumsubService {
 
   // --- HELPER METHODS --- //
   private async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
-    await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', {
+    const data = {
       externalUserId: SumsubService.transactionId(user, kycStep),
-    });
+      type: ApplicantType.INDIVIDUAL,
+      fixedInfo: {
+        firstName: user.firstname,
+        lastName: user.surname,
+        country: user.country?.symbol3,
+        dob: user.birthday && Util.isoDate(user.birthday),
+        nationality: user.nationality?.symbol3,
+        addresses: [
+          {
+            street: user.street + (user.houseNumber ? ` ${user.houseNumber}` : ''),
+            postCode: user.zip,
+            town: user.location,
+            country: user.country?.symbol3,
+          },
+        ],
+      },
+    };
+    await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', data);
   }
 
   private async createWebLink(transactionId: string, lang: string): Promise<{ url: string }> {
+    const expirySecs = 90 * 24 * 60 * 60;
     return this.callApi<{ url: string }>(
-      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&lang=${lang}`,
+      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&ttlInSecs=${expirySecs}&lang=${lang}`,
       'POST',
     );
   }

@@ -62,9 +62,13 @@ export class PaymentLinkService {
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
-    const route = dto.routeId
+    const route = dto.route
+      ? await this.sellService.getByLabel(userId, dto.route)
+      : dto.routeId
       ? await this.sellService.get(userId, dto.routeId)
       : await this.sellService.getLatest(userId);
+    if (!route) throw new NotFoundException('Sell route not found');
+    if (!route.active) throw new BadRequestException('Sell route not active');
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({

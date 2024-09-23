@@ -16,7 +16,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { LessThan, Not } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -33,8 +33,8 @@ import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentCheckError } from '../dto/ident-check-error.enum';
 import { IdentStatus } from '../dto/ident.dto';
 import {
+  IdNowResult,
   IdentReason,
-  IdentResultDto,
   IdentShortResult,
   getIdentReason,
   getIdentResult,
@@ -42,13 +42,14 @@ import {
 import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
+import { IdentResultData } from '../dto/kyc-result-data.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { SumsubResult, getSumsubResult } from '../dto/sum-sub.dto';
+import { ReviewAnswer, SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -123,6 +124,7 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: KycStepStatus.INTERNAL_REVIEW,
+        type: Not(KycStepType.MANUAL),
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
       relations: { userData: { kycSteps: true } },
@@ -130,10 +132,12 @@ export class KycService {
 
     for (const entity of entities) {
       try {
-        const result = entity.getResult<IdentResultDto>();
-        const nationality = result.userdata?.nationality?.value
-          ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
+        const result = entity.resultData;
+
+        const nationality = result.nationality
+          ? await this.countryService.getCountryWithSymbol(result.nationality)
           : null;
+
         const errors = this.getIdentCheckErrors(entity, result, nationality);
 
         entity.comment = errors.join(';');
@@ -346,7 +350,7 @@ export class KycService {
     return KycStepMapper.toKycResult(kycStep);
   }
 
-  async updateIntrumIdent(dto: IdentResultDto): Promise<void> {
+  async updateIntrumIdent(dto: IdNowResult): Promise<void> {
     const { id: sessionId, transactionnumber: transactionId, reason } = dto.identificationprocess;
     if (!sessionId || !transactionId) throw new BadRequestException(`Session data is missing`);
 
@@ -361,7 +365,7 @@ export class KycService {
     await this.updateIdent(transactionId, dto, result, reason);
   }
 
-  async updateSumsubIdent(dto: SumsubResult): Promise<void> {
+  async updateSumsubIdent(dto: WebhookResult): Promise<void> {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
@@ -369,12 +373,14 @@ export class KycService {
 
     this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
 
-    await this.updateIdent(transactionId, dto, result, IdentReason.IDENT_OTHER); // TODO: map reasons
+    const data = await this.sumsubService.getApplicantData(dto.applicantId);
+
+    await this.updateIdent(transactionId, { webhook: dto, data }, result, IdentReason.IDENT_OTHER); // TODO: map reasons
   }
 
   private async updateIdent(
     transactionId: string,
-    dto: IdentResultDto | SumsubResult,
+    dto: IdNowResult | SumsubResult,
     result: IdentShortResult,
     reason: IdentReason,
   ): Promise<void> {
@@ -426,8 +432,9 @@ export class KycService {
 
     let user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
+    const identResultData = kycStep.resultData;
 
-    if (status === IdentStatus.SUCCESS) {
+    if (status === IdentStatus.SUCCESS && !identResultData?.result) {
       user = user.finishStep(kycStep);
 
       await this.updateProgress(user, false);
@@ -621,19 +628,17 @@ export class KycService {
       return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
   }
 
-  async completeIdent(result: IdentResultDto, userData: UserData, nationality?: Country): Promise<UserData> {
-    const identificationType = getIdentificationType(result.identificationprocess?.companyid);
+  async completeIdent(data: IdentResultData, userData: UserData, nationality?: Country): Promise<UserData> {
+    const identificationType = getIdentificationType(data.type, data.identificationType);
     if (
-      result.userdata?.birthday?.value &&
-      result.userdata?.nationality?.value &&
+      data.birthday &&
+      data.nationality &&
       identificationType &&
-      result.identificationdocument?.type?.value &&
-      result.identificationdocument?.number?.value &&
+      data.identificationDocType &&
+      data.identificationDocNumber &&
       nationality
     ) {
-      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${
-        result.identificationdocument.number.value
-      }`;
+      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.identificationDocNumber}`;
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
 
       if (existing) {
@@ -643,12 +648,12 @@ export class KycService {
       } else if (nationality) {
         return this.userDataService.updateUserDataInternal(userData, {
           kycLevel: KycLevel.LEVEL_30,
-          birthday: new Date(result.userdata.birthday.value),
+          birthday: data.birthday,
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
-          identDocumentType: result.identificationdocument.type.value,
+          identDocumentType: data.identificationDocType,
           identDocumentId,
           nationality,
         });
@@ -660,7 +665,7 @@ export class KycService {
     return userData;
   }
 
-  private getIdentCheckErrors(entity: KycStep, result: IdentResultDto, nationality?: Country): IdentCheckError[] {
+  private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): IdentCheckError[] {
     const errors = [];
     const nationalityStepResult = entity.userData
       .getStepsWith(KycStepName.NATIONALITY_DATA)
@@ -670,11 +675,11 @@ export class KycService {
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
     if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(IdentCheckError.USER_DATA_BLOCKED);
 
-    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
+    if (!Util.isSameName(entity.userData.firstname, data.firstname))
       errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
     if (
-      !Util.isSameName(entity.userData.surname, result.userdata?.lastname?.value) &&
-      !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
+      !Util.isSameName(entity.userData.surname, data.lastname) &&
+      !Util.isSameName(entity.userData.surname, data.birthname)
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
@@ -684,12 +689,12 @@ export class KycService {
       errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
     }
 
-    if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
+    if (!['IDCARD', 'PASSPORT'].includes(data.identificationDocType))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
 
-    if (!result.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+    if (!data.identificationDocNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
 
-    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
+    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS', ReviewAnswer.GREEN].includes(data.result))
       errors.push(IdentCheckError.INVALID_RESULT);
 
     if (entity.userData.accountType === AccountType.PERSONAL) {

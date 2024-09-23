@@ -66,6 +66,10 @@ export class SellService {
     });
   }
 
+  async getByLabel(userId: number, label: string): Promise<Sell> {
+    return this.sellRepo.findOne({ where: { route: { label }, user: { id: userId } }, relations: { user: true } });
+  }
+
   async getSellByKey(key: string, value: any): Promise<Sell> {
     return this.sellRepo
       .createQueryBuilder('sell')
@@ -91,6 +95,7 @@ export class SellService {
       where: {
         user: { id: userId },
         fiat: { buyable: true },
+        active: true,
       },
       relations: { deposit: true, user: true },
     });
@@ -121,7 +126,7 @@ export class SellService {
     if (existing) {
       if (existing.active && !ignoreException) throw new ConflictException('Sell route already exists');
 
-      if (!existing.active) {
+      if (!existing.active && userData.isDataComplete) {
         // reactivate deleted route
         existing.active = true;
         await this.sellRepo.save(existing);

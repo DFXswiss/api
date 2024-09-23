@@ -235,7 +235,7 @@ export class BuyController {
       iban: buy.iban,
       volume: buy.volume,
       annualVolume: buy.annualVolume,
-      bankUsage: buy.bankUsage,
+      bankUsage: buy.active ? buy.bankUsage : undefined,
       asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
@@ -307,11 +307,11 @@ export class BuyController {
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
-      remittanceInfo: buy.bankUsage,
+      remittanceInfo: buy.active ? buy.bankUsage : undefined,
       paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto) : undefined,
       // card info
       paymentLink:
-        isValid && dto.paymentMethod === FiatPaymentMethod.CARD
+        isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
           ? await this.checkoutService.createPaymentLink(
               buy.bankUsage,
               amount,
