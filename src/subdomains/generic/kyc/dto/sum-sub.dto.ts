@@ -1,6 +1,6 @@
 import { IdentShortResult } from './input/ident-result.dto';
 
-export interface SumsubResult {
+export class SumsubResult {
   webhook: WebhookResult;
   data: DataResult;
 }
