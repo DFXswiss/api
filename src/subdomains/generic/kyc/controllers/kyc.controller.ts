@@ -259,7 +259,7 @@ export class KycController {
     try {
       await this.kycService.updateIntrumIdent(data);
     } catch (e) {
-      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess.id}:`, e);
+      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess?.id}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }
