@@ -218,7 +218,7 @@ export class SwapController {
       volume: swap.volume,
       annualVolume: swap.annualVolume,
       active: swap.active,
-      deposit: DepositDtoMapper.entityToDto(swap.deposit),
+      deposit: swap.active ? DepositDtoMapper.entityToDto(swap.deposit) : undefined,
       asset: AssetDtoMapper.toDto(swap.asset),
       blockchain: swap.deposit.blockchainList[0],
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
@@ -262,7 +262,7 @@ export class SwapController {
       timestamp,
       routeId: swap.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: swap.deposit.address,
+      depositAddress: swap.active ? swap.deposit.address : undefined,
       blockchain: dto.sourceAsset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
@@ -281,12 +281,9 @@ export class SwapController {
       sourceAsset: AssetDtoMapper.toDto(dto.sourceAsset),
       maxVolume,
       maxVolumeTarget,
-      paymentRequest: await this.cryptoService.getPaymentRequest(
-        isValid,
-        dto.sourceAsset,
-        swap.deposit.address,
-        amount,
-      ),
+      paymentRequest: swap.active
+        ? await this.cryptoService.getPaymentRequest(isValid, dto.sourceAsset, swap.deposit.address, amount)
+        : undefined,
       isValid,
       error,
     };

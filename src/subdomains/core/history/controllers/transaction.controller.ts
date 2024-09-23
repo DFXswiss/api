@@ -53,6 +53,7 @@ import {
   TransactionTarget,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
@@ -295,15 +296,21 @@ export class TransactionController {
       throw new NotFoundException('Transaction not found');
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
+    if (transaction.targetEntity.amlCheck !== CheckStatus.FAIL)
+      throw new BadRequestException('You can only refund failed transactions');
+    if (transaction.targetEntity.chargebackAmount)
+      throw new BadRequestException('You can only refund a transaction once');
 
     const feeAmount = transaction.targetEntity.cryptoInput
       ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
       : 0;
+
     if (feeAmount >= transaction.targetEntity.inputAmount)
       throw new BadRequestException('Transaction fee is too expensive');
-    const refundAsset =
-      AssetDtoMapper.toDto(transaction.targetEntity.cryptoInput?.asset) ??
-      FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
+
+    const refundAsset = transaction.targetEntity.cryptoInput?.asset
+      ? AssetDtoMapper.toDto(transaction.targetEntity.cryptoInput?.asset)
+      : FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
 
     const refundData = {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),

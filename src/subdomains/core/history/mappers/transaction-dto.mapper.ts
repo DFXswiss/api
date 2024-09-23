@@ -65,6 +65,8 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
+      chargebackAmount: buyCrypto.chargebackAmount,
+      chargebackTarget: buyCrypto.chargebackIban,
       date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
       externalTransactionId: buyCrypto.transaction.externalId,
     };
@@ -116,6 +118,8 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
+      chargebackAmount: buyFiat.chargebackAmount,
+      chargebackTarget: buyFiat.chargebackAddress,
       date: buyFiat.outputDate ?? buyFiat.chargebackDate ?? buyFiat.updated,
       externalTransactionId: buyFiat.transaction.externalId,
     };
@@ -164,6 +168,8 @@ export class TransactionDtoMapper {
       inputTxUrl: null,
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
+      chargebackAmount: undefined,
+      chargebackTarget: undefined,
       date: refReward.outputDate ?? refReward.updated,
     };
 
@@ -195,6 +201,8 @@ export class TransactionDtoMapper {
       inputPaymentMethod: FiatPaymentMethod.BANK,
       inputTxId: null,
       inputTxUrl: null,
+      chargebackAmount: undefined,
+      chargebackTarget: undefined,
       date: tx.created,
     };
   }
@@ -247,6 +255,7 @@ export const RefRewardStatusMapper: {
 function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   state: TransactionState;
   reason: TransactionReason;
+  chargebackTxId?: string;
 } {
   if (entity instanceof RefReward) {
     return { state: RefRewardStatusMapper[entity.status], reason: null };
@@ -266,7 +275,11 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
-        return { state: TransactionState.FAILED, reason };
+        return {
+          state: TransactionState.FAILED,
+          reason,
+          chargebackTxId: entity.chargebackCryptoTxId ?? entity.chargebackRemittanceInfo,
+        };
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
@@ -290,7 +303,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
-        return { state: TransactionState.FAILED, reason };
+        return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };

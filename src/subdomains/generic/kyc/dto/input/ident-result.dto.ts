@@ -74,7 +74,7 @@ export interface IdentItem {
   original?: string;
 }
 
-export interface IdentResultDto {
+export class IdNowResult {
   identificationprocess: {
     result: IdentResult;
     reason: IdentReason;
@@ -203,7 +203,7 @@ const IdentReasonMap: Record<IdentReason, string> = {
     'Security Features (Hologram) video is not saved due to any technical error',
 };
 
-export function getIdentResult(dto: IdentResultDto): IdentShortResult {
+export function getIdentResult(dto: IdNowResult): IdentShortResult {
   return IdentResultMap[dto.identificationprocess.result];
 }
 

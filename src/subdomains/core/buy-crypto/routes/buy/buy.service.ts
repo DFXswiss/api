@@ -89,7 +89,7 @@ export class BuyService {
         deposit: IsNull(),
         user: { id: userId },
       },
-      relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
+      relations: { deposit: true, bankAccount: true, user: { userData: true } },
     });
 
     if (existing) {
@@ -130,7 +130,7 @@ export class BuyService {
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {
-    return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
+    return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true }, active: true });
   }
 
   async getUserDataBuys(userDataId: number): Promise<Buy[]> {

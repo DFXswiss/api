@@ -187,6 +187,9 @@ export class Configuration {
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
     reminderAfterDays: 2,
+    appToken: process.env.KYC_APP_TOKEN,
+    secretKey: process.env.KYC_SECRET_KEY,
+    webhookKey: process.env.KYC_WEBHOOK_KEY,
   };
 
   support = {
