@@ -31,6 +31,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentCheckError } from '../dto/ident-check-error.enum';
+import { IdentResultData } from '../dto/ident-result-data.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
   IdNowResult,
@@ -42,14 +43,13 @@ import {
 import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
-import { IdentResultData } from '../dto/kyc-result-data.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { ReviewAnswer, SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
+import { SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -432,9 +432,8 @@ export class KycService {
 
     let user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
-    const identResultData = kycStep.resultData;
 
-    if (status === IdentStatus.SUCCESS && !identResultData?.result) {
+    if (status === IdentStatus.SUCCESS && !kycStep.result) {
       user = user.finishStep(kycStep);
 
       await this.updateProgress(user, false);
@@ -688,8 +687,7 @@ export class KycService {
 
     if (!data.identificationDocNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
 
-    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS', ReviewAnswer.GREEN].includes(data.result))
-      errors.push(IdentCheckError.INVALID_RESULT);
+    if (!data.success) errors.push(IdentCheckError.INVALID_RESULT);
 
     if (entity.userData.accountType === AccountType.PERSONAL) {
       if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {

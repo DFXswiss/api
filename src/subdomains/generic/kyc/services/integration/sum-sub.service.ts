@@ -28,7 +28,7 @@ export class SumsubService {
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    await this.createApplicant(user, kycStep);
+    await this.createApplicant(kycStep.transactionId, user);
     const { url } = await this.createWebLink(kycStep.transactionId, user.language.symbol);
     return url.split('/').pop();
   }
@@ -78,9 +78,9 @@ export class SumsubService {
   }
 
   // --- HELPER METHODS --- //
-  private async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
+  private async createApplicant(transactionId: string, user: UserData): Promise<void> {
     const data = {
-      externalUserId: SumsubService.transactionId(user, kycStep),
+      externalUserId: transactionId,
       type: ApplicantType.INDIVIDUAL,
       fixedInfo: {
         firstName: user.firstname,

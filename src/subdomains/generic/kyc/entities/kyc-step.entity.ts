@@ -3,9 +3,9 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
+import { IdentResultData, IdentResultType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/input/ident-result.dto';
-import { IdentResultData, KycResultType } from '../dto/kyc-result-data.dto';
-import { IdDocType, SumsubResult } from '../dto/sum-sub.dto';
+import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -227,7 +227,7 @@ export class KycStep extends IEntity {
       const identResultData = this.getResult<SumsubResult>();
 
       return {
-        type: KycResultType.SUMSUB,
+        type: IdentResultType.SUMSUB,
         firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
         lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
         birthname: null,
@@ -242,13 +242,13 @@ export class KycStep extends IEntity {
             : 'PASSPORT'
           : undefined,
         identificationType: identResultData.webhook.type,
-        result: identResultData.webhook.reviewResult?.reviewAnswer,
+        success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
 
       return {
-        type: KycResultType.ID_NOW,
+        type: IdentResultType.ID_NOW,
         firstname: identResultData.userdata?.firstname?.value,
         lastname: identResultData.userdata?.lastname?.value,
         birthname: identResultData.userdata?.birthname?.value,
@@ -257,7 +257,7 @@ export class KycStep extends IEntity {
         identificationDocType: identResultData.identificationdocument?.type?.value,
         identificationDocNumber: identResultData.identificationdocument?.number?.value,
         identificationType: identResultData.identificationprocess?.companyid,
-        result: identResultData.identificationprocess?.result,
+        success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
       };
     }
   }
