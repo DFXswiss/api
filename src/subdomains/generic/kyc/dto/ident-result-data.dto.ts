@@ -1,10 +1,10 @@
-export enum KycResultType {
+export enum IdentResultType {
   SUMSUB = 'Sumsub',
   ID_NOW = 'IdNow',
 }
 
 export interface IdentResultData {
-  type: KycResultType;
+  type: IdentResultType;
   firstname: string;
   birthname: string;
   lastname: string;

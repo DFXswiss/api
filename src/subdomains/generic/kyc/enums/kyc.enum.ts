@@ -5,7 +5,7 @@ import {
   SignatoryPower,
   UserData,
 } from '../../user/models/user-data/user-data.entity';
-import { KycResultType } from '../dto/kyc-result-data.dto';
+import { IdentResultType } from '../dto/ident-result-data.dto';
 import { WebhookType } from '../dto/sum-sub.dto';
 
 export enum KycStepName {
@@ -63,9 +63,9 @@ export function getKycTypeIndex(stepType?: KycStepType): number {
   return Object.values(KycStepType).indexOf(stepType);
 }
 
-export function getIdentificationType(type: KycResultType, companyId: string): KycIdentificationType | undefined {
+export function getIdentificationType(type: IdentResultType, companyId: string): KycIdentificationType | undefined {
   if (!companyId) return undefined;
-  if (type === KycResultType.SUMSUB)
+  if (type === IdentResultType.SUMSUB)
     return companyId === WebhookType.VIDEO_IDENT_STATUS_CHANGED
       ? KycIdentificationType.VIDEO_ID
       : KycIdentificationType.ONLINE_ID;
