@@ -1,4 +1,10 @@
+export enum KycResultType {
+  SUMSUB = 'Sumsub',
+  ID_NOW = 'IdNow',
+}
+
 export interface KycResultData {
+  type: KycResultType;
   firstname: string;
   birthname: string;
   lastname: string;

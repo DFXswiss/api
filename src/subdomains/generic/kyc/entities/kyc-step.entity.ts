@@ -4,7 +4,7 @@ import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
-import { KycResultData } from '../dto/kyc-result-data.dto';
+import { KycResultData, KycResultType } from '../dto/kyc-result-data.dto';
 import { SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -224,6 +224,7 @@ export class KycStep extends IEntity {
 
     if (result instanceof SumsubResult) {
       return {
+        type: KycResultType.SUMSUB,
         firstname: result.data.info?.idDocs?.[0]?.firstName,
         lastname: result.data.info?.idDocs?.[0]?.lastName,
         birthname: null,
@@ -237,6 +238,7 @@ export class KycStep extends IEntity {
     }
 
     return {
+      type: KycResultType.ID_NOW,
       firstname: result.userdata?.firstname?.value,
       lastname: result.userdata?.lastname?.value,
       birthname: result.userdata?.birthname?.value,
