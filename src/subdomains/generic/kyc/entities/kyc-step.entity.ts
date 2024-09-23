@@ -206,7 +206,7 @@ export class KycStep extends IEntity {
   }
 
   getResult<T extends KycStepResult>(): T | undefined {
-    if (this.result) return undefined;
+    if (!this.result) return undefined;
     try {
       return JSON.parse(this.result);
     } catch {}
