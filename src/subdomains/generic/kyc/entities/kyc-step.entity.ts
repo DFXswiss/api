@@ -221,10 +221,11 @@ export class KycStep extends IEntity {
   }
 
   get resultData(): IdentResultData {
-    const identResultData = this.isSumsub ? this.getResult<SumsubResult>() : this.getResult<IdNowResult>();
-    if (!identResultData) return undefined;
+    if (!this.result) return undefined;
 
-    if (identResultData instanceof SumsubResult) {
+    if (this.isSumsub) {
+      const identResultData = this.getResult<SumsubResult>();
+
       return {
         type: KycResultType.SUMSUB,
         firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
@@ -243,20 +244,22 @@ export class KycStep extends IEntity {
         identificationType: identResultData.webhook.type,
         result: identResultData.webhook.reviewResult?.reviewAnswer,
       };
-    }
+    } else {
+      const identResultData = this.getResult<IdNowResult>();
 
-    return {
-      type: KycResultType.ID_NOW,
-      firstname: identResultData.userdata?.firstname?.value,
-      lastname: identResultData.userdata?.lastname?.value,
-      birthname: identResultData.userdata?.birthname?.value,
-      birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
-      nationality: identResultData.userdata?.nationality?.value,
-      identificationDocType: identResultData.identificationdocument?.type?.value,
-      identificationDocNumber: identResultData.identificationdocument?.number?.value,
-      identificationType: identResultData.identificationprocess?.companyid,
-      result: identResultData.identificationprocess?.result,
-    };
+      return {
+        type: KycResultType.ID_NOW,
+        firstname: identResultData.userdata?.firstname?.value,
+        lastname: identResultData.userdata?.lastname?.value,
+        birthname: identResultData.userdata?.birthname?.value,
+        birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
+        nationality: identResultData.userdata?.nationality?.value,
+        identificationDocType: identResultData.identificationdocument?.type?.value,
+        identificationDocNumber: identResultData.identificationdocument?.number?.value,
+        identificationType: identResultData.identificationprocess?.companyid,
+        result: identResultData.identificationprocess?.result,
+      };
+    }
   }
 
   get isValidCreatingBankData(): boolean {
