@@ -17,11 +17,9 @@ export class CountryService {
   }
 
   async getCountryWithSymbol(symbol: string): Promise<Country> {
-    return this.countryRepo.findOneCachedBy(symbol, { symbol: Equal(symbol) });
-  }
-
-  async getCountryWithSymbol3(symbol3: string): Promise<Country> {
-    return this.countryRepo.findOneCachedBy(symbol3, { symbol3: Equal(symbol3) });
+    return symbol?.length === 2
+      ? this.countryRepo.findOneCachedBy(symbol, { symbol: Equal(symbol) })
+      : this.countryRepo.findOneCachedBy(symbol, { symbol3: Equal(symbol) });
   }
 
   async getCountriesByKycType(kycType: KycType): Promise<Country[]> {

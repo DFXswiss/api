@@ -4,6 +4,8 @@ import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
+import { KycResultData } from '../dto/kyc-result-data.dto';
+import { SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -215,6 +217,36 @@ export class KycStep extends IEntity {
     if (result !== undefined) this.result = typeof result === 'string' ? result : JSON.stringify(result);
 
     return this;
+  }
+
+  get resultData(): KycResultData {
+    const result = this.isSumsub ? this.getResult<SumsubResult>() : this.getResult<IdentResultDto>();
+
+    if (result instanceof SumsubResult) {
+      return {
+        firstname: result.data.info?.idDocs?.[0]?.firstName,
+        lastname: result.data.info?.idDocs?.[0]?.lastName,
+        birthname: null,
+        birthday: result.data.info?.idDocs?.[0]?.dob,
+        nationality: result.data.info?.idDocs?.[0]?.country,
+        identificationDocNumber: result.data.info?.idDocs?.[0]?.number,
+        identificationDocType: result.data.info?.idDocs?.[0]?.idDocType,
+        identificationType: result.webhook.type,
+        result: result.webhook.reviewResult.reviewAnswer,
+      };
+    }
+
+    return {
+      firstname: result.userdata?.firstname?.value,
+      lastname: result.userdata?.lastname?.value,
+      birthname: result.userdata?.birthname?.value,
+      birthday: result.userdata?.birthday?.value ? new Date(result.userdata.birthday.value) : null,
+      nationality: result.userdata?.nationality?.value,
+      identificationDocType: result.identificationdocument?.type?.value,
+      identificationDocNumber: result.identificationdocument?.number?.value,
+      identificationType: result.identificationprocess?.companyid,
+      result: result.identificationprocess?.result,
+    };
   }
 
   get isValidCreatingBankData(): boolean {
