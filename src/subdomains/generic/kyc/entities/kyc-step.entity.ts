@@ -80,8 +80,8 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
 
       case KycStepName.IDENT: {
-        const service = this.isSumsub ? SumsubService : IdentService;
-        return { url: service.identUrl(this), type: UrlType.BROWSER };
+        const [service, type] = this.isSumsub ? [SumsubService, UrlType.TOKEN] : [IdentService, UrlType.BROWSER];
+        return { url: service.identUrl(this), type };
       }
 
       case KycStepName.FINANCIAL_DATA:
