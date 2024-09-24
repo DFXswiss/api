@@ -398,6 +398,7 @@ export class BuyCrypto extends IEntity {
     chargebackAmount: number,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
@@ -407,6 +408,7 @@ export class BuyCrypto extends IEntity {
       chargebackIban,
       chargebackAmount,
       chargebackOutput,
+      chargebackAllowedBy,
     };
 
     Object.assign(this, update);

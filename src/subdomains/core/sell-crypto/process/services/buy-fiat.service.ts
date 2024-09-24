@@ -232,7 +232,8 @@ export class BuyFiatService {
     await this.refundBuyFiatInternal(buyFiat, {
       refundUserId: dto.refundUser?.id,
       chargebackAmount: dto.chargebackAmount,
-      refundUserAddress: buyFiat.chargebackAddress,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
 
@@ -261,6 +262,7 @@ export class BuyFiatService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
       ),
     );
   }

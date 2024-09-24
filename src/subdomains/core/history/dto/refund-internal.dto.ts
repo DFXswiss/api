@@ -24,12 +24,17 @@ export class RefundInternalDto {
   @IsDate()
   @Type(() => Date)
   chargebackAllowedDate: Date;
+
+  @IsOptional()
+  @IsString()
+  chargebackAllowedBy: string;
 }
 
 export class BaseRefund {
   chargebackAmount?: number;
   chargebackAllowedDate?: Date;
   chargebackAllowedDateUser?: Date;
+  chargebackAllowedBy?: string;
 }
 
 export class BankTxRefund extends BaseRefund {
