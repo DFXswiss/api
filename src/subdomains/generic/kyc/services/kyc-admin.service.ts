@@ -70,6 +70,13 @@ export class KycAdminService {
     await this.kycStepRepo.save(kycStep);
   }
 
+  async syncIdentStep(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    await this.kycService.syncIdentStep(kycStep);
+  }
+
   async resetKyc(userData: UserData): Promise<void> {
     for (const kycStep of userData.kycSteps) {
       if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)

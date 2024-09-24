@@ -175,6 +175,15 @@ export class KycService {
     }
   }
 
+  async syncIdentStep(kycStep: KycStep): Promise<void> {
+    if (!kycStep.isInReview) throw new BadRequestException(`Invalid KYC step status ${kycStep.status}`);
+    if (kycStep.type === KycStepType.SUMSUB_AUTO)
+      throw new BadRequestException('Ident step sync is only available for IDnow');
+
+    const result = await this.identService.getResult(kycStep);
+    return this.updateIntrumIdent(result);
+  }
+
   async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
