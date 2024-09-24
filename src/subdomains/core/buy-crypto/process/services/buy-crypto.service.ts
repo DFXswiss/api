@@ -333,9 +333,14 @@ export class BuyCryptoService {
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
         chargebackAmount: dto.chargebackAmount,
+        chargebackAllowedBy: dto.chargebackAllowedBy,
       });
 
-    return this.refundBankTx(buyCrypto, { refundIban: dto.refundIban, chargebackAmount: dto.chargebackAmount });
+    return this.refundBankTx(buyCrypto, {
+      refundIban: dto.refundIban,
+      chargebackAmount: dto.chargebackAmount,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
+    });
   }
 
   async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {

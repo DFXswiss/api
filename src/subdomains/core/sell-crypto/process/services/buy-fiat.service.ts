@@ -232,7 +232,7 @@ export class BuyFiatService {
     await this.refundBuyFiatInternal(buyFiat, {
       refundUserId: dto.refundUser?.id,
       chargebackAmount: dto.chargebackAmount,
-      refundUserAddress: buyFiat.chargebackAddress,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
 
