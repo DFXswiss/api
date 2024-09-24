@@ -246,6 +246,7 @@ export class BuyFiat extends IEntity {
     chargebackAmount: number,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -253,6 +254,7 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser,
       chargebackAddress,
       chargebackAmount,
+      chargebackAllowedBy,
     };
 
     Object.assign(this, update);

@@ -333,12 +333,14 @@ export class BuyCryptoService {
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
         chargebackAmount: dto.chargebackAmount,
+        chargebackAllowedDate: dto.chargebackAllowedDate,
         chargebackAllowedBy: dto.chargebackAllowedBy,
       });
 
     return this.refundBankTx(buyCrypto, {
       refundIban: dto.refundIban,
       chargebackAmount: dto.chargebackAmount,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
@@ -387,6 +389,7 @@ export class BuyCryptoService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
       ),
     );
   }
@@ -418,6 +421,7 @@ export class BuyCryptoService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
         dto.chargebackOutput,
       ),
     );
