@@ -16,7 +16,7 @@ export class SumsubService {
   private readonly logger = new DfxLogger(SumsubService);
 
   private readonly baseUrl = `https://api.sumsub.com`;
-  private readonly kycLevel = 'basic-kyc-level';
+  private readonly kycLevel = 'CH-Standard';
   // private static readonly algoMap: { [key: string]: string } = {
   //   HMAC_SHA1_HEX: 'sha1',
   //   HMAC_SHA256_HEX: 'sha256',
@@ -103,7 +103,7 @@ export class SumsubService {
   private async generateAccessToken(transactionId: string): Promise<{ token: string }> {
     const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
     return this.callApi<{ token: string }>(
-      `/resources/accessTokens?userId=${transactionId}&levelName=basic-kyc-level&ttlInSecs=${expirySecs}`,
+      `/resources/accessTokens?userId=${transactionId}&levelName=${this.kycLevel}&ttlInSecs=${expirySecs}`,
       'POST',
     );
   }
