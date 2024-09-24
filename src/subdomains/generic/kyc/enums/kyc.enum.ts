@@ -103,6 +103,7 @@ export enum KycStepStatus {
 export enum UrlType {
   BROWSER = 'Browser',
   API = 'API',
+  TOKEN = 'Token',
   NONE = 'None',
 }
 

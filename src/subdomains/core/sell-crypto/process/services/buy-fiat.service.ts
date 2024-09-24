@@ -243,7 +243,10 @@ export class BuyFiatService {
 
     const refundUser = dto.refundUserId
       ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
-      : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
+      : await this.userService.getUserByAddress(dto.refundUserAddress ?? buyFiat.chargebackAddress, {
+          userData: true,
+          wallet: true,
+        });
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 

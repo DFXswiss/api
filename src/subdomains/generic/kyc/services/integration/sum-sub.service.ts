@@ -29,8 +29,7 @@ export class SumsubService {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
     await this.createApplicant(kycStep.transactionId, user);
-    const { url } = await this.createWebLink(kycStep.transactionId, user.language.symbol);
-    return url.split('/').pop();
+    return this.generateAccessToken(kycStep.transactionId).then((r) => r.token);
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -74,7 +73,7 @@ export class SumsubService {
   }
 
   static identUrl(kycStep: KycStep): string {
-    return `https://in.sumsub.com/websdk/p/${kycStep.sessionId}`;
+    return kycStep.sessionId;
   }
 
   // --- HELPER METHODS --- //
@@ -101,10 +100,10 @@ export class SumsubService {
     await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', data);
   }
 
-  private async createWebLink(transactionId: string, lang: string): Promise<{ url: string }> {
-    const expirySecs = 90 * 24 * 60 * 60;
-    return this.callApi<{ url: string }>(
-      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&ttlInSecs=${expirySecs}&lang=${lang}`,
+  private async generateAccessToken(transactionId: string): Promise<{ token: string }> {
+    const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
+    return this.callApi<{ token: string }>(
+      `/resources/accessTokens?userId=${transactionId}&levelName=basic-kyc-level&ttlInSecs=${expirySecs}`,
       'POST',
     );
   }
