@@ -196,8 +196,9 @@ export class SupportIssueService {
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
 
     if (issue.state === SupportIssueState.COMPLETED) {
-      issue.state = SupportIssueState.PENDING;
-      await this.supportIssueRepo.save(issue);
+      const update = { state: SupportIssueState.PENDING };
+      Object.assign(issue, update);
+      await this.supportIssueRepo.update(issue.id, update);
     }
 
     return SupportIssueDtoMapper.mapSupportMessage(entity);
