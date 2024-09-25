@@ -20,7 +20,7 @@ import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue } from '../entities/support-issue.entity';
+import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -194,6 +194,11 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+
+    if (issue.state === SupportIssueState.COMPLETED) {
+      issue.state = SupportIssueState.PENDING;
+      await this.supportIssueRepo.save(issue);
+    }
 
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
