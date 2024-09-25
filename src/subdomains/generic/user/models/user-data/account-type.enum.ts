@@ -1,5 +1,5 @@
 export enum AccountType {
   PERSONAL = 'Personal',
-  BUSINESS = 'Business',
+  ORGANIZATION = 'Business',
   SOLE_PROPRIETORSHIP = 'SoleProprietorship',
 }
