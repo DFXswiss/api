@@ -31,6 +31,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentCheckError } from '../dto/ident-check-error.enum';
+import { IdentResultData } from '../dto/ident-result-data.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
   IdNowResult,
@@ -42,7 +43,6 @@ import {
 import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
-import { IdentResultData } from '../dto/kyc-result-data.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -173,6 +173,15 @@ export class KycService {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
     }
+  }
+
+  async syncIdentStep(kycStep: KycStep): Promise<void> {
+    if (!kycStep.isInReview) throw new BadRequestException(`Invalid KYC step status ${kycStep.status}`);
+    if (kycStep.type === KycStepType.SUMSUB_AUTO)
+      throw new BadRequestException('Ident step sync is only available for IDnow');
+
+    const result = await this.identService.getResult(kycStep);
+    return this.updateIntrumIdent(result);
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {

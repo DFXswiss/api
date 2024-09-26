@@ -38,6 +38,14 @@ export class KycAdminController {
     await this.kycService.updateKycStep(+id, dto);
   }
 
+  @Put('step/:id/ident')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  async syncIdentStep(@Param('id') id: string): Promise<void> {
+    await this.kycService.syncIdentStep(+id);
+  }
+
   @Put('log/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
