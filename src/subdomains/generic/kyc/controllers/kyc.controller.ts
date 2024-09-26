@@ -35,6 +35,7 @@ import {
   KycContactData,
   KycFileData,
   KycLegalEntityData,
+  KycManualIdentData,
   KycNationalityData,
   KycPersonalData,
   KycSignatoryPowerData,
@@ -172,6 +173,17 @@ export class KycController {
     @Body() data: KycNationalityData,
   ): Promise<KycResultDto> {
     return this.kycService.updateKycStep(code, +id, data, true);
+  }
+
+  @Put('data/ident/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateIdentData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycManualIdentData,
+  ): Promise<void> {
+    return this.kycService.updateIdentManual(code, +id, data);
   }
 
   @Put('data/commercial/:id')

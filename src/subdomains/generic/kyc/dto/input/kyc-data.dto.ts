@@ -132,6 +132,61 @@ export class KycNationalityData {
   nationality: Country;
 }
 
+export class KycManualIdentData {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  firstName: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  lastName: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  birthName?: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  documentType: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  documentNumber: string;
+
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  nationality: Country;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  birthplace: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  gender: string;
+
+  @ApiProperty({ description: 'Base64 encoded file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+}
+
 export class KycFileData {
   @ApiProperty({ description: 'Base64 encoded file' })
   @IsNotEmpty()

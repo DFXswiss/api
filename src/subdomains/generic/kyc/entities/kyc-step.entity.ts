@@ -5,6 +5,7 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
 import { IdNowResult } from '../dto/input/ident-result.dto';
 import { IdentResultData, KycResultType } from '../dto/kyc-result-data.dto';
+import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -80,8 +81,12 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
 
       case KycStepName.IDENT: {
-        const service = this.isSumsub ? SumsubService : IdentService;
-        return { url: service.identUrl(this), type: UrlType.BROWSER };
+        const url = this.isSumsub
+          ? SumsubService.identUrl(this)
+          : this.isManual
+          ? `${apiUrl}/data/authority/${this.id}`
+          : IdentService.identUrl(this);
+        return { url, type: UrlType.BROWSER };
       }
 
       case KycStepName.FINANCIAL_DATA:
@@ -244,6 +249,23 @@ export class KycStep extends IEntity {
         identificationType: identResultData.webhook.type,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
+    } else if (this.isManual) {
+      const identResultData = this.getResult<ManualIdentResult>();
+
+      return {
+        type: KycResultType.MANUAL,
+        gender: identResultData.gender,
+        firstname: identResultData.firstName,
+        lastname: identResultData.lastName,
+        birthname: identResultData.birthName,
+        birthday: null,
+        birthplace: identResultData.birthplace,
+        nationality: identResultData.nationality?.name,
+        identificationDocType: identResultData.documentType,
+        identificationDocNumber: identResultData.documentNumber,
+        identificationType: null,
+        success: true,
+      };
     } else {
       const identResultData = this.getResult<IdNowResult>();
 
@@ -297,5 +319,9 @@ export class KycStep extends IEntity {
 
   get isSumsub(): boolean {
     return this.type === KycStepType.SUMSUB_AUTO;
+  }
+
+  get isManual(): boolean {
+    return this.type === KycStepType.MANUAL;
   }
 }

@@ -16,7 +16,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan, Not } from 'typeorm';
+import { LessThan } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -39,7 +39,7 @@ import {
   getIdentReason,
   getIdentResult,
 } from '../dto/input/ident-result.dto';
-import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
+import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { IdentResultData } from '../dto/kyc-result-data.dto';
@@ -124,7 +124,7 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: KycStepStatus.INTERNAL_REVIEW,
-        type: Not(KycStepType.MANUAL),
+        // type: Not(KycStepType.MANUAL),
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
       relations: { userData: { kycSteps: true } },
@@ -427,6 +427,16 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
+  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<void> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    user = user.internalReviewStep(kycStep, dto);
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+  }
+
   async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
     const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
 
@@ -598,7 +608,7 @@ export class KycService {
         if (kycStep.isSumsub) {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
-        } else {
+        } else if (!kycStep.isManual) {
           kycStep.transactionId = IdentService.transactionId(user, kycStep);
           kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
         }
