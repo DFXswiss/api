@@ -567,6 +567,12 @@ export class KycService {
       case KycStepName.FINANCIAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
+      case KycStepName.ADDITIONAL_DOCUMENTS:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.RESIDENCE_PERMIT:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
       case KycStepName.DFX_APPROVAL:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
