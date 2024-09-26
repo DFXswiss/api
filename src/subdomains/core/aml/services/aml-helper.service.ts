@@ -130,6 +130,10 @@ export class AmlHelperService {
         )
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
+          blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_ACCOUNT_IBAN], entity.bankTx.accountIban))
+        )
+          errors.push(AmlError.ACCOUNT_IBAN_BLACKLISTED);
+        if (
           blacklist.some((b) =>
             b.matches(
               [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
