@@ -40,7 +40,7 @@ export enum AmlError {
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
-  ACCOUNT_IBAN_BLACKLISTED = 'AccountIbanBlacklisted',
+  BANK_DEACTIVATED = 'BankDeactivated',
   CARD_BLACKLISTED = 'CardBlacklisted',
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
@@ -163,7 +163,7 @@ export const AmlErrorResult: {
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
-  [AmlError.ACCOUNT_IBAN_BLACKLISTED]: {
+  [AmlError.BANK_DEACTIVATED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
