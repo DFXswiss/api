@@ -6,6 +6,13 @@ import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/p
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { TradingRuleStatus } from '../enums';
 
+export interface PriceConfig {
+  source: PriceSource;
+  from: string;
+  to: string;
+  param?: string;
+}
+
 @Entity()
 export class TradingRule extends IEntity {
   @Column()
@@ -19,7 +26,7 @@ export class TradingRule extends IEntity {
 
   // reference price
   @Column()
-  source1: PriceSource;
+  source1: string; // {src}:{param}
 
   @Column()
   leftAsset1: string;
@@ -29,7 +36,7 @@ export class TradingRule extends IEntity {
 
   // pool price
   @Column()
-  source2: PriceSource;
+  source2: string; // {src}:{param}
 
   @Column()
   leftAsset2: string;
@@ -39,7 +46,7 @@ export class TradingRule extends IEntity {
 
   // check price
   @Column({ nullable: true })
-  source3: PriceSource;
+  source3: string; // {src}:{param}
 
   @Column({ nullable: true })
   leftAsset3: string;
@@ -64,6 +71,32 @@ export class TradingRule extends IEntity {
 
   @Column({ type: 'int', nullable: true })
   reactivationTime: number;
+
+  // --- GETTERS --- //
+  get config1(): PriceConfig {
+    return {
+      ...this.mapSource(this.source1),
+      from: this.leftAsset1,
+      to: this.rightAsset1,
+    };
+  }
+
+  get config2(): PriceConfig {
+    return {
+      ...this.mapSource(this.source2),
+      from: this.leftAsset2,
+      to: this.rightAsset2,
+    };
+  }
+  get config3(): PriceConfig | undefined {
+    return (
+      this.source3 && {
+        ...this.mapSource(this.source3),
+        from: this.leftAsset3,
+        to: this.rightAsset3,
+      }
+    );
+  }
 
   // --- PUBLIC API --- //
 
@@ -111,5 +144,11 @@ export class TradingRule extends IEntity {
     return (
       this.status === TradingRuleStatus.PAUSED && Util.minutesDiff(this.updated, new Date()) > this.reactivationTime
     );
+  }
+
+  // --- HELPER METHODS --- //
+  private mapSource(src: string): { source: PriceSource; param?: string } {
+    const [source, param] = src.split[':'];
+    return { source, param };
   }
 }
