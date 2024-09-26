@@ -138,12 +138,11 @@ export class AmlHelperService {
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
-        if (banks?.some((b) => b.iban === entity.bankTx.accountIban && b.sctInst)) {
-          if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
-          if (!entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
-        }
-        if (banks?.some((b) => b.iban === entity.bankTx.accountIban && !b.receive))
-          errors.push(AmlError.BANK_DEACTIVATED);
+
+        const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
+        if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
+        if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
+        if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
         if (
