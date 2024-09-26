@@ -10,6 +10,7 @@ export enum SpecialExternalAccountType {
   BANNED_BIC_BUY = 'BannedBicBuy',
   BANNED_BIC_SELL = 'BannedBicSell',
   BANNED_MAIL = 'BannedMail',
+  BANNED_ACCOUNT_IBAN = 'BannedAccountIban',
 }
 
 @Entity()
