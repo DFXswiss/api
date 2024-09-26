@@ -58,7 +58,11 @@ export class TransactionUtilService {
 
   async validateChargebackIban(iban: string, userData: UserData): Promise<boolean> {
     const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, userData);
-    return bankAccount && bankAccount.bic && IbanTools.validateIBAN(bankAccount.iban).valid;
+    return (
+      bankAccount &&
+      (bankAccount.bic || iban.startsWith('CH') || iban.startsWith('LI')) &&
+      IbanTools.validateIBAN(bankAccount.iban).valid
+    );
   }
 
   async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {
