@@ -139,6 +139,11 @@ export class AmlHelperService {
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
 
+        if (
+          blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_ACCOUNT_IBAN], entity.bankTx.accountIban))
+        )
+          errors.push(AmlError.ACCOUNT_IBAN_BLACKLISTED);
+
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
         if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
         if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
