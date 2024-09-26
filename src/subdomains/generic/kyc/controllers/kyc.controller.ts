@@ -186,6 +186,32 @@ export class KycController {
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
+  @Put('data/residence/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateResidencePermitData(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    data.fileName = this.fileName('residence-permit', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
+  }
+
+  @Put('data/additional/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateAdditionalDocumentsData(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    data.fileName = this.fileName('additional-documents', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+  }
+
   @Put('data/signatory/:id')
   @ApiOkResponse({ type: KycResultDto })
   @ApiUnauthorizedResponse(MergedResponse)

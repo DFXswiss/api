@@ -461,7 +461,7 @@ export class BuyCrypto extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    instantBanks: Bank[],
+    banks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
@@ -473,7 +473,7 @@ export class BuyCrypto extends IEntity {
       last365dVolume,
       bankData,
       blacklist,
-      instantBanks,
+      banks,
       ibanCountry,
     );
 
