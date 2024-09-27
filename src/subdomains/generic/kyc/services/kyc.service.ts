@@ -17,6 +17,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { LessThan, Not } from 'typeorm';
+import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -650,7 +651,7 @@ export class KycService {
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
 
       if (existing) {
-        await this.accountMergeService.sendMergeRequest(existing, userData);
+        await this.accountMergeService.sendMergeRequest(existing, userData, MergeReason.IDENT_DOCUMENT);
 
         return userData;
       } else if (nationality) {

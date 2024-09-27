@@ -44,4 +44,14 @@ export class KycLogService {
 
     await this.kycLogRepo.update(...entity.setPdfUrl(url));
   }
+
+  async createMailChangeLog(user: UserData, oldMail: string, newMail: string) {
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.MAIL_CHANGE,
+      result: `${oldMail} -> ${newMail}`,
+      userData: user,
+    });
+
+    await this.kycLogRepo.save(entity);
+  }
 }
