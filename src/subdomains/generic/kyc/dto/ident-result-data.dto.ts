@@ -17,6 +17,7 @@ export interface IdentResultData {
   birthday: Date;
   nationality: string;
   success: boolean;
+  file?: string;
 }
 
 export interface ManualIdentResultData {}

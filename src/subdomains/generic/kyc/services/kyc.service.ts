@@ -16,7 +16,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { LessThan, Not } from 'typeorm';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
@@ -124,7 +124,7 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: KycStepStatus.INTERNAL_REVIEW,
-        // type: Not(KycStepType.MANUAL),
+        type: Not(KycStepType.MANUAL),
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
       relations: { userData: { kycSteps: true } },
@@ -436,7 +436,7 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
-  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<void> {
+  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -444,6 +444,8 @@ export class KycService {
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
+
+    return KycStepMapper.toKycResult(kycStep);
   }
 
   async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {

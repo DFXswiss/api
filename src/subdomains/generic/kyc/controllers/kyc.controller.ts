@@ -182,7 +182,7 @@ export class KycController {
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycManualIdentData,
-  ): Promise<void> {
+  ): Promise<KycResultDto> {
     return this.kycService.updateIdentManual(code, +id, data);
   }
 

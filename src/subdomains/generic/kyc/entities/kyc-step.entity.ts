@@ -264,8 +264,9 @@ export class KycStep extends IEntity {
         nationality: identResultData.nationality?.name,
         identificationDocType: identResultData.documentType,
         identificationDocNumber: identResultData.documentNumber,
-        identificationType: null,
+        identificationType: IdentResultType.MANUAL,
         success: true,
+        file: identResultData.file,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
