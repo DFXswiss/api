@@ -9,6 +9,8 @@ import {
 import * as IbanTools from 'ibantools';
 import { SpecialExternalAccountType } from '../../payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
+import { Bank } from '../bank/bank.entity';
+import { BankService } from '../bank/bank.service';
 import { BankAccountService } from './bank-account.service';
 
 export enum IbanType {
@@ -23,10 +25,12 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   constructor(
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly bankAccountService: BankAccountService,
+    private readonly bankService: BankService,
   ) {}
 
   private blockedIbans: string[] = [];
   private blockedBICs: string[] = [];
+  private dfxBanks: Bank[] = [];
   private currentBIC: string = undefined;
 
   async validate(_: string, args: ValidationArguments) {
@@ -39,6 +43,8 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
       types.push(SpecialExternalAccountType.BANNED_IBAN_SELL, SpecialExternalAccountType.BANNED_BIC_SELL);
 
     const blacklists = await this.specialExternalAccountService.getBlacklist(types);
+
+    this.dfxBanks = await this.bankService.getAllBanks();
 
     this.blockedIbans = blacklists
       .filter((b) =>
@@ -76,6 +82,9 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
 
     if (this.blockedBICs.some((b) => new RegExp(b.toLowerCase()).test(this.currentBIC?.toLowerCase())))
       return `${args.property} BIC not allowed`;
+
+    if (this.dfxBanks.some((b) => b.iban.toLowerCase() === args.value.toLowerCase()))
+      return `${args.property} DFX IBAN not allowed`;
   }
 }
 
