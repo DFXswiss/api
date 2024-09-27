@@ -16,6 +16,7 @@ import { PriceRuleRepository } from '../repositories/price-rule.repository';
 import { CoinGeckoService } from './integration/coin-gecko.service';
 import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
+import { PricingConstantService } from './integration/pricing-constant.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
@@ -41,6 +42,7 @@ export class PricingService {
     readonly currencyService: CurrencyService,
     readonly frankencoinService: PricingFrankencoinService,
     readonly ebel2xService: PricingEbel2xService,
+    readonly constantService: PricingConstantService,
   ) {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
@@ -52,6 +54,7 @@ export class PricingService {
       [PriceSource.CURRENCY]: currencyService,
       [PriceSource.FRANKENCOIN]: frankencoinService,
       [PriceSource.EBEL2X]: ebel2xService,
+      [PriceSource.CONSTANT]: constantService,
     };
   }
 
