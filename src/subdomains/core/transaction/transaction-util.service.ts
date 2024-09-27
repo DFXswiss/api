@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -23,6 +23,7 @@ export type RefundValidation = {
   chargebackAmount?: number;
 };
 
+@Injectable()
 export class TransactionUtilService {
   constructor(
     private readonly assetService: AssetService,

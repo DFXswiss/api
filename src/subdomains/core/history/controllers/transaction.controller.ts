@@ -288,7 +288,7 @@ export class TransactionController {
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<TransactionRefundData> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       user: { userData: true },
-      buyCrypto: { cryptoInput: { route: { user: true } } },
+      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true },
       buyFiat: { cryptoInput: { route: { user: true } } },
     });
 
@@ -320,12 +320,12 @@ export class TransactionController {
     if (transaction.targetEntity instanceof BuyCrypto) {
       refundTarget =
         transaction.targetEntity.bankTx?.iban &&
-        !(await this.transactionUtilService.validateChargebackIban(
+        (await this.transactionUtilService.validateChargebackIban(
           transaction.targetEntity.bankTx.iban,
           transaction.userData,
         ))
-          ? transaction.targetEntity.chargebackIban
-          : transaction.targetEntity.bankTx.iban;
+          ? transaction.targetEntity.bankTx.iban
+          : transaction.targetEntity.chargebackIban;
     } else {
       refundTarget = transaction.targetEntity.chargebackAddress;
     }
