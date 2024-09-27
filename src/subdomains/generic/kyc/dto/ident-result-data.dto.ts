@@ -19,5 +19,3 @@ export interface IdentResultData {
   success: boolean;
   file?: string;
 }
-
-export interface ManualIdentResultData {}
