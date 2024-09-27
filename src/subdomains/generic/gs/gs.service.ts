@@ -68,15 +68,16 @@ export class GsService {
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
     const additionalSelect = Array.from(
-      new Set(
-        query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || [],
-      ),
+      new Set([
+        ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
+        ...(query.select?.filter((s) => s.includes('[')).map((s) => `${s.split('[')[0]}${s.split(']')[1]}`) || []),
+      ]),
     );
 
-    const data = await this.getRawDbData({
+    let data = await this.getRawDbData({
       ...query,
       select: [
-        ...(query.select?.filter((s) => !s.includes('documents') && !s.includes('-')) ?? []),
+        ...(query.select?.filter((s) => !s.includes('-') && !s.includes('documents') && !s.includes('[')) ?? []),
         ...additionalSelect,
       ],
     });
@@ -84,12 +85,13 @@ export class GsService {
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);
 
-    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) {
-      this.setJsonData(data, query.select);
-      additionalSelect.forEach((key) => {
-        if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
-      });
-    }
+    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
+
+    if (query.select?.some((s) => s.includes('['))) data = this.getArrayData(data, query.select, query.table);
+
+    additionalSelect.forEach((key) => {
+      if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
+    });
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -148,6 +150,36 @@ export class GsService {
         return d;
       });
     }
+  }
+
+  private getArrayData(data: any[], selects: string[], table: string): any[] {
+    const arraySelects = selects.filter((s) => s.includes('['));
+
+    let currentIndex = 0;
+
+    const groupedData = data.reduce((acc, row) => {
+      const issueId = row[`${table}_id`];
+
+      arraySelects.forEach((select) => {
+        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
+        const parsedIndex = index === 'max' ? 'max' : parseInt(index, 10);
+
+        if (!acc[issueId]) {
+          acc[issueId] = Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith(`${table}_`)));
+          acc[issueId][`${field}_${prop}`] = null;
+          currentIndex = 0;
+        } else {
+          currentIndex++;
+        }
+
+        if (parsedIndex === 'max' || parsedIndex === currentIndex)
+          acc[issueId][`${field}_${prop}`] = row[`${field}_${prop}`];
+      });
+
+      return acc;
+    }, {});
+
+    return Object.values(groupedData);
   }
 
   private getParsedJsonData(jsonString: string, jsonPath: string) {
