@@ -148,7 +148,7 @@ export class TradingRule extends IEntity {
 
   // --- HELPER METHODS --- //
   private mapSource(src: string): { source: PriceSource; param?: string } {
-    const [source, param] = src.split[':'];
-    return { source, param };
+    const [source, param] = src.split(':');
+    return { source: source as PriceSource, param };
   }
 }
