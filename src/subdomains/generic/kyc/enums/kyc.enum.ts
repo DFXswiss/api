@@ -58,6 +58,7 @@ export enum KycLogType {
   KYC_STEP = 'KycStep',
   NAME_CHECK = 'NameCheck',
   MERGE = 'Merge',
+  MAIL_CHANGE = 'MailChange',
   TFA = '2FA',
 }
 
