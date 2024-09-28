@@ -152,34 +152,64 @@ export class GsService {
     }
   }
 
-  private getArrayData(data: any[], selects: string[], table: string): any[] {
+  private getArrayData2(data: any[], selects: string[], table: string): any[] {
     const arraySelects = selects.filter((s) => s.includes('['));
 
     let currentIndex = 0;
 
     const groupedData = data.reduce((acc, row) => {
-      const issueId = row[`${table}_id`];
+      const entityId = row[`${table}_id`];
+
+      if (!acc[entityId]) {
+        acc[entityId] = Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith(`${table}_`)));
+        currentIndex = 0;
+      } else {
+        currentIndex++;
+      }
 
       arraySelects.forEach((select) => {
         const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
-        const parsedIndex = index === 'max' ? 'max' : parseInt(index, 10);
+        const parsedIndex = index === 'max' ? 'max' : +index;
 
-        if (!acc[issueId]) {
-          acc[issueId] = Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith(`${table}_`)));
-          acc[issueId][`${field}_${prop}`] = null;
-          currentIndex = 0;
-        } else {
-          currentIndex++;
-        }
-
+        if (!acc[entityId][`${field}_${prop}`]) acc[entityId][`${field}_${prop}`] = null;
         if (parsedIndex === 'max' || parsedIndex === currentIndex)
-          acc[issueId][`${field}_${prop}`] = row[`${field}_${prop}`];
+          acc[entityId][`${field}_${prop}`] = row[`${field}_${prop}`];
       });
 
       return acc;
     }, {});
 
     return Object.values(groupedData);
+  }
+
+  private getArrayData(data: any[], selects: string[], table: string): any[] {
+    const arraySelects = selects.filter((s) => s.includes('['));
+
+    const newData = Array.from(new Set(data.map((d) => d[`${table}_id`])));
+    const result = [];
+
+    newData.forEach((nd) => {
+      const entities = data.filter((d) => d[`${table}_id`] === nd);
+      const currentEntry = {};
+
+      entities.forEach((e, i) =>
+        arraySelects.forEach((select) => {
+          const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
+          const searchIndex = index === 'max' ? 'max' : +index;
+
+          if (!currentEntry[`${select}`]) currentEntry[`${select}`] = null;
+
+          if (searchIndex === 'max' || searchIndex === i) currentEntry[`${select}`] = e[`${field}_${prop}`];
+        }),
+      );
+
+      result.push({
+        ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
+        ...currentEntry,
+      });
+    });
+
+    return Object.values(result);
   }
 
   private getParsedJsonData(jsonString: string, jsonPath: string) {
