@@ -511,6 +511,9 @@ export class BuyCrypto extends IEntity {
       comment: null,
       chargebackIban: null,
       chargebackAllowedDate: null,
+      chargebackAllowedDateUser: null,
+      chargebackAmount: null,
+      chargebackAllowedBy: null,
     };
 
     Object.assign(this, update);
