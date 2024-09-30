@@ -93,11 +93,8 @@ export class MoneroStrategy extends RegisterStrategy {
   }
 
   private getTxType(transfer: MoneroTransferDto): PayInType | undefined {
-    if (transfer.destinations?.length === 1) {
-      const address = transfer.destinations[0].address;
-      return Util.equalsIgnoreCase(Config.payment.moneroAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
-    }
-
-    return PayInType.DEPOSIT;
+    return transfer.destinations?.some((d) => Util.equalsIgnoreCase(Config.payment.moneroAddress, d.address))
+      ? PayInType.PAYMENT
+      : PayInType.DEPOSIT;
   }
 }
