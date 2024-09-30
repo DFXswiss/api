@@ -30,11 +30,11 @@ export class PaymentQuoteService {
 
   private readonly transferAmountOrder: Blockchain[] = [
     Blockchain.LIGHTNING,
+    Blockchain.ETHEREUM,
     Blockchain.POLYGON,
     Blockchain.ARBITRUM,
     Blockchain.OPTIMISM,
     Blockchain.BASE,
-    Blockchain.ETHEREUM,
     Blockchain.MONERO,
   ];
 
