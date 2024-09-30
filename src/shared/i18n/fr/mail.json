@@ -38,7 +38,7 @@
             "title": "Paiement payé",
             "salutation": "Votre paiement a été envoyé sur votre compte bancaire"
         },
-        "return": {
+        "chargeback": {
             "fiat": {
                 "title":"Remboursement des fonds",
                 "salutation": "Vos fonds ont été retournés à votre banque"

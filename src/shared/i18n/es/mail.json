@@ -38,7 +38,7 @@
             "title": "Pago abonado",
             "salutation": "Su pago ha sido enviado a su cuenta bancaria"
         },
-        "return": {
+        "chargeback": {
             "fiat": {
                 "title": "Los fondos han sido reembolsados",
                 "salutation": "Tus fondos se han reembolsado a tu cuenta bancaria"

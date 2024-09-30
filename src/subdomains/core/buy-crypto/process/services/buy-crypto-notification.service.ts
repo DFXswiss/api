@@ -30,7 +30,7 @@ export class BuyCryptoNotificationService {
     try {
       if (DisabledProcess(Process.BUY_CRYPTO_MAIL)) return;
       await this.paymentCompleted();
-      await this.paybackToAddressInitiated();
+      await this.chargebackInitiated();
       await this.pendingBuyCrypto();
       await this.chargebackNotPossible();
     } catch (e) {
@@ -121,7 +121,7 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  private async paybackToAddressInitiated(): Promise<void> {
+  private async chargebackInitiated(): Promise<void> {
     const search: FindOptionsWhere<BuyCrypto> = {
       mailSendDate: IsNull(),
       outputAmount: IsNull(),
@@ -170,9 +170,9 @@ export class BuyCryptoNotificationService {
                 },
                 !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
-                      key: `${MailTranslationKey.RETURN}.introduction`,
+                      key: `${MailTranslationKey.CHARGEBACK}.introduction`,
                       params: {
-                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.mailReturnReason),
+                        reason: MailFactory.parseMailKey(MailTranslationKey.CHARGEBACK_REASON, entity.mailReturnReason),
                         url: entity.userData.dilisenseUrl,
                         urlText: entity.userData.dilisenseUrl,
                       },
@@ -180,7 +180,7 @@ export class BuyCryptoNotificationService {
                   : null,
                 KycAmlReasons.includes(entity.amlReason)
                   ? {
-                      key: `${MailTranslationKey.RETURN}.kyc_start`,
+                      key: `${MailTranslationKey.CHARGEBACK}.kyc_start`,
                       params: {
                         url: entity.userData.kycUrl,
                         urlText: entity.userData.kycUrl,

@@ -38,7 +38,7 @@
             "title": "Pagamento versato",
             "salutation": "Il pagamento è stato inviato al vostro conto corrente bancario"
         },
-        "return": {
+        "chargeback": {
             "fiat": {
                 "title": "Trasferimento bancario effettuato",
                 "salutation": "I tuoi fondi sono stati rimborsati sul tuo conto corrente"

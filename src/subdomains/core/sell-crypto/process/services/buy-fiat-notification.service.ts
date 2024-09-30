@@ -30,7 +30,7 @@ export class BuyFiatNotificationService {
   async sendNotificationMails(): Promise<void> {
     if (DisabledProcess(Process.BUY_FIAT_MAIL)) return;
     await this.paymentCompleted();
-    await this.paybackToAddressInitiated();
+    await this.chargebackInitiated();
     await this.pendingBuyFiat();
   }
 
@@ -83,7 +83,7 @@ export class BuyFiatNotificationService {
     }
   }
 
-  private async paybackToAddressInitiated(): Promise<void> {
+  private async chargebackInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
         chargebackTxId: Not(IsNull()),
@@ -109,8 +109,8 @@ export class BuyFiatNotificationService {
             context: MailContext.BUY_FIAT_RETURN,
             input: {
               userData: entity.userData,
-              title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
-              salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
+              title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
+              salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               suffix: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
@@ -123,9 +123,9 @@ export class BuyFiatNotificationService {
                 ,
                 !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
-                      key: `${MailTranslationKey.RETURN}.introduction`,
+                      key: `${MailTranslationKey.CHARGEBACK}.introduction`,
                       params: {
-                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                        reason: MailFactory.parseMailKey(MailTranslationKey.CHARGEBACK_REASON, entity.amlReason),
                         url: entity.userData.dilisenseUrl,
                         urlText: entity.userData.dilisenseUrl,
                       },
@@ -133,7 +133,7 @@ export class BuyFiatNotificationService {
                   : null,
                 KycAmlReasons.includes(entity.amlReason)
                   ? {
-                      key: `${MailTranslationKey.RETURN}.kyc_start`,
+                      key: `${MailTranslationKey.CHARGEBACK}.kyc_start`,
                       params: {
                         url: entity.userData.kycUrl,
                         urlText: entity.userData.kycUrl,

@@ -38,7 +38,7 @@
             "title": "Payout paid out",
             "salutation": "Your payout has been sent to your bank account"
         },
-        "return": {
+        "chargeback": {
             "fiat": {
                 "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your bank account"

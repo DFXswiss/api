@@ -38,7 +38,7 @@
             "title": "Auszahlung verschickt",
             "salutation": "Deine Auszahlung wurde an dein Bankkonto verschickt"
         },
-        "return": {
+        "chargeback": {
             "fiat": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an dein Bankkonto zurückerstattet"
