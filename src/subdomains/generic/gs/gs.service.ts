@@ -155,23 +155,24 @@ export class GsService {
   private getArrayData(data: any[], selects: string[], table: string): any[] {
     const arraySelects = selects.filter((s) => s.includes('['));
 
-    const newData = Array.from(new Set(data.map((d) => d[`${table}_id`])));
+    const parentIds = Array.from(new Set(data.map((d) => d[`${table}_id`])));
     const result = [];
 
-    newData.forEach((nd) => {
+    parentIds.forEach((nd) => {
       const entities = data.filter((d) => d[`${table}_id`] === nd);
-      const currentEntry = {};
 
-      arraySelects.forEach((select) => {
-        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select);
+      const selectedData = arraySelects.reduce((prev, curr) => {
+        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(curr);
         const searchIndex = index === 'max' ? entities.length - 1 : +index;
 
-        currentEntry[`${select}`] = searchIndex < entities.length ? entities[searchIndex][`${field}_${prop}`] : null;
-      });
+        prev[`${curr}`] = entities[searchIndex]?.[`${field}_${prop}`];
+
+        return prev;
+      }, {});
 
       result.push({
         ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
-        ...currentEntry,
+        ...selectedData,
       });
     });
 
