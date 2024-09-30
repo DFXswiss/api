@@ -250,7 +250,7 @@ export class AuthService {
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
+      const account = await this.userDataService.getUserData(entry.userDataId);
       const token = this.generateAccountToken(account, ip);
 
       if (account.isDeactivated)
