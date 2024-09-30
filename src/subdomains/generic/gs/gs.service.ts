@@ -154,11 +154,9 @@ export class GsService {
 
   private getArrayData(data: any[], selects: string[], table: string): any[] {
     const arraySelects = selects.filter((s) => s.includes('['));
-
     const parentIds = Array.from(new Set(data.map((d) => d[`${table}_id`])));
-    const result = [];
 
-    parentIds.forEach((nd) => {
+    return parentIds.map((nd) => {
       const entities = data.filter((d) => d[`${table}_id`] === nd);
 
       const selectedData = arraySelects.reduce((prev, curr) => {
@@ -170,13 +168,11 @@ export class GsService {
         return prev;
       }, {});
 
-      result.push({
+      return {
         ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
         ...selectedData,
-      });
+      };
     });
-
-    return Object.values(result);
   }
 
   private getParsedJsonData(jsonString: string, jsonPath: string) {
