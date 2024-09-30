@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { PaymentActivation } from './entities/payment-activation.entity';
 import { PaymentLinkPayment } from './entities/payment-link-payment.entity';
@@ -22,6 +23,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     BlockchainModule,
     LightningModule,
     PricingModule,
+    PayoutModule,
   ],
   controllers: [],
   providers: [

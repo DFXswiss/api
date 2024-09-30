@@ -8,6 +8,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
@@ -44,6 +45,7 @@ export class PaymentQuoteService {
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
+    private readonly payoutMoneroService: PayoutMoneroService,
   ) {}
 
   // --- JOBS --- //
@@ -235,9 +237,18 @@ export class PaymentQuoteService {
   }
 
   private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
-    if (blockchain === Blockchain.LIGHTNING) return 0;
-
-    return this.evmGasPriceService.getGasPrice(blockchain);
+    switch (blockchain) {
+      case Blockchain.LIGHTNING:
+        return 0;
+      case Blockchain.ETHEREUM:
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
+      case Blockchain.BASE:
+      case Blockchain.POLYGON:
+        return this.evmGasPriceService.getGasPrice(blockchain);
+      case Blockchain.MONERO:
+        return this.payoutMoneroService.getEstimatedFee();
+    }
   }
 
   private async createOrderedPaymentAssetMap(blockchains: Blockchain[]): Promise<Map<Blockchain, Asset[]>> {
