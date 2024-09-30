@@ -192,21 +192,16 @@ export class GsService {
       const entities = data.filter((d) => d[`${table}_id`] === nd);
       const currentEntry = {};
 
-      entities.forEach((e, i) =>
-        arraySelects.forEach((select) => {
-          const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
-          const searchIndex = index === 'max' ? 'max' : +index;
+      arraySelects.forEach((select) => {
+        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
+        const searchIndex = index === 'max' ? entities.length - 1 : +index;
 
-          if (!currentEntry[`${select}`]) currentEntry[`${select}`] = null;
-
-          if (searchIndex === 'max' || searchIndex === i) currentEntry[`${select}`] = e[`${field}_${prop}`];
-        }),
-      );
-
-      result.push({
-        ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
-        ...currentEntry,
-      });
+        currentEntry[`${select}`] = searchIndex < entities.length ? entities[searchIndex][`${field}_${prop}`] : null;
+      }),
+        result.push({
+          ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
+          ...currentEntry,
+        });
     });
 
     return Object.values(result);
