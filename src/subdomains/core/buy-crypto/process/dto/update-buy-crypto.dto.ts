@@ -182,6 +182,10 @@ export class UpdateBuyCryptoDto {
   bankDataActive: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  bankDataManualCheck: boolean;
+
+  @IsOptional()
   @IsString()
   chargebackAllowedBy: string;
 }

@@ -114,7 +114,9 @@ export class PaymentLinkService {
       payment,
     };
 
-    const route = await this.sellService.getById(+dto.routeId);
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
 
     return this.createForRoute(route, paymentLinkDto);
   }
