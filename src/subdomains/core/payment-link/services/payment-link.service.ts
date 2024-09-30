@@ -108,7 +108,9 @@ export class PaymentLinkService {
       expiryDate: dto.expiryDate,
     };
 
-    const route = await this.sellService.getById(+dto.routeId);
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
 
     return this.createForRoute(route, { externalId: dto.externalId, payment });
   }
