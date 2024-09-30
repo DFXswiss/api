@@ -4,15 +4,21 @@ import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'cl
 import { PaymentStandard } from '../enums';
 
 export class CreateInvoicePaymentDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.routeId || !b.r))
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.routeId || !(b.route || b.r)))
   routeId: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @IsString()
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.route || !(b.routeId || b.r)))
+  route: string;
 
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.routeId || b.r))
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.r || !(b.routeId || b.route)))
   r: string;
 
   @ApiPropertyOptional()

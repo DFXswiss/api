@@ -125,6 +125,12 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional()
   inputTxUrl?: string;
 
+  @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
+  chargebackTarget?: string;
+
+  @ApiPropertyOptional({ description: 'Chargeback amount in input asset' })
+  chargebackAmount?: number;
+
   @ApiProperty({ type: Date })
   date: Date;
 }

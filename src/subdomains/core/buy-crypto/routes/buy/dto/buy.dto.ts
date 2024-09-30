@@ -15,7 +15,7 @@ export class BuyDto {
   @ApiProperty({ type: AssetDto })
   asset: AssetDto;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   bankUsage: string;
 
   @ApiProperty({ description: 'Volume in CHF' })

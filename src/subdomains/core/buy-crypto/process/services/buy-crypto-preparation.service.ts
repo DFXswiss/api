@@ -129,7 +129,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
+        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
         const ibanCountry =
@@ -148,7 +148,7 @@ export class BuyCryptoPreparationService {
             last365dVolume,
             bankData,
             blacklist,
-            instantBanks,
+            banks,
             ibanCountry,
           ),
         );

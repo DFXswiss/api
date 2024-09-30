@@ -24,6 +24,7 @@ import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
@@ -44,7 +45,9 @@ export class SellService {
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
+    @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly routeService: RouteService,
   ) {}
 
   // --- SELLS --- //
@@ -62,6 +65,10 @@ export class SellService {
       relations: { user: true },
       order: { created: 'DESC' },
     });
+  }
+
+  async getByLabel(userId: number, label: string): Promise<Sell> {
+    return this.sellRepo.findOne({ where: { route: { label }, user: { id: userId } }, relations: { user: true } });
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {
@@ -89,6 +96,7 @@ export class SellService {
       where: {
         user: { id: userId },
         fiat: { buyable: true },
+        active: true,
       },
       relations: { deposit: true, user: true },
     });
@@ -119,7 +127,7 @@ export class SellService {
     if (existing) {
       if (existing.active && !ignoreException) throw new ConflictException('Sell route already exists');
 
-      if (!existing.active) {
+      if (!existing.active && userData.isDataComplete) {
         // reactivate deleted route
         existing.active = true;
         await this.sellRepo.save(existing);
@@ -131,6 +139,7 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = await this.userService.getUser(userId, { userData: true });
+    sell.route = await this.routeService.createRoute({ sell });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);

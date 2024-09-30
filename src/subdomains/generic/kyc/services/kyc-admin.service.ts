@@ -6,7 +6,6 @@ import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
@@ -48,9 +47,9 @@ export class KycAdminService {
 
       case KycStepName.IDENT:
         if (kycStep.isCompleted) {
-          const result = kycStep.getResult<IdentResultDto>();
-          const nationality = result.userdata?.nationality?.value
-            ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
+          const result = kycStep.resultData;
+          const nationality = result.nationality
+            ? await this.countryService.getCountryWithSymbol(result.nationality)
             : null;
 
           kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
@@ -69,6 +68,13 @@ export class KycAdminService {
     }
 
     await this.kycStepRepo.save(kycStep);
+  }
+
+  async syncIdentStep(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    await this.kycService.syncIdentStep(kycStep);
   }
 
   async resetKyc(userData: UserData): Promise<void> {

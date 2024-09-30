@@ -1,18 +1,26 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { In, IsNull, MoreThan } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Like, MoreThan } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CreateSupportIssueDto, CreateSupportIssueInternalDto } from '../dto/create-support-issue.dto';
+import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue } from '../entities/support-issue.entity';
+import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -22,20 +30,38 @@ import { SupportIssueNotificationService } from './support-issue-notification.se
 
 @Injectable()
 export class SupportIssueService {
+  private readonly UID_PREFIX = 'I';
+
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
     private readonly documentService: SupportDocumentService,
+    private readonly kycDocumentService: KycDocumentService,
     private readonly userDataService: UserDataService,
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
   ) {}
 
-  async createIssueInternal(userData: UserData, dto: CreateSupportIssueInternalDto): Promise<void> {
-    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock()
+  async migrateDocuments() {
+    const pendingMessages = await this.messageRepo.findBy({ fileUrl: Like('%kyc/user%') });
 
-    await this.supportIssueRepo.save(newIssue);
+    for (const message of pendingMessages) {
+      const file = await this.kycDocumentService.downloadFileByUrl(message.fileUrl);
+      const name = decodeURIComponent(message.fileUrl.split('/').slice(-1)[0]);
+
+      const newUrl = await this.documentService.uploadFile(
+        message.issue.userData.id,
+        message.issue.id,
+        name,
+        file.data,
+        file.contentType as ContentType,
+        file.metadata,
+      );
+      await this.messageRepo.update(message.id, { fileUrl: newUrl });
+    }
   }
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
@@ -52,36 +78,44 @@ export class SupportIssueService {
         reason: newIssue.reason,
         transaction: { id: newIssue.transaction?.id ?? IsNull() },
       },
-      relations: { messages: true },
+      relations: { messages: true, transaction: true, limitRequest: true },
     });
 
-    if (!existingIssue && dto.transaction) {
-      if (dto.transaction.id) {
-        newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
-          user: { userData: true },
-        });
-        if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
-        if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
-          throw new ForbiddenException('You can only create support issue for your own transaction');
+    if (!existingIssue) {
+      // create UID
+      const hash = Util.createHash(newIssue.type + new Date() + Util.randomId()).toUpperCase();
+      newIssue.uid = `${this.UID_PREFIX}${hash.slice(0, 16)}`;
+
+      // map transaction
+      if (dto.transaction) {
+        if (dto.transaction.id) {
+          newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
+            user: { userData: true },
+          });
+          if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
+          if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
+            throw new ForbiddenException('You can only create support issue for your own transaction');
+        }
+
+        newIssue.additionalInformation = dto.transaction;
       }
 
-      newIssue.additionalInformation = dto.transaction;
-    }
-
-    if (!existingIssue && dto.limitRequest) {
-      newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+      // create limit request
+      if (dto.limitRequest) {
+        newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+      }
     }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
-    const supportMessage = await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
+    const supportMessage = await this.createMessageInternal(entity, { ...dto, author: CustomerAuthor });
 
-    const supportIssue = SupportIssueDtoMapper.mapSupportIssue(entity);
-    supportIssue.messages.push(supportMessage);
+    const issue = SupportIssueDtoMapper.mapSupportIssue(entity);
+    issue.messages.push(supportMessage);
 
-    return supportIssue;
+    return issue;
   }
 
-  async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
+  async updateIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
 
@@ -90,23 +124,65 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<SupportMessageDto> {
-    const entity = this.messageRepo.create(dto);
+  async createMessage(id: string, dto: CreateSupportMessageDto, userDataId?: number): Promise<SupportMessageDto> {
+    const issue = await this.supportIssueRepo.findOneBy(this.getIssueSearch(id, userDataId));
+    if (!issue) throw new NotFoundException('Support issue not found');
 
-    entity.issue = await this.supportIssueRepo.findOne({
-      where: { id },
-      relations: { transaction: { user: { userData: true } } },
+    return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor });
+  }
+
+  async createMessageSupport(id: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+    const issue = await this.supportIssueRepo.findOneBy({ id });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    return this.createMessageInternal(issue, dto);
+  }
+
+  async getIssue(id: string, query: GetSupportIssueFilter, userDataId?: number): Promise<SupportIssueDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { transaction: true, limitRequest: true },
     });
-    if (!entity.issue) throw new NotFoundException('Support issue not found');
+    if (!issue) throw new NotFoundException('Support issue not found');
 
-    if (dto.author === CustomerAuthor && entity.userData.id !== userDataId)
-      throw new ForbiddenException('You can only create support messages for your own support issue');
+    issue.messages = await this.messageRepo.findBy({
+      issue: { id: issue.id },
+      id: MoreThan(query.fromMessageId ?? 0),
+    });
+
+    return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
+  async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
+    const message = await this.messageRepo.findOneBy({ id: messageId, issue: this.getIssueSearch(id, userDataId) });
+    if (!message) throw new NotFoundException('Message not found');
+
+    return this.documentService.downloadFile(message.userData.id, message.issue.id, message.fileName);
+  }
+
+  async getUserIssues(
+    userDataId: number,
+  ): Promise<{ supportIssues: SupportIssue[]; supportMessages: SupportMessage[] }> {
+    const supportIssues = await this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true },
+    });
+    return {
+      supportIssues,
+      supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
+    };
+  }
+
+  // --- HELPER METHODS --- //
+
+  private async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+    const entity = this.messageRepo.create({ ...dto, issue });
 
     // upload document
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
-      entity.fileUrl = await this.documentService.uploadFile(
+      entity.fileUrl = await this.documentService.uploadUserFile(
         entity.userData.id,
         entity.issue.id,
         `${Util.isoDateTime(new Date())}_${dto.author?.toLowerCase() ?? 'support'}_${Util.randomId()}_${dto.fileName}`,
@@ -119,42 +195,19 @@ export class SupportIssueService {
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
 
+    if (issue.state === SupportIssueState.COMPLETED) {
+      const update = { state: SupportIssueState.PENDING };
+      Object.assign(issue, update);
+      await this.supportIssueRepo.update(issue.id, update);
+    }
+
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
-  async getSupportIssue(userDataId: number, id: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> {
-    const supportIssue = await this.supportIssueRepo.findOneBy({
-      userData: { id: userDataId },
-      id: id,
-    });
+  private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
+    if (id.startsWith(this.UID_PREFIX)) return { uid: id };
+    if (userDataId) return { id: +id, userData: { id: userDataId } };
 
-    if (!supportIssue) throw new NotFoundException('Support issue not found');
-
-    supportIssue.messages = await this.messageRepo.findBy({
-      issue: { id: supportIssue.id },
-      id: MoreThan(query.fromMessageId ?? 0),
-    });
-
-    return SupportIssueDtoMapper.mapSupportIssue(supportIssue);
-  }
-
-  async getSupportIssueFile(userDataId: number, id: number, messageId: number): Promise<BlobContent> {
-    const message = await this.messageRepo.findOneBy({ id: messageId, issue: { id } });
-    if (!message) throw new NotFoundException('Message not found');
-
-    return this.documentService.downloadFile(userDataId, id, message.fileName);
-  }
-
-  async getUserSupportTickets(
-    userDataId: number,
-  ): Promise<{ supportIssues: SupportIssue[]; supportMessages: SupportMessage[] }> {
-    const supportIssues = await this.supportIssueRepo.find({
-      where: { userData: { id: userDataId } },
-      relations: { transaction: true, limitRequest: true },
-    });
-    return {
-      supportIssues,
-      supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
-    };
+    throw new UnauthorizedException();
   }
 }

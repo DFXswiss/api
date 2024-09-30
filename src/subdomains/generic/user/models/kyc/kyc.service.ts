@@ -99,7 +99,7 @@ export class KycService {
   ): Promise<boolean> {
     const userData = await this.getUser(code, userDataId);
 
-    const upload = await this.documentService.uploadFile(
+    const upload = await this.documentService.uploadUserFile(
       userData.id,
       kycDocument,
       `${Util.isoDateTime(new Date())}-incorporation-certificate-${Util.randomId()}-${document.filename}`,

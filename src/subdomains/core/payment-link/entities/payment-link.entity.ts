@@ -88,11 +88,19 @@ export class PaymentLink extends IEntity {
     const defaultConfig: PaymentLinkConfig = {
       standards: Object.values(PaymentStandard),
       blockchains: Object.values(Blockchain),
-      minCompletionStatus: PaymentQuoteStatus.TX_BLOCKCHAIN,
+      minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
       displayQr: false,
     };
 
     const config = this.config ?? this.route.userData.paymentLinksConfig;
     return config ? Object.assign(defaultConfig, JSON.parse(config)) : defaultConfig;
+  }
+
+  get defaultStandard(): PaymentStandard {
+    return this.configObj.standards[0];
+  }
+
+  getMatchingStandard(param?: PaymentStandard): PaymentStandard {
+    return this.configObj.standards.includes(param) ? param : this.defaultStandard;
   }
 }

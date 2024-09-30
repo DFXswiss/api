@@ -49,6 +49,7 @@
     "sendgrid",
     "sepa",
     "signmessage",
+    "sumsub",
     "timelock",
     "totp",
     "txid",

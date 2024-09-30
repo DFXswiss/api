@@ -1,5 +1,7 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { BankService } from '../../bank/bank/bank.service';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
@@ -28,4 +30,21 @@ export class BankTxReturn extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   amountInUsd: number;
+
+  //*** METHODS ***//
+
+  pendingInputAmount(asset: Asset): number {
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+      case 'Olkypay':
+        return BankService.isBankMatching(asset, this.bankTx.accountIban) ? this.bankTx.amount : 0;
+
+      default:
+        return 0;
+    }
+  }
+
+  pendingOutputAmount(_: Asset): number {
+    return 0;
+  }
 }

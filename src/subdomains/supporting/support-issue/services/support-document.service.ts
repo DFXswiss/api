@@ -33,6 +33,20 @@ export class SupportDocumentService {
     });
   }
 
+  async uploadUserFile(
+    userDataId: number,
+    issueId: number,
+    name: string,
+    data: Buffer,
+    contentType: ContentType,
+    metadata?: Record<string, string>,
+  ): Promise<string> {
+    if (!this.isPermittedFileType(contentType))
+      throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
+
+    return this.uploadFile(userDataId, issueId, name, data, contentType, metadata);
+  }
+
   async uploadFile(
     userDataId: number,
     issueId: number,
@@ -41,10 +55,6 @@ export class SupportDocumentService {
     contentType: ContentType,
     metadata?: Record<string, string>,
   ): Promise<string> {
-    if (!this.isPermittedFileType(contentType)) {
-      throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
-    }
-
     return this.storageService.uploadBlob(this.toFileId(userDataId, issueId, name), data, contentType, metadata);
   }
 

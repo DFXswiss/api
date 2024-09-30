@@ -7,10 +7,11 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { TradingInfo } from '../dto/trading.dto';
-import { TradingRule } from '../entities/trading-rule.entity';
+import { PriceConfig, TradingRule } from '../entities/trading-rule.entity';
 import { PoolOutOfRangeException } from '../exceptions/pool-out-of-range.exception';
 
 const START_AMOUNT_IN = 10000; // CHF
@@ -37,24 +38,9 @@ export class TradingService {
 
   private async getTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
     // get prices
-    const referencePrice = await this.pricingService.getPriceFrom(
-      tradingRule.source1,
-      tradingRule.leftAsset1,
-      tradingRule.rightAsset1,
-    );
-
-    const checkPrice = await this.pricingService.getPriceFrom(
-      tradingRule.source3 ?? tradingRule.source1,
-      tradingRule.leftAsset3 ?? tradingRule.leftAsset1,
-      tradingRule.rightAsset3 ?? tradingRule.rightAsset1,
-    );
-
-    const poolPrice = await this.pricingService.getPriceFrom(
-      tradingRule.source2,
-      tradingRule.leftAsset2,
-      tradingRule.rightAsset2,
-      tradingRule.source2 === PriceSource.DEX ? `${tradingRule.poolFee}` : undefined,
-    );
+    const referencePrice = await this.getPrice(tradingRule.config1);
+    const checkPrice = await this.getPrice(tradingRule.config3 ?? tradingRule.config1);
+    const poolPrice = await this.getPrice(tradingRule.config2);
 
     const lowerTargetPrice = referencePrice.price * tradingRule.lowerTarget;
     const upperTargetPrice = referencePrice.price * tradingRule.upperTarget;
@@ -194,5 +180,9 @@ export class TradingService {
   private async getPoolContract(client: EvmClient, tradingInfo: TradingInfo): Promise<ethers.Contract> {
     const poolAddress = await client.getPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut, tradingInfo.poolFee);
     return client.getPoolContract(poolAddress);
+  }
+
+  private async getPrice(config: PriceConfig): Promise<Price> {
+    return this.pricingService.getPriceFrom(config.source, config.from, config.to, config.param);
   }
 }

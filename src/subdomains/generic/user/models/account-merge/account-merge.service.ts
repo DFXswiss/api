@@ -13,7 +13,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
-import { AccountMerge } from './account-merge.entity';
+import { AccountMerge, MergeReason } from './account-merge.entity';
 import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
@@ -24,7 +24,7 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
-  async sendMergeRequest(master: UserData, slave: UserData): Promise<boolean> {
+  async sendMergeRequest(master: UserData, slave: UserData, reason: MergeReason): Promise<boolean> {
     if (!slave.mail) return false;
     try {
       master.checkIfMergePossibleWith(slave);
@@ -39,7 +39,7 @@ export class AccountMergeService {
           expiration: MoreThan(new Date()),
         },
         relations: { master: true, slave: true },
-      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave)));
+      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
 
     const url = this.buildConfirmationUrl(request.code);
     await this.notificationService.sendMail({

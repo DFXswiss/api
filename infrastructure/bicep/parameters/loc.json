@@ -65,6 +65,15 @@
     "kycWebhookIps": {
       "value": "*"
     },
+    "kycAppToken": {
+      "value": "xxx"
+    },
+    "kycSecretKey": {
+      "value": "xxx"
+    },
+    "kycWebhookSecret": {
+      "value": "xxx"
+    },
     "kycPrefix": {
       "value": "test."
     },

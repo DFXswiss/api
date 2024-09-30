@@ -26,7 +26,7 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    instantBanks?: Bank[],
+    banks?: Bank[],
     ibanCountry?: Country,
   ): AmlError[] {
     const errors = [];
@@ -138,10 +138,16 @@ export class AmlHelperService {
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
-        if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
-          if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
-          if (!entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
-        }
+
+        if (
+          blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_ACCOUNT_IBAN], entity.bankTx.accountIban))
+        )
+          errors.push(AmlError.ACCOUNT_IBAN_BLACKLISTED);
+
+        const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
+        if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
+        if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
+        if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
         if (
@@ -196,7 +202,7 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    instantBanks?: Bank[],
+    banks?: Bank[],
     ibanCountry?: Country,
   ): {
     bankData?: BankData;
@@ -215,7 +221,7 @@ export class AmlHelperService {
       last365dVolume,
       bankData,
       blacklist,
-      instantBanks,
+      banks,
       ibanCountry,
     );
 

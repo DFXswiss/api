@@ -44,10 +44,16 @@ export class TradingOrder extends IEntity {
   txId: string;
 
   @Column({ type: 'float', nullable: true })
-  feeAmount: number;
+  txFeeAmount: number;
 
   @Column({ type: 'float', nullable: true })
-  feeAmountChf: number;
+  txFeeAmountChf: number;
+
+  @Column({ type: 'float', nullable: true })
+  swapFeeAmount: number;
+
+  @Column({ type: 'float', nullable: true })
+  swapFeeAmountChf: number;
 
   @Column({ length: 'MAX', nullable: true })
   errorMessage: string;
@@ -95,10 +101,18 @@ export class TradingOrder extends IEntity {
     return this;
   }
 
-  complete(outputAmount: number, feeAmount: number, feeAmountChf: number): this {
+  complete(
+    outputAmount: number,
+    txFeeAmount: number,
+    txFeeAmountChf: number,
+    swapFeeAmount: number,
+    swapFeeAmountChf: number,
+  ): this {
     this.amountOut = outputAmount;
-    this.feeAmount = feeAmount;
-    this.feeAmountChf = feeAmountChf;
+    this.txFeeAmount = txFeeAmount;
+    this.txFeeAmountChf = txFeeAmountChf;
+    this.swapFeeAmount = swapFeeAmount;
+    this.swapFeeAmountChf = swapFeeAmountChf;
 
     this.status = TradingOrderStatus.COMPLETE;
 

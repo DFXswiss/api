@@ -41,6 +41,7 @@ export class SpecialExternalAccountService {
           SpecialExternalAccountType.BANNED_BIC_BUY,
           SpecialExternalAccountType.BANNED_BIC_SELL,
           SpecialExternalAccountType.BANNED_MAIL,
+          SpecialExternalAccountType.BANNED_ACCOUNT_IBAN,
         ],
       ),
     });

@@ -77,7 +77,7 @@ export class BuyFiatService {
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
-      if (!bankData)
+      if (!bankData && sell.userData.completeName)
         await this.bankDataService.createBankData(sell.userData, {
           name: sell.userData.completeName,
           iban: sell.iban,
@@ -232,7 +232,8 @@ export class BuyFiatService {
     await this.refundBuyFiatInternal(buyFiat, {
       refundUserId: dto.refundUser?.id,
       chargebackAmount: dto.chargebackAmount,
-      refundUserAddress: buyFiat.chargebackAddress,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
 
@@ -242,7 +243,10 @@ export class BuyFiatService {
 
     const refundUser = dto.refundUserId
       ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
-      : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
+      : await this.userService.getUserByAddress(dto.refundUserAddress ?? buyFiat.chargebackAddress, {
+          userData: true,
+          wallet: true,
+        });
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
@@ -261,6 +265,7 @@ export class BuyFiatService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
       ),
     );
   }

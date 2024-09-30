@@ -1,8 +1,10 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -257,6 +259,23 @@ export class BankTx extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    if ([BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
+
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+      case 'Olkypay':
+        return BankService.isBankMatching(asset, this.accountIban) ? this.amount : 0;
+
+      default:
+        return 0;
+    }
+  }
+
+  pendingOutputAmount(_: Asset): number {
+    return 0;
   }
 }
 

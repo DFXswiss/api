@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
@@ -21,10 +22,6 @@ export class BankService {
 
   async getAllBanks(): Promise<Bank[]> {
     return this.bankRepo.findCached(`all`);
-  }
-
-  async getInstantBanks(): Promise<Bank[]> {
-    return this.bankRepo.findCachedBy(`instantBanks`, { sctInst: true });
   }
 
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
@@ -69,6 +66,19 @@ export class BankService {
     }
 
     return account;
+  }
+
+  static isBankMatching(asset: Asset, accountIban: string): boolean {
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+        return (
+          (asset.dexName === 'EUR' && accountIban === 'CH6808573177975201814') ||
+          (asset.dexName === 'CHF' && accountIban === 'CH3408573177975200001')
+        );
+
+      case 'Olkypay':
+        return accountIban === 'LU116060002000005040';
+    }
   }
 
   // --- HELPER METHODS --- //
