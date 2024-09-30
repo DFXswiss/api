@@ -63,6 +63,7 @@ param paymentQuoteTimeout string
 param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
+param paymentMoneroAddress string
 
 @secure()
 param evmDepositSeed string
@@ -594,11 +595,12 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KYC_APP_TOKEN'
           value: kycAppToken
-        }        
+        }
         {
           name: 'KYC_SECRET_KEY'
           value: kycSecretKey
-        }        {
+        }
+        {
           name: 'KYC_WEBHOOK_SECRET'
           value: kycWebhookSecret
         }
@@ -673,6 +675,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'PAYMENT_EVM_SEED'
           value: paymentEvmSeed
+        }
+        {
+          name: 'PAYMENT_MONERO_ADDRESS'
+          value: paymentMoneroAddress
         }
         {
           name: 'EVM_DEPOSIT_SEED'
