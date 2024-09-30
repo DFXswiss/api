@@ -26,6 +26,7 @@ export class PaymentActivationService implements OnModuleInit {
   private readonly client: LightningClient;
 
   private evmDepositAddress: string;
+  private moneroDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
@@ -38,6 +39,7 @@ export class PaymentActivationService implements OnModuleInit {
 
   onModuleInit() {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
+    this.moneroDepositAddress = Config.payment.moneroAddress;
   }
 
   async close(activation: PaymentActivation): Promise<void> {
@@ -148,7 +150,7 @@ export class PaymentActivationService implements OnModuleInit {
     const { paymentRequest, paymentHash } =
       transferInfo.method === Blockchain.LIGHTNING
         ? await this.createLightningRequest(payment, transferInfo, expirySec)
-        : await this.createEvmRequest(transferInfo);
+        : await this.createBlockchainRequest(transferInfo);
 
     return this.savePaymentActivationRequest(
       payment,
@@ -211,12 +213,36 @@ export class PaymentActivationService implements OnModuleInit {
     }
   }
 
+  private async createBlockchainRequest(
+    transferInfo: TransferInfo,
+  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
+    switch (transferInfo.method) {
+      case Blockchain.ETHEREUM:
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
+      case Blockchain.BASE:
+      case Blockchain.POLYGON:
+        return this.createEvmRequest(transferInfo);
+      case Blockchain.MONERO:
+        return this.createMoneroRequest(transferInfo);
+      default:
+        throw new BadRequestException(`Invalid method ${transferInfo.method}`);
+    }
+  }
+
   private async createEvmRequest(
     transferInfo: TransferInfo,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
     const asset = await this.getAssetByInfo(transferInfo);
 
     const paymentRequest = EvmUtil.getPaymentRequest(this.evmDepositAddress, asset, transferInfo.amount);
+    return { paymentRequest };
+  }
+
+  private async createMoneroRequest(
+    transferInfo: TransferInfo,
+  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
+    const paymentRequest = `monero:${this.moneroDepositAddress}?tx_amount=${transferInfo.amount}`;
     return { paymentRequest };
   }
 
