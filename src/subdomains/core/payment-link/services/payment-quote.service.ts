@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -247,7 +248,7 @@ export class PaymentQuoteService {
       case Blockchain.POLYGON:
         return this.evmGasPriceService.getGasPrice(blockchain);
       case Blockchain.MONERO:
-        return this.payoutMoneroService.getEstimatedFee();
+        return MoneroHelper.xmrToAu(await this.payoutMoneroService.getEstimatedFee());
     }
   }
 
