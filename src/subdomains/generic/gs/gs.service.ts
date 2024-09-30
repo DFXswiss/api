@@ -152,36 +152,6 @@ export class GsService {
     }
   }
 
-  private getArrayData2(data: any[], selects: string[], table: string): any[] {
-    const arraySelects = selects.filter((s) => s.includes('['));
-
-    let currentIndex = 0;
-
-    const groupedData = data.reduce((acc, row) => {
-      const entityId = row[`${table}_id`];
-
-      if (!acc[entityId]) {
-        acc[entityId] = Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith(`${table}_`)));
-        currentIndex = 0;
-      } else {
-        currentIndex++;
-      }
-
-      arraySelects.forEach((select) => {
-        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
-        const parsedIndex = index === 'max' ? 'max' : +index;
-
-        if (!acc[entityId][`${field}_${prop}`]) acc[entityId][`${field}_${prop}`] = null;
-        if (parsedIndex === 'max' || parsedIndex === currentIndex)
-          acc[entityId][`${field}_${prop}`] = row[`${field}_${prop}`];
-      });
-
-      return acc;
-    }, {});
-
-    return Object.values(groupedData);
-  }
-
   private getArrayData(data: any[], selects: string[], table: string): any[] {
     const arraySelects = selects.filter((s) => s.includes('['));
 
@@ -193,15 +163,16 @@ export class GsService {
       const currentEntry = {};
 
       arraySelects.forEach((select) => {
-        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!;
+        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select);
         const searchIndex = index === 'max' ? entities.length - 1 : +index;
 
         currentEntry[`${select}`] = searchIndex < entities.length ? entities[searchIndex][`${field}_${prop}`] : null;
-      }),
-        result.push({
-          ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
-          ...currentEntry,
-        });
+      });
+
+      result.push({
+        ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
+        ...currentEntry,
+      });
     });
 
     return Object.values(result);
