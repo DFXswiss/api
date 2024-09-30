@@ -82,4 +82,13 @@ export class CreateInvoicePaymentDto {
   @IsOptional()
   @IsEnum(PaymentStandard)
   s?: PaymentStandard;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  w?: string;
 }
