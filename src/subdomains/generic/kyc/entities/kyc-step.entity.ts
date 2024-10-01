@@ -84,7 +84,7 @@ export class KycStep extends IEntity {
         if (this.isSumsub) {
           return { url: SumsubService.identUrl(this), type: UrlType.TOKEN };
         } else if (this.isManual) {
-          return { url: `${apiUrl}/data/ident/${this.id}`, type: UrlType.API };
+          return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
         } else {
           return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
         }
