@@ -5,6 +5,8 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
+import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -23,14 +25,18 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 export class DepositService {
   private btcInpClient: NodeClient;
   private readonly lightningClient: LightningClient;
+  private readonly moneroClient: MoneroClient;
 
   constructor(
     private readonly depositRepo: DepositRepository,
     private readonly alchemyWebhookService: AlchemyWebhookService,
     nodeService: NodeService,
     lightningService: LightningService,
+    moneroService: MoneroService,
   ) {
     this.lightningClient = lightningService.getDefaultClient();
+    this.moneroClient = moneroService.getDefaultClient();
+
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((c) => (this.btcInpClient = c));
   }
 
@@ -69,6 +75,8 @@ export class DepositService {
       return this.createEvmDeposits(blockchain, count);
     } else if (blockchain === Blockchain.LIGHTNING) {
       return this.createLightningDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.MONERO) {
+      return this.createMoneroDeposits(blockchain, count);
     }
 
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
@@ -105,18 +113,18 @@ export class DepositService {
       addresses.push(deposit.address);
     }
 
-    addresses.push(this.createPaymentAddress(0));
+    addresses.push(...this.createPaymentAddresses());
 
     for (const chain of applicableChains) {
       await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
     }
   }
 
-  private createPaymentAddress(accountIndex: number): string {
-    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: accountIndex }).address;
+  private createPaymentAddresses(): string[] {
+    return [EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address, Config.payment.moneroAddress];
   }
 
-  private async createLightningDeposits(blockchain: Blockchain, count: number) {
+  private async createLightningDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
 
     for (let i = 0; i < count; i++) {
@@ -167,6 +175,15 @@ export class DepositService {
       };
 
       await this.lightningClient.updateLnurlpLink(linkId, lnurlpLinkUpdate);
+    }
+  }
+
+  private async createMoneroDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    for (let i = 0; i < count; i++) {
+      const moneroAddress = await this.moneroClient.createAddress();
+
+      const deposit = Deposit.create(moneroAddress.address, [blockchain], moneroAddress.address_index);
+      await this.depositRepo.save(deposit);
     }
   }
 }

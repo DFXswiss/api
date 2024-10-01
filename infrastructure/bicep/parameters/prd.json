@@ -113,6 +113,9 @@
     "paymentEvmSeed": {
       "value": "xxx"
     },
+    "paymentMoneroAddress": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },
