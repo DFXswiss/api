@@ -47,8 +47,8 @@ export class TransactionUtilService {
       (entity instanceof BuyCrypto && (entity.chargebackCryptoTxId || entity.chargebackBankTx))
     )
       throw new BadRequestException('Transaction is already returned');
-    if (entity.amlCheck !== CheckStatus.FAIL || entity.outputAmount)
-      throw new BadRequestException('Only failed transactions are refundable');
+    if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(entity.amlCheck) || entity.outputAmount)
+      throw new BadRequestException('Only failed or pending transactions are refundable');
     if (dto.chargebackAmount && dto.chargebackAmount > entity.inputAmount)
       throw new BadRequestException('You can not refund more than the input amount');
   }

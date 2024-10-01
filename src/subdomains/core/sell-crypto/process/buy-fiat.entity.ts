@@ -255,6 +255,7 @@ export class BuyFiat extends IEntity {
       chargebackAddress,
       chargebackAmount,
       chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
     };
 
     Object.assign(this, update);
