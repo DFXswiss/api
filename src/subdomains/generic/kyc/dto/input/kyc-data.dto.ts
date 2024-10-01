@@ -13,6 +13,7 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { GenderType, IdentDocumentType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
 import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
@@ -132,6 +133,18 @@ export class KycNationalityData {
   nationality: Country;
 }
 
+export class KycFileData {
+  @ApiProperty({ description: 'Base64 encoded file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the file' })
+  @IsNotEmpty()
+  @IsString()
+  fileName: string;
+}
+
 export class KycManualIdentData {
   @ApiProperty()
   @IsNotEmpty()
@@ -151,11 +164,10 @@ export class KycManualIdentData {
   @Transform(Util.trim)
   birthName?: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: IdentDocumentType })
   @IsNotEmpty()
-  @IsString()
-  @Transform(Util.trim)
-  documentType: string;
+  @IsEnum(IdentDocumentType)
+  documentType: IdentDocumentType;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -175,26 +187,14 @@ export class KycManualIdentData {
   @Transform(Util.trim)
   birthplace: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: GenderType })
   @IsNotEmpty()
-  @IsString()
-  @Transform(Util.trim)
-  gender: string;
+  @IsEnum(GenderType)
+  gender: GenderType;
 
-  @ApiProperty({ description: 'Base64 encoded file' })
-  @IsNotEmpty()
-  @IsString()
-  file: string;
-}
-
-export class KycFileData {
-  @ApiProperty({ description: 'Base64 encoded file' })
-  @IsNotEmpty()
-  @IsString()
-  file: string;
-
-  @ApiProperty({ description: 'Name of the file' })
-  @IsNotEmpty()
-  @IsString()
-  fileName: string;
+  @ApiProperty({ type: KycFileData })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => KycFileData)
+  document: KycFileData;
 }

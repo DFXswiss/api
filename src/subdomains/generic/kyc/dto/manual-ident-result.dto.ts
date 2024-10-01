@@ -1,6 +1,6 @@
 import { Country } from 'src/shared/models/country/country.entity';
 
-export enum DocumentType {
+export enum IdentDocumentType {
   IDCARD = 'IDCARD',
   PASSPORT = 'PASSPORT',
   DRIVERS_LICENSE = 'DRIVERS_LICENSE',
@@ -16,7 +16,7 @@ export interface ManualIdentResult {
   firstName: string;
   lastName: string;
   birthName: string;
-  documentType: DocumentType;
+  documentType: IdentDocumentType;
   documentNumber?: string;
   nationality: Country;
   birthplace: string;

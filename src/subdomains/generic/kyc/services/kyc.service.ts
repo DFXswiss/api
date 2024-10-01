@@ -439,7 +439,16 @@ export class KycService {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    user = user.internalReviewStep(kycStep, dto);
+    const { contentType, buffer } = Util.fromBase64(dto.document.file);
+    const newUrl = await this.documentService.uploadUserFile(
+      user.id,
+      FileType.IDENTIFICATION,
+      dto.document.fileName,
+      buffer,
+      contentType as ContentType,
+    );
+
+    user = user.internalReviewStep(kycStep, { ...dto, fileUrl: newUrl, document: undefined });
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);

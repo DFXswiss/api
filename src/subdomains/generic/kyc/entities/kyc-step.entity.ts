@@ -255,18 +255,15 @@ export class KycStep extends IEntity {
 
       return {
         type: IdentResultType.MANUAL,
-        gender: identResultData.gender,
         firstname: identResultData.firstName,
         lastname: identResultData.lastName,
         birthname: identResultData.birthName,
         birthday: null,
-        birthplace: identResultData.birthplace,
         nationality: identResultData.nationality?.name,
         identificationDocType: identResultData.documentType,
         identificationDocNumber: identResultData.documentNumber,
         identificationType: IdentResultType.MANUAL,
         success: true,
-        file: identResultData.file,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
