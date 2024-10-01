@@ -237,6 +237,7 @@ export class BankDataService {
         existing.userData,
         userData,
         MergeReason.IBAN,
+        'master',
       );
       throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
     }
