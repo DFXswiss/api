@@ -19,6 +19,8 @@ export enum KycStepName {
   AUTHORITY = 'Authority',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
+  ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
+  RESIDENCE_PERMIT = 'ResidencePermit',
   DFX_APPROVAL = 'DfxApproval',
 }
 
@@ -56,6 +58,7 @@ export enum KycLogType {
   KYC_STEP = 'KycStep',
   NAME_CHECK = 'NameCheck',
   MERGE = 'Merge',
+  MAIL_CHANGE = 'MailChange',
   TFA = '2FA',
 }
 

@@ -38,11 +38,11 @@ export class AssetService {
   }
 
   async getPricedAssets(): Promise<Asset[]> {
-    return this.assetRepo.findBy({ priceRule: Not(IsNull()) });
+    return this.assetRepo.findCachedBy('priced', { priceRule: Not(IsNull()) });
   }
 
   async getPaymentAssets(): Promise<Asset[]> {
-    return this.assetRepo.findBy({ paymentEnabled: true });
+    return this.assetRepo.findCachedBy('payment', { paymentEnabled: true });
   }
 
   async getAssetById(id: number): Promise<Asset> {

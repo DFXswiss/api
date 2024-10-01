@@ -108,9 +108,17 @@ export class PaymentLinkService {
       expiryDate: dto.expiryDate,
     };
 
-    const route = await this.sellService.getById(+dto.routeId);
+    const paymentLinkDto: CreatePaymentLinkDto = {
+      externalId: dto.externalId,
+      webhookUrl: dto.webhookUrl,
+      payment,
+    };
 
-    return this.createForRoute(route, { externalId: dto.externalId, payment });
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
+
+    return this.createForRoute(route, paymentLinkDto);
   }
 
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
