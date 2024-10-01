@@ -163,15 +163,14 @@ export class GsService {
         const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(curr);
         const searchIndex = index === 'max' ? entities.length - 1 : +index;
 
-        prev[`${curr}`] = entities[searchIndex]?.[`${field}_${prop}`];
-
-        return prev;
+        return {
+          ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => !key.startsWith(`${field}_`))),
+          ...prev,
+          [`${curr}`]: entities[searchIndex]?.[`${field}_${prop}`],
+        };
       }, {});
 
-      return {
-        ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
-        ...selectedData,
-      };
+      return selectedData;
     });
   }
 
