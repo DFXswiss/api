@@ -24,12 +24,7 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
-  async sendMergeRequest(
-    master: UserData,
-    slave: UserData,
-    reason: MergeReason,
-    target: 'master' | 'slave' = 'slave',
-  ): Promise<boolean> {
+  async sendMergeRequest(master: UserData, slave: UserData, reason: MergeReason, sendToSlave = true): Promise<boolean> {
     if (!slave.mail) return false;
     try {
       master.checkIfMergePossibleWith(slave);
@@ -46,17 +41,16 @@ export class AccountMergeService {
         relations: { master: true, slave: true },
       })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
 
-    const name =
-      target === 'slave'
-        ? request.master.organizationName ?? request.master.firstname
-        : request.slave.organizationName ?? request.slave.firstname;
+    const name = sendToSlave
+      ? request.master.organizationName ?? request.master.firstname
+      : request.slave.organizationName ?? request.slave.firstname;
 
     const url = this.buildConfirmationUrl(request.code);
     await this.notificationService.sendMail({
       type: MailType.USER,
       context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
-        userData: target === 'slave' ? request.slave : request.master,
+        userData: sendToSlave ? request.slave : request.master,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         prefix: [
