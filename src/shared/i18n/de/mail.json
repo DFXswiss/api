@@ -90,18 +90,18 @@
                 "salutation": "Du hast dein 24h Volumenlimit überschritten",
                 "line1": "Bitte verifiziere dich, um dein Limit zu erhöhen.",
                 "line2": "Nach der vollständigen Verifizierung wird deine Transaktion weiter bearbeitet.",
-                "line3": "Ohne Verifizierung wird dein Geld nach 2 Tagen automatisch retourniert.",
-                "line4": "Limit erhöhen mit Verifizierung?<br>Klicke den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
-                "line5": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten."
+                "line3": "Limit erhöhen mit Verifizierung?<br>Klicke den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "annual_limit": {
                 "title": "Jährliches Limit überschritten",
                 "salutation": "Du hast dein jährliches Volumenlimit überschritten",
                 "line1": "Bitte beantrage daher ein neues Jahreslimit",
                 "line2": "Sobald das neue Limit genehmigt wurde, <br> wird deine Transaktion weiter bearbeitet.",
-                "line3": "Limit erhöhen?",
-                "line4": "In der DFX App per \"My DFX\" die Paymentseite aufrufen.",
-                "line5": "Bei \"Dein Limit\" auf den roten Pfeil gehen und <br> ein neues gewünschtes Limit beantragen."
+                "line3": "Limit erhöhen? In der DFX App per \"My DFX\" die Paymentseite aufrufen.",
+                "line4": "Bei \"Dein Limit\" auf den roten Pfeil gehen und <br> ein neues gewünschtes Limit beantragen.",
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "annual_limit_without_kyc": {
                 "title": "Ausstehende Transaktion - Jahreslimit ohne Verifizierung (KYC) überschritten",
@@ -110,7 +110,7 @@
                 "line2": "Leider können wir ohne eine vollständige Verifizierung deine Order nicht verarbeiten, da dein Jahreslimit überschritten ist.",
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "olky_no_kyc": {
                 "title": "Verifizierung für SEPA Instant notwendig",
@@ -119,7 +119,7 @@
                 "line2": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line3": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line4": "Ohne Verifizierung kannst Du auch unser Bankkonto aus der CH weiterhin bis zu 1'000 EUR pro Tag ohne Verifizierung per Standard Sepa verwenden.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "name_check_without_kyc": {
                 "title": "Du musst dich vollständig verifzieren, bevor wir deine ausstehende Transaktion ausführen können",
@@ -128,7 +128,7 @@
                 "line2": "Leider können wir ohne eine vollständige Verifizierung deine Order nicht verarbeiten.",
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "high_risk_kyc_needed": {
                 "title": "Problem bei deiner Einzahlung",
@@ -137,7 +137,7 @@
                 "line2": "Leider können wir ohne eine vollständige Verifizierung nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt.",
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "manual_check": {
                 "title": "Einzahlung wird geprüft",
@@ -146,7 +146,7 @@
                 "line2": "Leider konnte die Transaktion nicht vollautomatisch freigegeben werden und muss nun durch einen Mitarbeiter manuell geprüft werden.",
                 "line3": "Dies dauert in der Regel 24h, maximal aber 7 Tage.",
                 "line4": "Du wirst benachrichtigt sobald die Prüfung abgeschlossen ist und deine Zahlung verarbeitet wurde.",
-                "line5": ""
+                "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
             },
             "asset_kyc_needed": {
                 "title": "Verifizierung (KYC) erforderlich",
@@ -155,7 +155,7 @@
                 "line2": "Leider brauchen wir für das von dir eingezahlte Asset eine Verifizierung (KYC) von dir.",
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Assets vollautomatisch nach 2 Tagen retourniert."
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "video_ident_needed": {
                 "title": "Video-Verifizierung (KYC) erforderlich",
@@ -164,7 +164,7 @@
                 "line2": "Leider brauchen wir für deine Transaktion eine Video-Verifizierung (KYC) von dir.",
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Assets vollautomatisch nach 2 Tagen retourniert."
+                "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             }
         },
         "chargeback_not_possible": {

@@ -132,7 +132,10 @@ export class BuyFiatNotificationService {
                     urlText: entity.userData.kycUrl,
                   },
                 },
-                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5`,
+                  params: { url: entity.transaction.url },
+                },
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '2' } },

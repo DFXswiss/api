@@ -90,18 +90,18 @@
                 "salutation": "Has excedido tu volumen máximo durante 24 horas",
                 "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
                 "line2": "Después de que pases el KYC empezaremos con tu transacción.",
-                "line3": "Sin verificación, su dinero será devuelto automáticamente al cabo de 2 días.",
-                "line4": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
-                "line5": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\"."
+                "line3": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
+                "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "annual_limit": {
                 "title": "Has excedido el límite anual",
                 "salutation": "Has excedido tu límite de volumen anual",
                 "line1": "Por favor, registra tu interés para un límite anual nuevo.",
                 "line2": "Una vez el nuevo límite anual de haya aprobado,<br> empezaremos con tu transacción.",
-                "line3": "¿Quieres incrementar el límite?",
-                "line4": "Abre la aplicación DFX a través de la página de pago en \"My DFX\".",
-                "line5": "Ves a la flecha roja debajo de \"Tu límite\" y<br> pide un límite nuevo."
+                "line3": "¿Quieres incrementar el límite? Abre la aplicación DFX a través de la página de pago en \"My DFX\".",
+                "line4": "Ves a la flecha roja debajo de \"Tu límite\" y<br> pide un límite nuevo.",
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "annual_limit_without_kyc": {
                 "title": "Transacción pendiente - límite anual excedido sin KYC",
@@ -110,7 +110,7 @@
                 "line2": "Desafortunadamente, no podemos procesar la transferencia sin una verificación completa, ya que has excedido el límite anual.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "olky_no_kyc": {
                 "title": "Se requiere el registro KYC para usar las transferencias SEPA instantáneas",
@@ -119,7 +119,7 @@
                 "line2": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al día sin el KYC con transferencias SEPA ordinarias.",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "name_check_without_kyc": {
                 "title": "Se requiere KYC para ejecutar la transacción pendiente",
@@ -128,7 +128,7 @@
                 "line2": "Desafortunadamente, no podemos procesar tu orden sin una verificación KYC completa.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "high_risk_kyc_needed": {
                 "title": "Problema con su depósito",
@@ -137,7 +137,7 @@
                 "line2": "Lamentablemente, sin una verificación completa, no podemos asegurar que esta transacción no sea fraudulenta.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "manual_check": {
                 "title": "Depósito en cuenta corriente",
@@ -146,7 +146,7 @@
                 "line2": "Lamentablemente, la transacción no ha podido liberarse de forma totalmente automática y ahora debe ser comprobada manualmente por un empleado.",
                 "line3": "Suele tardar 24 horas, pero un máximo de 7 días.",
                 "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
-                "line5": ""
+                "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
             },
             "asset_kyc_needed": {
                 "title": "Verificación (KYC) requerida",
@@ -155,7 +155,7 @@
                 "line2": "Lamentablemente, necesitamos que verifique (KYC) el activo que ha depositado.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no desea llevar a cabo la verificación, el activo se devolverá de forma totalmente automática al cabo de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "video_ident_needed": {
                 "title": "Se requiere verificación de identidad por vídeo (KYC)",
@@ -164,7 +164,7 @@
                 "line2": "Lamentablemente, necesitamos un vídeo de verificación de identidad (KYC) de usted para su transacción.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no desea llevar a cabo la verificación, el activo se devolverá de forma totalmente automática al cabo de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             }
         },
         "chargeback_not_possible": {
