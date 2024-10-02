@@ -39,6 +39,11 @@
             "salutation": "Your payout has been sent to your bank account"
         },
         "chargeback": {
+            "unconfirmed": {
+                "title": "Confirm refund",
+                "salutation": "Your transaction has failed and the refund needs to be confirmed",
+                "transaction_button": "Please confirm your refund:<br>[url:click here]"
+            },
             "fiat": {
                 "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your bank account"

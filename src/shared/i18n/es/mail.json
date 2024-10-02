@@ -39,6 +39,11 @@
             "salutation": "Su pago ha sido enviado a su cuenta bancaria"
         },
         "chargeback": {
+            "unconfirmed": {
+                "title": "Confirmar reembolso",
+                "salutation": "Su transacción ha fallado y el reembolso necesita ser confirmado",
+                "transaction_button": "Confirme su reembolso:<br>[url:haga clic aquí]"
+            },
             "fiat": {
                 "title": "Los fondos han sido reembolsados",
                 "salutation": "Tus fondos se han reembolsado a tu cuenta bancaria"

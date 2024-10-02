@@ -37,6 +37,7 @@ export enum MailTranslationKey {
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
   SUPPORT_MESSAGE = 'mail.support_message',
   CHARGEBACK_NOT_POSSIBLE = 'mail.payment.chargeback_not_possible',
+  CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
 }
 
 export enum MailKey {

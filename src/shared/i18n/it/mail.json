@@ -39,6 +39,11 @@
             "salutation": "Il pagamento è stato inviato al vostro conto corrente bancario"
         },
         "chargeback": {
+            "unconfirmed": {
+                "title": "Confermare il rimborso",
+                "salutation": "La transazione non è andata a buon fine e il rimborso deve essere confermato.",
+                "transaction_button": "Confermare il rimborso:<br>[url:clicca qui]"
+            },
             "fiat": {
                 "title": "Trasferimento bancario effettuato",
                 "salutation": "I tuoi fondi sono stati rimborsati sul tuo conto corrente"

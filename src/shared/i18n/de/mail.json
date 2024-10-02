@@ -39,6 +39,11 @@
             "salutation": "Deine Auszahlung wurde an dein Bankkonto verschickt"
         },
         "chargeback": {
+            "unconfirmed": {
+                "title": "Rückzahlung bestätigen",
+                "salutation": "Deine Transaktion ist fehlgeschlagen und die Rückzahlung muss bestätigt werden",
+                "transaction_button": "Bitte bestätige deine Rückzahlung:<br>[url:Klick hier]"
+            },
             "fiat": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an dein Bankkonto zurückerstattet"

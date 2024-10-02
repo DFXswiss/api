@@ -39,6 +39,11 @@
             "salutation": "Votre paiement a été envoyé sur votre compte bancaire"
         },
         "chargeback": {
+            "unconfirmed": {
+                "title": "Confirmer le remboursement",
+                "salutation": "Votre transaction a échoué et le remboursement doit être confirmé.",
+                "transaction_button": "Veuillez confirmer votre remboursement:<br>[url:cliquez ici]"
+            },
             "fiat": {
                 "title":"Remboursement des fonds",
                 "salutation": "Vos fonds ont été retournés à votre banque"

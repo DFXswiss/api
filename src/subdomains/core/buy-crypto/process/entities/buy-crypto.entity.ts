@@ -410,6 +410,7 @@ export class BuyCrypto extends IEntity {
       chargebackOutput,
       chargebackAllowedBy,
       amlCheck: CheckStatus.FAIL,
+      mailSendDate: null,
     };
 
     Object.assign(this, update);
