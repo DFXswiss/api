@@ -1,10 +1,12 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -21,11 +23,13 @@ export type RefundValidation = {
   chargebackAmount?: number;
 };
 
+@Injectable()
 export class TransactionUtilService {
   constructor(
     private readonly assetService: AssetService,
     private readonly evmRegistry: EvmRegistryService,
     private readonly payInService: PayInService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   static validateRefund(entity: BuyCrypto | BuyFiat, dto: RefundValidation): void {
@@ -51,6 +55,15 @@ export class TransactionUtilService {
       throw new BadRequestException('Only failed or pending transactions are refundable');
     if (dto.chargebackAmount && dto.chargebackAmount > entity.inputAmount)
       throw new BadRequestException('You can not refund more than the input amount');
+  }
+
+  async validateChargebackIban(iban: string, userData: UserData): Promise<boolean> {
+    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, userData);
+    return (
+      bankAccount &&
+      (bankAccount.bic || iban.startsWith('CH') || iban.startsWith('LI')) &&
+      IbanTools.validateIBAN(bankAccount.iban).valid
+    );
   }
 
   async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {

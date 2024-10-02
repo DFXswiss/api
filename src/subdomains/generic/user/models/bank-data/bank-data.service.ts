@@ -18,6 +18,7 @@ import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/use
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
@@ -232,7 +233,12 @@ export class BankDataService {
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
         throw new ForbiddenException('IBAN already in use');
 
-      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(existing.userData, userData);
+      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(
+        existing.userData,
+        userData,
+        MergeReason.IBAN,
+        false,
+      );
       throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
     }
 

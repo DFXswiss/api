@@ -90,6 +90,6 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     BaseCoinStrategyPO,
     BaseTokenStrategyPO,
   ],
-  exports: [PayoutService],
+  exports: [PayoutService, PayoutMoneroService],
 })
 export class PayoutModule {}

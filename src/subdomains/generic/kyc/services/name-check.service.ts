@@ -45,7 +45,7 @@ export class NameCheckService implements OnModuleInit {
     // );
 
     // Personal name check
-    if (bankData.userData.accountType !== AccountType.BUSINESS) {
+    if (bankData.userData.accountType !== AccountType.ORGANIZATION) {
       const sanctionData = await this.dilisenseService.getRiskData(
         bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
           ? bankData.userData.verifiedName
