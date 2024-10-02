@@ -167,11 +167,6 @@
                 "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             }
         },
-        "chargeback_not_possible": {
-            "title": "Il chargeback non è possibile",
-            "salutation": "Il vostro Chargeback non è possibile",
-            "message": "Purtroppo il vostro chargeback non è possibile perché la vostra banca non ha fornito un IBAN.<br>Contattate il nostro team di assistenza.<br>È possibile contattare l'assistenza tramite [url:https://services.dfx.swiss/support]."
-        },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",
         "blockchain": "Blockchain",
         "bank_account": "Conto corrente bancario",

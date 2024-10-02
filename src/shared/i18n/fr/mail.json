@@ -167,11 +167,6 @@
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             }
         },
-        "chargeback_not_possible": {
-            "title": "La rétrofacturation n'est pas possible",
-            "salutation": "Votre rétrofacturation n'est pas possible",
-            "message": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.<br>Veuillez contacter notre équipe d'assistance.<br>Vous pouvez contacter l'assistance via [url:https://services.dfx.swiss/support]."
-        },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
         "blockchain": "Blockchain",
         "bank_account": "Compte bancaire",

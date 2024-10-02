@@ -167,11 +167,6 @@
                 "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             }
         },
-        "chargeback_not_possible": {
-            "title": "Rückzahlung nicht möglich",
-            "salutation": "Die Rückzahlung ist nicht möglich",
-            "message": "Leider ist deine Rückzahlung nicht möglich, da deine Bank keine IBAN übermittelt hat.<br>Bitte setze dich daher mit unserem Support in Verbindung.<br>Du kannst den Support über [url:https://services.dfx.swiss/support] kontaktieren."
-        },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
         "blockchain": "Blockchain",
         "bank_account": "Bank Konto",

@@ -167,11 +167,6 @@
                 "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             }
         },
-        "chargeback_not_possible": {
-            "title": "No es posible la devolución del cargo",
-            "salutation": "Su devolución no es posible",
-            "message": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.<br>Póngase en contacto con nuestro equipo de asistencia.<br>Puede ponerse en contacto con el servicio de asistencia a través de [url:https://services.dfx.swiss/support]."
-        },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",
         "blockchain": "Blockchain",
         "bank_account": "Cuenta bancaria",
