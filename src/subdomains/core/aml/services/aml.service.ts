@@ -41,7 +41,7 @@ export class AmlService {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
       // merge & bank transaction verification
-      if (bankData.active) {
+      if (bankData.approved) {
         if (
           bankData.userData.id !== entity.userData.id &&
           entity instanceof BuyCrypto &&

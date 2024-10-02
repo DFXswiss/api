@@ -179,11 +179,11 @@ export class UpdateBuyCryptoDto {
 
   @IsOptional()
   @IsBoolean()
-  bankDataActive: boolean;
+  bankDataApproved: boolean;
 
   @IsOptional()
   @IsBoolean()
-  bankDataManualCheck: boolean;
+  bankDataManualApproved: boolean;
 
   @IsOptional()
   @IsString()
