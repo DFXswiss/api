@@ -277,6 +277,9 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
+    webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
+    webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
     fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
 
