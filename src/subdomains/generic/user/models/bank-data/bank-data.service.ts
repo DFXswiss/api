@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -215,7 +216,13 @@ export class BankDataService {
     );
   }
 
-  async createIbanForUser(userDataId: number, iban: string): Promise<void> {
+  async createIbanForUser(
+    userDataId: number,
+    iban: string,
+    sendMergeRequest = true,
+    label?: string,
+    preferredCurrency?: Fiat,
+  ): Promise<void> {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
@@ -233,6 +240,8 @@ export class BankDataService {
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
         throw new ForbiddenException('IBAN already in use');
 
+      if (!sendMergeRequest) throw new ConflictException(`IBAN already exists: ${existing.id}`);
+
       const sentMergeRequest = await this.accountMergeService.sendMergeRequest(
         existing.userData,
         userData,
@@ -247,6 +256,8 @@ export class BankDataService {
       iban,
       active: null,
       type: BankDataType.USER,
+      label,
+      preferredCurrency,
     });
     await this.bankDataRepo.save(bankData);
   }
