@@ -99,8 +99,8 @@
                 "salutation": "Du hast dein jährliches Volumenlimit überschritten",
                 "line1": "Bitte beantrage daher ein neues Jahreslimit",
                 "line2": "Sobald das neue Limit genehmigt wurde, <br> wird deine Transaktion weiter bearbeitet.",
-                "line3": "Limit erhöhen? In der DFX App per \"My DFX\" die Paymentseite aufrufen.",
-                "line4": "Bei \"Dein Limit\" auf den roten Pfeil gehen und <br> ein neues gewünschtes Limit beantragen.",
+                "line3": "Limit erhöhen?",
+                "line4": "Du kannst einen Antrag auf Limit Erhöhung über den folgenden Link stellen:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
                 "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             },
             "annual_limit_without_kyc": {

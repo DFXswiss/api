@@ -99,8 +99,8 @@
                 "salutation": "Hai superato il tuo limite di volume annuo",
                 "line1": "Per favore, richiedi un nuovo limite annuale.",
                 "line2": "Una volta che il nuovo limite è stato approvato,<br> procederemo con la tua transazione.",
-                "line3": "Aumentare il limite? Apri la pagina di pagamento attraverso \"My DFX\" nell'app DFX.",
-                "line4": "Vai sulla freccia rossa sotto \"Il tuo limite\" e<br> fai richiesta per un nuovo limite desiderato..",
+                "line3": "Aumentare il limite?",
+                "line4": "È possibile richiedere un aumento del limite tramite il seguente link:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
                 "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "annual_limit_without_kyc": {
