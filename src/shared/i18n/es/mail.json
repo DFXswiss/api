@@ -197,7 +197,22 @@
         "failed": {
             "title": "Tu identificación ha fallado",
             "salutation": "Tu identificación ha fallado",
-            "message": "Su identificación falló por la siguiente razón:<br>{reason}"
+            "message": "Su identificación falló por la siguiente razón:<br>{reason}",
+            "reasons": {
+                "user_data_merged": "Su cuenta está fusionada",
+                "user_data_blocked": "Error desconocido",
+                "first_name_not_matching": "Su nombre no coincide",
+                "last_name_not_matching": "Su apellido no coincide",
+                "nationality_not_matching": "Su nacionalidad no coincide",
+                "nationality_missing": "Falta la nacionalidad",
+                "invalid_document_type": "El tipo de documento no es válido",
+                "identification_number_missing": "Falta su número de identificación",
+                "invalid_result": "Error desconocido",
+                "verified_name_missing": "Falta el nombre de la cuenta",
+                "first_name_not_matching_verified_name": "Su nombre no coincide con el nombre de su cuenta",
+                "last_name_not_matching_verified_name": "Su apellido no coincide con el nombre de su cuenta",
+                "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta"
+            }
         },
         "reminder": {
             "title": "Completa tu verificación",

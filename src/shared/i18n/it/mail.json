@@ -197,7 +197,22 @@
         "failed": {
             "title": "La tua identificazione non è riuscita",
             "salutation": "La tua identificazione non è riuscita",
-            "message": "L'identificazione non è riuscita per il seguente motivo:<br>{reason}"
+            "message": "L'identificazione non è riuscita per il seguente motivo:<br>{reason}",
+            "reasons": {
+                "user_data_merged": "Il vostro account è stato unito",
+                "user_data_blocked": "Errore sconosciuto",
+                "first_name_not_matching": "Il vostro nome non corrisponde",
+                "last_name_not_matching": "Il vostro cognome non corrisponde",
+                "nationality_not_matching": "La vostra nazionalità non corrisponde",
+                "nationality_missing": "Manca la nazionalità",
+                "invalid_document_type": "Il tipo di documento non è valido",
+                "identification_number_missing": "Manca il numero di identificazione",
+                "invalid_result": "Errore sconosciuto",
+                "verified_name_missing": "Manca il nome del conto",
+                "first_name_not_matching_verified_name": "Il nome non corrisponde al nome dell'account",
+                "last_name_not_matching_verified_name": "Il cognome non corrisponde al nome dell'account",
+                "organization_name_not_matching_verified_name": "Il nome dell'organizzazione non corrisponde al nome dell'account"
+            }
         },
         "reminder": {
             "title": "Completa la tua verifica",
