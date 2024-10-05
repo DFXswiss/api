@@ -1,11 +1,11 @@
-import { IdentShortResult } from './input/ident-result.dto';
+import { IdentShortResult } from './ident-result.dto';
 
 export interface SumsubResult {
-  webhook: WebhookResult;
-  data: DataResult;
+  webhook: SumSubWebhookResult;
+  data: SumSubDataResult;
 }
 
-export interface WebhookResult {
+export interface SumSubWebhookResult {
   applicantId?: string;
   applicantActionId?: string;
   applicantType?: ApplicantType;
@@ -15,12 +15,12 @@ export interface WebhookResult {
   externalApplicantActionId?: string;
   levelName?: string;
   previousLevelName?: string;
-  type?: WebhookType;
+  type?: SumSubWebhookType;
   reviewResult?: {
     reviewAnswer: ReviewAnswer;
     moderationComment?: string;
     clientComment?: string;
-    rejectLabels?: RejectionLabels[];
+    rejectLabels?: SumSubRejectionLabels[];
     reviewRejectType?: ReviewRejectType;
     buttonIds?: string[];
   };
@@ -33,7 +33,7 @@ export interface WebhookResult {
   reviewMode?: string;
 }
 
-export interface DataResult {
+export interface SumSubDataResult {
   id?: string;
   createdAt?: Date;
   clientId?: string;
@@ -94,7 +94,7 @@ export enum ReviewRejectType {
   RETRY = 'RETRY',
 }
 
-export enum WebhookType {
+export enum SumSubWebhookType {
   APPLICANT_CREATED = 'applicantCreated',
   APPLICANT_PENDING = 'applicantPending',
   APPLICANT_REVIEWED = 'applicantReviewed',
@@ -114,7 +114,7 @@ export enum WebhookType {
   VIDEO_IDENT_STATUS_CHANGED = 'videoIdentStatusChanged',
 }
 
-export enum RejectionLabels {
+export enum SumSubRejectionLabels {
   //TEMP
   APPLICANT_INTERRUPTED_INTERVIEW = 'APPLICANT_INTERRUPTED_INTERVIEW',
   ADDITIONAL_DOCUMENT_REQUIRED = 'ADDITIONAL_DOCUMENT_REQUIRED',
@@ -183,8 +183,91 @@ export enum RejectionLabels {
   WRONG_USER_REGION = 'WRONG_USER_REGION',
 }
 
-export function getSumsubResult(dto: WebhookResult): IdentShortResult {
-  if (dto.type == WebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
-  if (dto.type == WebhookType.APPLICANT_REVIEWED)
+const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
+  [SumSubRejectionLabels.FORGERY]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.CRIMINAL]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.DOCUMENT_TEMPLATE]: 'The submitted documents are templates downloaded from the internet',
+  [SumSubRejectionLabels.DIGITAL_DOCUMENT]: 'You uploaded a digital version of the document',
+  [SumSubRejectionLabels.LOW_QUALITY]: 'Documents have low-quality that does not allow definitive decisions to be made',
+  [SumSubRejectionLabels.SPAM]: 'Spam detected (irrelevant images were supplied)',
+  [SumSubRejectionLabels.NOT_DOCUMENT]: 'The submitted documents are not relevant for the verification procedure',
+  [SumSubRejectionLabels.SELFIE_MISMATCH]: 'Your photo does not match a photo on the provided documents',
+  [SumSubRejectionLabels.ID_INVALID]: 'Your ident document is not valid',
+  [SumSubRejectionLabels.DOCUMENT_DEPRIVED]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.DUPLICATE]: 'Duplicates are not allowed by the regulations',
+  [SumSubRejectionLabels.BAD_AVATAR]: 'Your avatar does not meet our requirements',
+  [SumSubRejectionLabels.WRONG_USER_REGION]: 'Your country/region is not allowed',
+  [SumSubRejectionLabels.INCOMPLETE_DOCUMENT]:
+    'Some information is missing from the document, or it is only partially visible',
+  [SumSubRejectionLabels.BLACKLIST]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.BLOCKLIST]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.WRONG_ADDRESS]: 'The address on your documents does not match the address you entered',
+  [SumSubRejectionLabels.UNSATISFACTORY_PHOTOS]:
+    'Problems with the photos during verification, like poor quality or masked information',
+  [SumSubRejectionLabels.GRAPHIC_EDITOR]: 'The document has been edited by a graphical editor',
+  [SumSubRejectionLabels.DOCUMENT_PAGE_MISSING]: 'Some pages of a document are missing',
+  [SumSubRejectionLabels.DOCUMENT_DAMAGED]: 'Your document is damaged',
+  [SumSubRejectionLabels.REGULATIONS_VIOLATIONS]: 'Violations of regulations were found',
+  [SumSubRejectionLabels.INCONSISTENT_PROFILE]: 'Data or documents of different persons were uploaded',
+  [SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA]: 'Applicant data does not match the data in your documents',
+  [SumSubRejectionLabels.ADDITIONAL_DOCUMENT_REQUIRED]: 'Additional documents are required to pass the check',
+  [SumSubRejectionLabels.AGE_REQUIREMENT_MISMATCH]: 'The age requirement is not met',
+  [SumSubRejectionLabels.REQUESTED_DATA_MISMATCH]:
+    'Provided information does not match with the data from the document',
+  [SumSubRejectionLabels.EXPERIENCE_REQUIREMENT_MISMATCH]: 'You do not have enough experience',
+  [SumSubRejectionLabels.COMPROMISED_PERSONS]: 'You correspond to compromised person politics',
+  [SumSubRejectionLabels.PEP]: 'You belong to the PEP category',
+  [SumSubRejectionLabels.ADVERSE_MEDIA]: 'You were found in the adverse media',
+  [SumSubRejectionLabels.FRAUDULENT_PATTERNS]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.SANCTIONS]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.NOT_ALL_CHECKS_COMPLETED]: 'Not all of the checks were completed',
+  [SumSubRejectionLabels.FRONT_SIDE_MISSING]: 'The front side of the document is missing',
+  [SumSubRejectionLabels.BACK_SIDE_MISSING]: 'The back side of the document is missing',
+  [SumSubRejectionLabels.SCREENSHOTS]: 'You uploaded screenshots',
+  [SumSubRejectionLabels.BLACK_AND_WHITE]: 'You uploaded black and white photos of your documents',
+  [SumSubRejectionLabels.INCOMPATIBLE_LANGUAGE]: 'A translation of your documents is required',
+  [SumSubRejectionLabels.EXPIRATION_DATE]: 'You uploaded an expired document',
+  [SumSubRejectionLabels.UNFILLED_ID]: 'You uploaded the document without signatures and stamps',
+  [SumSubRejectionLabels.BAD_SELFIE]: 'You uploaded a selfie in poor quality',
+  [SumSubRejectionLabels.BAD_VIDEO_SELFIE]: 'You uploaded a video selfie in poor quality',
+  [SumSubRejectionLabels.BAD_FACE_MATCHING]: 'A face check between a document and a selfie was failed',
+  [SumSubRejectionLabels.BAD_PROOF_OF_IDENTITY]: 'You uploaded a poor quality ID document',
+  [SumSubRejectionLabels.BAD_PROOF_OF_ADDRESS]: 'You uploaded a poor quality proof of address',
+  [SumSubRejectionLabels.BAD_PROOF_OF_PAYMENT]: 'You uploaded a poor quality proof of payment',
+  [SumSubRejectionLabels.FRAUDULENT_LIVENESS]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.COMPANY_NOT_DEFINED_STRUCTURE]: 'The organization control structure was not defined',
+  [SumSubRejectionLabels.COMPANY_NOT_DEFINED_BENEFICIARIES]:
+    'The organization beneficial owners were not identified and duly verified',
+  [SumSubRejectionLabels.COMPANY_NOT_VALIDATED_BENEFICIARIES]: 'The organization beneficial owners were not validated',
+  [SumSubRejectionLabels.COMPANY_NOT_DEFINED_REPRESENTATIVES]: 'The organization representatives were not defined',
+  [SumSubRejectionLabels.COMPANY_NOT_VALIDATED_REPRESENTATIVES]: 'The organization representatives were not validated',
+  [SumSubRejectionLabels.APPLICANT_INTERRUPTED_INTERVIEW]:
+    'You refused to finish the interview during the video ident call',
+  [SumSubRejectionLabels.DOCUMENT_MISSING]:
+    'You refused to show or did not have required documents during the video ident call',
+  [SumSubRejectionLabels.UNSUITABLE_ENV]: 'You are either not alone or not visible during the video ident call',
+  [SumSubRejectionLabels.CONNECTION_INTERRUPTED]: 'The video ident call connection was interrupted',
+
+  [SumSubRejectionLabels.INCORRECT_SOCIAL_NUMBER]: 'Your social number is incorrect',
+  [SumSubRejectionLabels.SELFIE_WITH_PAPER]: 'Unknown',
+  [SumSubRejectionLabels.CHECK_UNAVAILABLE]: 'Unknown',
+  [SumSubRejectionLabels.DB_DATA_MISMATCH]: 'Unknown',
+  [SumSubRejectionLabels.DB_DATA_NOT_FOUND]: 'Unknown',
+  [SumSubRejectionLabels.THIRD_PARTY_INVOLVED]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.UNSUPPORTED_LANGUAGE]: 'Your language is unsupported',
+
+  //[RejectionLabels.FOREIGNER]: 'Document from unsupported country',
+  //[RejectionLabels.OTHER]: 'There is some unclassified reason of rejection',
+  //[RejectionLabels.SELFIE_WITH_PAYMENT]: 'A special selfie is required',
+  //[RejectionLabels.OK]: 'Unknown',
+};
+
+export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
+  if (dto.type == SumSubWebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
+  if (dto.type == SumSubWebhookType.APPLICANT_REVIEWED)
     return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+}
+
+export function getSumSubReason(reasons: SumSubRejectionLabels[]): string {
+  return `<ul>${reasons.map((r) => `<li>${SumSubReasonMap[r] ?? r}</li>`).join('')}</ul>`;
 }

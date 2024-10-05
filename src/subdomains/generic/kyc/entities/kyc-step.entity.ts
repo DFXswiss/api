@@ -3,8 +3,8 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
-import { IdentResultData, IdentResultType } from '../dto/ident-result-data.dto';
-import { IdNowResult } from '../dto/input/ident-result.dto';
+import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdNowResult } from '../dto/ident-result.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -233,7 +233,7 @@ export class KycStep extends IEntity {
       const identResultData = this.getResult<SumsubResult>();
 
       return {
-        type: IdentResultType.SUMSUB,
+        type: IdentType.SUM_SUB,
         firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
         lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
         birthname: null,
@@ -254,7 +254,7 @@ export class KycStep extends IEntity {
       const identResultData = this.getResult<IdNowResult>();
 
       return {
-        type: IdentResultType.ID_NOW,
+        type: IdentType.ID_NOW,
         firstname: identResultData.userdata?.firstname?.value,
         lastname: identResultData.userdata?.lastname?.value,
         birthname: identResultData.userdata?.birthname?.value,

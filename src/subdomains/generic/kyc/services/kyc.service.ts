@@ -32,15 +32,15 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentCheckError } from '../dto/ident-check-error.enum';
-import { IdentResultData } from '../dto/ident-result-data.dto';
-import { IdentStatus } from '../dto/ident.dto';
+import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import {
+  IdNowReason,
   IdNowResult,
-  IdentReason,
   IdentShortResult,
-  getIdentReason,
+  getIdNowIdentReason,
   getIdentResult,
-} from '../dto/input/ident-result.dto';
+} from '../dto/ident-result.dto';
+import { IdentStatus } from '../dto/ident.dto';
 import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
@@ -50,7 +50,13 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { SumsubResult, WebhookResult, getSumsubResult } from '../dto/sum-sub.dto';
+import {
+  SumSubRejectionLabels,
+  SumSubWebhookResult,
+  SumsubResult,
+  getSumSubReason,
+  getSumsubResult,
+} from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import {
   KycLogType,
@@ -372,10 +378,10 @@ export class KycService {
 
     this.logger.info(`Received intrum ident webhook call for transaction ${transactionId}: ${result}`);
 
-    await this.updateIdent(transactionId, dto, result, reason);
+    await this.updateIdent(IdentType.ID_NOW, transactionId, dto, result, [reason]);
   }
 
-  async updateSumsubIdent(dto: WebhookResult): Promise<void> {
+  async updateSumsubIdent(dto: SumSubWebhookResult): Promise<void> {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
@@ -385,14 +391,21 @@ export class KycService {
 
     const data = await this.sumsubService.getApplicantData(dto.applicantId);
 
-    await this.updateIdent(transactionId, { webhook: dto, data }, result, IdentReason.IDENT_OTHER); // TODO: map reasons
+    await this.updateIdent(
+      IdentType.SUM_SUB,
+      transactionId,
+      { webhook: dto, data },
+      result,
+      dto.reviewResult.rejectLabels,
+    ); // TODO: map reasons
   }
 
   private async updateIdent(
+    type: IdentType,
     transactionId: string,
     dto: IdNowResult | SumsubResult,
     result: IdentShortResult,
-    reason: IdentReason,
+    reason: IdNowReason[] | SumSubRejectionLabels[],
   ): Promise<void> {
     if (!transactionId.includes(Config.kyc.transactionPrefix)) {
       this.logger.verbose(`Received webhook call for a different system: ${transactionId}`);
@@ -407,7 +420,7 @@ export class KycService {
     switch (result) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
-        await this.kycNotificationService.identFailed(user, getIdentReason(reason));
+        await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
         break;
 
       case IdentShortResult.ABORT:
@@ -426,7 +439,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.identFailed(user, getIdentReason(reason));
+        await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
         break;
 
       default:
@@ -435,6 +448,12 @@ export class KycService {
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
+  }
+
+  private getIdentReason(type: IdentType, reason: IdNowReason[] | SumSubRejectionLabels[]): string {
+    return type === IdentType.ID_NOW
+      ? getIdNowIdentReason(reason[0])
+      : getSumSubReason(reason as SumSubRejectionLabels[]);
   }
 
   async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
