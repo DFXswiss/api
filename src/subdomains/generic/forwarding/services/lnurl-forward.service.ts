@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import {
@@ -15,6 +15,7 @@ import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integrati
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
 import { LightningHelper } from '../../../../integration/lightning/lightning-helper';
 import { LightningService } from '../../../../integration/lightning/services/lightning.service';
+import { PaymentDto } from '../dto/payment.dto';
 
 @Injectable()
 export class LnUrlForwardService {
@@ -87,6 +88,18 @@ export class LnUrlForwardService {
       amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
       hex: params.hex,
+    };
+  }
+
+  // wait
+  async waitForPayment(id: string): Promise<PaymentDto> {
+    const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
+    if (!payment) throw new NotFoundException('No pending payment found');
+
+    const updatedPayment = await this.paymentLinkPaymentService.waitForPayment(payment);
+
+    return {
+      status: updatedPayment.status,
     };
   }
 
