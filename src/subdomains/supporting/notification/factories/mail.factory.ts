@@ -27,6 +27,7 @@ export enum MailTranslationKey {
   IDENT_STARTED = 'mail.kyc.identStarted',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
+  KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
   KYC_REMINDER = 'mail.kyc.reminder',
   LOGIN = 'mail.login',
   ACCOUNT_MERGE_REQUEST = 'mail.account_merge.request',
@@ -171,7 +172,7 @@ export class MailFactory {
 
   //*** TRANSLATION METHODS ***//
 
-  private translate(key: string, lang: string, args?: any): string {
+  public translate(key: string, lang: string, args?: any): string {
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
   }
 
@@ -253,7 +254,7 @@ export class MailFactory {
 
   //*** STATIC HELPER METHODS ***//
 
-  static parseMailKey(mailKey: MailTranslationKey, amlReason: string): string {
-    return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
+  static parseMailKey(mailKey: MailTranslationKey, value: string): string {
+    return `${mailKey}.${value.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }
