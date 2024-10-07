@@ -397,7 +397,7 @@ export class KycService {
       { webhook: dto, data },
       result,
       dto.reviewResult.rejectLabels,
-    ); // TODO: map reasons
+    );
   }
 
   private async updateIdent(

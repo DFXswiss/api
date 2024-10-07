@@ -184,8 +184,8 @@ export enum SumSubRejectionLabels {
 }
 
 const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
-  [SumSubRejectionLabels.FORGERY]: 'You are not allowed to complete kyc',
-  [SumSubRejectionLabels.CRIMINAL]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.FORGERY]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.CRIMINAL]: 'You are not allowed to complete KYC',
   [SumSubRejectionLabels.DOCUMENT_TEMPLATE]: 'The submitted documents are templates downloaded from the internet',
   [SumSubRejectionLabels.DIGITAL_DOCUMENT]: 'You uploaded a digital version of the document',
   [SumSubRejectionLabels.LOW_QUALITY]: 'Documents have low-quality that does not allow definitive decisions to be made',
@@ -193,14 +193,14 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
   [SumSubRejectionLabels.NOT_DOCUMENT]: 'The submitted documents are not relevant for the verification procedure',
   [SumSubRejectionLabels.SELFIE_MISMATCH]: 'Your photo does not match a photo on the provided documents',
   [SumSubRejectionLabels.ID_INVALID]: 'Your ident document is not valid',
-  [SumSubRejectionLabels.DOCUMENT_DEPRIVED]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.DOCUMENT_DEPRIVED]: 'You are not allowed to complete KYC',
   [SumSubRejectionLabels.DUPLICATE]: 'Duplicates are not allowed by the regulations',
   [SumSubRejectionLabels.BAD_AVATAR]: 'Your avatar does not meet our requirements',
   [SumSubRejectionLabels.WRONG_USER_REGION]: 'Your country/region is not allowed',
   [SumSubRejectionLabels.INCOMPLETE_DOCUMENT]:
     'Some information is missing from the document, or it is only partially visible',
-  [SumSubRejectionLabels.BLACKLIST]: 'You are not allowed to complete kyc',
-  [SumSubRejectionLabels.BLOCKLIST]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.BLACKLIST]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.BLOCKLIST]: 'You are not allowed to complete KYC',
   [SumSubRejectionLabels.WRONG_ADDRESS]: 'The address on your documents does not match the address you entered',
   [SumSubRejectionLabels.UNSATISFACTORY_PHOTOS]:
     'Problems with the photos during verification, like poor quality or masked information',
@@ -218,8 +218,8 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
   [SumSubRejectionLabels.COMPROMISED_PERSONS]: 'You correspond to compromised person politics',
   [SumSubRejectionLabels.PEP]: 'You belong to the PEP category',
   [SumSubRejectionLabels.ADVERSE_MEDIA]: 'You were found in the adverse media',
-  [SumSubRejectionLabels.FRAUDULENT_PATTERNS]: 'You are not allowed to complete kyc',
-  [SumSubRejectionLabels.SANCTIONS]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.FRAUDULENT_PATTERNS]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.SANCTIONS]: 'You are not allowed to complete KYC',
   [SumSubRejectionLabels.NOT_ALL_CHECKS_COMPLETED]: 'Not all of the checks were completed',
   [SumSubRejectionLabels.FRONT_SIDE_MISSING]: 'The front side of the document is missing',
   [SumSubRejectionLabels.BACK_SIDE_MISSING]: 'The back side of the document is missing',
@@ -234,7 +234,7 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
   [SumSubRejectionLabels.BAD_PROOF_OF_IDENTITY]: 'You uploaded a poor quality ID document',
   [SumSubRejectionLabels.BAD_PROOF_OF_ADDRESS]: 'You uploaded a poor quality proof of address',
   [SumSubRejectionLabels.BAD_PROOF_OF_PAYMENT]: 'You uploaded a poor quality proof of payment',
-  [SumSubRejectionLabels.FRAUDULENT_LIVENESS]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.FRAUDULENT_LIVENESS]: 'You are not allowed to complete KYC',
   [SumSubRejectionLabels.COMPANY_NOT_DEFINED_STRUCTURE]: 'The organization control structure was not defined',
   [SumSubRejectionLabels.COMPANY_NOT_DEFINED_BENEFICIARIES]:
     'The organization beneficial owners were not identified and duly verified',
@@ -253,7 +253,7 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
   [SumSubRejectionLabels.CHECK_UNAVAILABLE]: 'Unknown',
   [SumSubRejectionLabels.DB_DATA_MISMATCH]: 'Unknown',
   [SumSubRejectionLabels.DB_DATA_NOT_FOUND]: 'Unknown',
-  [SumSubRejectionLabels.THIRD_PARTY_INVOLVED]: 'You are not allowed to complete kyc',
+  [SumSubRejectionLabels.THIRD_PARTY_INVOLVED]: 'You are not allowed to complete KYC',
   [SumSubRejectionLabels.UNSUPPORTED_LANGUAGE]: 'Your language is unsupported',
 
   //[RejectionLabels.FOREIGNER]: 'Document from unsupported country',
