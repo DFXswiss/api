@@ -142,11 +142,8 @@ export class PaymentLinkPaymentService {
     });
   }
 
-  async waitForPayment(paymentLink: PaymentLink): Promise<void> {
-    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
-    if (!pendingPayment) throw new NotFoundException('No pending payment found');
-
-    await this.paymentWaitMap.wait(pendingPayment.id, 0);
+  async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+    return this.paymentWaitMap.wait(payment.id, 0);
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
