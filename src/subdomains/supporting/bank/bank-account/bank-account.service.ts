@@ -10,6 +10,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -34,14 +35,17 @@ export class BankAccountService {
     if (DisabledProcess(Process.BANK_DATA_SYNC)) return;
 
     const entities = await this.bankAccountRepo.find({
-      where: { synced: false },
+      where: { synced: IsNull() },
       relations: { userData: true },
       take: 5000,
     });
 
     for (const entity of entities) {
       try {
-        if (entity.userData.status === UserDataStatus.MERGED) continue;
+        if (entity.userData.status === UserDataStatus.MERGED) {
+          await this.bankAccountRepo.update(entity.id, { synced: false });
+          continue;
+        }
 
         await this.bankDataService.createIbanForUser(
           entity.userData.id,
