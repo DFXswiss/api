@@ -45,6 +45,7 @@ export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
   quote: {
     id: string;
     expiration: Date;
+    payment: string;
   };
   requestedAmount: RequestedAmountAsset;
   transferAmounts: TransferAmount[];
