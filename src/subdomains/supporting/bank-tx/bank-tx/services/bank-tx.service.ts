@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -240,6 +240,17 @@ export class BankTxService {
       { type: IsNull() },
       { type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]) },
     ]);
+  }
+
+  async getPendingBankToBankTx(bank1Iban: string, bank2Iban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { iban: bank1Iban, accountIban: bank2Iban, id: MoreThan(122008) },
+      { iban: bank2Iban, accountIban: bank1Iban, id: MoreThan(122008) },
+    ]);
+  }
+
+  async getPendingExchangeToBankTx(accountIban: string, type: BankTxType): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ accountIban, type, id: MoreThan(121827) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

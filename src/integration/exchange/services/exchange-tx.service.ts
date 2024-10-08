@@ -6,7 +6,10 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { ExchangeSync, ExchangeSyncs, ExchangeTxDto } from '../entities/exchange-tx.entity';
+import { MoreThan } from 'typeorm';
+import { ExchangeTxDto } from '../dto/exchange-tx.dto';
+import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
+import { ExchangeName } from '../enums/exchange.enum';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
@@ -46,6 +49,15 @@ export class ExchangeTxService {
 
       await this.exchangeTxRepo.save(entity);
     }
+  }
+
+  async getPendingExchangeTx(
+    type: ExchangeTxType,
+    exchange: ExchangeName,
+    address: string,
+    method: string,
+  ): Promise<ExchangeTx[]> {
+    return this.exchangeTxRepo.findBy({ type, exchange, address, method, id: MoreThan(33210) });
   }
 
   private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {

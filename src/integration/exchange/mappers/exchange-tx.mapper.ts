@@ -1,5 +1,6 @@
 import { Trade, Transaction } from 'ccxt';
-import { ExchangeTxDto, ExchangeTxType } from '../entities/exchange-tx.entity';
+import { ExchangeTxDto } from '../dto/exchange-tx.dto';
+import { ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
 
 export class ExchangeTxMapper {

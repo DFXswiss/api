@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ExchangeModule } from 'src/integration/exchange/exchange.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-management/liquidity-management.module';
@@ -19,6 +20,7 @@ import { LogModule } from './log.module';
     SellCryptoModule,
     BuyCryptoModule,
     BankTxModule,
+    ExchangeModule,
   ],
   controllers: [],
   providers: [LogJobService],

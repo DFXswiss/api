@@ -1,4 +1,7 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
 import { Column, Entity, Index } from 'typeorm';
 import { ExchangeName } from '../enums/exchange.enum';
 
@@ -7,8 +10,6 @@ export enum ExchangeTxType {
   DEPOSIT = 'Deposit',
   TRADE = 'Trade',
 }
-
-export type ExchangeTxDto = Omit<ExchangeTx, keyof IEntity>;
 
 @Entity()
 @Index((exchangeTx: ExchangeTx) => [exchangeTx.exchange, exchangeTx.type, exchangeTx.externalId], {
@@ -45,53 +46,67 @@ export class ExchangeTx extends IEntity {
   // Withdrawal/Deposit
 
   @Column({ length: 256, nullable: true })
-  method?: string;
+  method: string;
 
   @Column({ length: 256, nullable: true })
-  asset?: string;
+  asset: string;
 
   @Column({ length: 256, nullable: true })
-  currency?: string;
+  currency: string;
 
   @Column({ length: 'MAX', nullable: true })
-  address?: string;
+  address: string;
 
   @Column({ length: 256, nullable: true })
-  txId?: string;
+  txId: string;
 
   // Trade
   @Column({ length: 256, nullable: true })
-  order?: string;
+  order: string;
 
   @Column({ length: 256, nullable: true })
-  pair?: string;
+  pair: string;
 
   @Column({ length: 256, nullable: true })
-  orderType?: string;
+  orderType: string;
 
   @Column({ type: 'float', nullable: true })
-  price?: number;
+  price: number;
 
   @Column({ type: 'float', nullable: true })
-  cost?: number;
+  cost: number;
 
   @Column({ type: 'float', nullable: true })
-  vol?: number;
+  vol: number;
 
   @Column({ type: 'float', nullable: true })
-  margin?: number;
+  margin: number;
 
   @Column({ type: 'float', nullable: true })
-  leverage?: number;
+  leverage: number;
 
   @Column({ length: 256, nullable: true })
-  tradeId?: string;
+  tradeId: string;
 
   @Column({ length: 256, nullable: true })
-  symbol?: string;
+  symbol: string;
 
   @Column({ length: 256, nullable: true })
-  side?: string;
+  side: string;
+
+  //*** ENTITY METHODS ***//
+
+  pendingBankAmount(
+    asset: Asset,
+    type: BankExchangeType,
+    _: string | undefined,
+    address: string | undefined,
+    toIban: string,
+  ): number {
+    if (!BankService.isBankMatching(asset, toIban) || this.currency !== asset.dexName) return 0;
+
+    return this.type === type && this.address === address ? this.amount : 0;
+  }
 }
 
 export interface ExchangeSync {
