@@ -21,6 +21,7 @@ import { ChallengeDto } from './dto/challenge.dto';
 import { MergeResponseDto } from './dto/merge-response.dto';
 import { RedirectResponseDto } from './dto/redirect-response.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -102,6 +103,16 @@ export class AuthController {
   @ApiOkResponse({ type: SignMessageDto })
   getSignMessage(@Query('address') address: string): SignMessageDto {
     return this.authService.getSignInfo(address);
+  }
+
+  @Get('verifySignature')
+  @ApiExcludeEndpoint()
+  verifySignMessage(
+    @Query('address') address: string,
+    @Query('message') message: string,
+    @Query('signature') signature: string,
+  ): Promise<VerifySignMessageDto> {
+    return this.authService.verifyMessageSignature(address, message, signature);
   }
 
   @Get('challenge')

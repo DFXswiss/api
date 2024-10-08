@@ -2,7 +2,6 @@ import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
-import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
 import { IdentResultData, IdentResultType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/input/ident-result.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
@@ -292,13 +291,6 @@ export class KycStep extends IEntity {
       .filter((n) => n)
       .map((n) => n.trim())
       .join(' ');
-  }
-
-  get identErrorsMailString(): string {
-    return `<ul>${this.comment
-      .split(';')
-      .map((c) => `<li>${IdentCheckErrorMap[c as IdentCheckError]}</li>`)
-      .join('')}</ul>`;
   }
 
   get isSumsub(): boolean {
