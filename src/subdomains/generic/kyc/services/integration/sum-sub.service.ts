@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
-import { ApplicantType, DataResult, SumsubResult } from '../../dto/sum-sub.dto';
+import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
 @Injectable()
@@ -47,8 +47,8 @@ export class SumsubService {
     return [{ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF }];
   }
 
-  async getApplicantData(applicantId: string): Promise<DataResult> {
-    return this.callApi<DataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
+  async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
+    return this.callApi<SumSubDataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //
