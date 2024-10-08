@@ -40,9 +40,9 @@
         },
         "chargeback": {
             "unconfirmed": {
-                "title": "Confermare il rimborso",
-                "salutation": "La transazione non è andata a buon fine e il rimborso deve essere confermato.",
-                "transaction_button": "Confermare il rimborso:<br>[url:clicca qui]"
+                "title": "Azione necessaria",
+                "salutation": "Per la transazione è necessaria un'azione",
+                "transaction_button": "È possibile eseguire l'azione tramite il seguente link:<br>[url:clicca qui]"
             },
             "fiat": {
                 "title": "Trasferimento bancario effettuato",

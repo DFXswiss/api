@@ -40,9 +40,9 @@
         },
         "chargeback": {
             "unconfirmed": {
-                "title": "Confirmar reembolso",
-                "salutation": "Su transacción ha fallado y el reembolso necesita ser confirmado",
-                "transaction_button": "Confirme su reembolso:<br>[url:haga clic aquí]"
+                "title": "Medidas necesarias",
+                "salutation": "Se requiere una acción para su transacción",
+                "transaction_button": "Puede realizar la acción a través del siguiente enlace:<br>[url:haga clic aquí]"
             },
             "fiat": {
                 "title": "Los fondos han sido reembolsados",

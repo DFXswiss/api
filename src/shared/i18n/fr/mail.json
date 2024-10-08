@@ -40,9 +40,9 @@
         },
         "chargeback": {
             "unconfirmed": {
-                "title": "Confirmer le remboursement",
-                "salutation": "Votre transaction a échoué et le remboursement doit être confirmé.",
-                "transaction_button": "Veuillez confirmer votre remboursement:<br>[url:cliquez ici]"
+                "title": "Action requise",
+                "salutation": "Une action est requise pour votre transaction",
+                "transaction_button": "Vous pouvez effectuer l'action via le lien suivant:<br>[url:cliquez ici]"
             },
             "fiat": {
                 "title":"Remboursement des fonds",

@@ -40,9 +40,9 @@
         },
         "chargeback": {
             "unconfirmed": {
-                "title": "Rückzahlung bestätigen",
-                "salutation": "Deine Transaktion ist fehlgeschlagen und die Rückzahlung muss bestätigt werden",
-                "transaction_button": "Bitte bestätige deine Rückzahlung:<br>[url:Klick hier]"
+                "title": "Aktion ausstehend",
+                "salutation": "Es ist eine Aktion für deine Transaktion erforderlich",
+                "transaction_button": "Du kannst die Aktion über folgenden Link ausführen:<br>[url:Klick hier]"
             },
             "fiat": {
                 "title": "Guthaben wurde erstattet",
