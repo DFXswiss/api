@@ -26,73 +26,73 @@ export class ExchangeTx extends IEntity {
   externalId: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  externalCreated: Date;
+  externalCreated?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  externalUpdated: Date;
+  externalUpdated?: Date;
 
   @Column({ length: 256, nullable: true })
-  status: string;
+  status?: string;
 
   @Column({ type: 'float', nullable: true })
-  amount: number;
+  amount?: number;
 
   @Column({ type: 'float', nullable: true })
-  feeAmount: number;
+  feeAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  feeCurrency: string;
+  feeCurrency?: string;
 
   // Withdrawal/Deposit
 
   @Column({ length: 256, nullable: true })
-  method: string;
+  method?: string;
 
   @Column({ length: 256, nullable: true })
-  asset: string;
+  asset?: string;
 
   @Column({ length: 256, nullable: true })
-  currency: string;
+  currency?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  address: string;
+  address?: string;
 
   @Column({ length: 256, nullable: true })
-  txId: string;
+  txId?: string;
 
   // Trade
   @Column({ length: 256, nullable: true })
-  order: string;
+  order?: string;
 
   @Column({ length: 256, nullable: true })
-  pair: string;
+  pair?: string;
 
   @Column({ length: 256, nullable: true })
-  orderType: string;
+  orderType?: string;
 
   @Column({ type: 'float', nullable: true })
-  price: number;
+  price?: number;
 
   @Column({ type: 'float', nullable: true })
-  cost: number;
+  cost?: number;
 
   @Column({ type: 'float', nullable: true })
-  vol: number;
+  vol?: number;
 
   @Column({ type: 'float', nullable: true })
-  margin: number;
+  margin?: number;
 
   @Column({ type: 'float', nullable: true })
-  leverage: number;
+  leverage?: number;
 
   @Column({ length: 256, nullable: true })
-  tradeId: string;
+  tradeId?: string;
 
   @Column({ length: 256, nullable: true })
-  symbol: string;
+  symbol?: string;
 
   @Column({ length: 256, nullable: true })
-  side: string;
+  side?: string;
 
   //*** ENTITY METHODS ***//
 
