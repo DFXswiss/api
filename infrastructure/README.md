@@ -135,7 +135,9 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
 
 1. Run docker compose `docker compose -f docker-compose-monero.yml up -d`
 
-## Docker compose to start all container
+## Docker compose to start or stop all container
+
+### Start all container
 
 1. Execute script: `sudo ./docker-compose.sh` - all `bitcoin/lightning` and `monero` containers are started
 
@@ -146,3 +148,7 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
    - bitcoin-lightning-nginx-1
    - monero-monerod-1
    - monero-monero-rpc-1
+
+### Stop all container
+
+1. Execute command `docker compose stop`
