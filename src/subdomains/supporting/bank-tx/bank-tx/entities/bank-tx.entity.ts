@@ -292,7 +292,7 @@ export class BankTx extends IEntity {
       case BankTxType.INTERNAL:
         return this.iban === toIban && this.accountIban === fromIban
           ? this.instructedAmount
-          : this.iban === toIban && this.accountIban === fromIban
+          : this.iban === fromIban && this.accountIban === toIban
           ? -this.instructedAmount
           : 0;
 
