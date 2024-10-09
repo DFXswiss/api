@@ -6,4 +6,5 @@ export interface PaymentLinkConfig {
   blockchains: Blockchain[];
   minCompletionStatus: PaymentQuoteStatus;
   displayQr: boolean;
+  fee: number;
 }

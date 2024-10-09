@@ -127,6 +127,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   blockchainFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee: number;
+
   // Fail
   @Column({ length: 256, nullable: true })
   chargebackTxId: string;
@@ -307,7 +310,7 @@ export class BuyFiat extends IEntity {
     inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
     outputReferenceAsset: Fiat,
-    outputAmount: number,
+    paymentLinkFee: number,
     outputAsset: Fiat,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
@@ -325,6 +328,7 @@ export class BuyFiat extends IEntity {
             percentFeeAmount: totalFee,
             totalFeeAmount: totalFee,
             totalFeeAmountChf,
+            paymentLinkFee,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
@@ -332,7 +336,7 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount,
+            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
             outputAsset,
             outputReferenceAsset,
