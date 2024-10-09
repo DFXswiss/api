@@ -312,7 +312,6 @@ export class BuyFiat extends IEntity {
     outputReferenceAmount: number,
     outputReferenceAsset: Fiat,
     paymentLinkFee: number,
-    outputAsset: Fiat,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
@@ -339,7 +338,7 @@ export class BuyFiat extends IEntity {
             usedFees: null,
             outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            outputAsset,
+            outputAsset: outputReferenceAsset,
             outputReferenceAsset,
             priceSteps: this.priceSteps,
           };

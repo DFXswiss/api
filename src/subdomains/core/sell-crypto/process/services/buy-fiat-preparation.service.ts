@@ -261,7 +261,6 @@ export class BuyFiatPreparationService {
             outputReferenceAmount,
             outputCurrency,
             paymentLinkFee,
-            outputCurrency,
             [priceStep],
           ),
         );
