@@ -35,6 +35,7 @@ import {
   KycContactData,
   KycFileData,
   KycLegalEntityData,
+  KycManualIdentData,
   KycNationalityData,
   KycPersonalData,
   KycSignatoryPowerData,
@@ -275,6 +276,17 @@ export class KycController {
       this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${data.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);
     }
+  }
+
+  @Put('ident/manual/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateIdentData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycManualIdentData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateIdentManual(code, +id, data);
   }
 
   @Post('ident/:type')

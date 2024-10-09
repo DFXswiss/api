@@ -16,7 +16,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan, Not } from 'typeorm';
+import { LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -41,7 +41,7 @@ import {
   getIdentResult,
 } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
-import { KycContactData, KycFileData, KycPersonalData } from '../dto/input/kyc-data.dto';
+import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
@@ -131,7 +131,6 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: KycStepStatus.INTERNAL_REVIEW,
-        type: Not(KycStepType.MANUAL),
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
       relations: { userData: { kycSteps: true } },
@@ -158,7 +157,7 @@ export class KycService {
         ) {
           entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
           entity.complete();
-        } else if (errors.length === 0) {
+        } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
         } else {
           entity.manualReview();
@@ -450,6 +449,27 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
+  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycResultDto> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    const { contentType, buffer } = Util.fromBase64(dto.document.file);
+    const newUrl = await this.documentService.uploadUserFile(
+      user.id,
+      FileType.IDENTIFICATION,
+      `${Util.isoDateTime(new Date())}-manual-ident-${Util.randomId()}-${dto.document.fileName}`,
+      buffer,
+      contentType as ContentType,
+    );
+
+    user = user.internalReviewStep(kycStep, { ...dto, fileUrl: newUrl, document: undefined });
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toKycResult(kycStep);
+  }
+
   private getIdentReason(type: IdentType, reason: IdNowReason[] | SumSubRejectionLabels[]): string {
     return type === IdentType.ID_NOW
       ? getIdNowIdentReason(reason[0])
@@ -633,7 +653,7 @@ export class KycService {
         if (kycStep.isSumsub) {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
-        } else {
+        } else if (!kycStep.isManual) {
           kycStep.transactionId = IdentService.transactionId(user, kycStep);
           kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
         }
