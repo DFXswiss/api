@@ -23,6 +23,8 @@ import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from '../bank/bank/bank.service';
+import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
@@ -59,6 +61,7 @@ export class LogJobService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
     private readonly exchangeTxService: ExchangeTxService,
+    private readonly bankService: BankService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -84,6 +87,9 @@ export class LogJobService {
       .getAllAssets()
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
 
+    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+    const maerkiBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
     const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
     const pendingPayIns = await this.payInService.getPendingPayIns();
@@ -94,13 +100,13 @@ export class LogJobService {
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
     const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(
-      'LU116060002000005040',
-      'CH6808573177975201814',
+      olkyBank.iban,
+      maerkiBank.iban,
       Util.daysBefore(14),
       Util.daysBefore(7),
     );
     const recentBankTxFromKraken = await this.bankTxService.getRecentExchangeToBankTx(
-      'CH6808573177975201814',
+      maerkiBank.iban,
       BankTxType.KRAKEN,
       Util.daysBefore(7),
     );
@@ -126,9 +132,9 @@ export class LogJobService {
         [curr],
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
-        'LU116060002000005040',
+        olkyBank.iban,
         undefined,
-        'CH6808573177975201814',
+        maerkiBank.iban,
       );
       const pendingKrakenTxAmount = this.getPendingBankAmounts(
         [curr],
@@ -136,7 +142,7 @@ export class LogJobService {
         ExchangeTxType.WITHDRAWAL,
         undefined,
         'Maerki Baumann & Co. AG',
-        'CH6808573177975201814',
+        maerkiBank.iban,
       );
       const pendingKrakenBankTxAmount = this.getPendingBankAmounts(
         [curr],
@@ -144,7 +150,7 @@ export class LogJobService {
         BankTxType.KRAKEN,
         undefined,
         undefined,
-        'CH6808573177975201814',
+        maerkiBank.iban,
       );
 
       const totalPlusPending =
