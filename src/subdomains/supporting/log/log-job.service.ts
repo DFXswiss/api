@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -23,6 +26,8 @@ import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
+
+export type BankExchangeType = ExchangeTxType | BankTxType;
 
 type BalancesByFinancialType = {
   [financialType: string]: {
@@ -53,6 +58,7 @@ export class LogJobService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
+    private readonly exchangeTxService: ExchangeTxService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -87,6 +93,24 @@ export class LogJobService {
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
+    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(
+      'LU116060002000005040',
+      'CH6808573177975201814',
+      Util.daysBefore(14),
+      Util.daysBefore(7),
+    );
+    const recentBankTxFromKraken = await this.bankTxService.getRecentExchangeToBankTx(
+      'CH6808573177975201814',
+      BankTxType.KRAKEN,
+      Util.daysBefore(7),
+    );
+    const recentKrakenTx = await this.exchangeTxService.getRecentExchangeTx(
+      ExchangeTxType.WITHDRAWAL,
+      ExchangeName.KRAKEN,
+      'Maerki Baumann & Co. AG',
+      'Bank Frick (SEPA)',
+      Util.daysBefore(14),
+    );
 
     const assetLog = assets.reduce((prev, curr) => {
       // plus
@@ -98,7 +122,33 @@ export class LogJobService {
         0,
       );
 
-      const totalPlusPending = cryptoInput + exchangeOrder;
+      const pendingOlkyAmount = this.getPendingBankAmounts(
+        [curr],
+        recentBankTxFromOlky,
+        BankTxType.INTERNAL,
+        'LU116060002000005040',
+        undefined,
+        'CH6808573177975201814',
+      );
+      const pendingKrakenTxAmount = this.getPendingBankAmounts(
+        [curr],
+        recentKrakenTx,
+        ExchangeTxType.WITHDRAWAL,
+        undefined,
+        'Maerki Baumann & Co. AG',
+        'CH6808573177975201814',
+      );
+      const pendingKrakenBankTxAmount = this.getPendingBankAmounts(
+        [curr],
+        recentBankTxFromKraken,
+        BankTxType.KRAKEN,
+        undefined,
+        undefined,
+        'CH6808573177975201814',
+      );
+
+      const totalPlusPending =
+        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenTxAmount + pendingKrakenBankTxAmount;
       const totalPlus = liquidityBalance + totalPlusPending;
 
       // minus
@@ -150,6 +200,8 @@ export class LogJobService {
                 total: totalPlusPending,
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
+                fromOlky: pendingOlkyAmount || undefined,
+                fromKraken: pendingKrakenTxAmount - pendingKrakenBankTxAmount || undefined,
               }
             : undefined,
         },
@@ -241,5 +293,20 @@ export class LogJobService {
         0,
       ),
     };
+  }
+
+  private getPendingBankAmounts(
+    assets: Asset[],
+    pendingTx: (BankTx | ExchangeTx)[],
+    type: BankExchangeType,
+    fromIban: string | undefined,
+    toAddress: string | undefined,
+    toIban: string,
+  ): number {
+    return assets.reduce(
+      (prev, curr) =>
+        prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, fromIban, toAddress, toIban), 0),
+      0,
+    );
   }
 }

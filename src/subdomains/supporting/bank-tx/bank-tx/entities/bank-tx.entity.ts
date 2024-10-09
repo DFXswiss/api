@@ -5,6 +5,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -276,6 +277,31 @@ export class BankTx extends IEntity {
 
   pendingOutputAmount(_: Asset): number {
     return 0;
+  }
+
+  pendingBankAmount(
+    asset: Asset,
+    type: BankExchangeType,
+    fromIban: string | undefined,
+    _: string | undefined,
+    toIban: string,
+  ): number {
+    if (!BankService.isBankMatching(asset, toIban) || this.instructedCurrency !== asset.dexName) return 0;
+
+    switch (type) {
+      case BankTxType.INTERNAL:
+        return this.iban === toIban && this.accountIban === fromIban
+          ? this.instructedAmount
+          : this.iban === toIban && this.accountIban === fromIban
+          ? -this.instructedAmount
+          : 0;
+
+      case BankTxType.KRAKEN:
+        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : 0;
+
+      default:
+        return 0;
+    }
   }
 }
 
