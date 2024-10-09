@@ -158,11 +158,11 @@ export class KycManualIdentData {
   @Transform(Util.trim)
   lastName: string;
 
-  @ApiPropertyOptional()
+  @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.trim)
-  birthName?: string;
+  birthName: string;
 
   @ApiProperty({ enum: IdentDocumentType })
   @IsNotEmpty()
@@ -181,14 +181,14 @@ export class KycManualIdentData {
   @Type(() => EntityDto)
   nationality: Country;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @Transform(Util.trim)
   birthplace: string;
 
-  @ApiProperty({ enum: GenderType })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ enum: GenderType })
+  @IsOptional()
   @IsEnum(GenderType)
   gender: GenderType;
 
