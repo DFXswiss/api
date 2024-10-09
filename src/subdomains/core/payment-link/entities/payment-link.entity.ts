@@ -7,6 +7,14 @@ import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
+const DefaultPaymentLinkConfig: PaymentLinkConfig = {
+  standards: Object.values(PaymentStandard),
+  blockchains: Object.values(Blockchain),
+  minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
+  displayQr: false,
+  fee: 0.002,
+};
+
 @Entity()
 export class PaymentLink extends IEntity {
   @OneToMany(() => PaymentLinkPayment, (payment) => payment.link, { nullable: true })
@@ -85,15 +93,8 @@ export class PaymentLink extends IEntity {
   }
 
   get configObj(): PaymentLinkConfig {
-    const defaultConfig: PaymentLinkConfig = {
-      standards: Object.values(PaymentStandard),
-      blockchains: Object.values(Blockchain),
-      minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
-      displayQr: false,
-    };
-
     const config = this.config ?? this.route.userData.paymentLinksConfig;
-    return config ? Object.assign(defaultConfig, JSON.parse(config)) : defaultConfig;
+    return config ? Object.assign(DefaultPaymentLinkConfig, JSON.parse(config)) : DefaultPaymentLinkConfig;
   }
 
   get defaultStandard(): PaymentStandard {
