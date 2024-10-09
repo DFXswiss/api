@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -240,6 +240,17 @@ export class BankTxService {
       { type: IsNull() },
       { type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]) },
     ]);
+  }
+
+  async getRecentBankToBankTx(fromIban: string, toIban: string, fromStart: Date, toStart: Date): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { iban: toIban, accountIban: fromIban, created: MoreThan(fromStart) },
+      { iban: fromIban, accountIban: toIban, created: MoreThan(toStart) },
+    ]);
+  }
+
+  async getRecentExchangeToBankTx(accountIban: string, type: BankTxType, start: Date): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ accountIban, type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

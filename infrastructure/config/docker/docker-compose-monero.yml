@@ -1,43 +1,58 @@
-version: '3.7'
 name: 'monero'
 
 services:
-  #  monerod:
-  #    image: sethsimmons/simple-monerod:v0.18.3.1
-  #    user: ${FIXUID:-1000}:${FIXGID:-1000}
-  #    restart: no
-  #    volumes:
-  #      - ./volumes/bitmonero:/home/monero/.bitmonero
-  #    ports:
-  #      - '18081:18081'
-  #      #- '18089:18089'
-  #    command:
-  #      #- "--rpc-restricted-bind-ip=127.0.0.1"
-  #      #- "--rpc-restricted-bind-port=18089"
-  #      #- "--public-node"
-  #      - "--no-zmq"
-  #      - "--no-igd"
-  #      - "--enable-dns-blocklist"
-  #      - "--prune-blockchain"
-  #      - "--out-peers=64"
+  monerod:
+    image: sethsimmons/simple-monerod:v0.18.3.1
+    user: ${FIXUID:-1000}:${FIXGID:-1000}
+    restart: always
+    volumes:
+      - ./volumes/bitmonero:/home/monero/.bitmonero
+    ports:
+      - '18081:18081'
+    healthcheck:
+      test: curl --insecure --fail https://localhost:18081/get_height || exit 1
+      start_period: 120s
+      interval: 30s
+      timeout: 60s
+      retries: 10
+    command:
+      - '--rpc-bind-ip=0.0.0.0'
+      - '--rpc-bind-port=18081'
+      - '--confirm-external-bind'
+      - '--no-zmq'
+      - '--no-igd'
+      - '--prune-blockchain'
+      - '--out-peers=64'
+      - '--in-peers=64'
+      - '--rpc-ssl=enabled'
+      - '--rpc-ssl-private-key=/home/monero/.bitmonero/key.pem'
+      - '--rpc-ssl-certificate=/home/monero/.bitmonero/cert.pem'
+      - '--log-level=0'
   monero-rpc:
     image: sethsimmons/simple-monero-wallet-rpc:v0.18.3.1
     user: ${FIXUID:-1000}:${FIXGID:-1000}
-    restart: unless-stopped
+    restart: always
     volumes:
       - ./volumes/bitmonero:/home/monero/.bitmonero
     ports:
       - '18082:18082'
-    #    depends_on:
-    #      monerod:
-    #        condition: service_healthy
+    healthcheck:
+      test: curl --insecure https://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_height"}' || exit 1
+      start_period: 120s
+      interval: 30s
+      timeout: 60s
+      retries: 10
+    depends_on:
+      monerod:
+        condition: service_healthy
     command:
-      - '--wallet-dir=/home/monero/.bitmonero/wallet'
-      #- '--wallet-file=/home/monero/.bitmonero/wallet/[WALLET_NAME]'
-      #- '--password=[WALLET_PASSWORD]'
+      - '--wallet-file=/home/monero/.bitmonero/wallet/dfxwallet'
+      - '--password=a5^FL@CVj7J5kaLwha%S'
       - '--rpc-bind-port=18082'
-      - '--untrusted-daemon'
+      - '--daemon-address=monerod:18081'
+      - '--trusted-daemon'
       - '--disable-rpc-login'
-      #- '--rpc-ssl=enabled'
-      #- '--rpc-ssl-private-key=/home/monero/.bitmonero/key.pem'
-      #- '--rpc-ssl-certificate=/home/monero/.bitmonero/cert.pem'
+      - '--rpc-ssl=enabled'
+      - '--rpc-ssl-private-key=/home/monero/.bitmonero/key.pem'
+      - '--rpc-ssl-certificate=/home/monero/.bitmonero/cert.pem'
+      - '--log-level=1'
