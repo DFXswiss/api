@@ -105,23 +105,25 @@ export class PaymentActivationService implements OnModuleInit {
     const activations = await this.getExistingActivations(transferInfo);
     if (
       actualQuote.standard === PaymentStandard.PAY_TO_ADDRESS &&
-      activations.some((a) => a.standard === PaymentStandard.PAY_TO_ADDRESS && a.quote.id !== actualQuote.id)
+      activations.some(
+        (a) =>
+          a.standard === PaymentStandard.PAY_TO_ADDRESS &&
+          (a.quote.id !== actualQuote.id || pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE),
+      )
     )
       throw new ConflictException('Duplicate payment request');
 
-    let activation = activations.find((a) => a.quote.id === actualQuote.id);
-    if (!activation || pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
-      activation = await this.createNewPaymentActivationRequest(
+    return (
+      activations.find((a) => a.quote.id === actualQuote.id) ??
+      this.createNewPaymentActivationRequest(
         pendingPayment,
         actualQuote,
         transferInfo,
         expirySec,
         expiryDate,
         actualQuote.standard,
-      );
-    }
-
-    return activation;
+      )
+    );
   }
 
   private async getExistingActivations(transferInfo: TransferInfo): Promise<PaymentActivation[]> {

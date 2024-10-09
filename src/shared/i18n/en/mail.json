@@ -197,7 +197,22 @@
         "failed": {
             "title": "Identification failed",
             "salutation": "Your identification has failed",
-            "message": "Your identification failed for the following reason:<br>{reason}"
+            "message": "Your identification failed for the following reason:<br>{reason}",
+            "reasons": {
+                "user_data_merged": "Your account is merged",
+                "user_data_blocked": "Unknown error",
+                "first_name_not_matching": "Your first name is not matching",
+                "last_name_not_matching": "Your last name is not matching",
+                "nationality_not_matching": "Your nationality is not matching",
+                "nationality_missing": "Nationality is missing",
+                "invalid_document_type": "Your document type is invalid",
+                "identification_number_missing": "Your identification number is missing",
+                "invalid_result": "Unknown error",
+                "verified_name_missing": "Account name is missing",
+                "first_name_not_matching_verified_name": "Your first name does not match your account name",
+                "last_name_not_matching_verified_name": "Your last name does not match your account name",
+                "organization_name_not_matching_verified_name": "Your organization name does not match your account name"
+            }
         },
         "reminder": {
             "title": "Complete verification",

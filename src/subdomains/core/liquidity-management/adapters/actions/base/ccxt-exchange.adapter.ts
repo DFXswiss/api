@@ -110,11 +110,11 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { tradeAsset, minTradeAmount } = this.parseBuyParams(order.action.paramMap);
+    const { tradeAsset, minTradeAmount, fullTrade } = this.parseBuyParams(order.action.paramMap);
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const balance = await this.exchangeService.getBalance(asset);
+    const balance = fullTrade ? 0 : await this.exchangeService.getBalance(asset);
     const amount = Util.round(order.amount * 1.01 - balance, 6); // small cap for price changes
     if (amount <= 0) {
       // trade not necessary
@@ -341,13 +341,18 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseBuyParams(params: Record<string, unknown>): { tradeAsset: string; minTradeAmount: number } {
+  private parseBuyParams(params: Record<string, unknown>): {
+    tradeAsset: string;
+    minTradeAmount: number;
+    fullTrade: boolean;
+  } {
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
+    const fullTrade = Boolean(params.fullTrade);
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 
-    return { tradeAsset, minTradeAmount };
+    return { tradeAsset, minTradeAmount, fullTrade };
   }
 
   private validateSellParams(params: Record<string, unknown>): boolean {
