@@ -47,8 +47,6 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkDto | PaymentLinkDto[]> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     if (linkId || externalLinkId || externalPaymentId)
       return this.paymentLinkService
         .getOrThrow(+jwt.user, +linkId, externalLinkId, externalPaymentId)
@@ -126,8 +124,6 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .createPayment(+jwt.user, dto, +linkId, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkDto);
@@ -146,8 +142,6 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .waitForPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
@@ -166,8 +160,6 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);

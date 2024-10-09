@@ -102,7 +102,7 @@ export class KycService {
     const upload = await this.documentService.uploadUserFile(
       userData.id,
       kycDocument,
-      `${Util.isoDateTime(new Date())}-incorporation-certificate-${Util.randomId()}-${document.filename}`,
+      `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
       document.buffer,
       document.mimetype as ContentType,
     );

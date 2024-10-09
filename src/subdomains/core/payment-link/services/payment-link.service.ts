@@ -12,7 +12,7 @@ import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkStatus, PaymentStandard } from '../enums';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -187,6 +187,7 @@ export class PaymentLinkService {
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
+        payment: pendingPayment.uniqueId,
       },
       requestedAmount: {
         asset: pendingPayment.currency.name,
@@ -314,7 +315,10 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    await this.paymentLinkPaymentService.waitForPayment(paymentLink);
+    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
+    if (!pendingPayment) throw new NotFoundException('No pending payment found');
+
+    await this.paymentLinkPaymentService.waitForPayment(pendingPayment);
 
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }
