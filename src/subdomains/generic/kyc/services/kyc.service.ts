@@ -453,11 +453,14 @@ export class KycService {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
+    dto.nationality = await this.countryService.getCountry(dto.nationality.id);
+    if (!dto.nationality) throw new NotFoundException('Country not found');
+
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
     const newUrl = await this.documentService.uploadUserFile(
       user.id,
       FileType.IDENTIFICATION,
-      `${Util.isoDateTime(new Date())}-manual-ident-${Util.randomId()}-${dto.document.fileName}`,
+      `${Util.isoDateTime(new Date())}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
       buffer,
       contentType as ContentType,
     );
