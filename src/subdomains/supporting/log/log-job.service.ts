@@ -114,7 +114,7 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
       ExchangeName.KRAKEN,
       'Maerki Baumann & Co. AG',
-      'Bank Frick (SEPA)',
+      'Bank Frick (SEPA) International',
       Util.daysBefore(14),
     );
 
