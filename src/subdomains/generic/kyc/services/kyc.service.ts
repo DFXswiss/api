@@ -460,7 +460,7 @@ export class KycService {
     const newUrl = await this.documentService.uploadUserFile(
       user.id,
       FileType.IDENTIFICATION,
-      `${Util.isoDateTime(new Date())}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
+      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
       buffer,
       contentType as ContentType,
     );
