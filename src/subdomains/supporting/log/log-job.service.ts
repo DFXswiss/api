@@ -93,22 +93,24 @@ export class LogJobService {
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
-    const pendingBankTxFromOlky = await this.bankTxService.getPendingBankToBankTx(
-      'CH6808573177975201814',
+    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(
       'LU116060002000005040',
+      'CH6808573177975201814',
+      Util.daysBefore(14),
+      Util.daysBefore(7),
     );
-    const pendingBankTxFromKraken = await this.bankTxService.getPendingExchangeToBankTx(
+    const recentBankTxFromKraken = await this.bankTxService.getRecentExchangeToBankTx(
       'CH6808573177975201814',
       BankTxType.KRAKEN,
+      Util.daysBefore(7),
     );
-    const pendingKrakenTx = await this.exchangeTxService
-      .getPendingExchangeTx(
-        ExchangeTxType.WITHDRAWAL,
-        ExchangeName.KRAKEN,
-        'Maerki Baumann & Co. AG',
-        'Bank Frick (SEPA)',
-      )
-      .then((p) => p.filter((p) => p.currency === 'EUR'));
+    const recentKrakenTx = await this.exchangeTxService.getRecentExchangeTx(
+      ExchangeTxType.WITHDRAWAL,
+      ExchangeName.KRAKEN,
+      'Maerki Baumann & Co. AG',
+      'Bank Frick (SEPA)',
+      Util.daysBefore(14),
+    );
 
     const assetLog = assets.reduce((prev, curr) => {
       // plus
@@ -122,7 +124,7 @@ export class LogJobService {
 
       const pendingOlkyAmount = this.getPendingBankAmounts(
         [curr],
-        pendingBankTxFromOlky,
+        recentBankTxFromOlky,
         BankTxType.INTERNAL,
         'LU116060002000005040',
         undefined,
@@ -130,7 +132,7 @@ export class LogJobService {
       );
       const pendingKrakenTxAmount = this.getPendingBankAmounts(
         [curr],
-        pendingKrakenTx,
+        recentKrakenTx,
         ExchangeTxType.WITHDRAWAL,
         undefined,
         'Maerki Baumann & Co. AG',
@@ -138,7 +140,7 @@ export class LogJobService {
       );
       const pendingKrakenBankTxAmount = this.getPendingBankAmounts(
         [curr],
-        pendingBankTxFromKraken,
+        recentBankTxFromKraken,
         BankTxType.KRAKEN,
         undefined,
         undefined,

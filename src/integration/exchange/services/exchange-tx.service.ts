@@ -51,13 +51,14 @@ export class ExchangeTxService {
     }
   }
 
-  async getPendingExchangeTx(
+  async getRecentExchangeTx(
     type: ExchangeTxType,
     exchange: ExchangeName,
     address: string,
     method: string,
+    start: Date,
   ): Promise<ExchangeTx[]> {
-    return this.exchangeTxRepo.findBy({ type, exchange, address, method, id: MoreThan(33210) });
+    return this.exchangeTxRepo.findBy({ type, exchange, address, method, created: MoreThan(start) });
   }
 
   private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {
