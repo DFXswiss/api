@@ -50,6 +50,7 @@ export enum Process {
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
+  BANK_DATA_SYNC = 'BankDataSync',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
