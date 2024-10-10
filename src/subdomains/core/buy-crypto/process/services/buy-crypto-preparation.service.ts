@@ -141,6 +141,7 @@ export class BuyCryptoPreparationService {
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
+            inputCurrency,
             minVolume,
             last24hVolume,
             last7dCheckoutVolume,
