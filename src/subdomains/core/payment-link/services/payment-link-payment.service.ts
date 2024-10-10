@@ -161,15 +161,15 @@ export class PaymentLinkPaymentService {
       if (exists) throw new ConflictException('Payment already exists');
     }
 
-    const currency = dto.currency ? await this.fiatService.getFiatByName(dto.currency) : paymentLink.route.fiat;
-    if (!currency) throw new NotFoundException('Currency not found');
+    if (dto.currency && dto.currency !== paymentLink.route.fiat.name)
+      throw new BadRequestException('Payment currency mismatch');
 
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
       expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.defaultPaymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
-      currency,
+      currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,

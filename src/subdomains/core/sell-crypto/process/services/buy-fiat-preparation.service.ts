@@ -108,7 +108,15 @@ export class BuyFiatPreparationService {
         if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
-          ...entity.amlCheckAndFillUp(minVolume, last24hVolume, last30dVolume, last365dVolume, bankData, blacklist),
+          ...entity.amlCheckAndFillUp(
+            inputReferenceCurrency,
+            minVolume,
+            last24hVolume,
+            last30dVolume,
+            last365dVolume,
+            bankData,
+            blacklist,
+          ),
         );
 
         await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
@@ -202,7 +210,7 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
-        cryptoInput: { paymentLinkPayment: true, paymentQuote: true },
+        cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
         transaction: { user: { wallet: true, userData: true } },
       },
     });
@@ -214,36 +222,33 @@ export class BuyFiatPreparationService {
     for (const entity of entities) {
       try {
         const inputCurrency = entity.cryptoInput.asset;
-        const outputReferenceCurrency = entity.paymentLinkPayment.currency;
         const outputCurrency = entity.sell.fiat;
         const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
 
+        if (outputCurrency.id !== entity.paymentLinkPayment.currency.id) throw new Error('Payment currency mismatch');
+
         // fees
-        const feeRate = Config.payment.fee(
-          entity.cryptoInput.paymentQuote.standard,
-          outputReferenceCurrency,
-          inputCurrency,
-        );
+        const feeRate = Config.payment.fee(entity.cryptoInput.paymentQuote.standard, outputCurrency, inputCurrency);
         const totalFee = entity.inputReferenceAmount * feeRate;
         const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
+
+        const { fee: paymentLinkFee } = entity.cryptoInput.paymentLinkPayment.link.configObj;
 
         // prices
         const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
         const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
 
-        const referencePrice = Price.create(
+        const conversionPrice = Price.create(
           inputCurrency.name,
-          outputReferenceCurrency.name,
+          outputCurrency.name,
           inputReferenceAmountMinusFee / outputReferenceAmount,
         );
         const priceStep = PriceStep.create(
           'Payment',
-          referencePrice.source,
-          referencePrice.target,
-          referencePrice.price,
+          conversionPrice.source,
+          conversionPrice.target,
+          conversionPrice.price,
         );
-
-        const outputReferencePrice = await this.pricingService.getPrice(outputReferenceCurrency, outputCurrency, false);
 
         await this.buyFiatRepo.update(
           ...entity.setPaymentLinkPayment(
@@ -254,10 +259,9 @@ export class BuyFiatPreparationService {
             chfPrice.convert(totalFee, 5),
             inputReferenceAmountMinusFee,
             outputReferenceAmount,
-            outputReferenceCurrency,
-            outputReferencePrice.convert(outputReferenceAmount, 2),
             outputCurrency,
-            [priceStep, ...outputReferencePrice.steps],
+            paymentLinkFee,
+            [priceStep],
           ),
         );
 

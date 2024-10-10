@@ -1,3 +1,4 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -126,6 +127,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   blockchainFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee: number;
 
   // Fail
   @Column({ length: 256, nullable: true })
@@ -307,8 +311,7 @@ export class BuyFiat extends IEntity {
     inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
     outputReferenceAsset: Fiat,
-    outputAmount: number,
-    outputAsset: Fiat,
+    paymentLinkFee: number,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
@@ -325,6 +328,7 @@ export class BuyFiat extends IEntity {
             percentFeeAmount: totalFee,
             totalFeeAmount: totalFee,
             totalFeeAmountChf,
+            paymentLinkFee,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
@@ -332,9 +336,9 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount,
+            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            outputAsset,
+            outputAsset: outputReferenceAsset,
             outputReferenceAsset,
             priceSteps: this.priceSteps,
           };
@@ -361,6 +365,7 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
     last24hVolume: number,
     last30dVolume: number,
@@ -370,6 +375,7 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
       last24hVolume,
       0,

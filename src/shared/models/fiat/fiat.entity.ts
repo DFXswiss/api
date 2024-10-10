@@ -1,3 +1,4 @@
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { IEntity } from '../entity';
@@ -30,4 +31,7 @@ export class Fiat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   approxPriceChf: number;
+
+  @Column({ default: AmlRule.DEFAULT })
+  amlRule: AmlRule;
 }

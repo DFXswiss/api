@@ -8,7 +8,6 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -83,10 +82,15 @@ export class PaymentLinkService {
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
+    if (!route) throw new NotFoundException('Route not found');
+
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
         externalId: dto.externalId,
-        route: { id: +dto.routeId },
+        route: { user: { id: route.user.id } },
       },
       relations: { payments: true },
     });
@@ -113,10 +117,6 @@ export class PaymentLinkService {
       webhookUrl: dto.webhookUrl,
       payment,
     };
-
-    const route = dto.route
-      ? await this.sellService.getByLabel(undefined, dto.route)
-      : await this.sellService.getById(+dto.routeId);
 
     return this.createForRoute(route, paymentLinkDto);
   }
@@ -183,7 +183,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
+      recipient: pendingPayment.link.recipient,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -222,7 +222,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(paymentLink),
+      recipient: paymentLink.recipient,
     };
   }
 
