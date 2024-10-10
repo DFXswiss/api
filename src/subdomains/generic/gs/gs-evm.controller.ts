@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { ethers } from 'ethers';
 import { EvmBridgeApproval, EvmContractApproval } from 'src/integration/blockchain/shared/evm/dto/evm-approval.dto';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
+import { EvmRawInputDataDto } from 'src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -20,6 +21,14 @@ export class GsEvmController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendRawTransaction(@Body() dto: EvmRawTransactionDto): Promise<ethers.providers.TransactionResponse> {
     return this.gsEvmService.sendRawTransaction(dto);
+  }
+
+  @Post('rawInputData')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN)) // TODO: Add back guard
+  async sendRawInputData(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
+    return this.gsEvmService.sendRawInputData(dto);
   }
 
   @Post('tokenTransaction')

@@ -3,10 +3,12 @@ import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { EvmBridgeApproval, EvmContractApproval } from 'src/integration/blockchain/shared/evm/dto/evm-approval.dto';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
+import { EvmRawInputDataDto } from 'src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Util } from 'src/shared/utils/util';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { EvmRawTransactionDto } from '../../../integration/blockchain/shared/evm/dto/evm-raw-transaction.dto';
 
@@ -33,6 +35,33 @@ export class GsEvmService {
     }
 
     throw new Error('Provided source address is not known');
+  }
+
+  async sendRawInputData({
+    blockchain,
+    contractAddress,
+    signer,
+    file,
+  }: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
+    const client = this.evmRegistryService.getClient(blockchain);
+
+    const privateKeysMap = JSON.parse(process.env.TX_SIGNERS || '{}');
+    const privateKey = privateKeysMap[signer];
+    if (!privateKey) throw new Error(`No private key found for address ${signer}`);
+
+    const decodedFile = Util.fromBase64(file).buffer.toString('utf-8');
+    const { method, types, inputs } = JSON.parse(decodedFile);
+    const iface = new ethers.utils.Interface([`function ${method}(${types.join(',')})`]);
+    const encodedData = iface.encodeFunctionData(method, inputs);
+
+    const transaction: ethers.providers.TransactionRequest = {
+      to: contractAddress,
+      data: encodedData,
+      value: 0,
+      gasLimit: ethers.BigNumber.from(300000),
+    };
+
+    return client.sendRawTransactionFrom(privateKey, transaction);
   }
 
   async sendTokenTransaction(dto: EvmTokenTransactionDto): Promise<string> {
