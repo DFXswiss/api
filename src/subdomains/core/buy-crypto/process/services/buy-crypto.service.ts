@@ -244,10 +244,10 @@ export class BuyCryptoService {
       if (!update.bankData) throw new NotFoundException('BankData not found');
     }
 
-    if ((dto.bankDataActive != null || dto.bankDataManualCheck != null) && (update.bankData || entity.bankData))
+    if ((dto.bankDataApproved != null || dto.bankDataManualApproved != null) && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        active: dto.bankDataActive,
-        manualCheck: dto.bankDataManualCheck,
+        approved: dto.bankDataApproved,
+        manualApproved: dto.bankDataManualApproved,
       });
 
     if (dto.chargebackAllowedDate) {

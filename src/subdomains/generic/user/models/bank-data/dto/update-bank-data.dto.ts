@@ -11,7 +11,7 @@ export class UpdateBankDataDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  active?: boolean;
+  approved?: boolean;
 
   @IsOptional()
   @IsEnum(BankDataType)
@@ -20,5 +20,5 @@ export class UpdateBankDataDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  manualCheck?: boolean;
+  manualApproved?: boolean;
 }

@@ -25,10 +25,10 @@ export class BankData extends IEntity {
   name: string;
 
   @Column({ nullable: true })
-  active: boolean;
+  approved: boolean;
 
   @Column({ length: 256 })
-  @Index({ unique: true, where: 'active = 1' })
+  @Index({ unique: true, where: 'approved = 1' })
   iban: string;
 
   @Column({ length: 256, nullable: true })
@@ -38,7 +38,7 @@ export class BankData extends IEntity {
   comment: string;
 
   @Column({ nullable: true })
-  manualCheck: boolean;
+  manualApproved: boolean;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
@@ -47,7 +47,7 @@ export class BankData extends IEntity {
 
   activate(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
-      active: true,
+      approved: true,
       comment: 'Pass',
     };
 
@@ -58,7 +58,7 @@ export class BankData extends IEntity {
 
   deactivate(comment?: string): UpdateResult<BankData> {
     const update: Partial<BankData> = {
-      active: false,
+      approved: false,
       comment,
     };
 

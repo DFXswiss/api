@@ -51,8 +51,8 @@ export class BankDataService {
     };
     const entities = await this.bankDataRepo.find({
       where: [
-        { ...search, active: false },
-        { ...search, active: IsNull() },
+        { ...search, approved: false },
+        { ...search, approved: IsNull() },
       ],
       relations: { userData: true },
     });
@@ -73,7 +73,7 @@ export class BankDataService {
     }
     try {
       const existing = await this.bankDataRepo.findOne({
-        where: { iban: entity.iban, active: true },
+        where: { iban: entity.iban, approved: true },
         relations: { userData: true },
       });
 
@@ -148,11 +148,11 @@ export class BankDataService {
     const bankData = await this.bankDataRepo.findOneBy({ id });
     if (!bankData) throw new NotFoundException('Bank data not found');
 
-    if (dto.active) {
+    if (dto.approved) {
       const activeBankData = await this.bankDataRepo.findOneBy({
         id: Not(bankData.id),
         iban: bankData.iban,
-        active: true,
+        approved: true,
       });
       if (activeBankData) throw new BadRequestException('Active bankData with same iban found');
     }
@@ -190,14 +190,14 @@ export class BankDataService {
         where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
         relations: { userData: true },
       })
-      .then((b) => b.filter((b) => b.active)[0] ?? b[0]);
+      .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
   }
 
   async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
     return this.bankDataRepo.find({
       where: [
-        { userData: { id: userDataId }, active: true },
-        { userData: { id: userDataId }, active: IsNull() },
+        { userData: { id: userDataId }, approved: true },
+        { userData: { id: userDataId }, approved: IsNull() },
       ],
       relations: { userData: true },
     });
@@ -221,8 +221,8 @@ export class BankDataService {
 
     const existing = await this.bankDataRepo.findOne({
       where: [
-        { iban, active: true },
-        { iban, active: IsNull() },
+        { iban, approved: true },
+        { iban, approved: IsNull() },
       ],
       relations: { userData: true },
     });
@@ -245,7 +245,7 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },
       iban,
-      active: null,
+      approved: null,
       type: BankDataType.USER,
     });
     await this.bankDataRepo.save(bankData);

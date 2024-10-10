@@ -69,9 +69,9 @@ export class AmlHelperService {
     errors.push(this.amlRuleCheck(entity.outputAsset.amlRule, entity, last7dCheckoutVolume));
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
-      if (!bankData || bankData.active === null) {
+      if (!bankData || bankData.approved === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if ((!bankData.active && !bankData.manualCheck) || bankData.manualCheck === false) {
+      } else if ((!bankData.approved && !bankData.manualApproved) || bankData.manualApproved === false) {
         errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
       } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
@@ -132,7 +132,7 @@ export class AmlHelperService {
       } else if (entity.checkoutTx) {
         // checkout
         if (
-          !bankData.manualCheck &&
+          !bankData.manualApproved &&
           entity.checkoutTx.cardName &&
           !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName)
         )
