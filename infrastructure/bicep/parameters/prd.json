@@ -216,7 +216,7 @@
       "value": "xxx"
     },
     "bscGatewayUrl": {
-      "value": "https://bsc-dataseed.binance.org"
+      "value": "https://bnb-mainnet.g.alchemy.com/v2"
     },
     "bscChainId": {
       "value": "56"
@@ -226,12 +226,6 @@
     },
     "bscQuoteContractAddress": {
       "value": "0x78D78E420Da98ad378D7799bE8f4AF69033EB077"
-    },
-    "bscScanApiUrl": {
-      "value": "https://api.bscscan.com/api"
-    },
-    "bscScanApiKey": {
-      "value": "xxx"
     },
     "lightningApiCertificate": {
       "value": "xxx"
