@@ -1,3 +1,4 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -361,6 +362,7 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
     last24hVolume: number,
     last30dVolume: number,
@@ -370,6 +372,7 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
       last24hVolume,
       0,

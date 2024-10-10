@@ -1,3 +1,4 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -454,6 +455,7 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
@@ -466,6 +468,7 @@ export class BuyCrypto extends IEntity {
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
       last24hVolume,
       last7dCheckoutVolume,

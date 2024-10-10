@@ -1,19 +1,9 @@
 import { IEntity } from 'src/shared/models/entity';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { WebhookType } from '../../services/webhook/dto/webhook.dto';
 import { KycStatus, KycType } from '../user-data/user-data.entity';
-
-export enum AmlRule {
-  DEFAULT = 0, // default
-  RULE_1 = 1, // IP Check
-  RULE_2 = 2, // KycLevel 30
-  RULE_3 = 3, // KycLevel 50
-  RULE_4 = 4, // UserData maxWeeklyVolume
-  RULE_5 = 5, // No suspiciousMail check
-  RULE_6 = 6, // Checkout KycLevel 30
-  RULE_7 = 7, // Checkout KycLevel 50
-}
 
 export interface WebhookConfig {
   payment: WebhookConfigOption;

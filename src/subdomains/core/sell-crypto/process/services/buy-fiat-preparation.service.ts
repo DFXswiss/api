@@ -108,7 +108,15 @@ export class BuyFiatPreparationService {
         if (bankData && !bankData.comment) continue;
 
         await this.buyFiatRepo.update(
-          ...entity.amlCheckAndFillUp(minVolume, last24hVolume, last30dVolume, last365dVolume, bankData, blacklist),
+          ...entity.amlCheckAndFillUp(
+            inputReferenceCurrency,
+            minVolume,
+            last24hVolume,
+            last30dVolume,
+            last365dVolume,
+            bankData,
+            blacklist,
+          ),
         );
 
         await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
