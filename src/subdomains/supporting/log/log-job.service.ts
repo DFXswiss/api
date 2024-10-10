@@ -207,7 +207,7 @@ export class LogJobService {
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyAmount || undefined,
-                fromKraken: pendingKrakenTxAmount - pendingKrakenBankTxAmount || undefined,
+                fromKraken: pendingKrakenTxAmount + pendingKrakenBankTxAmount || undefined,
               }
             : undefined,
         },
