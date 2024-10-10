@@ -82,10 +82,14 @@ export class PaymentLinkService {
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
+
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
         externalId: dto.externalId,
-        route: { id: +dto.routeId },
+        route: { user: { id: route.user.id } },
       },
       relations: { payments: true },
     });
@@ -112,10 +116,6 @@ export class PaymentLinkService {
       webhookUrl: dto.webhookUrl,
       payment,
     };
-
-    const route = dto.route
-      ? await this.sellService.getByLabel(undefined, dto.route)
-      : await this.sellService.getById(+dto.routeId);
 
     return this.createForRoute(route, paymentLinkDto);
   }
