@@ -485,14 +485,12 @@ export class TransactionHelper implements OnModuleInit {
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
 
-    const assetAmlRuleError = AmlHelperService.amlRuleQuoteCheck([from.amlRule, to.amlRule], user, paymentMethodIn);
-    if (assetAmlRuleError) return assetAmlRuleError;
-
     // KYC checks
-    if (isBuy) {
-      const userAmlRuleError = AmlHelperService.amlRuleQuoteCheck([user?.wallet.amlRule], user, paymentMethodIn);
-      if (userAmlRuleError) return userAmlRuleError;
-    }
+    if (AmlHelperService.amlRuleUserCheck([from.amlRule, to.amlRule], user, paymentMethodIn))
+      return QuoteError.KYC_REQUIRED;
+
+    if (isBuy && AmlHelperService.amlRuleUserCheck([user?.wallet.amlRule], user, paymentMethodIn))
+      return QuoteError.KYC_REQUIRED;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
       return QuoteError.KYC_REQUIRED;

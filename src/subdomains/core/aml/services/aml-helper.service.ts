@@ -7,7 +7,6 @@ import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/m
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
@@ -232,8 +231,8 @@ export class AmlHelperService {
     return undefined;
   }
 
-  static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
-    if (
+  static amlRuleUserCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): boolean {
+    return (
       user?.status === UserStatus.NA &&
       ((amlRules.includes(AmlRule.RULE_2) && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
         (amlRules.includes(AmlRule.RULE_3) && user?.userData.kycLevel < KycLevel.LEVEL_50) ||
@@ -243,10 +242,7 @@ export class AmlHelperService {
         (amlRules.includes(AmlRule.RULE_7) &&
           paymentMethodIn === FiatPaymentMethod.CARD &&
           user?.userData.kycLevel < KycLevel.LEVEL_50))
-    )
-      return QuoteError.KYC_REQUIRED;
-
-    return undefined;
+    );
   }
 
   static getAmlResult(
