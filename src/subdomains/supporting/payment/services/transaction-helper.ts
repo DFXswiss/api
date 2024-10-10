@@ -11,11 +11,11 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -485,22 +485,13 @@ export class TransactionHelper implements OnModuleInit {
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
 
+    const assetAmlRuleError = AmlHelperService.amlRuleQuoteCheck([from.amlRule, to.amlRule], user, paymentMethodIn);
+    if (assetAmlRuleError) return assetAmlRuleError;
+
     // KYC checks
     if (isBuy) {
-      if (
-        user?.status === UserStatus.NA &&
-        (([user?.wallet.amlRule, from.amlRule, to.amlRule].includes(AmlRule.RULE_2) &&
-          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-          ([user?.wallet.amlRule, from.amlRule, to.amlRule].includes(AmlRule.RULE_3) &&
-            user?.userData.kycLevel < KycLevel.LEVEL_50) ||
-          ([user?.wallet.amlRule, from.amlRule, to.amlRule].includes(AmlRule.RULE_6) &&
-            paymentMethodIn === FiatPaymentMethod.CARD &&
-            user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-          ([user?.wallet.amlRule, from.amlRule, to.amlRule].includes(AmlRule.RULE_7) &&
-            paymentMethodIn === FiatPaymentMethod.CARD &&
-            user?.userData.kycLevel < KycLevel.LEVEL_50))
-      )
-        return QuoteError.KYC_REQUIRED;
+      const userAmlRuleError = AmlHelperService.amlRuleQuoteCheck([user?.wallet.amlRule], user, paymentMethodIn);
+      if (userAmlRuleError) return userAmlRuleError;
     }
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)

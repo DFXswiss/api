@@ -4,8 +4,10 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
@@ -226,6 +228,23 @@ export class AmlHelperService {
           return AmlError.KYC_LEVEL_50_NOT_REACHED;
         break;
     }
+
+    return undefined;
+  }
+
+  static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
+    if (
+      user?.status === UserStatus.NA &&
+      ((amlRules.includes(AmlRule.RULE_2) && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+        (amlRules.includes(AmlRule.RULE_3) && user?.userData.kycLevel < KycLevel.LEVEL_50) ||
+        (amlRules.includes(AmlRule.RULE_6) &&
+          paymentMethodIn === FiatPaymentMethod.CARD &&
+          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+        (amlRules.includes(AmlRule.RULE_7) &&
+          paymentMethodIn === FiatPaymentMethod.CARD &&
+          user?.userData.kycLevel < KycLevel.LEVEL_50))
+    )
+      return QuoteError.KYC_REQUIRED;
 
     return undefined;
   }
