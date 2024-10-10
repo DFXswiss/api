@@ -51,17 +51,17 @@ interface UniswapPosition {
 
 export abstract class EvmClient {
   protected http: HttpService;
-  private alchemyService: AlchemyService;
-  private chainId: ChainId;
+  private readonly alchemyService: AlchemyService;
+  private readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
-  private nonce = new Map<string, number>();
-  private tokens = new AsyncCache<Token>();
-  private router: AlphaRouter;
-  private swapContractAddress: string;
-  private quoteContractAddress: string;
+  private readonly nonce = new Map<string, number>();
+  private readonly tokens = new AsyncCache<Token>();
+  private readonly router: AlphaRouter;
+  private readonly swapContractAddress: string;
+  private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
     this.http = params.http;

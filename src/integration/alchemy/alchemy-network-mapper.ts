@@ -23,6 +23,9 @@ export class AlchemyNetworkMapper {
     [8453, Network.BASE_MAINNET],
     [84531, Network.BASE_GOERLI],
     [84532, Network.BASE_SEPOLIA],
+
+    [56, Network.BNB_MAINNET],
+    [97, Network.BNB_TESTNET],
   ]);
 
   static toAlchemyNetworkByChainId(chainId: number): Network | undefined {
@@ -35,6 +38,13 @@ export class AlchemyNetworkMapper {
   }
 
   static get availableNetworks(): Blockchain[] {
-    return [Blockchain.ETHEREUM, Blockchain.ARBITRUM, Blockchain.OPTIMISM, Blockchain.POLYGON, Blockchain.BASE];
+    return [
+      Blockchain.ETHEREUM,
+      Blockchain.ARBITRUM,
+      Blockchain.OPTIMISM,
+      Blockchain.POLYGON,
+      Blockchain.BASE,
+      Blockchain.BINANCE_SMART_CHAIN,
+    ];
   }
 }

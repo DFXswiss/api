@@ -16,9 +16,9 @@ import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 
 @Injectable()
 export class AlchemyWebhookService {
-  private alchemy: Alchemy;
+  private readonly alchemy: Alchemy;
 
-  private addressWebhookSubject: Subject<AlchemyWebhookDto>;
+  private readonly addressWebhookSubject: Subject<AlchemyWebhookDto>;
 
   constructor() {
     const config = GetConfig();
@@ -55,17 +55,43 @@ export class AlchemyWebhookService {
         .map((wh) => this.alchemy.notify.deleteWebhook(wh.id)),
     );
 
+    const allWebhookAddresses = dto.addresses.map((a) => a.toLowerCase());
+
     return (
       await Util.doInBatches(
-        dto.addresses,
-        async (batch: string[]) =>
-          this.alchemy.notify.createWebhook(url, WebhookType.ADDRESS_ACTIVITY, {
-            addresses: batch,
-            network: network,
-          }),
+        allWebhookAddresses,
+        async (batch: string[]) => this.doCreateAddressWebhook(network, url, batch),
         50000,
       )
     ).flat();
+  }
+
+  private async doCreateAddressWebhook(
+    network: Network,
+    url: string,
+    addresses: string[],
+  ): Promise<AddressActivityWebhook> {
+    const createWebhookAddresses = addresses.splice(0, 1000);
+
+    const addressActivityWebhook = await this.alchemy.notify.createWebhook(url, WebhookType.ADDRESS_ACTIVITY, {
+      addresses: createWebhookAddresses,
+      network: network,
+    });
+
+    await this.doUpdateWebhook(addressActivityWebhook.id, addresses);
+
+    return addressActivityWebhook;
+  }
+
+  private async doUpdateWebhook(webhookId: string, addresses: string[]): Promise<void> {
+    await Util.doInBatches(
+      addresses,
+      async (batch: string[]) =>
+        this.alchemy.notify.updateWebhook(webhookId, {
+          addAddresses: batch,
+        }),
+      1000,
+    );
   }
 
   getAddressWebhookObservable(network: Network): Observable<AlchemyWebhookDto> {
