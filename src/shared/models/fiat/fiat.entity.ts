@@ -32,6 +32,6 @@ export class Fiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   approxPriceChf: number;
 
-  @Column({ default: AmlRule.DEFAULT, nullable: true })
+  @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
 }
