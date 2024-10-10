@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -8,38 +9,41 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
-import { MoreThan } from 'typeorm';
+import { In, MoreThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { Setup2faDto } from '../dto/output/setup-2fa.dto';
+import { Setup2faDto, TfaType } from '../dto/output/setup-2fa.dto';
 
 const TfaValidityHours = 24;
 
 interface SecretCacheEntry {
+  type: TfaType;
   secret: string;
-  creationTime: number;
+  expiryDate: Date;
 }
 
-enum TfaComment {
-  VERIFIED = 'Verified',
-  DELETED = 'Deleted',
+export enum TfaLevel {
+  BASIC = 'Basic',
+  STRICT = 'Strict',
 }
 
 @Injectable()
 export class TfaService {
   private readonly logger = new DfxLogger(TfaService);
 
-  private secretCache: Map<number, SecretCacheEntry> = new Map();
+  private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(
     private readonly tfaRepo: TfaLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
+    private readonly settingService: SettingService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -47,60 +51,86 @@ export class TfaService {
   processCleanupSecretCache() {
     if (DisabledProcess(Process.TFA_CACHE)) return;
 
-    const before3HoursTime = Util.hoursBefore(3).getTime();
+    const now = new Date();
 
     const keysToBeDeleted = Array.from(this.secretCache.entries())
-      .filter(([_, v]) => v.creationTime < before3HoursTime)
+      .filter(([_, v]) => v.expiryDate < now)
       .map(([k, _]) => k);
 
     keysToBeDeleted.forEach((k) => this.secretCache.delete(k));
   }
 
-  async setup(kycHash: string): Promise<Setup2faDto> {
+  async setup(kycHash: string, level: TfaLevel): Promise<Setup2faDto> {
+    const mail2faActive = await this.settingService.get('mail2fa').then((s) => s === 'on'); // TODO: remove
+
     const user = await this.getUser(kycHash);
-    if (user.totpSecret) throw new ConflictException('2FA already set up');
+    if (mail2faActive && (level === TfaLevel.BASIC || user.users.length > 0)) {
+      // mail 2FA
+      if (!user.mail) throw new BadRequestException('User has no mail');
 
-    const { secret, uri } = generateSecret({ name: 'DFX.swiss', account: user.mail ?? '' });
+      const type = TfaType.APP;
+      const secret = Util.randomId().toString().slice(0, 6);
 
-    this.secretCache.set(user.id, {
-      secret,
-      creationTime: Date.now(),
-    });
+      this.secretCache.set(user.id, {
+        type,
+        secret,
+        expiryDate: Util.minutesAfter(10),
+      });
 
-    return { secret, uri };
-  }
+      // TODO: send mail
 
-  async delete(kycHash: string, ip: string): Promise<void> {
-    const user = await this.getUser(kycHash);
-    await this.userDataService.updateTotpSecret(user, null);
+      return { type };
+    } else {
+      // app 2FA
+      if (user.totpSecret) throw new ConflictException('2FA already set up');
 
-    await this.createTfaLog(user, ip, TfaComment.DELETED);
+      const type = TfaType.APP;
+      const { secret, uri } = generateSecret({ name: 'DFX.swiss', account: user.mail ?? '' });
+
+      this.secretCache.set(user.id, {
+        type,
+        secret,
+        expiryDate: Util.hoursAfter(3),
+      });
+
+      return { type, secret, uri };
+    }
   }
 
   async verify(kycHash: string, token: string, ip: string): Promise<void> {
     const user = await this.getUser(kycHash);
 
-    const secret = user.totpSecret ?? this.secretCache.get(user.id)?.secret;
-    if (!secret) throw new NotFoundException('2FA not set up');
+    let level: TfaLevel;
 
-    this.verifyOrThrow(secret, token);
+    const cacheEntry = this.secretCache.get(user.id);
+    if (cacheEntry?.type === TfaType.MAIL) {
+      if (token !== cacheEntry.secret) throw new ForbiddenException('Invalid or expired 2FA token');
 
-    if (!user.totpSecret) {
-      await this.userDataService.updateTotpSecret(user, secret);
-      this.secretCache.delete(user.id);
+      level = user.users.length > 0 ? TfaLevel.STRICT : TfaLevel.BASIC;
+    } else {
+      const secret = user.totpSecret ?? cacheEntry?.secret;
+      if (!secret) throw new NotFoundException('2FA not set up');
+
+      this.verifyOrThrow(secret, token);
+
+      if (!user.totpSecret) await this.userDataService.updateTotpSecret(user, secret);
+
+      level = TfaLevel.STRICT;
     }
 
-    await this.createTfaLog(user, ip, TfaComment.VERIFIED);
+    this.secretCache.delete(user.id);
+    await this.createTfaLog(user, ip, level);
   }
 
-  async checkVerification(user: UserData, ip: string) {
+  async checkVerification(user: UserData, ip: string, level: TfaLevel) {
+    const requiredLevel = level === TfaLevel.STRICT ? TfaLevel.STRICT : In([TfaLevel.BASIC, TfaLevel.STRICT]);
     const isVerified = await this.tfaRepo.existsBy({
       userData: { id: user.id },
       ipAddress: ip,
-      comment: TfaComment.VERIFIED,
+      comment: requiredLevel,
       created: MoreThan(Util.hoursBefore(TfaValidityHours)),
     });
-    if (!isVerified) throw new ForbiddenException('2FA required');
+    if (!isVerified) throw new ForbiddenException(`2FA required (${level.toLowerCase()})`);
   }
 
   // --- HELPER METHODS --- //
@@ -112,7 +142,7 @@ export class TfaService {
     }
   }
 
-  private async createTfaLog(userData: UserData, ipAddress: string, comment: TfaComment) {
+  private async createTfaLog(userData: UserData, ipAddress: string, comment: TfaLevel) {
     const logEntity = this.tfaRepo.create({
       type: KycLogType.TFA,
       ipAddress,
