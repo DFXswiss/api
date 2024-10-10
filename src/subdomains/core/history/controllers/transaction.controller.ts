@@ -299,8 +299,8 @@ export class TransactionController {
       throw new NotFoundException('Transaction not found');
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (transaction.targetEntity.amlCheck !== CheckStatus.FAIL)
-      throw new BadRequestException('You can only refund failed transactions');
+    if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.targetEntity.amlCheck))
+      throw new BadRequestException('You can only refund failed or pending transactions');
     if (transaction.targetEntity.chargebackAmount)
       throw new BadRequestException('You can only refund a transaction once');
 

@@ -413,6 +413,8 @@ export class BuyCrypto extends IEntity {
       chargebackAmount,
       chargebackOutput,
       chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
+      mailSendDate: null,
     };
 
     Object.assign(this, update);
@@ -562,8 +564,8 @@ export class BuyCrypto extends IEntity {
   }
 
   get translationReturnMailKey(): MailTranslationKey {
-    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_RETURN;
-    return MailTranslationKey.CRYPTO_RETURN;
+    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_CHARGEBACK;
+    return MailTranslationKey.CRYPTO_CHARGEBACK;
   }
 
   get user(): User {

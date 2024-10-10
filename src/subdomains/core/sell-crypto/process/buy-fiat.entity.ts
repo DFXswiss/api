@@ -223,7 +223,7 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  returnMail(): UpdateResult<BuyFiat> {
+  chargebackMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
@@ -259,6 +259,8 @@ export class BuyFiat extends IEntity {
       chargebackAddress,
       chargebackAmount,
       chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
+      mailReturnSendDate: null,
     };
 
     Object.assign(this, update);
