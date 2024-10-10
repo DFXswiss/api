@@ -277,7 +277,7 @@ export class AmlHelperService {
       blacklist,
       banks,
       ibanCountry,
-    );
+    ).filter((e) => e);
 
     const comment = amlErrors.join(';');
 
