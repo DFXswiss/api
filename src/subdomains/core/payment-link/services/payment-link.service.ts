@@ -85,6 +85,7 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.sellService.getByLabel(undefined, dto.route)
       : await this.sellService.getById(+dto.routeId);
+    if (!route) throw new NotFoundException('Route not found');
 
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
