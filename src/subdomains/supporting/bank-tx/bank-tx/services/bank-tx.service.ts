@@ -242,10 +242,10 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentBankToBankTx(fromIban: string, toIban: string, fromStart: Date, toStart: Date): Promise<BankTx[]> {
+  async getRecentBankToBankTx(fromIban: string, toIban: string, _: Date, __: Date): Promise<BankTx[]> {
     return this.bankTxRepo.findBy([
-      { iban: toIban, accountIban: fromIban, created: MoreThan(fromStart) },
-      { iban: fromIban, accountIban: toIban, created: MoreThan(toStart) },
+      { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
+      { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
     ]);
   }
 
