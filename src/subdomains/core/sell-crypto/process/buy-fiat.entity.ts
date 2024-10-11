@@ -310,7 +310,6 @@ export class BuyFiat extends IEntity {
     totalFeeAmountChf: number,
     inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
-    outputReferenceAsset: Fiat,
     paymentLinkFee: number,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
@@ -338,8 +337,6 @@ export class BuyFiat extends IEntity {
             usedFees: null,
             outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            outputAsset: outputReferenceAsset,
-            outputReferenceAsset,
             priceSteps: this.priceSteps,
           };
 
@@ -348,14 +345,12 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
+  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAsset: outputAssetEntity,
-      outputReferenceAsset: outputAssetEntity,
       priceSteps: this.priceSteps,
     };
 
