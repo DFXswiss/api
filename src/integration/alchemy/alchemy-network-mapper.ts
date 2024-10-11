@@ -1,4 +1,5 @@
 import { Network } from 'alchemy-sdk';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from '../blockchain/shared/evm/evm.util';
 
@@ -38,13 +39,18 @@ export class AlchemyNetworkMapper {
   }
 
   static get availableNetworks(): Blockchain[] {
-    return [
+    const networks = [
       Blockchain.ETHEREUM,
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,
       Blockchain.BASE,
-      Blockchain.BINANCE_SMART_CHAIN,
     ];
+
+    if (Config.environment === Environment.PRD) {
+      networks.push(Blockchain.BINANCE_SMART_CHAIN);
+    }
+
+    return networks;
   }
 }
