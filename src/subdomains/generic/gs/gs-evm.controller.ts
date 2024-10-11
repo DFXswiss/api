@@ -23,12 +23,12 @@ export class GsEvmController {
     return this.gsEvmService.sendRawTransaction(dto);
   }
 
-  @Post('rawInputData')
+  @Post('contractTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async sendRawInputData(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
-    return this.gsEvmService.sendRawInputData(dto);
+  async sendContractTransaction(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
+    return this.gsEvmService.sendContractTransaction(dto);
   }
 
   @Post('tokenTransaction')

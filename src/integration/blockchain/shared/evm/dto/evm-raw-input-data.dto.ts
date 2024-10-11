@@ -16,5 +16,5 @@ export class EvmRawInputDataDto {
 
   @IsNotEmpty()
   @IsString()
-  file: string;
+  callData: string;
 }
