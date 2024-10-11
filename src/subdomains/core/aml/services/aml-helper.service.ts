@@ -104,7 +104,11 @@ export class AmlHelperService {
         if (
           blacklist.some((b) =>
             b.matches(
-              [SpecialExternalAccountType.BANNED_BIC, SpecialExternalAccountType.BANNED_BIC_BUY],
+              [
+                SpecialExternalAccountType.BANNED_BIC,
+                SpecialExternalAccountType.BANNED_BIC_BUY,
+                SpecialExternalAccountType.BANNED_BIC_AML,
+              ],
               entity.bankTx.bic,
             ),
           )
@@ -113,7 +117,11 @@ export class AmlHelperService {
         if (
           blacklist.some((b) =>
             b.matches(
-              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_BUY,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
               entity.bankTx.iban,
             ),
           )
@@ -142,7 +150,11 @@ export class AmlHelperService {
         if (
           blacklist.some((b) =>
             b.matches(
-              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_BUY,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
               entity.checkoutTx.cardFingerPrint,
             ),
           )
@@ -163,7 +175,11 @@ export class AmlHelperService {
       if (
         blacklist.some((b) =>
           b.matches(
-            [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_SELL],
+            [
+              SpecialExternalAccountType.BANNED_IBAN,
+              SpecialExternalAccountType.BANNED_IBAN_SELL,
+              SpecialExternalAccountType.BANNED_IBAN_AML,
+            ],
             entity.sell.iban,
           ),
         )
