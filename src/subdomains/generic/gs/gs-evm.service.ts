@@ -55,6 +55,7 @@ export class GsEvmService {
     const encodedData = iface.encodeFunctionData(method, inputs);
 
     const transaction: ethers.providers.TransactionRequest = {
+      from: signer,
       to: contractAddress,
       data: encodedData,
       value: 0,

@@ -26,7 +26,7 @@ export class GsEvmController {
   @Post('rawInputData')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN)) // TODO: Add back guard
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendRawInputData(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
     return this.gsEvmService.sendRawInputData(dto);
   }
