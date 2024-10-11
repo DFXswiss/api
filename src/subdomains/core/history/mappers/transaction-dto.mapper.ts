@@ -275,6 +275,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
         return {
           state: TransactionState.FAILED,
           reason,
@@ -303,6 +304,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
         return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:
