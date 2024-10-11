@@ -71,7 +71,7 @@ export class BuyFiatPreparationService {
         const isPayment = entity.cryptoInput.isPayment;
         const minVolume = await this.transactionHelper.getMinVolume(
           entity.cryptoInput.asset,
-          entity.sell.fiat,
+          entity.outputAsset,
           entity.cryptoInput.asset,
           false,
           isPayment,
@@ -169,7 +169,7 @@ export class BuyFiatPreparationService {
           amountInChf,
           inputCurrency,
           inputCurrency,
-          entity.sell.fiat,
+          entity.outputAsset,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           entity.user,
@@ -222,7 +222,7 @@ export class BuyFiatPreparationService {
     for (const entity of entities) {
       try {
         const inputCurrency = entity.cryptoInput.asset;
-        const outputCurrency = entity.sell.fiat;
+        const outputCurrency = entity.outputAsset;
         const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
 
         if (outputCurrency.id !== entity.paymentLinkPayment.currency.id) throw new Error('Payment currency mismatch');
@@ -259,7 +259,6 @@ export class BuyFiatPreparationService {
             chfPrice.convert(totalFee, 5),
             inputReferenceAmountMinusFee,
             outputReferenceAmount,
-            outputCurrency,
             paymentLinkFee,
             [priceStep],
           ),
@@ -289,11 +288,11 @@ export class BuyFiatPreparationService {
     for (const entity of entities) {
       try {
         const asset = entity.cryptoInput.asset;
-        const currency = entity.sell.fiat;
+        const currency = entity.outputAsset;
         const price = await this.pricingService.getPrice(asset, currency, false);
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency, price.steps),
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), price.steps),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
