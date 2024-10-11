@@ -242,15 +242,15 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentBankToBankTx(fromIban: string, toIban: string, _: Date, __: Date): Promise<BankTx[]> {
+  async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
     return this.bankTxRepo.findBy([
       { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
       { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
     ]);
   }
 
-  async getRecentExchangeToBankTx(accountIban: string[], type: BankTxType, start: Date): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ accountIban: In(accountIban), type, created: MoreThan(start) });
+  async getRecentExchangeTx(accountIban: string, type: BankTxType, start = Util.daysBefore(14)): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ accountIban, type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
