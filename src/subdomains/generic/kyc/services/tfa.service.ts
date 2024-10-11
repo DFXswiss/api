@@ -16,6 +16,9 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, MoreThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -44,6 +47,7 @@ export class TfaService {
     private readonly tfaRepo: TfaLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -70,14 +74,16 @@ export class TfaService {
 
       const type = TfaType.APP;
       const secret = Util.randomId().toString().slice(0, 6);
+      const codeExpiryMinutes = 10;
 
       this.secretCache.set(user.id, {
         type,
         secret,
-        expiryDate: Util.minutesAfter(10),
+        expiryDate: Util.minutesAfter(codeExpiryMinutes),
       });
 
-      // TODO: send mail
+      // send mail
+      await this.sendVerificationMail(user, secret, codeExpiryMinutes);
 
       return { type };
     } else {
@@ -155,5 +161,37 @@ export class TfaService {
 
   private async getUser(kycHash: string): Promise<UserData> {
     return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
+  }
+
+  private async sendVerificationMail(userData: UserData, code: string, expirationMinutes: number): Promise<void> {
+    try {
+      if (userData.mail)
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context: MailContext.VERIFICATION_MAIL,
+          input: {
+            userData: userData,
+            title: `${MailTranslationKey.VERIFICATION_CODE}.title`,
+            salutation: {
+              key: `${MailTranslationKey.VERIFICATION_CODE}.salutation`,
+            },
+            suffix: [
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
+                params: { code },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
+                params: { expiration: `${expirationMinutes}` },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+    } catch (e) {
+      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
+    }
   }
 }
