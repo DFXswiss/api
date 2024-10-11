@@ -1,12 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import {
-  AddressActivityResponse,
-  AddressActivityWebhook,
-  Alchemy,
-  GetAllWebhooksResponse,
-  Network,
-  WebhookType,
-} from 'alchemy-sdk';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { AddressActivityResponse, AddressActivityWebhook, Alchemy, Network, Webhook, WebhookType } from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
 import { Config, GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
@@ -15,8 +8,9 @@ import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 
 @Injectable()
-export class AlchemyWebhookService {
+export class AlchemyWebhookService implements OnModuleInit {
   private readonly alchemy: Alchemy;
+  private readonly webhookCache: Map<string, string>;
 
   private readonly addressWebhookSubject: Subject<AlchemyWebhookDto>;
 
@@ -29,31 +23,46 @@ export class AlchemyWebhookService {
     };
 
     this.alchemy = new Alchemy(settings);
+    this.webhookCache = new Map();
 
     this.addressWebhookSubject = new Subject<AlchemyWebhookDto>();
   }
 
-  async getAllWebhooks(): Promise<GetAllWebhooksResponse> {
-    return this.alchemy.notify.getAllWebhooks();
+  async onModuleInit() {
+    const allWebhooks = await this.getAllWebhooks();
+    allWebhooks.forEach((w) => this.webhookCache.set(w.id, w.signingKey));
+  }
+
+  async getAllWebhooks(): Promise<Webhook[]> {
+    return this.alchemy.notify.getAllWebhooks().then((r) => r.webhooks);
   }
 
   async getWebhookAddresses(webhookId: string): Promise<AddressActivityResponse> {
     return this.alchemy.notify.getAddresses(webhookId);
   }
 
+  isValidWebhookSignature(alchemySignature: string, dto: AlchemyWebhookDto): boolean {
+    const signingKey = this.webhookCache.get(dto.webhookId);
+    if (!signingKey) return false;
+
+    const checkSignature = Util.createHmac(signingKey, JSON.stringify(dto));
+    return alchemySignature === checkSignature;
+  }
+
   async createAddressWebhook(dto: CreateWebhookDto): Promise<AddressActivityWebhook[]> {
     const network = AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(dto.blockchain);
     if (!network) return;
 
-    const allWebhooks = await this.alchemy.notify.getAllWebhooks();
-
     const url = `${Config.url()}/alchemy/addressWebhook`;
 
-    await Promise.all(
-      allWebhooks.webhooks
-        .filter((wh) => wh.network === network && wh.url === url)
-        .map((wh) => this.alchemy.notify.deleteWebhook(wh.id)),
-    );
+    const allWebhooks = await this.getAllWebhooks();
+    const filteredWebhooks = allWebhooks.filter((wh) => wh.network === network && wh.url === url);
+
+    for (const webhookToBeDeleted of filteredWebhooks) {
+      const webhookId = webhookToBeDeleted.id;
+      this.webhookCache.delete(webhookId);
+      await this.alchemy.notify.deleteWebhook(webhookId);
+    }
 
     const allWebhookAddresses = dto.addresses.map((a) => a.toLowerCase());
 
@@ -77,6 +86,8 @@ export class AlchemyWebhookService {
       addresses: createWebhookAddresses,
       network: network,
     });
+
+    this.webhookCache.set(addressActivityWebhook.id, addressActivityWebhook.signingKey);
 
     await this.doUpdateWebhook(addressActivityWebhook.id, addresses);
 
