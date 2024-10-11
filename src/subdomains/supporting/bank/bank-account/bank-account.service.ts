@@ -42,18 +42,20 @@ export class BankAccountService {
 
     for (const entity of entities) {
       try {
-        if (entity.userData.status === UserDataStatus.MERGED) {
-          await this.bankAccountRepo.update(entity.id, { synced: false });
-          continue;
-        }
+        if (entity.userData) {
+          if (entity.userData.status === UserDataStatus.MERGED) {
+            await this.bankAccountRepo.update(entity.id, { synced: false });
+            continue;
+          }
 
-        await this.bankDataService.createIbanForUser(
-          entity.userData.id,
-          entity.iban,
-          false,
-          entity.label,
-          entity.preferredCurrency,
-        );
+          await this.bankDataService.createIbanForUser(
+            entity.userData?.id,
+            entity.iban,
+            false,
+            entity.label,
+            entity.preferredCurrency,
+          );
+        }
 
         await this.bankAccountRepo.update(entity.id, { synced: true });
       } catch (e) {
