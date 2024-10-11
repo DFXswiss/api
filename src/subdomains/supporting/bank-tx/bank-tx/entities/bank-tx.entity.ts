@@ -263,7 +263,7 @@ export class BankTx extends IEntity {
   }
 
   pendingInputAmount(asset: Asset): number {
-    if ([BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
+    if (this.type && ![BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
 
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
