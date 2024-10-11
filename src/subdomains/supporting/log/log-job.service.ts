@@ -88,7 +88,8 @@ export class LogJobService {
       .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
 
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    const maerkiBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+    const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+    const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
 
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
     const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -101,22 +102,31 @@ export class LogJobService {
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
     const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(
       olkyBank.iban,
-      maerkiBank.iban,
+      maerkiEurBank.iban,
       Util.daysBefore(14),
       Util.daysBefore(7),
     );
     const recentBankTxFromKraken = await this.bankTxService.getRecentExchangeToBankTx(
-      maerkiBank.iban,
+      [maerkiEurBank.iban, maerkiChfBank.iban],
       BankTxType.KRAKEN,
       Util.daysBefore(7),
     );
-    const recentKrakenTx = await this.exchangeTxService.getRecentExchangeTx(
-      ExchangeTxType.WITHDRAWAL,
-      ExchangeName.KRAKEN,
-      'Maerki Baumann & Co. AG',
-      'Bank Frick (SEPA) International',
-      Util.daysBefore(14),
-    );
+    const recentKrakenTx = [
+      ...(await this.exchangeTxService.getRecentExchangeTx(
+        ExchangeTxType.WITHDRAWAL,
+        ExchangeName.KRAKEN,
+        'Maerki Baumann & Co. AG',
+        'Bank Frick (SEPA) International',
+        Util.daysBefore(14),
+      )),
+      ...(await this.exchangeTxService.getRecentExchangeTx(
+        ExchangeTxType.WITHDRAWAL,
+        ExchangeName.KRAKEN,
+        'Maerki Baumann',
+        'Bank Frick (SIC) International',
+        Util.daysBefore(14),
+      )),
+    ];
 
     const assetLog = assets.reduce((prev, curr) => {
       // plus
@@ -133,28 +143,13 @@ export class LogJobService {
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
         olkyBank.iban,
-        undefined,
-        maerkiBank.iban,
+        maerkiEurBank.iban,
       );
-      const pendingKrakenTxAmount = this.getPendingBankAmounts(
-        [curr],
-        recentKrakenTx,
-        ExchangeTxType.WITHDRAWAL,
-        undefined,
-        'Maerki Baumann & Co. AG',
-        maerkiBank.iban,
-      );
-      const pendingKrakenBankTxAmount = this.getPendingBankAmounts(
-        [curr],
-        recentBankTxFromKraken,
-        BankTxType.KRAKEN,
-        undefined,
-        undefined,
-        maerkiBank.iban,
-      );
+      const pendingKrakenMaerkiTxAmount = this.getPendingBankAmounts([curr], recentKrakenTx, ExchangeTxType.WITHDRAWAL);
+      const pendingKrakenBankTxAmount = this.getPendingBankAmounts([curr], recentBankTxFromKraken, BankTxType.KRAKEN);
 
       const totalPlusPending =
-        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenTxAmount + pendingKrakenBankTxAmount;
+        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount;
       const totalPlus = liquidityBalance + totalPlusPending;
 
       // minus
@@ -207,7 +202,7 @@ export class LogJobService {
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyAmount || undefined,
-                fromKraken: pendingKrakenTxAmount + pendingKrakenBankTxAmount || undefined,
+                fromKraken: pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount || undefined,
               }
             : undefined,
         },
@@ -305,13 +300,11 @@ export class LogJobService {
     assets: Asset[],
     pendingTx: (BankTx | ExchangeTx)[],
     type: BankExchangeType,
-    fromIban: string | undefined,
-    toAddress: string | undefined,
-    toIban: string,
+    source?: string,
+    target?: string,
   ): number {
     return assets.reduce(
-      (prev, curr) =>
-        prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, fromIban, toAddress, toIban), 0),
+      (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, source, target), 0),
       0,
     );
   }
