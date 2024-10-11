@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -28,6 +28,8 @@ export class AlchemyController {
     if (this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto)) {
       this.alchemyWebhookService.processAddressWebhook(dto);
     }
+
+    throw new BadRequestException('Invalid signature');
   }
 
   @Post('syncTransactions')
