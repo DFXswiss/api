@@ -41,6 +41,7 @@ import {
   KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
+import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { FileType } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -318,15 +319,15 @@ export class KycController {
   @Post('2fa')
   @ApiCreatedResponse({ type: Setup2faDto })
   @ApiUnauthorizedResponse(MergedResponse)
-  async createSecret(@Headers(CodeHeaderName) code: string): Promise<Setup2faDto> {
-    return this.tfaService.setup(code);
+  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
+    return this.tfaService.setup(code, level);
   }
 
   @Post('2fa/verify')
   @ApiCreatedResponse({ description: '2FA successful' })
   @ApiUnauthorizedResponse(MergedResponse)
   @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
-  async verifyToken(
+  async verify2fa(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
     @Body() dto: Verify2faDto,
