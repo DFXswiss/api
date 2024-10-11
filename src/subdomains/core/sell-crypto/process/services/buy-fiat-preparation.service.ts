@@ -259,7 +259,6 @@ export class BuyFiatPreparationService {
             chfPrice.convert(totalFee, 5),
             inputReferenceAmountMinusFee,
             outputReferenceAmount,
-            outputCurrency,
             paymentLinkFee,
             [priceStep],
           ),
