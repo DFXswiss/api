@@ -364,6 +364,7 @@ export class BuyFiat extends IEntity {
   amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -374,6 +375,7 @@ export class BuyFiat extends IEntity {
       this,
       inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       0,
       last30dVolume,

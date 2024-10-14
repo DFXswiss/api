@@ -7,4 +7,5 @@ export enum AmlRule {
   RULE_5 = 5, // No suspiciousMail check
   RULE_6 = 6, // Checkout KycLevel 30
   RULE_7 = 7, // Checkout KycLevel 50
+  RULE_8 = 8, // CHF amount > 10k
 }

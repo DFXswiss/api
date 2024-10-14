@@ -11,6 +11,7 @@ export enum AmlError {
   ASSET_NOT_BUYABLE = 'AssetNotBuyable',
   ASSET_NOT_INSTANT_BUYABLE = 'AssetNotInstantBuyable',
   ASSET_NOT_CARD_BUYABLE = 'AssetNotCardBuyable',
+  ASSET_AMOUNT_TOO_HIGH = 'AssetAmountTooHigh',
   INSTANT_NOT_ALLOWED = 'InstantNotAllowed',
   CRYPTO_CRYPTO_NOT_ALLOWED = 'CryptoCryptoNotAllowed',
   ABROAD_CHF_NOT_ALLOWED = 'AbroadChfNotAllowed',
@@ -79,6 +80,11 @@ export const AmlErrorResult: {
     amlReason: AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
   },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
+  [AmlError.ASSET_AMOUNT_TOO_HIGH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
+  },
   [AmlError.INSTANT_NOT_ALLOWED]: {
     type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,

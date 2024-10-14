@@ -23,6 +23,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
@@ -65,8 +66,8 @@ export class AmlHelperService {
     }
 
     // AmlRule asset/fiat check
-    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, last7dCheckoutVolume));
-    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.approved === null) {
@@ -97,7 +98,7 @@ export class AmlHelperService {
       )
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
-      errors.push(this.amlRuleCheck(entity.user.wallet.amlRule, entity, last7dCheckoutVolume));
+      errors.push(this.amlRuleCheck(entity.user.wallet.amlRule, entity, amountInChf, last7dCheckoutVolume));
 
       if (entity.bankTx) {
         // bank
@@ -193,6 +194,7 @@ export class AmlHelperService {
   static amlRuleCheck(
     amlRule: AmlRule,
     entity: BuyCrypto | BuyFiat,
+    amountInChf: number,
     last7dCheckoutVolume: number,
   ): AmlError | undefined {
     switch (amlRule) {
@@ -242,6 +244,10 @@ export class AmlHelperService {
         )
           return AmlError.KYC_LEVEL_50_NOT_REACHED;
         break;
+
+      case AmlRule.RULE_8:
+        if (amountInChf > 10000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        break;
     }
 
     return undefined;
@@ -265,6 +271,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
@@ -285,6 +292,7 @@ export class AmlHelperService {
       entity,
       inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       last7dCheckoutVolume,
       last30dVolume,
@@ -319,7 +327,9 @@ export class AmlHelperService {
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
     if (crucialErrorResults.length) {
       const crucialErrorResult =
-        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
+        crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? {
             bankData,
