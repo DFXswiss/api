@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -83,9 +82,7 @@ export class LogJobService {
     );
 
     // assets
-    const assets = await this.assetService
-      .getAllAssets()
-      .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
+    const assets = await this.assetService.getAllAssets();
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
@@ -135,8 +132,11 @@ export class LogJobService {
 
     // asset log
     const assetLog = assets.reduce((prev, curr) => {
+      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
+      if (liquidityBalance == null && !curr.isActive) return prev;
+
       // plus
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
+      const liquidity = liquidityBalance ?? 0;
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -160,7 +160,7 @@ export class LogJobService {
 
       const totalPlusPending =
         cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount;
-      const totalPlus = liquidityBalance + totalPlusPending;
+      const totalPlus = liquidity + totalPlusPending;
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -205,7 +205,7 @@ export class LogJobService {
         priceChf: curr.approxPriceChf,
         plusBalance: {
           total: totalPlus,
-          liquidity: liquidityBalance || undefined,
+          liquidity: liquidity || undefined,
           pending: totalPlusPending
             ? {
                 total: totalPlusPending,

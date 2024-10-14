@@ -109,4 +109,16 @@ export class Asset extends IEntity {
   isBuyableOn(blockchains: Blockchain[]): boolean {
     return blockchains.includes(this.blockchain) || this.type === AssetType.CUSTOM;
   }
+
+  get isActive(): boolean {
+    return (
+      this.buyable ||
+      this.cardBuyable ||
+      this.instantBuyable ||
+      this.sellable ||
+      this.cardSellable ||
+      this.instantSellable ||
+      this.paymentEnabled
+    );
+  }
 }
