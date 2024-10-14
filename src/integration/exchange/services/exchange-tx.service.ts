@@ -56,7 +56,7 @@ export class ExchangeTxService {
     exchange: ExchangeName,
     address: string,
     method: string,
-    start: Date,
+    start = Util.daysBefore(21),
   ): Promise<ExchangeTx[]> {
     return this.exchangeTxRepo.findBy({ type, exchange, address, method, created: MoreThan(start) });
   }
