@@ -33,5 +33,8 @@ export class Fiat extends IEntity {
   approxPriceChf: number;
 
   @Column({ default: AmlRule.DEFAULT })
-  amlRule: AmlRule;
+  amlRuleFrom: AmlRule;
+
+  @Column({ default: AmlRule.DEFAULT })
+  amlRuleTo: AmlRule;
 }

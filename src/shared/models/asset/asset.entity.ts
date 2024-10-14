@@ -91,7 +91,10 @@ export class Asset extends IEntity {
   financialType: string;
 
   @Column({ default: AmlRule.DEFAULT })
-  amlRule: AmlRule;
+  amlRuleFrom: AmlRule;
+
+  @Column({ default: AmlRule.DEFAULT })
+  amlRuleTo: AmlRule;
 
   @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
   liquidityManagementRule: LiquidityManagementRule;
