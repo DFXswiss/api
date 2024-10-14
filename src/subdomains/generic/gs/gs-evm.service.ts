@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { EvmBridgeApproval, EvmContractApproval } from 'src/integration/blockchain/shared/evm/dto/evm-approval.dto';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
+import { EvmRawInputDataDto } from 'src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -33,6 +34,32 @@ export class GsEvmService {
     }
 
     throw new Error('Provided source address is not known');
+  }
+
+  async sendContractTransaction({
+    blockchain,
+    contractAddress,
+    signer,
+    callData,
+  }: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
+    const client = this.evmRegistryService.getClient(blockchain);
+
+    const privateKey = Config.evmWallets.get(signer);
+    if (!privateKey) throw new Error(`No private key found for address ${signer}`);
+
+    const { method, types, inputs } = JSON.parse(callData);
+    const iface = new ethers.utils.Interface([`function ${method}(${types.join(',')})`]);
+    const encodedData = iface.encodeFunctionData(method, inputs);
+
+    const transaction: ethers.providers.TransactionRequest = {
+      from: signer,
+      to: contractAddress,
+      data: encodedData,
+      value: 0,
+      gasLimit: ethers.BigNumber.from(300000),
+    };
+
+    return client.sendRawTransactionFrom(privateKey, transaction);
   }
 
   async sendTokenTransaction(dto: EvmTokenTransactionDto): Promise<string> {

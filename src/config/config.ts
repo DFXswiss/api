@@ -590,6 +590,10 @@ export class Configuration {
     };
   }
 
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
+  }
+
   // --- HELPERS --- //
   disabledProcesses = () =>
     process.env.DISABLED_PROCESSES === '*'
