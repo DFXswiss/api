@@ -130,6 +130,7 @@ export class PaymentLink extends IEntity {
 
   get configObj(): PaymentLinkConfig {
     return Object.assign(
+      {},
       DefaultPaymentLinkConfig,
       JSON.parse(this.route.userData.paymentLinksConfig ?? '{}'),
       JSON.parse(this.config ?? '{}'),
