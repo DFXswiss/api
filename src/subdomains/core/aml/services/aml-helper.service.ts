@@ -66,8 +66,8 @@ export class AmlHelperService {
     }
 
     // AmlRule asset/fiat check
-    errors.push(this.amlRuleCheck(inputAsset.amlRule, entity, amountInChf, last7dCheckoutVolume));
-    errors.push(this.amlRuleCheck(entity.outputAsset.amlRule, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.approved === null) {
