@@ -77,6 +77,12 @@ export class BuyFiatPreparationService {
           isPayment,
         );
 
+        const amountInChf = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+        );
+
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
@@ -111,6 +117,7 @@ export class BuyFiatPreparationService {
           ...entity.amlCheckAndFillUp(
             inputReferenceCurrency,
             minVolume,
+            amountInChf,
             last24hVolume,
             last30dVolume,
             last365dVolume,

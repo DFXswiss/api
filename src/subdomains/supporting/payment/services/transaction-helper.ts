@@ -262,8 +262,8 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number,
     from: Active,
     allowExpiredPrice: boolean,
-    dateFrom: Date,
-    dateTo: Date,
+    dateFrom?: Date,
+    dateTo?: Date,
     users?: User[],
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {

@@ -92,6 +92,12 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
+        const amountInChf = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+        );
+
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
@@ -143,6 +149,7 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             inputCurrency,
             minVolume,
+            amountInChf,
             last24hVolume,
             last7dCheckoutVolume,
             last30dVolume,
