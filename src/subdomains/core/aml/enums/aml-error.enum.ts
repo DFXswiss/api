@@ -83,7 +83,7 @@ export const AmlErrorResult: {
   [AmlError.ASSET_AMOUNT_TOO_HIGH]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlReason: null,
   },
   [AmlError.INSTANT_NOT_ALLOWED]: {
     type: AmlErrorType.MULTI,
