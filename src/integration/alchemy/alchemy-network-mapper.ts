@@ -1,4 +1,5 @@
 import { Network } from 'alchemy-sdk';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from '../blockchain/shared/evm/evm.util';
 
@@ -23,6 +24,9 @@ export class AlchemyNetworkMapper {
     [8453, Network.BASE_MAINNET],
     [84531, Network.BASE_GOERLI],
     [84532, Network.BASE_SEPOLIA],
+
+    [56, Network.BNB_MAINNET],
+    [97, Network.BNB_TESTNET],
   ]);
 
   static toAlchemyNetworkByChainId(chainId: number): Network | undefined {
@@ -35,6 +39,18 @@ export class AlchemyNetworkMapper {
   }
 
   static get availableNetworks(): Blockchain[] {
-    return [Blockchain.ETHEREUM, Blockchain.ARBITRUM, Blockchain.OPTIMISM, Blockchain.POLYGON, Blockchain.BASE];
+    const networks = [
+      Blockchain.ETHEREUM,
+      Blockchain.ARBITRUM,
+      Blockchain.OPTIMISM,
+      Blockchain.POLYGON,
+      Blockchain.BASE,
+    ];
+
+    if (Config.environment === Environment.PRD) {
+      networks.push(Blockchain.BINANCE_SMART_CHAIN);
+    }
+
+    return networks;
   }
 }
