@@ -238,7 +238,7 @@ export class KycController {
   @Post('ident/sumsub')
   @ApiExcludeEndpoint()
   async sumsubWebhook(@Req() req: Request, @Body() data: WebhookResult) {
-    if (!SumsubService.checkWebhook(req, data)) {
+    if (!SumsubService.checkWebhook(req, req.body)) {
       this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid key');
     }

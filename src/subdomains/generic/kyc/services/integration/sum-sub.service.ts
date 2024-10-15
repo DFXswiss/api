@@ -17,11 +17,11 @@ export class SumsubService {
 
   private readonly baseUrl = `https://api.sumsub.com`;
   private readonly kycLevel = 'basic-kyc-level';
-  // private static readonly algoMap: { [key: string]: string } = {
-  //   HMAC_SHA1_HEX: 'sha1',
-  //   HMAC_SHA256_HEX: 'sha256',
-  //   HMAC_SHA512_HEX: 'sha512',
-  // };
+  private static readonly algoMap: { [key: string]: string } = {
+    HMAC_SHA1_HEX: 'sha1',
+    HMAC_SHA256_HEX: 'sha256',
+    HMAC_SHA512_HEX: 'sha512',
+  };
 
   constructor(private readonly http: HttpService) {}
 
@@ -59,18 +59,14 @@ export class SumsubService {
     }-${Util.randomId()}`.toLowerCase();
   }
 
-  static checkWebhook(_req: Request, _data: any): boolean {
-    return true; // TODO: implement check
+  static checkWebhook(req: Request, rawBody: any): boolean {
+    const algoHeader = req.headers['x-payload-digest-alg'];
+    const algo = SumsubService.algoMap[algoHeader as string];
+    if (!algo) return false;
 
-    // const algoHeader = req.headers['x-payload-digest-alg'];
-    // const algo = SumsubService.algoMap[algoHeader as string];
-    // if (!algo) return false;
+    const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(rawBody).digest('hex');
 
-    // const buffer = Buffer.from(data.toString());
-
-    // const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(buffer).digest('hex');
-
-    // return calculatedDigest === req.headers['x-payload-digest'];
+    return calculatedDigest === req.headers['x-payload-digest'];
   }
 
   static identUrl(kycStep: KycStep): string {
@@ -78,6 +74,7 @@ export class SumsubService {
   }
 
   // --- HELPER METHODS --- //
+
   private async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
     const data = {
       externalUserId: SumsubService.transactionId(user, kycStep),
