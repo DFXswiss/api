@@ -153,7 +153,7 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne({
+    const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true }, kycSteps: true },
     });

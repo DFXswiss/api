@@ -111,7 +111,7 @@ export class KycService {
     });
 
     for (const identStep of expiredIdentSteps) {
-      let user = identStep.userData;
+      const user = identStep.userData;
       const step = user.getPendingStepOrThrow(identStep.id);
 
       await this.kycStepRepo.update(...step.fail());
@@ -255,7 +255,7 @@ export class KycService {
 
   // --- UPDATE METHODS --- //
   async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
@@ -307,7 +307,7 @@ export class KycService {
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     // upload file
@@ -449,7 +449,7 @@ export class KycService {
   }
 
   async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
@@ -481,7 +481,7 @@ export class KycService {
   async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
     const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
 
-    let user = transaction.user;
+    const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
 
     if (status === IdentStatus.SUCCESS && !kycStep.result) {
