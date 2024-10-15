@@ -85,6 +85,7 @@ export class BuyCryptoService {
     private readonly fiatOutputService: FiatOutputService,
     private readonly userDataService: UserDataService,
     private readonly bankAccountService: BankAccountService,
+    private readonly transactionUtilService: TransactionUtilService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -406,11 +407,8 @@ export class BuyCryptoService {
 
     TransactionUtilService.validateRefund(buyCrypto, { refundIban: dto.refundIban, chargebackAmount });
 
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(
-      dto.refundIban,
-      buyCrypto.userData,
-    );
-    if (!bankAccount || !bankAccount.bic) throw new BadRequestException('BIC not available');
+    if (!(await this.transactionUtilService.validateChargebackIban(dto.refundIban, buyCrypto.userData)))
+      throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackOutput = await this.fiatOutputService.create({
