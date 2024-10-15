@@ -16,7 +16,7 @@ export class SumsubService {
   private readonly logger = new DfxLogger(SumsubService);
 
   private readonly baseUrl = `https://api.sumsub.com`;
-  private readonly kycLevel = 'basic-kyc-level';
+  private readonly kycLevel = 'CH-Standard';
   private static readonly algoMap: { [key: string]: string } = {
     HMAC_SHA1_HEX: 'sha1',
     HMAC_SHA256_HEX: 'sha256',
