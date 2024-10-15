@@ -257,6 +257,9 @@ param alchemyApiKey string
 @secure()
 param alchemyAuthToken string
 
+param customBalanceAssets string
+param customBalanceAddresses string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -1152,6 +1155,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ALCHEMY_AUTH_TOKEN'
           value: alchemyAuthToken
+        }
+        {
+          name: 'CUSTOM_BALANCE_ASSETS'
+          value: customBalanceAssets
+        }
+        {
+          name: 'CUSTOM_BALANCE_ADDRESSES'
+          value: customBalanceAddresses
         }
       ]
     }
