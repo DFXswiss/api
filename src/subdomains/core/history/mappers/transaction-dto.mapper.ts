@@ -65,6 +65,7 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
+      outputDate: buyCrypto.outputDate,
       chargebackAmount: buyCrypto.chargebackAmount,
       chargebackTarget: buyCrypto.chargebackIban,
       chargebackTxId: buyCrypto.chargebackRemittanceInfo ?? buyCrypto.chargebackCryptoTxId,
@@ -72,6 +73,7 @@ export class TransactionDtoMapper {
         buyCrypto.chargebackCryptoTxId && buyCrypto.cryptoInput
           ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.chargebackCryptoTxId)
           : null,
+      chargebackDate: buyCrypto.chargebackDate,
       date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
     };
@@ -108,6 +110,7 @@ export class TransactionDtoMapper {
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
+      outputDate: buyFiat.outputDate,
       priceSteps: buyFiat.priceStepsObject,
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
@@ -129,6 +132,7 @@ export class TransactionDtoMapper {
       chargebackTxUrl: buyFiat.chargebackTxId
         ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.chargebackTxId)
         : null,
+      chargebackDate: buyFiat.chargebackDate,
       date: buyFiat.transaction.created,
       externalTransactionId: buyFiat.transaction.externalId,
     };
@@ -169,6 +173,7 @@ export class TransactionDtoMapper {
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
+      outputDate: refReward.outputDate,
       priceSteps: null,
       feeAmount: null,
       feeAsset: null,
@@ -181,6 +186,7 @@ export class TransactionDtoMapper {
       chargebackTarget: undefined,
       chargebackTxId: undefined,
       chargebackTxUrl: undefined,
+      chargebackDate: undefined,
       date: refReward.transaction.created,
     };
 
@@ -216,6 +222,7 @@ export class TransactionDtoMapper {
       chargebackTarget: undefined,
       chargebackTxId: undefined,
       chargebackTxUrl: undefined,
+      chargebackDate: undefined,
       date: tx.transaction.created,
     };
   }

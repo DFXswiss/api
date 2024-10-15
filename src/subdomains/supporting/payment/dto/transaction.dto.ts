@@ -138,6 +138,9 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional()
   chargebackTxUrl?: string;
 
+  @ApiPropertyOptional({ type: Date })
+  chargebackDate?: Date;
+
   @ApiProperty({ type: Date })
   date: Date;
 }
@@ -172,6 +175,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   outputTxUrl?: string;
+
+  @ApiPropertyOptional({ type: Date })
+  outputDate?: Date;
 
   @ApiPropertyOptional()
   priceSteps?: PriceStep[];
