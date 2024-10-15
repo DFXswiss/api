@@ -159,19 +159,19 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
       const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
       const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
-      if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
+      if (identCompleted && pendingVideo) await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
     }
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
       const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-      if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+      if (pendingDfxApproval) await this.kycAdminService.updateKycStepInternal(pendingDfxApproval.complete());
 
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
@@ -185,7 +185,8 @@ export class UserDataService {
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(userData.id, dto);
+    Object.assign(userData, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -262,7 +263,9 @@ export class UserDataService {
     const mailChanged = data.mail && data.mail !== userData.mail;
     if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
 
-    return this.userDataRepo.save(Object.assign(userData, data));
+    await this.userDataRepo.update(userData.id, data);
+
+    return Object.assign(userData, data);
   }
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
@@ -322,7 +325,9 @@ export class UserDataService {
 
     if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(userData.id, dto);
+
+    userData = Object.assign(userData, dto);
 
     const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(userData));
     return { user: userData, isKnownUser };
@@ -422,10 +427,6 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
-  }
-
-  async save(userData: UserData): Promise<UserData> {
-    return this.userDataRepo.save(userData);
   }
 
   // --- KYC CLIENTS --- //

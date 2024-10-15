@@ -7,7 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -535,78 +535,6 @@ export class UserData extends IEntity {
   }
 
   // --- KYC PROCESS --- //
-
-  setKycLevel(level: KycLevel): this {
-    this.kycLevel = level;
-
-    this.logger.verbose(`User ${this.id} changed to KYC level ${level}`);
-
-    return this;
-  }
-
-  completeStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.complete(result);
-    this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  failStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.fail(result);
-
-    this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  pauseStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.pause(result);
-    this.logger.verbose(`User ${this.id} pauses step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  cancelStep(kycStep: KycStep): this {
-    kycStep.cancel();
-    this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  finishStep(kycStep: KycStep): this {
-    kycStep.finish();
-
-    this.logger.verbose(`User ${this.id} finishes step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  externalReviewStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.externalReview(result);
-
-    this.logger.verbose(`User ${this.id} checks step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  internalReviewStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.internalReview(result);
-
-    this.logger.verbose(`User ${this.id} reviews step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  nextStep(kycStep: KycStep): this {
-    this.kycSteps.push(kycStep);
-
-    this.logger.verbose(`User ${this.id} starts step ${kycStep.name}`);
-
-    if (kycStep.isCompleted) this.completeStep(kycStep);
-    if (kycStep.isFailed) this.failStep(kycStep);
-
-    return this;
-  }
 
   get hasSuspiciousMail(): boolean {
     return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;

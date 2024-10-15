@@ -129,7 +129,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
@@ -188,11 +188,9 @@ export class UserService {
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    let user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
-    // update
-    user = await this.userRepo.save({ ...user, ...dto });
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
     user.userData = update;
 
