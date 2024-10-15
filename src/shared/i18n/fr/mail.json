@@ -38,7 +38,12 @@
             "title": "Paiement payé",
             "salutation": "Votre paiement a été envoyé sur votre compte bancaire"
         },
-        "return": {
+        "chargeback": {
+            "unconfirmed": {
+                "title": "Action requise",
+                "salutation": "Une action est requise pour votre transaction",
+                "transaction_button": "Vous pouvez effectuer l'action via le lien suivant:<br>[url:cliquez ici]"
+            },
             "fiat": {
                 "title":"Remboursement des fonds",
                 "salutation": "Vos fonds ont été retournés à votre banque"
@@ -85,9 +90,9 @@
                 "salutation": "Vous avez dépassé votre volume sur 24h",
                 "line1": "Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.",
                 "line2": "Nous traiterons votre transaction après la réussite du KYC.",
-                "line3": "Sans vérification, ton argent te sera automatiquement retourné après 2 jours.",
-                "line4": "Augmenter la limite avec vérification ? <br>Cliquez sur le lien suivant pour vous vérifier:<br>[url:{urlText}]",
-                "line5": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\"."
+                "line3": "Augmenter la limite avec vérification ? <br>Cliquez sur le lien suivant pour vous vérifier:<br>[url:{urlText}]",
+                "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "annual_limit": {
                 "title": "Limite annuelle dépassée",
@@ -95,8 +100,8 @@
                 "line1": "Veuillez demander une nouvelle limite annuelle.",
                 "line2": "Nous traiterons votre transaction après<br> l'augmentation de votre limite.",
                 "line3": "Augmenter la limite ?",
-                "line4": "Ouvrez la page de paiement via le bouton \"My DFX\" dans l'appli DFX.",
-                "line5": "Rendez-vous sur la flèche rouge sous \"Votre limite\" et<br> demandez une nouvelle limite."
+                "line4": "Vous pouvez demander un relèvement de limite en cliquant sur le lien suivant:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "annual_limit_without_kyc": {
                 "title": "Transaction en attente - limite annuelle sans KYC dépassée",
@@ -105,7 +110,7 @@
                 "line2": "Malheureusement, comme vous avez dépassé votre limite annuelle, nous ne pouvons pas traiter votre commande sans vérifier votre compte.",
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "olky_no_kyc": {
                 "title": "Le KYC est nécessaire pour utiliser le virement SEPA instantané",
@@ -114,7 +119,7 @@
                 "line2": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.",
-                "line5": "Si vous ne réalisez pas la vérification, l'argent sera retourné automatiquement après 2 jours."
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "name_check_without_kyc": {
                 "title": "KYC requis pour traiter votre transaction en attente",
@@ -123,7 +128,7 @@
                 "line2": "Nous ne pouvons malheureusement pas traiter votre commande sans une vérification KYC complète.",
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "high_risk_kyc_needed": {
                 "title": "Problème avec votre dépôt",
@@ -132,7 +137,7 @@
                 "line2": "Malheureusement, sans vérification complète, nous ne pouvons pas garantir que cette transaction n'est pas frauduleuse.",
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "manual_check": {
                 "title": "Dépôt de chèques",
@@ -141,7 +146,7 @@
                 "line2": "Malheureusement, la transaction n'a pas pu être validée de manière entièrement automatique et doit maintenant être vérifiée manuellement par un employé.",
                 "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
                 "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
-                "line5": ""
+                "line5": "Pour consulter le statut actuel de votre transaction:<br>[url:cliquez ici]"
             },
             "asset_kyc_needed": {
                 "title": "Vérification (KYC) requise",
@@ -150,7 +155,7 @@
                 "line2": "Malheureusement, nous avons besoin d'une vérification (KYC) de votre part pour l'actif que vous avez déposé.",
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas procéder à la vérification, le bien sera restitué automatiquement après deux jours."
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "video_ident_needed": {
                 "title": "Vérification de l'identité par vidéo (KYC) requise",
@@ -159,13 +164,8 @@
                 "line2": "Malheureusement, nous avons besoin d'une vérification d'identité vidéo (KYC) pour votre transaction.",
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas procéder à la vérification, le bien sera restitué automatiquement après deux jours."
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             }
-        },
-        "chargeback_not_possible": {
-            "title": "La rétrofacturation n'est pas possible",
-            "salutation": "Votre rétrofacturation n'est pas possible",
-            "message": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.<br>Veuillez contacter notre équipe d'assistance.<br>Vous pouvez contacter l'assistance via [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
         "blockchain": "Blockchain",

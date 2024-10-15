@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -69,7 +68,7 @@ export class LogJobService {
   async saveTradingLog() {
     if (DisabledProcess(Process.TRADING_LOG)) return;
 
-    // trading
+    // trading log
     const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
       t.reduce((prev, curr) => {
         prev[curr.tradingRule.id] = {
@@ -83,14 +82,17 @@ export class LogJobService {
     );
 
     // assets
-    const assets = await this.assetService
-      .getAllAssets()
-      .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
+    const assets = await this.assetService.getAllAssets();
 
+    // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    const maerkiBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+    const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+    const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
 
+    // liq balances
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+
+    // pending balances
     const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
@@ -98,29 +100,43 @@ export class LogJobService {
     const pendingBankTx = await this.bankTxService.getPendingTx();
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
-    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
-    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(
-      olkyBank.iban,
-      maerkiBank.iban,
-      Util.daysBefore(14),
-      Util.daysBefore(7),
-    );
-    const recentBankTxFromKraken = await this.bankTxService.getRecentExchangeToBankTx(
-      maerkiBank.iban,
-      BankTxType.KRAKEN,
-      Util.daysBefore(7),
-    );
-    const recentKrakenTx = await this.exchangeTxService.getRecentExchangeTx(
-      ExchangeTxType.WITHDRAWAL,
-      ExchangeName.KRAKEN,
-      'Maerki Baumann & Co. AG',
-      'Bank Frick (SEPA) International',
-      Util.daysBefore(14),
-    );
 
+    // debt balances
+    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
+
+    // pending internal balances
+    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
+    const recentEurKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiEurBank.iban, BankTxType.KRAKEN);
+    const recentChfKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiChfBank.iban, BankTxType.KRAKEN);
+    const recentKrakenBankTx = [...recentEurKrakenBankTx, ...recentChfKrakenBankTx];
+    const recentKrakenExchangeTx = [
+      ...this.filterSenderPendingList(
+        await this.exchangeTxService.getRecentExchangeTx(
+          ExchangeTxType.WITHDRAWAL,
+          ExchangeName.KRAKEN,
+          'Maerki Baumann & Co. AG',
+          'Bank Frick (SEPA) International',
+        ),
+        recentEurKrakenBankTx?.[0],
+      ),
+      ...this.filterSenderPendingList(
+        await this.exchangeTxService.getRecentExchangeTx(
+          ExchangeTxType.WITHDRAWAL,
+          ExchangeName.KRAKEN,
+          'Maerki Baumann',
+          'Bank Frick (SIC) International',
+        ),
+        recentChfKrakenBankTx?.[0],
+      ),
+    ];
+
+    // asset log
     const assetLog = assets.reduce((prev, curr) => {
+      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
+      if (liquidityBalance == null && !curr.isActive) return prev;
+
       // plus
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
+      const liquidity = liquidityBalance ?? 0;
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -133,29 +149,18 @@ export class LogJobService {
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
         olkyBank.iban,
-        undefined,
-        maerkiBank.iban,
+        maerkiEurBank.iban,
       );
-      const pendingKrakenTxAmount = this.getPendingBankAmounts(
+      const pendingKrakenMaerkiTxAmount = this.getPendingBankAmounts(
         [curr],
-        recentKrakenTx,
+        recentKrakenExchangeTx,
         ExchangeTxType.WITHDRAWAL,
-        undefined,
-        'Maerki Baumann & Co. AG',
-        maerkiBank.iban,
       );
-      const pendingKrakenBankTxAmount = this.getPendingBankAmounts(
-        [curr],
-        recentBankTxFromKraken,
-        BankTxType.KRAKEN,
-        undefined,
-        undefined,
-        maerkiBank.iban,
-      );
+      const pendingKrakenBankTxAmount = this.getPendingBankAmounts([curr], recentKrakenBankTx, BankTxType.KRAKEN);
 
       const totalPlusPending =
-        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenTxAmount + pendingKrakenBankTxAmount;
-      const totalPlus = liquidityBalance + totalPlusPending;
+        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount;
+      const totalPlus = liquidity + totalPlusPending;
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -200,14 +205,14 @@ export class LogJobService {
         priceChf: curr.approxPriceChf,
         plusBalance: {
           total: totalPlus,
-          liquidity: liquidityBalance || undefined,
+          liquidity: liquidity || undefined,
           pending: totalPlusPending
             ? {
                 total: totalPlusPending,
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyAmount || undefined,
-                fromKraken: pendingKrakenTxAmount + pendingKrakenBankTxAmount || undefined,
+                fromKraken: pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount || undefined,
               }
             : undefined,
         },
@@ -305,14 +310,25 @@ export class LogJobService {
     assets: Asset[],
     pendingTx: (BankTx | ExchangeTx)[],
     type: BankExchangeType,
-    fromIban: string | undefined,
-    toAddress: string | undefined,
-    toIban: string,
+    source?: string,
+    target?: string,
   ): number {
     return assets.reduce(
-      (prev, curr) =>
-        prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, fromIban, toAddress, toIban), 0),
+      (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, source, target), 0),
       0,
     );
+  }
+
+  private filterSenderPendingList(
+    senderTx: (BankTx | ExchangeTx)[],
+    receiverTx: BankTx | ExchangeTx | undefined,
+  ): (BankTx | ExchangeTx)[] {
+    if (!receiverTx) return senderTx;
+    const senderPair = senderTx.find(
+      (s) =>
+        (s instanceof BankTx ? s.instructedAmount : s.amount) ===
+        (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount),
+    );
+    return senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx;
   }
 }

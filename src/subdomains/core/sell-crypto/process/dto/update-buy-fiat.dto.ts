@@ -199,6 +199,11 @@ export class UpdateBuyFiatDto {
   chargebackAllowedDate: Date;
 
   @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDateUser: Date;
+
+  @IsOptional()
   @IsInt()
   bankDataId: number;
 

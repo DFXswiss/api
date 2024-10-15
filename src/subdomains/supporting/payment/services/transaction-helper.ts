@@ -262,8 +262,8 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number,
     from: Active,
     allowExpiredPrice: boolean,
-    dateFrom: Date,
-    dateTo: Date,
+    dateFrom?: Date,
+    dateTo?: Date,
     users?: User[],
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
@@ -486,7 +486,7 @@ export class TransactionHelper implements OnModuleInit {
     const isSwap = isAsset(from) && isAsset(to);
 
     // KYC checks
-    if (AmlHelperService.amlRuleUserCheck([from.amlRule, to.amlRule], user, paymentMethodIn))
+    if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
       return QuoteError.KYC_REQUIRED;
 
     if (isBuy && AmlHelperService.amlRuleUserCheck([user?.wallet.amlRule], user, paymentMethodIn))

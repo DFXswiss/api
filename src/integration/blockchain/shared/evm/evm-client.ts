@@ -162,6 +162,15 @@ export abstract class EvmClient {
     return this.sendRawTransaction(this.wallet, request);
   }
 
+  async sendRawTransactionFrom(
+    privateKey: string,
+    request: ethers.providers.TransactionRequest,
+  ): Promise<ethers.providers.TransactionResponse> {
+    const wallet = new ethers.Wallet(privateKey, this.provider);
+
+    return this.sendRawTransaction(wallet, request);
+  }
+
   async sendRawTransaction(
     wallet: ethers.Wallet,
     request: ethers.providers.TransactionRequest,

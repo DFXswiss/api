@@ -140,7 +140,7 @@ export class BuyFiatService {
 
     if (dto.bankDataActive != null && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        active: dto.bankDataActive,
+        approved: dto.bankDataActive,
       });
 
     Util.removeNullFields(entity);

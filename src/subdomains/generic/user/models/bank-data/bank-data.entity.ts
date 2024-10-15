@@ -1,4 +1,5 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
@@ -20,15 +21,19 @@ export enum BankDataVerificationError {
 }
 
 @Entity()
+@Index((bankData: BankData) => [bankData.iban, bankData.userData], {
+  unique: true,
+  where: `type = '${BankDataType.USER}'`,
+})
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   name: string;
 
   @Column({ nullable: true })
-  active: boolean;
+  approved: boolean;
 
   @Column({ length: 256 })
-  @Index({ unique: true, where: 'active = 1' })
+  @Index({ unique: true, where: 'approved = 1' })
   iban: string;
 
   @Column({ length: 256, nullable: true })
@@ -38,7 +43,13 @@ export class BankData extends IEntity {
   comment: string;
 
   @Column({ nullable: true })
-  manualCheck: boolean;
+  manualApproved: boolean;
+
+  @Column({ length: 256, nullable: true })
+  label: string;
+
+  @ManyToOne(() => Fiat, { nullable: true, eager: true })
+  preferredCurrency: Fiat;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
@@ -47,7 +58,7 @@ export class BankData extends IEntity {
 
   activate(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
-      active: true,
+      approved: true,
       comment: 'Pass',
     };
 
@@ -58,7 +69,7 @@ export class BankData extends IEntity {
 
   deactivate(comment?: string): UpdateResult<BankData> {
     const update: Partial<BankData> = {
-      active: false,
+      approved: false,
       comment,
     };
 

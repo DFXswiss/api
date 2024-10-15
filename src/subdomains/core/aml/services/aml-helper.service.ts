@@ -23,6 +23,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
@@ -65,13 +66,13 @@ export class AmlHelperService {
     }
 
     // AmlRule asset/fiat check
-    errors.push(this.amlRuleCheck(inputAsset.amlRule, entity, last7dCheckoutVolume));
-    errors.push(this.amlRuleCheck(entity.outputAsset.amlRule, entity, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
-      if (!bankData || bankData.active === null) {
+      if (!bankData || bankData.approved === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if ((!bankData.active && !bankData.manualCheck) || bankData.manualCheck === false) {
+      } else if ((!bankData.approved && !bankData.manualApproved) || bankData.manualApproved === false) {
         errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
       } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
@@ -97,14 +98,18 @@ export class AmlHelperService {
       )
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
-      errors.push(this.amlRuleCheck(entity.user.wallet.amlRule, entity, last7dCheckoutVolume));
+      errors.push(this.amlRuleCheck(entity.user.wallet.amlRule, entity, amountInChf, last7dCheckoutVolume));
 
       if (entity.bankTx) {
         // bank
         if (
           blacklist.some((b) =>
             b.matches(
-              [SpecialExternalAccountType.BANNED_BIC, SpecialExternalAccountType.BANNED_BIC_BUY],
+              [
+                SpecialExternalAccountType.BANNED_BIC,
+                SpecialExternalAccountType.BANNED_BIC_BUY,
+                SpecialExternalAccountType.BANNED_BIC_AML,
+              ],
               entity.bankTx.bic,
             ),
           )
@@ -113,7 +118,11 @@ export class AmlHelperService {
         if (
           blacklist.some((b) =>
             b.matches(
-              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_BUY,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
               entity.bankTx.iban,
             ),
           )
@@ -132,7 +141,7 @@ export class AmlHelperService {
       } else if (entity.checkoutTx) {
         // checkout
         if (
-          !bankData.manualCheck &&
+          !bankData.manualApproved &&
           entity.checkoutTx.cardName &&
           !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName)
         )
@@ -142,7 +151,11 @@ export class AmlHelperService {
         if (
           blacklist.some((b) =>
             b.matches(
-              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_BUY,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
               entity.checkoutTx.cardFingerPrint,
             ),
           )
@@ -163,7 +176,11 @@ export class AmlHelperService {
       if (
         blacklist.some((b) =>
           b.matches(
-            [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_SELL],
+            [
+              SpecialExternalAccountType.BANNED_IBAN,
+              SpecialExternalAccountType.BANNED_IBAN_SELL,
+              SpecialExternalAccountType.BANNED_IBAN_AML,
+            ],
             entity.sell.iban,
           ),
         )
@@ -177,6 +194,7 @@ export class AmlHelperService {
   static amlRuleCheck(
     amlRule: AmlRule,
     entity: BuyCrypto | BuyFiat,
+    amountInChf: number,
     last7dCheckoutVolume: number,
   ): AmlError | undefined {
     switch (amlRule) {
@@ -226,6 +244,10 @@ export class AmlHelperService {
         )
           return AmlError.KYC_LEVEL_50_NOT_REACHED;
         break;
+
+      case AmlRule.RULE_8:
+        if (amountInChf > 10000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        break;
     }
 
     return undefined;
@@ -249,6 +271,7 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
@@ -269,6 +292,7 @@ export class AmlHelperService {
       entity,
       inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       last7dCheckoutVolume,
       last30dVolume,
@@ -303,7 +327,9 @@ export class AmlHelperService {
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
     if (crucialErrorResults.length) {
       const crucialErrorResult =
-        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
+        crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? {
             bankData,

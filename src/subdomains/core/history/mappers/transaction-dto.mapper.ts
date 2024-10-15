@@ -65,9 +65,16 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
+      outputDate: buyCrypto.outputDate,
       chargebackAmount: buyCrypto.chargebackAmount,
       chargebackTarget: buyCrypto.chargebackIban,
-      date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
+      chargebackTxId: buyCrypto.chargebackRemittanceInfo ?? buyCrypto.chargebackCryptoTxId,
+      chargebackTxUrl:
+        buyCrypto.chargebackCryptoTxId && buyCrypto.cryptoInput
+          ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.chargebackCryptoTxId)
+          : null,
+      chargebackDate: buyCrypto.chargebackDate,
+      date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
     };
 
@@ -103,6 +110,7 @@ export class TransactionDtoMapper {
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
+      outputDate: buyFiat.outputDate,
       priceSteps: buyFiat.priceStepsObject,
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
@@ -120,7 +128,12 @@ export class TransactionDtoMapper {
       outputTxUrl: null,
       chargebackAmount: buyFiat.chargebackAmount,
       chargebackTarget: buyFiat.chargebackAddress,
-      date: buyFiat.outputDate ?? buyFiat.chargebackDate ?? buyFiat.updated,
+      chargebackTxId: buyFiat.chargebackTxId,
+      chargebackTxUrl: buyFiat.chargebackTxId
+        ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.chargebackTxId)
+        : null,
+      chargebackDate: buyFiat.chargebackDate,
+      date: buyFiat.transaction.created,
       externalTransactionId: buyFiat.transaction.externalId,
     };
 
@@ -160,6 +173,7 @@ export class TransactionDtoMapper {
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
+      outputDate: refReward.outputDate,
       priceSteps: null,
       feeAmount: null,
       feeAsset: null,
@@ -170,7 +184,10 @@ export class TransactionDtoMapper {
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
       chargebackAmount: undefined,
       chargebackTarget: undefined,
-      date: refReward.outputDate ?? refReward.updated,
+      chargebackTxId: undefined,
+      chargebackTxUrl: undefined,
+      chargebackDate: undefined,
+      date: refReward.transaction.created,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -203,7 +220,10 @@ export class TransactionDtoMapper {
       inputTxUrl: null,
       chargebackAmount: undefined,
       chargebackTarget: undefined,
-      date: tx.created,
+      chargebackTxId: undefined,
+      chargebackTxUrl: undefined,
+      chargebackDate: undefined,
+      date: tx.transaction.created,
     };
   }
 
@@ -275,6 +295,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
         return {
           state: TransactionState.FAILED,
           reason,
@@ -303,6 +324,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
         return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:

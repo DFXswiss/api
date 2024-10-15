@@ -50,8 +50,8 @@ export class PayInNotificationService {
             context: MailContext.CRYPTO_INPUT_RETURN,
             input: {
               userData: entity.route.user.userData,
-              title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
-              salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
+              title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
+              salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.amount} ${entity.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.asset.blockchain,
@@ -63,14 +63,14 @@ export class PayInNotificationService {
               suffix: [
                 !entity.isLightningInput
                   ? {
-                      key: `${MailTranslationKey.CRYPTO_RETURN}.payment_link`,
+                      key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.payment_link`,
                       params: { url: txExplorerUrl(entity.asset.blockchain, entity.returnTxId) },
                     }
                   : null,
                 {
-                  key: `${MailTranslationKey.RETURN}.introduction`,
+                  key: `${MailTranslationKey.CHARGEBACK}.introduction`,
                   params: {
-                    reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                    reason: MailFactory.parseMailKey(MailTranslationKey.CHARGEBACK_REASON, entity.amlReason),
                   },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },
