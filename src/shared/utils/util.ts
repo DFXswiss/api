@@ -146,7 +146,7 @@ export class Util {
       .replace(/[ł]/g, 'l')
       .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
-      .replace(/[ßșš]/g, 's')
+      .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
       .replace(/[\.]/g, '')
