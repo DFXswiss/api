@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -82,7 +82,7 @@ export class LogJobService {
     );
 
     // assets
-    const assets = await this.assetService.getAllAssets();
+    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
