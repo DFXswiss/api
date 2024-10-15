@@ -247,14 +247,16 @@ export class LogJobService {
 
     const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
       (acc, [financialType, assets]) => {
-        const plusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].plusBalance.total, 0);
+        const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
         const plusBalanceChf = assets.reduce(
-          (prev, curr) => prev + assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf,
+          (prev, curr) =>
+            prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
           0,
         );
-        const minusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].minusBalance.total, 0);
+        const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
         const minusBalanceChf = assets.reduce(
-          (prev, curr) => prev + assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf,
+          (prev, curr) =>
+            prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
           0,
         );
 
