@@ -20,7 +20,7 @@ import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
@@ -105,30 +105,67 @@ export class LogJobService {
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     // pending internal balances
+    // db requests
     const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
-    const recentEurKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiEurBank.iban, BankTxType.KRAKEN);
-    const recentChfKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiChfBank.iban, BankTxType.KRAKEN);
-    const recentKrakenBankTx = [...recentEurKrakenBankTx, ...recentChfKrakenBankTx];
-    const recentKrakenExchangeTx = [
+    const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(BankTxType.KRAKEN);
+    const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(ExchangeName.KRAKEN, [
+      ExchangeTxType.DEPOSIT,
+      ExchangeTxType.WITHDRAWAL,
+    ]);
+
+    // receiver data
+    const recentEurKrakenBankTx = recentKrakenBankTx.filter(
+      (b) =>
+        b.accountIban === maerkiEurBank.iban &&
+        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        b.created > Util.daysBefore(14),
+    );
+    const recentChfKrakenBankTx = recentKrakenBankTx.filter(
+      (b) =>
+        b.accountIban === maerkiChfBank.iban &&
+        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        b.created > Util.daysBefore(14),
+    );
+    const recentChfBankTxKraken = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.DEPOSIT &&
+        k.method === 'Bank Frick (SIC) International' &&
+        k.address === 'MAEBCHZZXXX' &&
+        k.created > Util.daysBefore(14),
+    );
+
+    // sender data
+    const recentKrakenExchangeTxFiltered = [
       ...this.filterSenderPendingList(
-        await this.exchangeTxService.getRecentExchangeTx(
-          ExchangeTxType.WITHDRAWAL,
-          ExchangeName.KRAKEN,
-          'Maerki Baumann & Co. AG',
-          'Bank Frick (SEPA) International',
+        recentKrakenExchangeTx.filter(
+          (k) =>
+            k.type === ExchangeTxType.WITHDRAWAL &&
+            k.method === 'Bank Frick (SEPA) International' &&
+            k.address === 'Maerki Baumann & Co. AG' &&
+            k.created > Util.daysBefore(21),
         ),
         recentEurKrakenBankTx?.[0],
       ),
       ...this.filterSenderPendingList(
-        await this.exchangeTxService.getRecentExchangeTx(
-          ExchangeTxType.WITHDRAWAL,
-          ExchangeName.KRAKEN,
-          'Maerki Baumann',
-          'Bank Frick (SIC) International',
+        recentKrakenExchangeTx.filter(
+          (k) =>
+            k.type === ExchangeTxType.WITHDRAWAL &&
+            k.method === 'Bank Frick (SIC) International' &&
+            k.address === 'Maerki Baumann' &&
+            k.created > Util.daysBefore(21),
         ),
         recentChfKrakenBankTx?.[0],
       ),
     ];
+    const recentChfBankKrakenTx = this.filterSenderPendingList(
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.instructedCurrency === 'CHF' &&
+          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
+          b.created > Util.daysBefore(21),
+      ),
+      recentChfBankTxKraken[0],
+    );
 
     // asset log
     const assetLog = assets.reduce((prev, curr) => {
@@ -144,23 +181,45 @@ export class LogJobService {
         0,
       );
 
-      const pendingOlkyAmount = this.getPendingBankAmounts(
+      // Olky to Maerki
+      const pendingOlkyMaerkiAmount = this.getPendingBankAmounts(
         [curr],
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
         olkyBank.iban,
         maerkiEurBank.iban,
       );
-      const pendingKrakenMaerkiTxAmount = this.getPendingBankAmounts(
+
+      // Kraken to Maerki
+      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmounts(
         [curr],
-        recentKrakenExchangeTx,
+        recentKrakenExchangeTxFiltered,
         ExchangeTxType.WITHDRAWAL,
       );
-      const pendingKrakenBankTxAmount = this.getPendingBankAmounts([curr], recentKrakenBankTx, BankTxType.KRAKEN);
+      const pendingKrakenMaerkiPlusAmount = this.getPendingBankAmounts(
+        [curr],
+        [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
+        BankTxType.KRAKEN,
+      );
 
+      // Bank to Kraken
+      const pendingBankKrakenPlusAmount = this.getPendingBankAmounts([curr], recentChfBankKrakenTx, BankTxType.KRAKEN);
+      const pendingBankKrakenMinusAmount = this.getPendingBankAmounts(
+        [curr],
+        recentChfBankTxKraken,
+        ExchangeTxType.DEPOSIT,
+      );
+
+      // total pending balance
       const totalPlusPending =
-        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount;
-      const totalPlus = liquidity + totalPlusPending;
+        cryptoInput +
+        exchangeOrder +
+        pendingOlkyMaerkiAmount +
+        pendingKrakenMaerkiMinusAmount +
+        pendingKrakenMaerkiPlusAmount +
+        pendingBankKrakenPlusAmount +
+        pendingBankKrakenMinusAmount;
+      const totalPlus = liquidityBalance + totalPlusPending;
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -211,8 +270,9 @@ export class LogJobService {
                 total: totalPlusPending,
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
-                fromOlky: pendingOlkyAmount || undefined,
-                fromKraken: pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount || undefined,
+                fromOlky: pendingOlkyMaerkiAmount || undefined,
+                fromKraken: pendingKrakenMaerkiMinusAmount + pendingKrakenMaerkiPlusAmount || undefined,
+                toKraken: pendingBankKrakenPlusAmount + pendingBankKrakenMinusAmount || undefined,
               }
             : undefined,
         },
