@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -20,9 +22,13 @@ import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from '../bank/bank/bank.service';
+import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { PayInService } from '../payin/services/payin.service';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
+
+export type BankExchangeType = ExchangeTxType | BankTxType;
 
 type BalancesByFinancialType = {
   [financialType: string]: {
@@ -53,6 +59,8 @@ export class LogJobService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
+    private readonly exchangeTxService: ExchangeTxService,
+    private readonly bankService: BankService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -60,7 +68,7 @@ export class LogJobService {
   async saveTradingLog() {
     if (DisabledProcess(Process.TRADING_LOG)) return;
 
-    // trading
+    // trading log
     const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
       t.reduce((prev, curr) => {
         prev[curr.tradingRule.id] = {
@@ -74,11 +82,17 @@ export class LogJobService {
     );
 
     // assets
-    const assets = await this.assetService
-      .getAllAssets()
-      .then((assets) => assets.filter((a) => a.blockchain !== Blockchain.DEFICHAIN));
+    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
 
+    // banks
+    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+    const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+    const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
+
+    // liq balances
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+
+    // pending balances
     const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
@@ -86,11 +100,43 @@ export class LogJobService {
     const pendingBankTx = await this.bankTxService.getPendingTx();
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
+
+    // debt balances
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
+    // pending internal balances
+    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
+    const recentEurKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiEurBank.iban, BankTxType.KRAKEN);
+    const recentChfKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiChfBank.iban, BankTxType.KRAKEN);
+    const recentKrakenBankTx = [...recentEurKrakenBankTx, ...recentChfKrakenBankTx];
+    const recentKrakenExchangeTx = [
+      ...this.filterSenderPendingList(
+        await this.exchangeTxService.getRecentExchangeTx(
+          ExchangeTxType.WITHDRAWAL,
+          ExchangeName.KRAKEN,
+          'Maerki Baumann & Co. AG',
+          'Bank Frick (SEPA) International',
+        ),
+        recentEurKrakenBankTx?.[0],
+      ),
+      ...this.filterSenderPendingList(
+        await this.exchangeTxService.getRecentExchangeTx(
+          ExchangeTxType.WITHDRAWAL,
+          ExchangeName.KRAKEN,
+          'Maerki Baumann',
+          'Bank Frick (SIC) International',
+        ),
+        recentChfKrakenBankTx?.[0],
+      ),
+    ];
+
+    // asset log
     const assetLog = assets.reduce((prev, curr) => {
+      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
+      if (liquidityBalance == null && !curr.isActive) return prev;
+
       // plus
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0;
+      const liquidity = liquidityBalance ?? 0;
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -98,8 +144,23 @@ export class LogJobService {
         0,
       );
 
-      const totalPlusPending = cryptoInput + exchangeOrder;
-      const totalPlus = liquidityBalance + totalPlusPending;
+      const pendingOlkyAmount = this.getPendingBankAmounts(
+        [curr],
+        recentBankTxFromOlky,
+        BankTxType.INTERNAL,
+        olkyBank.iban,
+        maerkiEurBank.iban,
+      );
+      const pendingKrakenMaerkiTxAmount = this.getPendingBankAmounts(
+        [curr],
+        recentKrakenExchangeTx,
+        ExchangeTxType.WITHDRAWAL,
+      );
+      const pendingKrakenBankTxAmount = this.getPendingBankAmounts([curr], recentKrakenBankTx, BankTxType.KRAKEN);
+
+      const totalPlusPending =
+        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount;
+      const totalPlus = liquidity + totalPlusPending;
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -144,12 +205,14 @@ export class LogJobService {
         priceChf: curr.approxPriceChf,
         plusBalance: {
           total: totalPlus,
-          liquidity: liquidityBalance || undefined,
+          liquidity: liquidity || undefined,
           pending: totalPlusPending
             ? {
                 total: totalPlusPending,
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
+                fromOlky: pendingOlkyAmount || undefined,
+                fromKraken: pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount || undefined,
               }
             : undefined,
         },
@@ -184,14 +247,16 @@ export class LogJobService {
 
     const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
       (acc, [financialType, assets]) => {
-        const plusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].plusBalance.total, 0);
+        const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
         const plusBalanceChf = assets.reduce(
-          (prev, curr) => prev + assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf,
+          (prev, curr) =>
+            prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
           0,
         );
-        const minusBalance = assets.reduce((prev, curr) => prev + assetLog[curr.id].minusBalance.total, 0);
+        const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
         const minusBalanceChf = assets.reduce(
-          (prev, curr) => prev + assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf,
+          (prev, curr) =>
+            prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
           0,
         );
 
@@ -241,5 +306,31 @@ export class LogJobService {
         0,
       ),
     };
+  }
+
+  private getPendingBankAmounts(
+    assets: Asset[],
+    pendingTx: (BankTx | ExchangeTx)[],
+    type: BankExchangeType,
+    source?: string,
+    target?: string,
+  ): number {
+    return assets.reduce(
+      (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, source, target), 0),
+      0,
+    );
+  }
+
+  private filterSenderPendingList(
+    senderTx: (BankTx | ExchangeTx)[],
+    receiverTx: BankTx | ExchangeTx | undefined,
+  ): (BankTx | ExchangeTx)[] {
+    if (!receiverTx) return senderTx;
+    const senderPair = senderTx.find(
+      (s) =>
+        (s instanceof BankTx ? s.instructedAmount : s.amount) ===
+        (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount),
+    );
+    return senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx;
   }
 }

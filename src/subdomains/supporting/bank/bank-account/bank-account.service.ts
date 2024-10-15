@@ -4,10 +4,13 @@ import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -15,13 +18,51 @@ import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Injectable()
 export class BankAccountService {
+  private readonly logger = new DfxLogger(BankAccountService);
+
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
     private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
+    private readonly bankDataService: BankDataService,
   ) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
+  async process() {
+    if (DisabledProcess(Process.BANK_DATA_SYNC)) return;
+
+    const entities = await this.bankAccountRepo.find({
+      where: { synced: IsNull() },
+      relations: { userData: true },
+      take: 5000,
+    });
+
+    for (const entity of entities) {
+      try {
+        if (entity.userData) {
+          if (entity.userData.status === UserDataStatus.MERGED) {
+            await this.bankAccountRepo.update(entity.id, { synced: false });
+            continue;
+          }
+
+          await this.bankDataService.createIbanForUser(
+            entity.userData?.id,
+            entity.iban,
+            false,
+            entity.label,
+            entity.preferredCurrency,
+          );
+        }
+
+        await this.bankAccountRepo.update(entity.id, { synced: true });
+      } catch (e) {
+        this.logger.error(`Error in bankAccount-bankData sync ${entity.id}:`, e);
+      }
+    }
+  }
 
   async getUserBankAccounts(userDataId: number): Promise<BankAccount[]> {
     return this.bankAccountRepo.findBy({ userData: { id: userDataId } });

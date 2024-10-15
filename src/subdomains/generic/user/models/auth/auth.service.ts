@@ -39,6 +39,7 @@ import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -250,7 +251,7 @@ export class AuthService {
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const account = await this.userDataService.getUserData(entry.userDataId);
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
 
       if (account.isDeactivated)
@@ -306,6 +307,14 @@ export class AuthService {
     return {
       defaultMessage: Config.auth.signMessageGeneral + address,
       fallbackMessage: Config.auth.signMessage + address,
+    };
+  }
+
+  // --- VERIFY SIGN MESSAGES --- //
+
+  async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
+    return {
+      isValid: await this.cryptoService.verifySignature(message, address, signature),
     };
   }
 

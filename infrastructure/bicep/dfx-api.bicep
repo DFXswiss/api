@@ -63,6 +63,7 @@ param paymentQuoteTimeout string
 param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
+param paymentMoneroAddress string
 
 @secure()
 param evmDepositSeed string
@@ -113,9 +114,6 @@ param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscQuoteContractAddress string
 param bscChainId string
-param bscScanApiUrl string
-@secure()
-param bscScanApiKey string
 
 @secure()
 param lightningApiCertificate string
@@ -594,11 +592,12 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KYC_APP_TOKEN'
           value: kycAppToken
-        }        
+        }
         {
           name: 'KYC_SECRET_KEY'
           value: kycSecretKey
-        }        {
+        }
+        {
           name: 'KYC_WEBHOOK_SECRET'
           value: kycWebhookSecret
         }
@@ -673,6 +672,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'PAYMENT_EVM_SEED'
           value: paymentEvmSeed
+        }
+        {
+          name: 'PAYMENT_MONERO_ADDRESS'
+          value: paymentMoneroAddress
         }
         {
           name: 'EVM_DEPOSIT_SEED'
@@ -817,14 +820,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BSC_QUOTE_CONTRACT_ADDRESS'
           value: bscQuoteContractAddress
-        }
-        {
-          name: 'BSC_SCAN_API_URL'
-          value: bscScanApiUrl
-        }
-        {
-          name: 'BSC_SCAN_API_KEY'
-          value: bscScanApiKey
         }
         {
           name: 'BSC_CHAIN_ID'

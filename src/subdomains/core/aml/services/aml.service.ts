@@ -33,7 +33,7 @@ export class AmlService {
   async getAmlCheckInput(
     entity: BuyFiat | BuyCrypto,
     last24hVolume: number,
-  ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; instantBanks?: Bank[] }> {
+  ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     let bankData = await this.getBankData(entity);
 
@@ -41,7 +41,7 @@ export class AmlService {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
       // merge & bank transaction verification
-      if (bankData.active) {
+      if (bankData.approved) {
         if (
           bankData.userData.id !== entity.userData.id &&
           entity instanceof BuyCrypto &&
@@ -96,10 +96,10 @@ export class AmlService {
     }
 
     if (entity instanceof BuyFiat) return { bankData, blacklist };
-    if (entity.cryptoInput) return { bankData: undefined, blacklist, instantBanks: undefined };
+    if (entity.cryptoInput) return { bankData: undefined, blacklist, banks: undefined };
 
-    const instantBanks = await this.bankService.getInstantBanks();
-    return { bankData, blacklist, instantBanks };
+    const banks = await this.bankService.getAllBanks();
+    return { bankData, blacklist, banks };
   }
 
   //*** HELPER METHODS ***//

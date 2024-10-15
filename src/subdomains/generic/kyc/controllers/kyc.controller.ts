@@ -29,12 +29,13 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdNowResult } from '../dto/input/ident-result.dto';
 import {
   KycContactData,
   KycFileData,
   KycLegalEntityData,
+  KycManualIdentData,
   KycNationalityData,
   KycPersonalData,
   KycSignatoryPowerData,
@@ -47,7 +48,7 @@ import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
-import { WebhookResult } from '../dto/sum-sub.dto';
+import { SumSubWebhookResult } from '../dto/sum-sub.dto';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -186,6 +187,32 @@ export class KycController {
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
+  @Put('data/residence/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateResidencePermitData(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    data.fileName = this.fileName('residence-permit', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
+  }
+
+  @Put('data/additional/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateAdditionalDocumentsData(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycResultDto> {
+    data.fileName = this.fileName('additional-documents', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+  }
+
   @Put('data/signatory/:id')
   @ApiOkResponse({ type: KycResultDto })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -237,7 +264,7 @@ export class KycController {
 
   @Post('ident/sumsub')
   @ApiExcludeEndpoint()
-  async sumsubWebhook(@Req() req: Request, @Body() data: WebhookResult) {
+  async sumsubWebhook(@Req() req: Request, @Body() data: SumSubWebhookResult) {
     if (!SumsubService.checkWebhook(req, req.body)) {
       this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid key');
@@ -251,6 +278,17 @@ export class KycController {
     }
   }
 
+  @Put('ident/manual/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateIdentData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycManualIdentData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateIdentManual(code, +id, data);
+  }
+
   @Post('ident/:type')
   @ApiExcludeEndpoint()
   async identWebhook(@RealIP() ip: string, @Body() data: IdNowResult) {
@@ -259,7 +297,7 @@ export class KycController {
     try {
       await this.kycService.updateIntrumIdent(data);
     } catch (e) {
-      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess.id}:`, e);
+      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess?.id}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }

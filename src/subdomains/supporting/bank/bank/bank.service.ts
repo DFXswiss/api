@@ -24,10 +24,6 @@ export class BankService {
     return this.bankRepo.findCached(`all`);
   }
 
-  async getInstantBanks(): Promise<Bank[]> {
-    return this.bankRepo.findCachedBy(`instantBanks`, { sctInst: true });
-  }
-
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
     return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
   }

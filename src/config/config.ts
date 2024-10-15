@@ -266,6 +266,7 @@ export class Configuration {
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
     minVolume: 0.01, // CHF
 
@@ -275,6 +276,9 @@ export class Configuration {
     addressForexFee: 0.02,
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
+
+    webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
+    webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
 
     fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
@@ -380,11 +384,10 @@ export class Configuration {
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
-      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
-      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
@@ -584,6 +587,10 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
+  }
+
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
   // --- HELPERS --- //

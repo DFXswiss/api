@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -25,6 +26,7 @@ export class KycAdminService {
     private readonly kycService: KycService,
     private readonly countryService: CountryService,
     private readonly kycNotificationService: KycNotificationService,
+    private readonly mailFactory: MailFactory,
   ) {}
 
   async getKycSteps(userDataId: number): Promise<KycStep[]> {
@@ -61,13 +63,31 @@ export class KycAdminService {
               type: BankDataType.IDENT,
             });
         }
-        if (kycStep.isFailed)
-          await this.kycNotificationService.identFailed(kycStep.userData, kycStep.identErrorsMailString);
+        if (kycStep.isFailed) {
+          const reasons = `<ul>${kycStep.comment
+            ?.split(';')
+            .map(
+              (c) =>
+                `<li>${this.mailFactory.translate(
+                  MailFactory.parseMailKey(MailTranslationKey.KYC_FAILED_REASONS, c),
+                  kycStep.userData.language.symbol,
+                )}</li>`,
+            )
+            .join('')}</ul>`;
+          await this.kycNotificationService.identFailed(kycStep.userData, reasons);
+        }
 
         break;
     }
 
     await this.kycStepRepo.save(kycStep);
+  }
+
+  async syncIdentStep(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    await this.kycService.syncIdentStep(kycStep);
   }
 
   async resetKyc(userData: UserData): Promise<void> {

@@ -30,6 +30,7 @@ import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -258,6 +259,9 @@ export class UserDataService {
       });
     }
 
+    const mailChanged = data.mail && data.mail !== userData.mail;
+    if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
+
     return this.userDataRepo.save(Object.assign(userData, data));
   }
 
@@ -315,6 +319,8 @@ export class UserDataService {
         await this.siftService.updateAccount(updateSiftAccount);
       }
     }
+
+    if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
 
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
@@ -499,7 +505,7 @@ export class UserDataService {
       );
       if (matchingUser) {
         // send a merge request
-        await this.mergeService.sendMergeRequest(matchingUser, user);
+        await this.mergeService.sendMergeRequest(matchingUser, user, MergeReason.MAIL);
         return true;
       }
     }

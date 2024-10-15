@@ -118,6 +118,8 @@ export class PayInService {
 
   async returnPayIn(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
     if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
+    if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(payIn.status) || payIn.returnTxId)
+      throw new BadRequestException('CryptoInput already returned');
 
     payIn.triggerReturn(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
 

@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -48,17 +48,17 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BUY_CRYPTO]: TransactionTypeInternal.BUY_CRYPTO,
   [BankTxType.BUY_FIAT]: TransactionTypeInternal.BUY_FIAT_OUTPUT,
   [BankTxType.BANK_TX_REPEAT]: TransactionTypeInternal.BANK_TX_REPEAT,
-  [BankTxType.BANK_TX_RETURN_CHARGEBACK]: null,
-  [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: null,
-  [BankTxType.FIAT_FIAT]: null,
+  [BankTxType.BANK_TX_RETURN_CHARGEBACK]: TransactionTypeInternal.BANK_TX_RETURN_CHARGEBACK,
+  [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
+  [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
+  [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCB]: TransactionTypeInternal.SCB,
+  [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
+  [BankTxType.REVOLUT_CARD_PAYMENT]: TransactionTypeInternal.REVOLUT_CARD_PAYMENT,
+  [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
+  [BankTxType.EXTRAORDINARY_EXPENSES]: TransactionTypeInternal.EXTRAORDINARY_EXPENSES,
   [BankTxType.TEST_FIAT_FIAT]: null,
   [BankTxType.GSHEET]: null,
-  [BankTxType.KRAKEN]: null,
-  [BankTxType.SCB]: null,
-  [BankTxType.CHECKOUT_LTD]: null,
-  [BankTxType.REVOLUT_CARD_PAYMENT]: null,
-  [BankTxType.BANK_ACCOUNT_FEE]: null,
-  [BankTxType.EXTRAORDINARY_EXPENSES]: null,
   [BankTxType.PENDING]: null,
   [BankTxType.UNKNOWN]: null,
 };
@@ -240,6 +240,17 @@ export class BankTxService {
       { type: IsNull() },
       { type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]) },
     ]);
+  }
+
+  async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
+      { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
+    ]);
+  }
+
+  async getRecentExchangeTx(accountIban: string, type: BankTxType, start = Util.daysBefore(14)): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ accountIban, type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

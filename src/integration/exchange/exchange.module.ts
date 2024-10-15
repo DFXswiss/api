@@ -27,6 +27,14 @@ import { KucoinService } from './services/kucoin.service';
     ExchangeTxService,
     // P2BService,
   ],
-  exports: [ExchangeRegistryService, KrakenService, BinanceService, BitstampService, BitpandaService, KucoinService],
+  exports: [
+    ExchangeRegistryService,
+    KrakenService,
+    BinanceService,
+    BitstampService,
+    BitpandaService,
+    KucoinService,
+    ExchangeTxService,
+  ],
 })
 export class ExchangeModule {}

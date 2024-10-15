@@ -32,7 +32,6 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
@@ -84,7 +83,8 @@ export class BuyCryptoService {
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly userDataService: UserDataService,
-    private readonly bankAccountService: BankAccountService,
+    @Inject(forwardRef(() => TransactionUtilService))
+    private readonly transactionUtilService: TransactionUtilService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -244,9 +244,10 @@ export class BuyCryptoService {
       if (!update.bankData) throw new NotFoundException('BankData not found');
     }
 
-    if (dto.bankDataActive != null && (update.bankData || entity.bankData))
+    if ((dto.bankDataApproved != null || dto.bankDataManualApproved != null) && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        active: dto.bankDataActive,
+        approved: dto.bankDataApproved,
+        manualApproved: dto.bankDataManualApproved,
       });
 
     if (dto.chargebackAllowedDate) {
@@ -333,9 +334,16 @@ export class BuyCryptoService {
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
         chargebackAmount: dto.chargebackAmount,
+        chargebackAllowedDate: dto.chargebackAllowedDate,
+        chargebackAllowedBy: dto.chargebackAllowedBy,
       });
 
-    return this.refundBankTx(buyCrypto, { refundIban: dto.refundIban, chargebackAmount: dto.chargebackAmount });
+    return this.refundBankTx(buyCrypto, {
+      refundIban: dto.refundIban,
+      chargebackAmount: dto.chargebackAmount,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
+    });
   }
 
   async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {
@@ -363,7 +371,10 @@ export class BuyCryptoService {
 
     const refundUser = dto.refundUserId
       ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
-      : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
+      : await this.userService.getUserByAddress(dto.refundUserAddress ?? buyCrypto.chargebackIban, {
+          userData: true,
+          wallet: true,
+        });
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
 
@@ -382,6 +393,7 @@ export class BuyCryptoService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
       ),
     );
   }
@@ -394,11 +406,8 @@ export class BuyCryptoService {
 
     TransactionUtilService.validateRefund(buyCrypto, { refundIban: dto.refundIban, chargebackAmount });
 
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(
-      dto.refundIban,
-      buyCrypto.userData,
-    );
-    if (!bankAccount || !bankAccount.bic) throw new BadRequestException('BIC not available');
+    if (!(await this.transactionUtilService.validateChargebackIban(dto.refundIban, buyCrypto.userData)))
+      throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackOutput = await this.fiatOutputService.create({
@@ -413,6 +422,7 @@ export class BuyCryptoService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
         dto.chargebackOutput,
       ),
     );

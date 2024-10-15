@@ -1,4 +1,4 @@
-export enum IdentResult {
+export enum IdNowResultType {
   REVIEW_PENDING = 'REVIEW_PENDING',
   CHECK_PENDING = 'CHECK_PENDING',
   FRAUD_SUSPICION_PENDING = 'FRAUD_SUSPICION_PENDING',
@@ -9,7 +9,7 @@ export enum IdentResult {
   FRAUD_SUSPICION_CONFIRMED = 'FRAUD_SUSPICION_CONFIRMED',
 }
 
-export enum IdentReason {
+export enum IdNowReason {
   ID_OTHER = 'ID_OTHER',
   ID_DAMAGED = 'ID_DAMAGED',
   ID_NOT_SUPPORTED = 'ID_NOT_SUPPORTED',
@@ -74,10 +74,10 @@ export interface IdentItem {
   original?: string;
 }
 
-export class IdNowResult {
+export interface IdNowResult {
   identificationprocess: {
-    result: IdentResult;
-    reason: IdentReason;
+    result: IdNowResultType;
+    reason: IdNowReason;
     companyid: string;
     filename: string;
     agentname: string;
@@ -127,86 +127,86 @@ export class IdNowResult {
   };
 }
 
-const IdentResultMap: Record<IdentResult, IdentShortResult> = {
-  [IdentResult.REVIEW_PENDING]: IdentShortResult.REVIEW,
-  [IdentResult.CHECK_PENDING]: IdentShortResult.REVIEW,
-  [IdentResult.FRAUD_SUSPICION_PENDING]: IdentShortResult.REVIEW,
-  [IdentResult.SUCCESS]: IdentShortResult.SUCCESS,
-  [IdentResult.SUCCESS_DATA_CHANGED]: IdentShortResult.SUCCESS,
-  [IdentResult.ABORTED]: IdentShortResult.ABORT,
-  [IdentResult.CANCELED]: IdentShortResult.CANCEL,
-  [IdentResult.FRAUD_SUSPICION_CONFIRMED]: IdentShortResult.FAIL,
+const IdNowResultMap: Record<IdNowResultType, IdentShortResult> = {
+  [IdNowResultType.REVIEW_PENDING]: IdentShortResult.REVIEW,
+  [IdNowResultType.CHECK_PENDING]: IdentShortResult.REVIEW,
+  [IdNowResultType.FRAUD_SUSPICION_PENDING]: IdentShortResult.REVIEW,
+  [IdNowResultType.SUCCESS]: IdentShortResult.SUCCESS,
+  [IdNowResultType.SUCCESS_DATA_CHANGED]: IdentShortResult.SUCCESS,
+  [IdNowResultType.ABORTED]: IdentShortResult.ABORT,
+  [IdNowResultType.CANCELED]: IdentShortResult.CANCEL,
+  [IdNowResultType.FRAUD_SUSPICION_CONFIRMED]: IdentShortResult.FAIL,
 };
 
-const IdentReasonMap: Record<IdentReason, string> = {
-  [IdentReason.ID_OTHER]: 'Other issues with the document used in the identification process',
-  [IdentReason.ID_DAMAGED]: 'Document used during identification is a damaged document',
-  [IdentReason.ID_NOT_SUPPORTED]: 'Document used during the identification is not supported for the customers use case',
-  [IdentReason.ID_BLURRY]: 'Document is blurry and mandatory data cannot be read',
-  [IdentReason.ID_GLARE]: 'Document has glare and mandatory data cannot be read',
-  [IdentReason.ID_DARKNESS]:
+const IdNowReasonMap: Record<IdNowReason, string> = {
+  [IdNowReason.ID_OTHER]: 'Other issues with the document used in the identification process',
+  [IdNowReason.ID_DAMAGED]: 'Document used during identification is a damaged document',
+  [IdNowReason.ID_NOT_SUPPORTED]: 'Document used during the identification is not supported for the customers use case',
+  [IdNowReason.ID_BLURRY]: 'Document is blurry and mandatory data cannot be read',
+  [IdNowReason.ID_GLARE]: 'Document has glare and mandatory data cannot be read',
+  [IdNowReason.ID_DARKNESS]:
     'Pictures of the document are dark and it is not possible to read the mandatory data or verify the authenticity of the document',
-  [IdentReason.ID_DATA_COVERED]: 'Mandatory data is covered while taking the picture',
-  [IdentReason.ID_PERSPECTIVE]:
+  [IdNowReason.ID_DATA_COVERED]: 'Mandatory data is covered while taking the picture',
+  [IdNowReason.ID_PERSPECTIVE]:
     'Document is positioned at such an angle that mandatory data cannot be read or document cannot be verified',
-  [IdentReason.ID_DATA]: 'Mandatory data cannot be read on the document',
-  [IdentReason.ID_DATA_OTHER]: 'Other reason due to which mandatory data cannot be read',
-  [IdentReason.ID_EXPIRED]: 'Document used during the identification is expired',
-  [IdentReason.ID_WRONG_SIDE]: 'Wrong side of the document is scanned during the process',
-  [IdentReason.ID_OUTWORN]: 'Document is worn out. Either data cannot be read out or the document cannot be verified',
-  [IdentReason.ID_HAS_STICKER]:
+  [IdNowReason.ID_DATA]: 'Mandatory data cannot be read on the document',
+  [IdNowReason.ID_DATA_OTHER]: 'Other reason due to which mandatory data cannot be read',
+  [IdNowReason.ID_EXPIRED]: 'Document used during the identification is expired',
+  [IdNowReason.ID_WRONG_SIDE]: 'Wrong side of the document is scanned during the process',
+  [IdNowReason.ID_OUTWORN]: 'Document is worn out. Either data cannot be read out or the document cannot be verified',
+  [IdNowReason.ID_HAS_STICKER]:
     'Document has such stickers which are not acceptable and the document used is considered as damaged document',
-  [IdentReason.ID_WRITTEN_ON]:
+  [IdNowReason.ID_WRITTEN_ON]:
     'Document has text written over it which makes the document not readable or not verifiable',
-  [IdentReason.ID_BROKEN]: 'Document used during the identification is broken',
-  [IdentReason.ID_DAMAGED_OTHER]: 'Other reason for a damaged document',
-  [IdentReason.ID_SECURITY_FEATURE_NOT_VISIBLE_NOT_FRAUD]:
+  [IdNowReason.ID_BROKEN]: 'Document used during the identification is broken',
+  [IdNowReason.ID_DAMAGED_OTHER]: 'Other reason for a damaged document',
+  [IdNowReason.ID_SECURITY_FEATURE_NOT_VISIBLE_NOT_FRAUD]:
     'Security features of the document are not visible because you did not move the document correctly',
-  [IdentReason.ID_SECURITY_FEATURE_VIDEO_SHORT]:
+  [IdNowReason.ID_SECURITY_FEATURE_VIDEO_SHORT]:
     'Security feature video is too short to detect if there are holograms in the document',
-  [IdentReason.ID_SECURITY_FEATURE_VIDEO_CANNOT_BE_PLAYED]:
+  [IdNowReason.ID_SECURITY_FEATURE_VIDEO_CANNOT_BE_PLAYED]:
     'Security feature video cannot be played for the agent to review holograms',
-  [IdentReason.ID_SECURITY_FEATURE_OTHER]: 'Other issues with the security feature video',
-  [IdentReason.ID_SECOND_DOCUMENT]: 'Two documents are required for the identification process',
-  [IdentReason.ID_SECOND_DOCUMENT_BAD_PHOTO_QUALITY]:
+  [IdNowReason.ID_SECURITY_FEATURE_OTHER]: 'Other issues with the security feature video',
+  [IdNowReason.ID_SECOND_DOCUMENT]: 'Two documents are required for the identification process',
+  [IdNowReason.ID_SECOND_DOCUMENT_BAD_PHOTO_QUALITY]:
     'Photo quality of the additional document in the process is not acceptable',
-  [IdentReason.ID_SECOND_DOCUMENT_DAMAGED]:
+  [IdNowReason.ID_SECOND_DOCUMENT_DAMAGED]:
     'Additional document used in the identification process is severely outworn, written or drawn on, ripped or broken',
-  [IdentReason.ID_SECOND_DOCUMENT_EXPIRED]:
+  [IdNowReason.ID_SECOND_DOCUMENT_EXPIRED]:
     'Additional document used in the identification process is an expired document',
-  [IdentReason.ID_SECOND_DOCUMENT_OTHER]:
+  [IdNowReason.ID_SECOND_DOCUMENT_OTHER]:
     'Other issues with the additional document used in the identification process',
-  [IdentReason.ID_NEED_ADDITIONAL_DOCUMENT]:
+  [IdNowReason.ID_NEED_ADDITIONAL_DOCUMENT]:
     'Additional document like Drivers License is missing in the identification process',
-  [IdentReason.USER_INVOICE_MISSING]: 'Proof of address is needed from you as the additional document',
-  [IdentReason.USER_OBSCURED]:
+  [IdNowReason.USER_INVOICE_MISSING]: 'Proof of address is needed from you as the additional document',
+  [IdNowReason.USER_OBSCURED]:
     'You covered your face during the face comparison process unintentionally like wearing the face mask',
-  [IdentReason.SELFIE_BLURRY]:
+  [IdNowReason.SELFIE_BLURRY]:
     'Selfie taken is blurry and cannot be used to compare the face with the identification document',
-  [IdentReason.SELFIE_GLARE]: 'Photo of you on the ID document has glares and selfie cannot be compared with it',
-  [IdentReason.SELFIE_DARKNESS]:
+  [IdNowReason.SELFIE_GLARE]: 'Photo of you on the ID document has glares and selfie cannot be compared with it',
+  [IdNowReason.SELFIE_DARKNESS]:
     'Your selfie is too dark to compare the face of the person with the photo on the identification document',
-  [IdentReason.SELFIE_PERSPECTIVE]:
+  [IdNowReason.SELFIE_PERSPECTIVE]:
     'Your selfie is on such an angle that it is not possible to compare it with the photo on the identification document',
-  [IdentReason.SELFIE_OTHER]: 'Other issues with the selfie',
-  [IdentReason.IDENT_CANNOT_BE_COMPLETED]:
+  [IdNowReason.SELFIE_OTHER]: 'Other issues with the selfie',
+  [IdNowReason.IDENT_CANNOT_BE_COMPLETED]:
     'Due to a technical reason, ident specialist cannot finish the identity verification process',
-  [IdentReason.IDENT_DISPLAY_ERROR]:
+  [IdNowReason.IDENT_DISPLAY_ERROR]:
     'Due to a technical reason, ident specialist cannot see your data in the identification process',
-  [IdentReason.IDENT_OTHER]:
+  [IdNowReason.IDENT_OTHER]:
     'Other reason due to which the identification process cannot be completed by the ident specialist',
-  [IdentReason.TSP_WRONG_CONFIRMATION_TOKEN]: 'You entered a wrong signing code during the signing step',
-  [IdentReason.TSP_SIGNING_FAILED]: 'The signing process failed due to any technical error',
-  [IdentReason.TSP_CERTIFICATE_EXPIRED]:
+  [IdNowReason.TSP_WRONG_CONFIRMATION_TOKEN]: 'You entered a wrong signing code during the signing step',
+  [IdNowReason.TSP_SIGNING_FAILED]: 'The signing process failed due to any technical error',
+  [IdNowReason.TSP_CERTIFICATE_EXPIRED]:
     'Signing certificates are valid for an hour. The final signing step took more than an hour from the time of certificate generation',
-  [IdentReason.ID_SECURITY_FEATURE_VIDEO_FILE_MISSING]:
+  [IdNowReason.ID_SECURITY_FEATURE_VIDEO_FILE_MISSING]:
     'Security Features (Hologram) video is not saved due to any technical error',
 };
 
 export function getIdentResult(dto: IdNowResult): IdentShortResult {
-  return IdentResultMap[dto.identificationprocess.result];
+  return IdNowResultMap[dto.identificationprocess.result];
 }
 
-export function getIdentReason(reason: IdentReason | string): string {
-  return IdentReasonMap[reason] ?? reason;
+export function getIdNowIdentReason(reason: IdNowReason | string): string {
+  return IdNowReasonMap[reason] ?? reason;
 }

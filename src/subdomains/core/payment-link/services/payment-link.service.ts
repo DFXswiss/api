@@ -8,11 +8,10 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkStatus, PaymentStandard } from '../enums';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -83,10 +82,15 @@ export class PaymentLinkService {
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
+    if (!route) throw new NotFoundException('Route not found');
+
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
         externalId: dto.externalId,
-        route: { id: +dto.routeId },
+        route: { user: { id: route.user.id } },
       },
       relations: { payments: true },
     });
@@ -108,9 +112,13 @@ export class PaymentLinkService {
       expiryDate: dto.expiryDate,
     };
 
-    const route = await this.sellService.getById(+dto.routeId);
+    const paymentLinkDto: CreatePaymentLinkDto = {
+      externalId: dto.externalId,
+      webhookUrl: dto.webhookUrl,
+      payment,
+    };
 
-    return this.createForRoute(route, { externalId: dto.externalId, payment });
+    return this.createForRoute(route, paymentLinkDto);
   }
 
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -175,10 +183,11 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
+      recipient: pendingPayment.link.recipient,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
+        payment: pendingPayment.uniqueId,
       },
       requestedAmount: {
         asset: pendingPayment.currency.name,
@@ -213,7 +222,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(paymentLink),
+      recipient: paymentLink.recipient,
     };
   }
 
@@ -306,7 +315,10 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    await this.paymentLinkPaymentService.waitForPayment(paymentLink);
+    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
+    if (!pendingPayment) throw new NotFoundException('No pending payment found');
+
+    await this.paymentLinkPaymentService.waitForPayment(pendingPayment);
 
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }

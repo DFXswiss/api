@@ -517,7 +517,7 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    return this.accountType === AccountType.BUSINESS
+    return this.accountType === AccountType.ORGANIZATION
       ? {
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,

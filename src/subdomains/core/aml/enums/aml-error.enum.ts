@@ -11,6 +11,7 @@ export enum AmlError {
   ASSET_NOT_BUYABLE = 'AssetNotBuyable',
   ASSET_NOT_INSTANT_BUYABLE = 'AssetNotInstantBuyable',
   ASSET_NOT_CARD_BUYABLE = 'AssetNotCardBuyable',
+  ASSET_AMOUNT_TOO_HIGH = 'AssetAmountTooHigh',
   INSTANT_NOT_ALLOWED = 'InstantNotAllowed',
   CRYPTO_CRYPTO_NOT_ALLOWED = 'CryptoCryptoNotAllowed',
   ABROAD_CHF_NOT_ALLOWED = 'AbroadChfNotAllowed',
@@ -40,6 +41,8 @@ export enum AmlError {
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
+  BANK_DEACTIVATED = 'BankDeactivated',
+  ACCOUNT_IBAN_BLACKLISTED = 'AccountIbanBlacklisted',
   CARD_BLACKLISTED = 'CardBlacklisted',
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
   IP_MISMATCH = 'IpMismatch',
@@ -77,6 +80,11 @@ export const AmlErrorResult: {
     amlReason: AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
   },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
+  [AmlError.ASSET_AMOUNT_TOO_HIGH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
+  },
   [AmlError.INSTANT_NOT_ALLOWED]: {
     type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
@@ -162,6 +170,16 @@ export const AmlErrorResult: {
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
+  [AmlError.ACCOUNT_IBAN_BLACKLISTED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
+  },
+  [AmlError.BANK_DEACTIVATED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
+  },
   [AmlError.CARD_BLACKLISTED]: null,
   [AmlError.CARD_NAME_MISMATCH]: {
     type: AmlErrorType.CRUCIAL,

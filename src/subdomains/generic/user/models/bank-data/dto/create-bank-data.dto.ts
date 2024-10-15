@@ -15,7 +15,7 @@ export class CreateBankDataDto {
 
   @IsOptional()
   @IsBoolean()
-  active?: boolean;
+  approved?: boolean;
 
   @IsOptional()
   @IsEnum(BankDataType)

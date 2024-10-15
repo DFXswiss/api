@@ -2,10 +2,10 @@ import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
-import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
-import { IdNowResult } from '../dto/input/ident-result.dto';
-import { IdentResultData, KycResultType } from '../dto/kyc-result-data.dto';
-import { IdDocType, SumsubResult } from '../dto/sum-sub.dto';
+import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdNowResult } from '../dto/ident-result.dto';
+import { ManualIdentResult } from '../dto/manual-ident-result.dto';
+import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -80,8 +80,13 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
 
       case KycStepName.IDENT: {
-        const service = this.isSumsub ? SumsubService : IdentService;
-        return { url: service.identUrl(this), type: UrlType.BROWSER };
+        if (this.isSumsub) {
+          return { url: SumsubService.identUrl(this), type: UrlType.TOKEN };
+        } else if (this.isManual) {
+          return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
+        } else {
+          return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
+        }
       }
 
       case KycStepName.FINANCIAL_DATA:
@@ -89,6 +94,12 @@ export class KycStep extends IEntity {
 
       case KycStepName.DFX_APPROVAL:
         return { url: '', type: UrlType.NONE };
+
+      case KycStepName.ADDITIONAL_DOCUMENTS:
+        return { url: `${apiUrl}/data/additional/${this.id}`, type: UrlType.API };
+
+      case KycStepName.RESIDENCE_PERMIT:
+        return { url: `${apiUrl}/data/residence/${this.id}`, type: UrlType.API };
     }
   }
 
@@ -206,7 +217,7 @@ export class KycStep extends IEntity {
   }
 
   getResult<T extends KycStepResult>(): T | undefined {
-    if (this.result) return undefined;
+    if (!this.result) return undefined;
     try {
       return JSON.parse(this.result);
     } catch {}
@@ -221,12 +232,13 @@ export class KycStep extends IEntity {
   }
 
   get resultData(): IdentResultData {
-    const identResultData = this.isSumsub ? this.getResult<SumsubResult>() : this.getResult<IdNowResult>();
-    if (!identResultData) return undefined;
+    if (!this.result) return undefined;
 
-    if (identResultData instanceof SumsubResult) {
+    if (this.isSumsub) {
+      const identResultData = this.getResult<SumsubResult>();
+
       return {
-        type: KycResultType.SUMSUB,
+        type: IdentType.SUM_SUB,
         firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
         lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
         birthname: null,
@@ -241,22 +253,39 @@ export class KycStep extends IEntity {
             : 'PASSPORT'
           : undefined,
         identificationType: identResultData.webhook.type,
-        result: identResultData.webhook.reviewResult?.reviewAnswer,
+        success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
+      };
+    } else if (this.isManual) {
+      const identResultData = this.getResult<ManualIdentResult>();
+
+      return {
+        type: IdentType.MANUAL,
+        firstname: identResultData.firstName,
+        lastname: identResultData.lastName,
+        birthname: identResultData.birthName,
+        birthday: null,
+        nationality: identResultData.nationality?.name,
+        identificationDocType: identResultData.documentType,
+        identificationDocNumber: identResultData.documentNumber,
+        identificationType: IdentType.MANUAL,
+        success: true,
+      };
+    } else {
+      const identResultData = this.getResult<IdNowResult>();
+
+      return {
+        type: IdentType.ID_NOW,
+        firstname: identResultData.userdata?.firstname?.value,
+        lastname: identResultData.userdata?.lastname?.value,
+        birthname: identResultData.userdata?.birthname?.value,
+        birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
+        nationality: identResultData.userdata?.nationality?.value,
+        identificationDocType: identResultData.identificationdocument?.type?.value,
+        identificationDocNumber: identResultData.identificationdocument?.number?.value,
+        identificationType: identResultData.identificationprocess?.companyid,
+        success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
       };
     }
-
-    return {
-      type: KycResultType.ID_NOW,
-      firstname: identResultData.userdata?.firstname?.value,
-      lastname: identResultData.userdata?.lastname?.value,
-      birthname: identResultData.userdata?.birthname?.value,
-      birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
-      nationality: identResultData.userdata?.nationality?.value,
-      identificationDocType: identResultData.identificationdocument?.type?.value,
-      identificationDocNumber: identResultData.identificationdocument?.number?.value,
-      identificationType: identResultData.identificationprocess?.companyid,
-      result: identResultData.identificationprocess?.result,
-    };
   }
 
   get isValidCreatingBankData(): boolean {
@@ -285,14 +314,11 @@ export class KycStep extends IEntity {
       .join(' ');
   }
 
-  get identErrorsMailString(): string {
-    return `<ul>${this.comment
-      .split(';')
-      .map((c) => `<li>${IdentCheckErrorMap[c as IdentCheckError]}</li>`)
-      .join('')}</ul>`;
-  }
-
   get isSumsub(): boolean {
     return this.type === KycStepType.SUMSUB_AUTO;
+  }
+
+  get isManual(): boolean {
+    return this.type === KycStepType.MANUAL;
   }
 }

@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
-import { ApplicantType, DataResult, SumsubResult } from '../../dto/sum-sub.dto';
+import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
 @Injectable()
@@ -28,9 +28,8 @@ export class SumsubService {
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    await this.createApplicant(user, kycStep);
-    const { url } = await this.createWebLink(kycStep.transactionId, user.language.symbol);
-    return url.split('/').pop();
+    await this.createApplicant(kycStep.transactionId, user);
+    return this.generateAccessToken(kycStep.transactionId).then((r) => r.token);
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -48,8 +47,8 @@ export class SumsubService {
     return [{ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF }];
   }
 
-  async getApplicantData(applicantId: string): Promise<DataResult> {
-    return this.callApi<DataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
+  async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
+    return this.callApi<SumSubDataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -70,14 +69,13 @@ export class SumsubService {
   }
 
   static identUrl(kycStep: KycStep): string {
-    return `https://in.sumsub.com/websdk/p/${kycStep.sessionId}`;
+    return kycStep.sessionId;
   }
 
   // --- HELPER METHODS --- //
-
-  private async createApplicant(user: UserData, kycStep: KycStep): Promise<void> {
+  private async createApplicant(transactionId: string, user: UserData): Promise<void> {
     const data = {
-      externalUserId: SumsubService.transactionId(user, kycStep),
+      externalUserId: transactionId,
       type: ApplicantType.INDIVIDUAL,
       fixedInfo: {
         firstName: user.firstname,
@@ -98,10 +96,10 @@ export class SumsubService {
     await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', data);
   }
 
-  private async createWebLink(transactionId: string, lang: string): Promise<{ url: string }> {
-    const expirySecs = 90 * 24 * 60 * 60;
-    return this.callApi<{ url: string }>(
-      `/resources/sdkIntegrations/levels/${this.kycLevel}/websdkLink?externalUserId=${transactionId}&ttlInSecs=${expirySecs}&lang=${lang}`,
+  private async generateAccessToken(transactionId: string): Promise<{ token: string }> {
+    const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
+    return this.callApi<{ token: string }>(
+      `/resources/accessTokens?userId=${transactionId}&levelName=${this.kycLevel}&ttlInSecs=${expirySecs}`,
       'POST',
     );
   }

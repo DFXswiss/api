@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
-import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
@@ -23,13 +23,19 @@ export class BuyCryptoRegistrationService {
 
   async syncReturnTxId(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
-      where: { cryptoInput: { returnTxId: Not(IsNull()) }, chargebackCryptoTxId: IsNull() },
+      where: {
+        cryptoInput: { returnTxId: Not(IsNull()), status: PayInStatus.RETURN_CONFIRMED },
+        chargebackCryptoTxId: IsNull(),
+      },
       relations: { cryptoInput: true },
     });
 
     for (const entity of entities) {
       try {
-        await this.buyCryptoRepo.update(entity.id, { chargebackCryptoTxId: entity.cryptoInput.returnTxId });
+        await this.buyCryptoRepo.update(entity.id, {
+          chargebackCryptoTxId: entity.cryptoInput.returnTxId,
+          isComplete: true,
+        });
       } catch (e) {
         this.logger.error(`Error during buyCrypto payIn returnTxId sync (${entity.id}):`, e);
       }

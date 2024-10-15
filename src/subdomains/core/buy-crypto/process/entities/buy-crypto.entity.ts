@@ -1,3 +1,4 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -159,6 +160,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   blockchainFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee: number;
 
   // Fail
   @Column({ type: 'datetime2', nullable: true })
@@ -398,6 +402,7 @@ export class BuyCrypto extends IEntity {
     chargebackAmount: number,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
@@ -407,6 +412,9 @@ export class BuyCrypto extends IEntity {
       chargebackIban,
       chargebackAmount,
       chargebackOutput,
+      chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
+      mailSendDate: null,
     };
 
     Object.assign(this, update);
@@ -452,26 +460,30 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    instantBanks: Bank[],
+    banks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,
       blacklist,
-      instantBanks,
+      banks,
       ibanCountry,
     );
 
@@ -509,6 +521,9 @@ export class BuyCrypto extends IEntity {
       comment: null,
       chargebackIban: null,
       chargebackAllowedDate: null,
+      chargebackAllowedDateUser: null,
+      chargebackAmount: null,
+      chargebackAllowedBy: null,
     };
 
     Object.assign(this, update);
@@ -551,8 +566,8 @@ export class BuyCrypto extends IEntity {
   }
 
   get translationReturnMailKey(): MailTranslationKey {
-    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_RETURN;
-    return MailTranslationKey.CRYPTO_RETURN;
+    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_CHARGEBACK;
+    return MailTranslationKey.CRYPTO_CHARGEBACK;
   }
 
   get user(): User {

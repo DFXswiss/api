@@ -1,3 +1,4 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -127,6 +128,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   blockchainFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee: number;
+
   // Fail
   @Column({ length: 256, nullable: true })
   chargebackTxId: string;
@@ -219,7 +223,7 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  returnMail(): UpdateResult<BuyFiat> {
+  chargebackMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
@@ -246,6 +250,7 @@ export class BuyFiat extends IEntity {
     chargebackAmount: number,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -253,6 +258,9 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser,
       chargebackAddress,
       chargebackAmount,
+      chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
+      mailReturnSendDate: null,
     };
 
     Object.assign(this, update);
@@ -304,9 +312,7 @@ export class BuyFiat extends IEntity {
     totalFeeAmountChf: number,
     inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
-    outputReferenceAsset: Fiat,
-    outputAmount: number,
-    outputAsset: Fiat,
+    paymentLinkFee: number,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
@@ -323,6 +329,7 @@ export class BuyFiat extends IEntity {
             percentFeeAmount: totalFee,
             totalFeeAmount: totalFee,
             totalFeeAmountChf,
+            paymentLinkFee,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
@@ -330,10 +337,8 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount,
+            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            outputAsset,
-            outputReferenceAsset,
             priceSteps: this.priceSteps,
           };
 
@@ -342,14 +347,12 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
+  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAsset: outputAssetEntity,
-      outputReferenceAsset: outputAssetEntity,
       priceSteps: this.priceSteps,
     };
 
@@ -359,7 +362,9 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -368,7 +373,9 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       0,
       last30dVolume,
@@ -416,7 +423,11 @@ export class BuyFiat extends IEntity {
       chargebackDate: null,
       mailReturnSendDate: null,
       comment: null,
+      chargebackAddress: null,
       chargebackAllowedDate: null,
+      chargebackAllowedDateUser: null,
+      chargebackAmount: null,
+      chargebackAllowedBy: null,
     };
 
     Object.assign(this, update);

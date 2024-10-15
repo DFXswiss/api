@@ -65,6 +65,8 @@ export class BuyFiatService {
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
       transaction: { id: cryptoInput.transaction.id },
+      outputAsset: sell.fiat,
+      outputReferenceAsset: sell.fiat,
     });
 
     // transaction
@@ -138,7 +140,7 @@ export class BuyFiatService {
 
     if (dto.bankDataActive != null && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        active: dto.bankDataActive,
+        approved: dto.bankDataActive,
       });
 
     Util.removeNullFields(entity);
@@ -232,7 +234,8 @@ export class BuyFiatService {
     await this.refundBuyFiatInternal(buyFiat, {
       refundUserId: dto.refundUser?.id,
       chargebackAmount: dto.chargebackAmount,
-      refundUserAddress: buyFiat.chargebackAddress,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
 
@@ -242,7 +245,10 @@ export class BuyFiatService {
 
     const refundUser = dto.refundUserId
       ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
-      : await this.userService.getUserByAddress(dto.refundUserAddress, { userData: true, wallet: true });
+      : await this.userService.getUserByAddress(dto.refundUserAddress ?? buyFiat.chargebackAddress, {
+          userData: true,
+          wallet: true,
+        });
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
@@ -261,6 +267,7 @@ export class BuyFiatService {
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
       ),
     );
   }
