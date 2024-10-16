@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -68,11 +67,9 @@ export class TfaService {
     const mail2faActive = await this.settingService.get('mail2fa').then((s) => s === 'on'); // TODO: remove
 
     const user = await this.getUser(kycHash);
-    if (mail2faActive && (level === TfaLevel.BASIC || user.users.length > 0)) {
+    if (mail2faActive && user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
       // mail 2FA
-      if (!user.mail) throw new BadRequestException('User has no mail');
-
-      const type = TfaType.APP;
+      const type = TfaType.MAIL;
       const secret = Util.randomId().toString().slice(0, 6);
       const codeExpiryMinutes = 10;
 
@@ -109,6 +106,7 @@ export class TfaService {
     let level: TfaLevel;
 
     const cacheEntry = this.secretCache.get(user.id);
+
     if (cacheEntry?.type === TfaType.MAIL) {
       if (token !== cacheEntry.secret) throw new ForbiddenException('Invalid or expired 2FA token');
 

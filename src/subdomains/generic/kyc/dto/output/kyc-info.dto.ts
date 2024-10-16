@@ -54,9 +54,6 @@ export class KycLevelDto {
   @ApiProperty({ type: TradingLimit })
   tradingLimit: TradingLimit;
 
-  @ApiProperty()
-  twoFactorEnabled: boolean;
-
   @ApiProperty({ description: 'Connected KYC clients', isArray: true })
   kycClients: string[];
 
