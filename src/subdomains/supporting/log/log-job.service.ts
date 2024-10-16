@@ -100,7 +100,7 @@ export class LogJobService {
         const balances = await this.getCustomBalances(client, a).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
-    ).then((b) => b.flat());
+    );
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
