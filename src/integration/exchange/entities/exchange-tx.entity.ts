@@ -1,5 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
 import { Column, Entity, Index } from 'typeorm';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -95,8 +96,13 @@ export class ExchangeTx extends IEntity {
 
   //*** ENTITY METHODS ***//
 
-  pendingBankAmount(asset: Asset, type: BankExchangeType): number {
-    if (this.currency !== asset.dexName || this.type !== type) return 0;
+  pendingBankAmount(asset: Asset, type: BankExchangeType, from?: string, to?: string): number {
+    if (
+      this.currency !== asset.dexName ||
+      this.type !== type ||
+      ((from || to) && !BankService.isBankMatching(asset, from ?? to))
+    )
+      return 0;
 
     switch (this.type) {
       case ExchangeTxType.WITHDRAWAL:
