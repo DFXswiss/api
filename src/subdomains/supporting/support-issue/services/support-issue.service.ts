@@ -12,7 +12,7 @@ import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FindOptionsWhere, In, IsNull, Like, MoreThan } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Like, MoreThan, Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -77,6 +77,7 @@ export class SupportIssueService {
         type: newIssue.type,
         reason: newIssue.reason,
         transaction: { id: newIssue.transaction?.id ?? IsNull() },
+        state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
       },
       relations: { messages: true, transaction: true, limitRequest: true },
     });
