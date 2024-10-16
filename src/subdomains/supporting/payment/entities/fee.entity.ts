@@ -206,7 +206,7 @@ export class Fee extends IEntity {
   }
 
   get financialTypeList(): string[] {
-    return this.financialTypes?.split(';')?.map(string);
+    return this.financialTypes?.split(';')?.map(String);
   }
 
   //*** HELPER METHODS ***//+
