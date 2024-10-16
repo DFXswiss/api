@@ -94,10 +94,11 @@ export class LogJobService {
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
     const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
-    const customBalances = await Util.doGetFulfilled(
-      Array.from(assetMap.entries()).map(([e, a]) => {
+    const customBalances = await Promise.all(
+      Array.from(assetMap.entries()).map(async ([e, a]) => {
         const client = this.evmRegistryService.getClient(e);
-        return this.getCustomBalances(client, a);
+        const balances = await this.getCustomBalances(client, a).then((b) => b.flat());
+        return { blockchain: e, balances };
       }),
     ).then((b) => b.flat());
 
@@ -152,13 +153,12 @@ export class LogJobService {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
-      const customBalance = customBalances.reduce(
-        (sum, balanceResult) => (sum + balanceResult.contractAddress === curr.chainId ? balanceResult.balance : 0),
-        0,
-      );
+      const customBalance = customBalances
+        .find((c) => c.blockchain === curr.blockchain)
+        ?.balances?.reduce((sum, result) => (sum + result.contractAddress === curr.chainId ? result.balance : 0), 0);
 
       // plus
-      const liquidity = liquidityBalance ?? 0 + customBalance;
+      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -356,11 +356,7 @@ export class LogJobService {
     return senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx;
   }
 
-  private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[]> {
-    const customBalances: EvmTokenBalance[] = [];
-    for (const customAddress of Config.financialLog.customAddresses) {
-      customBalances.push(...(await client.getTokenBalances(assets, customAddress)));
-    }
-    return customBalances;
+  private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
+    return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
   }
 }
