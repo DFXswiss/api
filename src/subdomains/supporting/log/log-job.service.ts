@@ -175,10 +175,10 @@ export class LogJobService {
         recentChfKrakenBankTx?.[0],
       ),
     ];
-    const recentChfBankKrakenTx = this.filterSenderPendingList(
+    const recentChfMaerkiKrakenTx = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
-          b.instructedCurrency === 'CHF' &&
+          b.accountIban === maerkiChfBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > Util.daysBefore(21),
       ),
@@ -224,12 +224,17 @@ export class LogJobService {
         BankTxType.KRAKEN,
       );
 
-      // Bank to Kraken
-      const pendingBankKrakenPlusAmount = this.getPendingBankAmounts([curr], recentChfBankKrakenTx, BankTxType.KRAKEN);
-      const pendingBankKrakenMinusAmount = this.getPendingBankAmounts(
+      // Maerki to Kraken
+      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmounts(
+        [curr],
+        recentChfMaerkiKrakenTx,
+        BankTxType.KRAKEN,
+      );
+      const pendingMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
         [curr],
         recentChfBankTxKraken,
         ExchangeTxType.DEPOSIT,
+        maerkiChfBank.iban,
       );
 
       // total pending balance
@@ -239,8 +244,8 @@ export class LogJobService {
         pendingOlkyMaerkiAmount +
         pendingKrakenMaerkiMinusAmount +
         pendingKrakenMaerkiPlusAmount +
-        pendingBankKrakenPlusAmount +
-        pendingBankKrakenMinusAmount;
+        pendingMaerkiKrakenPlusAmount +
+        pendingMaerkiKrakenMinusAmount;
       const totalPlus = liquidityBalance + totalPlusPending;
 
       // minus
@@ -294,7 +299,7 @@ export class LogJobService {
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyMaerkiAmount || undefined,
                 fromKraken: pendingKrakenMaerkiMinusAmount + pendingKrakenMaerkiPlusAmount || undefined,
-                toKraken: pendingBankKrakenPlusAmount + pendingBankKrakenMinusAmount || undefined,
+                toKraken: pendingMaerkiKrakenPlusAmount + pendingMaerkiKrakenMinusAmount || undefined,
               }
             : undefined,
         },
