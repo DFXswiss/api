@@ -253,8 +253,8 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentExchangeTx(accountIban: string, type: BankTxType, start = Util.daysBefore(14)): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ accountIban, type, created: MoreThan(start) });
+  async getRecentExchangeTx(type: BankTxType, start = Util.daysBefore(21)): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
