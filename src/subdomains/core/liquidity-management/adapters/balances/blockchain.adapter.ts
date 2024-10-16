@@ -29,8 +29,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly updateTimestamps = new Map<Blockchain, Date>();
 
   private btcClient: BtcClient;
-  private lightningClient: LightningClient;
-  private moneroClient: MoneroClient;
+  private readonly lightningClient: LightningClient;
+  private readonly moneroClient: MoneroClient;
 
   constructor(
     private readonly dexService: DexService,
@@ -105,11 +105,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.ARBITRUM:
         case Blockchain.POLYGON:
         case Blockchain.BASE:
-          await this.getForEvm(assets);
-          break;
-
         case Blockchain.BINANCE_SMART_CHAIN:
-          await this.getForBsc(assets);
+          await this.getForEvm(assets);
           break;
 
         default:
@@ -212,36 +209,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       } catch (e) {
         this.logger.error(`Failed to update balance for pools of blockchain ${assets[0].blockchain}:`, e);
         this.invalidateCacheFor(assetMap.get(pool));
-      }
-    }
-  }
-
-  private async getForBsc(assets: Asset[]): Promise<void> {
-    if (assets.length === 0) return;
-
-    const blockchain = assets[0].blockchain;
-    const client = this.evmRegistryService.getClient(blockchain);
-
-    const currentBlockHeight = await client.getCurrentBlock();
-    const recentTransactions = await client.getERC20Transactions(client.dfxAddress, currentBlockHeight - 1200);
-
-    // update all assets with missing cache or with recent transactions
-    const assetsToUpdate = assets.filter(
-      (a) =>
-        a.type === AssetType.COIN ||
-        !this.balanceCache.has(a.id) ||
-        recentTransactions.some((tx) => tx.contractAddress === a.chainId),
-    );
-
-    for (const asset of assetsToUpdate) {
-      try {
-        const balance =
-          asset.type === AssetType.COIN ? await client.getNativeCoinBalance() : await client.getTokenBalance(asset);
-
-        this.balanceCache.set(asset.id, balance);
-      } catch (e) {
-        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
-        this.invalidateCacheFor([asset]);
       }
     }
   }

@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -319,7 +320,7 @@ export class TransactionController {
 
     if (transaction.targetEntity instanceof BuyCrypto) {
       refundTarget =
-        transaction.targetEntity.bankTx?.iban &&
+        IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
         (await this.transactionUtilService.validateChargebackIban(
           transaction.targetEntity.bankTx.iban,
           transaction.userData,

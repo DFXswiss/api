@@ -293,9 +293,13 @@ export class BankTx extends IEntity {
           : 0;
 
       case BankTxType.KRAKEN:
-        if (!BankService.isBankMatching(asset, this.accountIban)) return 0;
+        if (
+          !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
+          (targetIban && asset.dexName !== this.instructedCurrency)
+        )
+          return 0;
 
-        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : 0;
+        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : this.instructedAmount;
 
       default:
         return 0;

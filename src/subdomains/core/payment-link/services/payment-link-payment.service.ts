@@ -10,8 +10,6 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -38,8 +36,6 @@ import { PaymentWebhookService } from './payment-webhook.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
-  private readonly logger = new DfxLogger(PaymentLinkPaymentService);
-
   static readonly PREFIX_UNIQUE_ID = 'plp';
 
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
@@ -50,7 +46,6 @@ export class PaymentLinkPaymentService {
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
-    private readonly fiatService: FiatService,
     private readonly evmRegistryService: EvmRegistryService,
   ) {}
 

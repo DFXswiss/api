@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -20,7 +25,7 @@ import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
@@ -61,6 +66,7 @@ export class LogJobService {
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
     private readonly exchangeTxService: ExchangeTxService,
     private readonly bankService: BankService,
+    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -82,7 +88,19 @@ export class LogJobService {
     );
 
     // assets
-    const assets = await this.assetService.getAllAssets();
+    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
+
+    // custom balance
+    const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
+    const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
+
+    const customBalances = await Promise.all(
+      Array.from(assetMap.entries()).map(async ([e, a]) => {
+        const client = this.evmRegistryService.getClient(e);
+        const balances = await this.getCustomBalances(client, a).then((b) => b.flat());
+        return { blockchain: e, balances };
+      }),
+    );
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
@@ -105,38 +123,79 @@ export class LogJobService {
     const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
 
     // pending internal balances
+    // db requests
     const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
-    const recentEurKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiEurBank.iban, BankTxType.KRAKEN);
-    const recentChfKrakenBankTx = await this.bankTxService.getRecentExchangeTx(maerkiChfBank.iban, BankTxType.KRAKEN);
-    const recentKrakenBankTx = [...recentEurKrakenBankTx, ...recentChfKrakenBankTx];
-    const recentKrakenExchangeTx = [
+    const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(BankTxType.KRAKEN);
+    const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(ExchangeName.KRAKEN, [
+      ExchangeTxType.DEPOSIT,
+      ExchangeTxType.WITHDRAWAL,
+    ]);
+
+    // receiver data
+    const recentEurKrakenBankTx = recentKrakenBankTx.filter(
+      (b) =>
+        b.accountIban === maerkiEurBank.iban &&
+        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        b.created > Util.daysBefore(14),
+    );
+    const recentChfKrakenBankTx = recentKrakenBankTx.filter(
+      (b) =>
+        b.accountIban === maerkiChfBank.iban &&
+        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        b.created > Util.daysBefore(14),
+    );
+    const recentChfBankTxKraken = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.DEPOSIT &&
+        k.method === 'Bank Frick (SIC) International' &&
+        k.address === 'MAEBCHZZXXX' &&
+        k.created > Util.daysBefore(14),
+    );
+
+    // sender data
+    const recentKrakenExchangeTxFiltered = [
       ...this.filterSenderPendingList(
-        await this.exchangeTxService.getRecentExchangeTx(
-          ExchangeTxType.WITHDRAWAL,
-          ExchangeName.KRAKEN,
-          'Maerki Baumann & Co. AG',
-          'Bank Frick (SEPA) International',
+        recentKrakenExchangeTx.filter(
+          (k) =>
+            k.type === ExchangeTxType.WITHDRAWAL &&
+            k.method === 'Bank Frick (SEPA) International' &&
+            k.address === 'Maerki Baumann & Co. AG' &&
+            k.created > Util.daysBefore(21),
         ),
         recentEurKrakenBankTx?.[0],
       ),
       ...this.filterSenderPendingList(
-        await this.exchangeTxService.getRecentExchangeTx(
-          ExchangeTxType.WITHDRAWAL,
-          ExchangeName.KRAKEN,
-          'Maerki Baumann',
-          'Bank Frick (SIC) International',
+        recentKrakenExchangeTx.filter(
+          (k) =>
+            k.type === ExchangeTxType.WITHDRAWAL &&
+            k.method === 'Bank Frick (SIC) International' &&
+            k.address === 'Maerki Baumann' &&
+            k.created > Util.daysBefore(21),
         ),
         recentChfKrakenBankTx?.[0],
       ),
     ];
+    const recentChfBankKrakenTx = this.filterSenderPendingList(
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.instructedCurrency === 'CHF' &&
+          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
+          b.created > Util.daysBefore(21),
+      ),
+      recentChfBankTxKraken[0],
+    );
 
     // asset log
     const assetLog = assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
+      const customBalance = customBalances
+        .find((c) => c.blockchain === curr.blockchain)
+        ?.balances?.reduce((sum, result) => (sum + result.contractAddress === curr.chainId ? result.balance : 0), 0);
+
       // plus
-      const liquidity = liquidityBalance ?? 0;
+      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -144,23 +203,45 @@ export class LogJobService {
         0,
       );
 
-      const pendingOlkyAmount = this.getPendingBankAmounts(
+      // Olky to Maerki
+      const pendingOlkyMaerkiAmount = this.getPendingBankAmounts(
         [curr],
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
         olkyBank.iban,
         maerkiEurBank.iban,
       );
-      const pendingKrakenMaerkiTxAmount = this.getPendingBankAmounts(
+
+      // Kraken to Maerki
+      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmounts(
         [curr],
-        recentKrakenExchangeTx,
+        recentKrakenExchangeTxFiltered,
         ExchangeTxType.WITHDRAWAL,
       );
-      const pendingKrakenBankTxAmount = this.getPendingBankAmounts([curr], recentKrakenBankTx, BankTxType.KRAKEN);
+      const pendingKrakenMaerkiPlusAmount = this.getPendingBankAmounts(
+        [curr],
+        [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
+        BankTxType.KRAKEN,
+      );
 
+      // Bank to Kraken
+      const pendingBankKrakenPlusAmount = this.getPendingBankAmounts([curr], recentChfBankKrakenTx, BankTxType.KRAKEN);
+      const pendingBankKrakenMinusAmount = this.getPendingBankAmounts(
+        [curr],
+        recentChfBankTxKraken,
+        ExchangeTxType.DEPOSIT,
+      );
+
+      // total pending balance
       const totalPlusPending =
-        cryptoInput + exchangeOrder + pendingOlkyAmount + pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount;
-      const totalPlus = liquidity + totalPlusPending;
+        cryptoInput +
+        exchangeOrder +
+        pendingOlkyMaerkiAmount +
+        pendingKrakenMaerkiMinusAmount +
+        pendingKrakenMaerkiPlusAmount +
+        pendingBankKrakenPlusAmount +
+        pendingBankKrakenMinusAmount;
+      const totalPlus = liquidityBalance + totalPlusPending;
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -211,8 +292,9 @@ export class LogJobService {
                 total: totalPlusPending,
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
-                fromOlky: pendingOlkyAmount || undefined,
-                fromKraken: pendingKrakenMaerkiTxAmount + pendingKrakenBankTxAmount || undefined,
+                fromOlky: pendingOlkyMaerkiAmount || undefined,
+                fromKraken: pendingKrakenMaerkiMinusAmount + pendingKrakenMaerkiPlusAmount || undefined,
+                toKraken: pendingBankKrakenPlusAmount + pendingBankKrakenMinusAmount || undefined,
               }
             : undefined,
         },
@@ -332,5 +414,9 @@ export class LogJobService {
         (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount),
     );
     return senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx;
+  }
+
+  private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
+    return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
   }
 }

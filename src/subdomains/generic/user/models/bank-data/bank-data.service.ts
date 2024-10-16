@@ -222,14 +222,15 @@ export class BankDataService {
     sendMergeRequest = true,
     label?: string,
     preferredCurrency?: Fiat,
+    type?: BankDataType,
   ): Promise<void> {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
     const existing = await this.bankDataRepo.findOne({
       where: [
-        { iban, approved: true },
-        { iban, approved: IsNull() },
+        { iban, approved: true, type },
+        { iban, approved: IsNull(), type },
       ],
       relations: { userData: true },
     });

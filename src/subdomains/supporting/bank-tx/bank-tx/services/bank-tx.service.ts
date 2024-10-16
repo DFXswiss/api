@@ -142,7 +142,11 @@ export class BankTxService {
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
         buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
-      const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
+      const update = buy
+        ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id }
+        : tx.name === 'Payward Trading Ltd.'
+        ? { type: BankTxType.KRAKEN }
+        : { type: BankTxType.GSHEET };
 
       await this.update(tx.id, update);
     }
@@ -249,8 +253,8 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentExchangeTx(accountIban: string, type: BankTxType, start = Util.daysBefore(14)): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ accountIban, type, created: MoreThan(start) });
+  async getRecentExchangeTx(type: BankTxType, start = Util.daysBefore(21)): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

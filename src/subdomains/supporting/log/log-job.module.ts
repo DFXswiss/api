@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { ExchangeModule } from 'src/integration/exchange/exchange.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
@@ -23,6 +24,7 @@ import { LogModule } from './log.module';
     BankTxModule,
     ExchangeModule,
     BankModule,
+    BlockchainModule,
   ],
   controllers: [],
   providers: [LogJobService],

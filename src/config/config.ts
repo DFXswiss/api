@@ -263,6 +263,11 @@ export class Configuration {
     apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
+  financialLog = {
+    customAssets: process.env.CUSTOM_BALANCE_ASSETS?.split(';') ?? [], // asset uniqueName
+    customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
+  };
+
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
@@ -384,11 +389,10 @@ export class Configuration {
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
-      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
-      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
