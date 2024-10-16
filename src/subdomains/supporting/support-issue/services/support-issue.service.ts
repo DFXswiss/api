@@ -5,14 +5,11 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FindOptionsWhere, In, IsNull, Like, MoreThan, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -36,33 +33,11 @@ export class SupportIssueService {
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
     private readonly documentService: SupportDocumentService,
-    private readonly kycDocumentService: KycDocumentService,
     private readonly userDataService: UserDataService,
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
   ) {}
-
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock()
-  async migrateDocuments() {
-    const pendingMessages = await this.messageRepo.findBy({ fileUrl: Like('%kyc/user%') });
-
-    for (const message of pendingMessages) {
-      const file = await this.kycDocumentService.downloadFileByUrl(message.fileUrl);
-      const name = decodeURIComponent(message.fileUrl.split('/').slice(-1)[0]);
-
-      const newUrl = await this.documentService.uploadFile(
-        message.issue.userData.id,
-        message.issue.id,
-        name,
-        file.data,
-        file.contentType as ContentType,
-        file.metadata,
-      );
-      await this.messageRepo.update(message.id, { fileUrl: newUrl });
-    }
-  }
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required
