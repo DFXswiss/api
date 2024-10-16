@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -61,6 +66,7 @@ export class LogJobService {
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
     private readonly exchangeTxService: ExchangeTxService,
     private readonly bankService: BankService,
+    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -83,6 +89,18 @@ export class LogJobService {
 
     // assets
     const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
+
+    // custom balance
+    const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
+    const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
+
+    const customBalances = await Promise.all(
+      Array.from(assetMap.entries()).map(async ([e, a]) => {
+        const client = this.evmRegistryService.getClient(e);
+        const balances = await this.getCustomBalances(client, a).then((b) => b.flat());
+        return { blockchain: e, balances };
+      }),
+    );
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
@@ -135,8 +153,12 @@ export class LogJobService {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
+      const customBalance = customBalances
+        .find((c) => c.blockchain === curr.blockchain)
+        ?.balances?.reduce((sum, result) => (sum + result.contractAddress === curr.chainId ? result.balance : 0), 0);
+
       // plus
-      const liquidity = liquidityBalance ?? 0;
+      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -332,5 +354,9 @@ export class LogJobService {
         (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount),
     );
     return senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx;
+  }
+
+  private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
+    return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
   }
 }

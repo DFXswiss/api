@@ -463,6 +463,12 @@
     },
     "alchemyAuthToken": {
       "value": "xxx"
+    },
+    "customBalanceAssets": {
+      "value": "xxx"
+    },
+    "customBalanceAddresses": {
+      "value": "xxx"
     }
   }
 }
