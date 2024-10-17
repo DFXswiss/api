@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { IsDate, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { CheckoutReverse } from 'src/integration/checkout/services/checkout.service';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -40,6 +41,10 @@ export class BaseRefund {
 export class BankTxRefund extends BaseRefund {
   refundIban: string;
   chargebackOutput?: FiatOutput;
+}
+
+export class CheckoutTxRefund extends BaseRefund {
+  chargebackRemittanceInfo?: CheckoutReverse;
 }
 
 export class CryptoInputRefund extends BaseRefund {

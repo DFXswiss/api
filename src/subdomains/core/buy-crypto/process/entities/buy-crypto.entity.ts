@@ -404,6 +404,7 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
+    chargebackRemittanceInfo?: string,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -413,8 +414,10 @@ export class BuyCrypto extends IEntity {
       chargebackAmount,
       chargebackOutput,
       chargebackAllowedBy,
+      chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
       mailSendDate: null,
+      isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
     };
 
     Object.assign(this, update);
