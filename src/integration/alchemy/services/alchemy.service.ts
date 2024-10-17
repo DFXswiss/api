@@ -79,6 +79,9 @@ export class AlchemyService {
   async getAssetTransfers(chainId: ChainId, params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
     const alchemy = this.getAlchemy(chainId);
 
+    if (!params.toBlock) params.toBlock = await alchemy.core.getBlockNumber();
+    if (params.toBlock < params.fromBlock) return [];
+
     let assetTransfersResponse = await this.alchemyGetAssetTransfers(alchemy, params);
     let pageKey = assetTransfersResponse.pageKey;
 
