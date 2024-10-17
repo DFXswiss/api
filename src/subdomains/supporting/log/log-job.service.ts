@@ -151,6 +151,13 @@ export class LogJobService {
         k.address === 'MAEBCHZZXXX' &&
         k.created > Util.daysBefore(14),
     );
+    const recentEurBankTxKraken = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.DEPOSIT &&
+        k.method === 'Bank Frick (SEPA) International' &&
+        k.address === 'MAEBCHZZXXX' &&
+        k.created > Util.daysBefore(14),
+    );
 
     // sender data
     const recentKrakenExchangeTxFiltered = [
@@ -183,6 +190,15 @@ export class LogJobService {
           b.created > Util.daysBefore(21),
       ),
       recentChfBankTxKraken[0],
+    );
+    const recentEurMaerkiKrakenTx = this.filterSenderPendingList(
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.accountIban === maerkiEurBank.iban &&
+          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
+          b.created > Util.daysBefore(21),
+      ),
+      recentEurBankTxKraken[0],
     );
 
     // asset log
@@ -227,14 +243,20 @@ export class LogJobService {
       // Maerki to Kraken
       const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmounts(
         [curr],
-        recentChfMaerkiKrakenTx,
+        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
-      const pendingMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
+      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
         [curr],
         recentChfBankTxKraken,
         ExchangeTxType.DEPOSIT,
         maerkiChfBank.iban,
+      );
+      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
+        [curr],
+        recentEurBankTxKraken,
+        ExchangeTxType.DEPOSIT,
+        maerkiEurBank.iban,
       );
 
       // total pending balance
@@ -245,7 +267,8 @@ export class LogJobService {
         pendingKrakenMaerkiMinusAmount +
         pendingKrakenMaerkiPlusAmount +
         pendingMaerkiKrakenPlusAmount +
-        pendingMaerkiKrakenMinusAmount;
+        pendingChfMaerkiKrakenMinusAmount +
+        pendingEurMaerkiKrakenMinusAmount;
       const totalPlus = liquidityBalance + totalPlusPending;
 
       // minus
@@ -299,7 +322,10 @@ export class LogJobService {
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyMaerkiAmount || undefined,
                 fromKraken: pendingKrakenMaerkiMinusAmount + pendingKrakenMaerkiPlusAmount || undefined,
-                toKraken: pendingMaerkiKrakenPlusAmount + pendingMaerkiKrakenMinusAmount || undefined,
+                toKraken:
+                  pendingMaerkiKrakenPlusAmount +
+                    pendingChfMaerkiKrakenMinusAmount +
+                    pendingEurMaerkiKrakenMinusAmount || undefined,
               }
             : undefined,
         },
