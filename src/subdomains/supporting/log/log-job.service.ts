@@ -413,12 +413,15 @@ export class LogJobService {
     receiverTx: BankTx | ExchangeTx | undefined,
   ): (BankTx | ExchangeTx)[] {
     if (!receiverTx) return senderTx;
-    const senderPair = senderTx.find(
-      (s) =>
-        (s instanceof BankTx ? s.instructedAmount : s.amount) ===
-        (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount),
-    );
-    return senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx;
+    const senderPair = senderTx
+      .sort((a, b) => b.id - a.id)
+      .find(
+        (s) =>
+          (s instanceof BankTx ? s.instructedAmount : s.amount) ===
+            (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount) &&
+          receiverTx.created > s.created,
+      );
+    return (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id);
   }
 
   private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
