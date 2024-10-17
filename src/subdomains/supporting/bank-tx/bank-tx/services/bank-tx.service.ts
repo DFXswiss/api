@@ -247,8 +247,11 @@ export class BankTxService {
 
   async getPendingTx(): Promise<BankTx[]> {
     return this.bankTxRepo.findBy([
-      { type: IsNull() },
-      { type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]) },
+      { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
+      {
+        type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]),
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+      },
     ]);
   }
 
