@@ -6,7 +6,7 @@ import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
 import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
@@ -31,13 +31,6 @@ export interface EvmClientParams {
   quoteContractAddress: string;
   scanApiUrl?: string;
   scanApiKey?: string;
-}
-
-interface AssetTransfersParams {
-  fromAddress?: string;
-  toAddress?: string;
-  fromBlock: number;
-  categories: AssetTransfersCategory[];
 }
 
 interface UniswapPosition {
@@ -83,16 +76,24 @@ export abstract class EvmClient {
 
   // --- PUBLIC API - GETTERS --- //
 
-  async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
+  async getNativeCoinTransactions(
+    walletAddress: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<EvmCoinHistoryEntry[]> {
     const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, categories);
+    return this.getHistory(walletAddress, categories, fromBlock, toBlock);
   }
 
-  async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
+  async getERC20Transactions(
+    walletAddress: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<EvmTokenHistoryEntry[]> {
     const categories = this.alchemyService.getERC20Categories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, categories);
+    return this.getHistory(walletAddress, categories, fromBlock, toBlock);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -719,13 +720,15 @@ export abstract class EvmClient {
 
   private async getHistory<T>(
     walletAddress: string,
-    fromBlock: number,
     categories: AssetTransfersCategory[],
+    fromBlock: number,
+    toBlock?: number,
   ): Promise<T[]> {
     const params: AssetTransfersParams = {
       fromAddress: walletAddress,
       toAddress: undefined,
       fromBlock: fromBlock,
+      toBlock: toBlock,
       categories: categories,
     };
 

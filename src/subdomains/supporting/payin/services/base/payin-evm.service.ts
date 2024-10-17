@@ -33,9 +33,13 @@ export abstract class PayInEvmService {
     return this.#client.isTxComplete(txHash);
   }
 
-  async getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
-    const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, fromBlock);
-    const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock);
+  async getHistory(
+    address: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
+    const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, fromBlock, toBlock);
+    const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock, toBlock);
 
     return [allCoinTransactions, allTokenTransactions];
   }
