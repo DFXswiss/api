@@ -403,10 +403,14 @@ export class BuyCryptoService {
       throw new BadRequestException('You have to define a chargebackIban');
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+    const chargebackIban = dto.refundIban ?? buyCrypto.chargebackIban;
 
-    TransactionUtilService.validateRefund(buyCrypto, { refundIban: dto.refundIban, chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, {
+      refundIban: chargebackIban,
+      chargebackAmount,
+    });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(dto.refundIban, buyCrypto.userData)))
+    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban, buyCrypto.userData)))
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -418,7 +422,7 @@ export class BuyCryptoService {
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
-        dto.refundIban ?? buyCrypto.chargebackIban,
+        chargebackIban,
         chargebackAmount,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
