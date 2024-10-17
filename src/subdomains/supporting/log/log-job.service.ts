@@ -111,7 +111,7 @@ export class LogJobService {
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
     // pending balances
-    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingTx();
+    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingExchangeTx();
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();

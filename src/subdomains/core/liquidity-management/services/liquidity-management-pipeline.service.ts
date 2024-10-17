@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -68,10 +69,13 @@ export class LiquidityManagementPipelineService {
     });
   }
 
-  async getPendingTx(): Promise<LiquidityManagementOrder[]> {
+  async getPendingExchangeTx(): Promise<LiquidityManagementOrder[]> {
     return this.orderRepo.findBy({
       status: LiquidityManagementOrderStatus.IN_PROGRESS,
-      action: { command: In(['withdraw', 'deposit', 'transfer']) },
+      action: {
+        system: In(Object.values(ExchangeName)),
+        command: In(['withdraw', 'deposit', 'transfer']),
+      },
     });
   }
 
