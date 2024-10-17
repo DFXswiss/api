@@ -5,6 +5,7 @@ import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/I
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
 import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
+import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
@@ -747,7 +748,7 @@ export abstract class EvmClient {
       hash: atr.hash,
       from: atr.from,
       to: atr.to,
-      value: Number(atr.rawContract.value).toString(),
+      value: new BigNumber(atr.rawContract.value).toString(),
       contractAddress: atr.rawContract.address ?? '',
       tokenName: atr.asset,
       tokenDecimal: Number(atr.rawContract.decimal).toString(),

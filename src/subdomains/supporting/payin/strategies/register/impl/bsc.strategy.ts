@@ -53,15 +53,15 @@ export class BscStrategy extends EvmStrategy {
     const allPayInAddresses = payInAddresses.map((a) => a.toLowerCase());
 
     const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
-    const maxBlockHeight = await this.alchemyService.getBlockNumber(this.blockchain);
+    const currentBlockHeight = await this.alchemyService.getBlockNumber(this.blockchain);
 
-    await this.getTransactionsAndCreatePayIns(allPayInAddresses, lastCheckedBlockHeight, maxBlockHeight);
+    await this.getTransactionsAndCreatePayIns(allPayInAddresses, lastCheckedBlockHeight, currentBlockHeight);
   }
 
   private async getTransactionsAndCreatePayIns(
     addresses: string[],
     lastCheckedBlockHeight: number,
-    maxBlockHeight: number,
+    currentBlockHeight: number,
   ): Promise<void> {
     const log = this.createNewLogObject();
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
@@ -70,7 +70,7 @@ export class BscStrategy extends EvmStrategy {
       const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(
         address,
         lastCheckedBlockHeight + 1,
-        maxBlockHeight,
+        currentBlockHeight - 2, // fixes Alchemy sync issues
       );
 
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
