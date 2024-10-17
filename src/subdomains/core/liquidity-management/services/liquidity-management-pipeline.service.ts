@@ -248,7 +248,7 @@ export class LiquidityManagementPipelineService {
 
     const [successMessage, mailRequest] = this.generateSuccessMessage(pipeline);
 
-    await this.notificationService.sendMail(mailRequest);
+    if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
 
     this.logger.verbose(successMessage);
   }
@@ -265,7 +265,7 @@ export class LiquidityManagementPipelineService {
 
     this.logger.error(errorMessage);
 
-    await this.notificationService.sendMail(mailRequest);
+    if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
   }
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
