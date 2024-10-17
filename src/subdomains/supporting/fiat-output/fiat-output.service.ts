@@ -24,7 +24,7 @@ export class FiatOutputService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
-  async checkAndSetActive() {
+  async fillFiatOutput() {
     if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
 
     const entities = await this.fiatOutputRepo.find({
