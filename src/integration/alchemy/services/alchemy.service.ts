@@ -76,11 +76,17 @@ export class AlchemyService {
     return tokenBalancesResponse.tokenBalances;
   }
 
-  async getAssetTransfers(chainId: ChainId, params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
+  async getBlockNumber(blockchain: Blockchain): Promise<number> {
+    const chainId = EvmUtil.getChainId(blockchain);
     const alchemy = this.getAlchemy(chainId);
 
-    if (!params.toBlock) params.toBlock = await alchemy.core.getBlockNumber();
-    if (params.toBlock < params.fromBlock) return [];
+    return alchemy.core.getBlockNumber();
+  }
+
+  async getAssetTransfers(chainId: ChainId, params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
+    if (params.toBlock && params.toBlock < params.fromBlock) return [];
+
+    const alchemy = this.getAlchemy(chainId);
 
     let assetTransfersResponse = await this.alchemyGetAssetTransfers(alchemy, params);
     let pageKey = assetTransfersResponse.pageKey;
