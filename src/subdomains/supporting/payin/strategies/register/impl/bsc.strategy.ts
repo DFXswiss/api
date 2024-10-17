@@ -137,13 +137,20 @@ export class BscStrategy extends EvmStrategy {
   }
 
   private mapTokenEntries(tokenTransactions: EvmTokenHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
-    return tokenTransactions.map((tx) => ({
+    return tokenTransactions.map((tx) => this.mapTokenEntry(tx, supportedAssets));
+  }
+
+  private mapTokenEntry(tx: EvmTokenHistoryEntry, supportedAssets: Asset[]): PayInEntry {
+    const asset = this.getTransactionAsset(supportedAssets, tx.contractAddress);
+    const decimals = asset?.decimals ?? 0;
+
+    return {
       address: BlockchainAddress.create(tx.to, this.blockchain),
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: EvmUtil.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
-      asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
-    }));
+      amount: EvmUtil.fromWeiAmount(tx.value, decimals),
+      asset: asset ?? null,
+    };
   }
 }
