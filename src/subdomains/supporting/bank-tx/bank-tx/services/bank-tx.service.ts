@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan } from 'typeorm';
+import { DeepPartial, In, IsNull, Like, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -237,6 +237,12 @@ export class BankTxService {
       .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
       .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBankTxByRemittanceInfo(remittanceInfo: string, subStringSearch = false): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({
+      remittanceInfo: subStringSearch ? Like(`%${remittanceInfo}%`) : remittanceInfo,
+    });
   }
 
   async getPendingTx(): Promise<BankTx[]> {

@@ -1,6 +1,11 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { IsNull, Not } from 'typeorm';
+import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
@@ -16,6 +21,24 @@ export class FiatOutputService {
     private readonly bankTxService: BankTxService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
   ) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
+  async checkAndSetActive() {
+    if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: { amount: Not(IsNull()), isComplete: IsNull(), bankTx: { id: IsNull() } },
+      relations: { bankTx: true },
+    });
+
+    for (const entity of entities) {
+      const bankTx = await this.getMatchingBankTx(entity);
+      if (!bankTx || entity.isApprovedDate > bankTx.created) continue;
+
+      await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
+    }
+  }
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
     if (dto.buyCryptoId || dto.buyFiatId) {
@@ -79,5 +102,13 @@ export class FiatOutputService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `fiatOutput.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
+    if (!entity.remittanceInfo) return undefined;
+    if (entity.remittanceInfo.includes('Chargeback') || entity.type === 'BuyCryptoFail')
+      return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo.split('Zahlung')[0], true);
+
+    return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
   }
 }
