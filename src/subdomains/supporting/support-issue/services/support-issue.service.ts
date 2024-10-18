@@ -114,6 +114,15 @@ export class SupportIssueService {
     return this.createMessageInternal(issue, dto);
   }
 
+  async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
+    const issues = await this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true },
+    });
+
+    return issues.map(SupportIssueDtoMapper.mapSupportIssue);
+  }
+
   async getIssue(id: string, query: GetSupportIssueFilter, userDataId?: number): Promise<SupportIssueDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: this.getIssueSearch(id, userDataId),

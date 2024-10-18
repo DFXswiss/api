@@ -27,6 +27,13 @@ export class SupportIssueController {
     return this.supportIssueService.createIssue(jwt.account, dto);
   }
 
+  @Get()
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
+  async getIssues(@GetJwt() jwt: JwtPayload): Promise<SupportIssueDto[]> {
+    return this.supportIssueService.getIssues(jwt?.account);
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
