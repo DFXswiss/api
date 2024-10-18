@@ -1,21 +1,27 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AlbySignupDto } from '../user/dto/alby.dto';
+import { UserRepository } from '../user/user.repository';
 import { AuthAlbyService } from './auth-alby.service';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
+import { MergeResponseDto } from './dto/merge-response.dto';
 import { RedirectResponseDto } from './dto/redirect-response.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -24,6 +30,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly albyService: AuthAlbyService,
     private readonly mergeService: AccountMergeService,
+    private readonly userRepo: UserRepository,
   ) {}
 
   @Post()
@@ -61,16 +68,51 @@ export class AuthController {
   }
 
   @Get('mail/confirm')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiExcludeEndpoint()
-  async executeMerge(@Query('code') code: string, @Res() res: Response): Promise<void> {
+  @ApiOkResponse({ type: MergeResponseDto })
+  async executeMerge(
+    @GetJwt() jwt: JwtPayload,
+    @Query('code') code: string,
+    @RealIP() ip: string,
+  ): Promise<MergeResponseDto> {
     const { master } = await this.mergeService.executeMerge(code);
-    res.redirect(master.kycUrl);
+    let accessToken: string;
+
+    if (jwt) {
+      if (jwt.user) {
+        const newUser = await this.userRepo.findOne({
+          where: { userData: { id: master.id }, address: jwt.address },
+          relations: { userData: true, wallet: true },
+        });
+
+        accessToken = this.authService.generateUserToken(newUser, ip);
+      } else {
+        accessToken = this.authService.generateAccountToken(master, ip);
+      }
+    }
+
+    return {
+      kycHash: master.kycHash,
+      accessToken,
+    };
   }
 
   @Get('signMessage')
   @ApiOkResponse({ type: SignMessageDto })
   getSignMessage(@Query('address') address: string): SignMessageDto {
     return this.authService.getSignInfo(address);
+  }
+
+  @Get('verifySignature')
+  @ApiExcludeEndpoint()
+  verifySignMessage(
+    @Query('address') address: string,
+    @Query('message') message: string,
+    @Query('signature') signature: string,
+  ): Promise<VerifySignMessageDto> {
+    return this.authService.verifyMessageSignature(address, message, signature);
   }
 
   @Get('challenge')

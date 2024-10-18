@@ -5,15 +5,18 @@ import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/I
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
 import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
+import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
+import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { WalletAccount } from './domain/wallet-account';
+import { EvmSignedTransactionResponse } from './dto/evm-signed-transaction-reponse.dto';
 import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
@@ -31,26 +34,28 @@ export interface EvmClientParams {
   scanApiKey?: string;
 }
 
-interface AssetTransfersParams {
-  fromAddress?: string;
-  toAddress?: string;
-  fromBlock: number;
-  categories: AssetTransfersCategory[];
+interface UniswapPosition {
+  token0: string;
+  token1: string;
+  fee: FeeAmount;
+  tickLower: number;
+  tickUpper: number;
+  liquidity: EthersNumber;
 }
 
 export abstract class EvmClient {
   protected http: HttpService;
-  private alchemyService: AlchemyService;
-  private chainId: ChainId;
+  private readonly alchemyService: AlchemyService;
+  private readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
-  private nonce = new Map<string, number>();
-  private tokens = new AsyncCache<Token>();
-  private router: AlphaRouter;
-  private swapContractAddress: string;
-  private quoteContractAddress: string;
+  private readonly nonce = new Map<string, number>();
+  private readonly tokens = new AsyncCache<Token>();
+  private readonly router: AlphaRouter;
+  private readonly swapContractAddress: string;
+  private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
     this.http = params.http;
@@ -72,16 +77,24 @@ export abstract class EvmClient {
 
   // --- PUBLIC API - GETTERS --- //
 
-  async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
+  async getNativeCoinTransactions(
+    walletAddress: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<EvmCoinHistoryEntry[]> {
     const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, categories);
+    return this.getHistory(walletAddress, categories, fromBlock, toBlock);
   }
 
-  async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
+  async getERC20Transactions(
+    walletAddress: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<EvmTokenHistoryEntry[]> {
     const categories = this.alchemyService.getERC20Categories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, categories);
+    return this.getHistory(walletAddress, categories, fromBlock, toBlock);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -149,6 +162,15 @@ export abstract class EvmClient {
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
     return this.sendRawTransaction(this.wallet, request);
+  }
+
+  async sendRawTransactionFrom(
+    privateKey: string,
+    request: ethers.providers.TransactionRequest,
+  ): Promise<ethers.providers.TransactionResponse> {
+    const wallet = new ethers.Wallet(privateKey, this.provider);
+
+    return this.sendRawTransaction(wallet, request);
   }
 
   async sendRawTransaction(
@@ -251,12 +273,28 @@ export abstract class EvmClient {
     return result.hash;
   }
 
+  async sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse> {
+    const txToUse = tx.toLowerCase().startsWith('0x') ? tx : '0x' + tx;
+
+    return this.alchemyService
+      .sendTransaction(this.chainId, txToUse)
+      .then((r) => ({
+        response: r,
+      }))
+      .catch((e) => ({
+        error: {
+          code: e.code,
+          message: e.message,
+        },
+      }));
+  }
+
   // --- PUBLIC API - UTILITY --- //
 
-  async isTxComplete(txHash: string): Promise<boolean> {
+  async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
     const transaction = await this.getTxReceipt(txHash);
 
-    if (transaction?.confirmations > 0) {
+    if (transaction?.confirmations > confirmations) {
       if (transaction.status) return true;
 
       throw new Error(`Transaction ${txHash} has failed`);
@@ -312,6 +350,50 @@ export abstract class EvmClient {
   }
 
   // --- PUBLIC API - SWAPS --- //
+
+  async getUniswapLiquidity(nftContract: string, positionId: number): Promise<[number, number]> {
+    const position = await this.getUniswapPosition(nftContract, positionId);
+
+    // extract pool infos
+    const [token0, token1] = await Promise.all([
+      this.getTokenByAddress(position.token0),
+      this.getTokenByAddress(position.token1),
+    ]);
+    const pool = this.getPoolContract(Pool.getAddress(token0, token1, position.fee));
+    const slot0 = await pool.slot0();
+    const sqrtPriceX96 = slot0.sqrtPriceX96;
+
+    // calculate amount
+    const [amount0, amount1] = this.getUniswapPositionAmounts(position, sqrtPriceX96);
+    return [
+      EvmUtil.fromWeiAmount(BigInt(Math.round(amount0)).toString(), token0.decimals),
+      EvmUtil.fromWeiAmount(BigInt(Math.round(amount1)).toString(), token1.decimals),
+    ];
+  }
+
+  private getUniswapPositionAmounts(position: UniswapPosition, sqrtPriceX96: any): [number, number] {
+    const sqrtRatioA = Math.sqrt(1.0001 ** position.tickLower);
+    const sqrtRatioB = Math.sqrt(1.0001 ** position.tickUpper);
+    const currentTick = Math.log((sqrtPriceX96 / 2 ** 96) ** 2) / Math.log(1.0001);
+    const sqrtPrice = sqrtPriceX96 / 2 ** 96;
+
+    if (currentTick <= position.tickLower) {
+      return [+position.liquidity * ((sqrtRatioB - sqrtRatioA) / (sqrtRatioA * sqrtRatioB)), 0];
+    } else if (currentTick > position.tickUpper) {
+      return [0, +position.liquidity * (sqrtRatioB - sqrtRatioA)];
+    } else if (currentTick >= position.tickLower && currentTick < position.tickUpper) {
+      return [
+        +position.liquidity * ((sqrtRatioB - sqrtPrice) / (sqrtPrice * sqrtRatioB)),
+        +position.liquidity * (sqrtPrice - sqrtRatioA),
+      ];
+    }
+  }
+
+  private async getUniswapPosition(positionsNft: string, positionId: number): Promise<UniswapPosition> {
+    const contract = new ethers.Contract(positionsNft, UNISWAP_V3_NFT_MANAGER_ABI, this.wallet);
+    return contract.positions(positionId);
+  }
+
   async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
     const [token1, token2] = await this.getTokenPair(asset1, asset2);
 
@@ -641,13 +723,15 @@ export abstract class EvmClient {
 
   private async getHistory<T>(
     walletAddress: string,
-    fromBlock: number,
     categories: AssetTransfersCategory[],
+    fromBlock: number,
+    toBlock?: number,
   ): Promise<T[]> {
     const params: AssetTransfersParams = {
       fromAddress: walletAddress,
       toAddress: undefined,
       fromBlock: fromBlock,
+      toBlock: toBlock,
       categories: categories,
     };
 
@@ -666,7 +750,7 @@ export abstract class EvmClient {
       hash: atr.hash,
       from: atr.from,
       to: atr.to,
-      value: Number(atr.rawContract.value).toString(),
+      value: new BigNumber(atr.rawContract.value).toString(),
       contractAddress: atr.rawContract.address ?? '',
       tokenName: atr.asset,
       tokenDecimal: Number(atr.rawContract.decimal).toString(),

@@ -154,8 +154,6 @@ export class KycNotificationService {
               suffix: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
-                { key: MailKey.SPACE, params: { value: '4' } },
-                { key: `${MailTranslationKey.GENERAL}.happy_trading` },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
             },

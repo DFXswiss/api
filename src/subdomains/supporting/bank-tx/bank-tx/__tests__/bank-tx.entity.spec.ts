@@ -29,11 +29,11 @@ describe('BankTx', () => {
     });
 
     it('should return NOIBAN for account numbers', () => {
-      const entity = Object.assign(new BankTx(), { iban: '2345' });
+      const entity = Object.assign(new BankTx(), { iban: '2345', name: 'John Doe' });
 
       const sender = entity.getSenderAccount([multiAccountIban]);
 
-      expect(sender).toBe('NOIBAN2345');
+      expect(sender).toBe('NOIBAN2345;JohnDoe');
     });
 
     it('should use IBAN from name', () => {

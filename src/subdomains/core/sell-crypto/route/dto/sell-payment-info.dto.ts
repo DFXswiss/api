@@ -25,8 +25,8 @@ export class SellPaymentInfoDto {
   @ApiProperty()
   routeId: number;
 
-  @ApiProperty()
-  depositAddress: string;
+  @ApiPropertyOptional()
+  depositAddress?: string;
 
   @ApiProperty({ deprecated: true })
   blockchain: Blockchain;

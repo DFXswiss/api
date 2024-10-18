@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
@@ -17,6 +18,8 @@ export enum SupportIssueType {
   KYC_ISSUE = 'KycIssue',
   LIMIT_REQUEST = 'LimitRequest',
   PARTNERSHIP_REQUEST = 'PartnershipRequest',
+  NOTIFICATION_OF_CHANGES = 'NotificationOfChanges',
+  BUG_REPORT = 'BugReport',
 }
 
 export enum SupportIssueReason {
@@ -29,6 +32,9 @@ export enum SupportIssueReason {
 
 @Entity()
 export class SupportIssue extends IEntity {
+  @Column({ length: 256, unique: true })
+  uid: string;
+
   @Column({ length: 256, default: SupportIssueState.CREATED })
   state: SupportIssueState;
 
@@ -63,5 +69,9 @@ export class SupportIssue extends IEntity {
 
   get additionalInformation(): object | undefined {
     return this.information && JSON.parse(this.information);
+  }
+
+  get url(): string {
+    return `${Config.frontend.services}/support/chat/${this.uid}`;
   }
 }

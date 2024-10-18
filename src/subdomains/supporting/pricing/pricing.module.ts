@@ -13,6 +13,7 @@ import { FiatPricesService } from './services/fiat-prices.service';
 import { CoinGeckoService } from './services/integration/coin-gecko.service';
 import { CurrencyService } from './services/integration/currency.service';
 import { FixerService } from './services/integration/fixer.service';
+import { PricingConstantService } from './services/integration/pricing-constant.service';
 import { PricingDexService } from './services/integration/pricing-dex.service';
 import { PricingEbel2xService } from './services/integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
@@ -39,6 +40,7 @@ import { PricingService } from './services/pricing.service';
     PricingDexService,
     PricingFrankencoinService,
     PricingEbel2xService,
+    PricingConstantService,
   ],
   exports: [PricingService],
 })

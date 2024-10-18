@@ -1,0 +1,273 @@
+import { IdentShortResult } from './ident-result.dto';
+
+export interface SumsubResult {
+  webhook: SumSubWebhookResult;
+  data: SumSubDataResult;
+}
+
+export interface SumSubWebhookResult {
+  applicantId?: string;
+  applicantActionId?: string;
+  applicantType?: ApplicantType;
+  inspectionId?: string;
+  correlationId?: string;
+  externalUserId?: string;
+  externalApplicantActionId?: string;
+  levelName?: string;
+  previousLevelName?: string;
+  type?: SumSubWebhookType;
+  reviewResult?: {
+    reviewAnswer: ReviewAnswer;
+    moderationComment?: string;
+    clientComment?: string;
+    rejectLabels?: SumSubRejectionLabels[];
+    reviewRejectType?: ReviewRejectType;
+    buttonIds?: string[];
+  };
+  reviewStatus?: string;
+  videoIdentReviewStatus?: string;
+  createdAt: Date;
+  createdAtMs?: Date;
+  sandboxMode?: boolean;
+  clientId?: string;
+  reviewMode?: string;
+}
+
+export interface SumSubDataResult {
+  id?: string;
+  createdAt?: Date;
+  clientId?: string;
+  inspectionId?: string;
+  externalUserId?: string;
+  sourceKey?: string;
+  info?: {
+    firstName?: string;
+    firstNameEn?: string;
+    lastName?: string;
+    lastNameEn?: string;
+    dob?: string;
+    country?: string;
+    idDocs?: [
+      {
+        idDocType?: IdDocType;
+        country?: string;
+        firstName?: string;
+        firstNameEn?: string;
+        lastName?: string;
+        lastNameEn?: string;
+        validUntil?: Date;
+        number?: string;
+        dob?: Date;
+        mrzLine1?: string;
+        mrzLine2?: string;
+        mrzLine3?: string;
+      },
+    ];
+  };
+  requiredIdDocs?: string;
+  fixedInfo?: string;
+  email?: string;
+  phone?: string;
+  applicantPlatform?: string;
+  ipCountry?: string;
+  authCode?: string;
+  agreement?: { createdAt?: Date; source?: string; acceptedAt?: string; recordIds?: string[] };
+}
+
+export enum IdDocType {
+  ID_CARD = 'ID_CARD',
+  PASSPORT = 'PASSPORT',
+}
+
+export enum ApplicantType {
+  COMPANY = 'company',
+  INDIVIDUAL = 'individual',
+}
+
+export enum ReviewAnswer {
+  GREEN = 'GREEN',
+  RED = 'RED',
+}
+
+export enum ReviewRejectType {
+  FINAL = 'FINAL',
+  RETRY = 'RETRY',
+}
+
+export enum SumSubWebhookType {
+  APPLICANT_CREATED = 'applicantCreated',
+  APPLICANT_PENDING = 'applicantPending',
+  APPLICANT_REVIEWED = 'applicantReviewed',
+  APPLICANT_ON_HOLD = 'applicantOnHold',
+  APPLICANT_ACTION_PENDING = 'applicantActionPending',
+  APPLICANT_ACTION_REVIEWED = 'applicantActionReviewed',
+  APPLICANT_ACTION_ON_HOLD = 'applicantActionOnHold',
+  APPLICANT_PERSONAL_INFO_CHANGED = 'applicantPersonalInfoChanged',
+  APPLICANT_TAGS_CHANGED = 'applicantTagsChanged',
+  APPLICANT_ACTIVATED = 'applicantActivated',
+  APPLICANT_DEACTIVATED = 'applicantDeactivated',
+  APPLICANT_DELETED = 'applicantDeleted',
+  APPLICANT_RESET = 'applicantReset',
+  APPLICANT_PRECHECKED = 'applicantPrechecked',
+  APPLICANT_LEVEL_CHANGED = 'applicantLevelChanged',
+  APPLICANT_WORKFLOW_COMPLETED = 'applicantWorkflowCompleted',
+  VIDEO_IDENT_STATUS_CHANGED = 'videoIdentStatusChanged',
+}
+
+export enum SumSubRejectionLabels {
+  //TEMP
+  APPLICANT_INTERRUPTED_INTERVIEW = 'APPLICANT_INTERRUPTED_INTERVIEW',
+  ADDITIONAL_DOCUMENT_REQUIRED = 'ADDITIONAL_DOCUMENT_REQUIRED',
+  BACK_SIDE_MISSING = 'BACK_SIDE_MISSING',
+  BAD_AVATAR = 'BAD_AVATAR',
+  BAD_FACE_MATCHING = 'BAD_FACE_MATCHING',
+  BAD_PROOF_OF_ADDRESS = 'BAD_PROOF_OF_ADDRESS',
+  BAD_PROOF_OF_IDENTITY = 'BAD_PROOF_OF_IDENTITY',
+  BAD_PROOF_OF_PAYMENT = 'BAD_PROOF_OF_PAYMENT',
+  BAD_SELFIE = 'BAD_SELFIE',
+  BAD_VIDEO_SELFIE = 'BAD_VIDEO_SELFIE',
+  BLACK_AND_WHITE = 'BLACK_AND_WHITE',
+  COMPANY_NOT_DEFINED_BENEFICIARIES = 'COMPANY_NOT_DEFINED_BENEFICIARIES',
+  COMPANY_NOT_DEFINED_REPRESENTATIVES = 'COMPANY_NOT_DEFINED_REPRESENTATIVES',
+  COMPANY_NOT_DEFINED_STRUCTURE = 'COMPANY_NOT_DEFINED_STRUCTURE',
+  COMPANY_NOT_VALIDATED_BENEFICIARIES = 'COMPANY_NOT_VALIDATED_BENEFICIARIES',
+  COMPANY_NOT_VALIDATED_REPRESENTATIVES = 'COMPANY_NOT_VALIDATED_REPRESENTATIVES',
+  CONNECTION_INTERRUPTED = 'CONNECTION_INTERRUPTED',
+  DIGITAL_DOCUMENT = 'DIGITAL_DOCUMENT',
+  DOCUMENT_DEPRIVED = 'DOCUMENT_DEPRIVED',
+  DOCUMENT_DAMAGED = 'DOCUMENT_DAMAGED',
+  DOCUMENT_MISSING = 'DOCUMENT_MISSING',
+  DOCUMENT_PAGE_MISSING = 'DOCUMENT_PAGE_MISSING',
+  EXPIRATION_DATE = 'EXPIRATION_DATE',
+  FRONT_SIDE_MISSING = 'FRONT_SIDE_MISSING',
+  GRAPHIC_EDITOR = 'GRAPHIC_EDITOR',
+  ID_INVALID = 'ID_INVALID',
+  INCOMPATIBLE_LANGUAGE = 'INCOMPATIBLE_LANGUAGE',
+  INCOMPLETE_DOCUMENT = 'INCOMPLETE_DOCUMENT',
+  INCORRECT_SOCIAL_NUMBER = 'INCORRECT_SOCIAL_NUMBER',
+  PROBLEMATIC_APPLICANT_DATA = 'PROBLEMATIC_APPLICANT_DATA',
+  REQUESTED_DATA_MISMATCH = 'REQUESTED_DATA_MISMATCH',
+  SELFIE_WITH_PAPER = 'SELFIE_WITH_PAPER',
+  LOW_QUALITY = 'LOW_QUALITY',
+  NOT_ALL_CHECKS_COMPLETED = 'NOT_ALL_CHECKS_COMPLETED',
+  SCREENSHOTS = 'SCREENSHOTS',
+  UNFILLED_ID = 'UNFILLED_ID',
+  UNSATISFACTORY_PHOTOS = 'UNSATISFACTORY_PHOTOS',
+  UNSUITABLE_ENV = 'UNSUITABLE_ENV',
+  WRONG_ADDRESS = 'WRONG_ADDRESS',
+  //FINAL
+  ADVERSE_MEDIA = 'ADVERSE_MEDIA',
+  AGE_REQUIREMENT_MISMATCH = 'AGE_REQUIREMENT_MISMATCH',
+  BLACKLIST = 'BLACKLIST',
+  BLOCKLIST = 'BLOCKLIST',
+  CHECK_UNAVAILABLE = 'CHECK_UNAVAILABLE',
+  COMPROMISED_PERSONS = 'COMPROMISED_PERSONS',
+  CRIMINAL = 'CRIMINAL',
+  DB_DATA_MISMATCH = 'DB_DATA_MISMATCH',
+  DB_DATA_NOT_FOUND = 'DB_DATA_NOT_FOUND',
+  DOCUMENT_TEMPLATE = 'DOCUMENT_TEMPLATE',
+  DUPLICATE = 'DUPLICATE',
+  EXPERIENCE_REQUIREMENT_MISMATCH = 'EXPERIENCE_REQUIREMENT_MISMATCH',
+  FORGERY = 'FORGERY',
+  FRAUDULENT_LIVENESS = 'FRAUDULENT_LIVENESS',
+  FRAUDULENT_PATTERNS = 'FRAUDULENT_PATTERNS',
+  INCONSISTENT_PROFILE = 'INCONSISTENT_PROFILE',
+  PEP = 'PEP',
+  REGULATIONS_VIOLATIONS = 'REGULATIONS_VIOLATIONS',
+  SANCTIONS = 'SANCTIONS',
+  SELFIE_MISMATCH = 'SELFIE_MISMATCH',
+  SPAM = 'SPAM',
+  NOT_DOCUMENT = 'NOT_DOCUMENT',
+  THIRD_PARTY_INVOLVED = 'THIRD_PARTY_INVOLVED',
+  UNSUPPORTED_LANGUAGE = 'UNSUPPORTED_LANGUAGE',
+  WRONG_USER_REGION = 'WRONG_USER_REGION',
+}
+
+const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
+  [SumSubRejectionLabels.FORGERY]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.CRIMINAL]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.DOCUMENT_TEMPLATE]: 'The submitted documents are templates downloaded from the internet',
+  [SumSubRejectionLabels.DIGITAL_DOCUMENT]: 'You uploaded a digital version of the document',
+  [SumSubRejectionLabels.LOW_QUALITY]: 'Documents have low-quality that does not allow definitive decisions to be made',
+  [SumSubRejectionLabels.SPAM]: 'Spam detected (irrelevant images were supplied)',
+  [SumSubRejectionLabels.NOT_DOCUMENT]: 'The submitted documents are not relevant for the verification procedure',
+  [SumSubRejectionLabels.SELFIE_MISMATCH]: 'Your photo does not match a photo on the provided documents',
+  [SumSubRejectionLabels.ID_INVALID]: 'Your ident document is not valid',
+  [SumSubRejectionLabels.DOCUMENT_DEPRIVED]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.DUPLICATE]: 'Duplicates are not allowed by the regulations',
+  [SumSubRejectionLabels.BAD_AVATAR]: 'Your avatar does not meet our requirements',
+  [SumSubRejectionLabels.WRONG_USER_REGION]: 'Your country/region is not allowed',
+  [SumSubRejectionLabels.INCOMPLETE_DOCUMENT]:
+    'Some information is missing from the document, or it is only partially visible',
+  [SumSubRejectionLabels.BLACKLIST]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.BLOCKLIST]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.WRONG_ADDRESS]: 'The address on your documents does not match the address you entered',
+  [SumSubRejectionLabels.UNSATISFACTORY_PHOTOS]:
+    'Problems with the photos during verification, like poor quality or masked information',
+  [SumSubRejectionLabels.GRAPHIC_EDITOR]: 'The document has been edited by a graphical editor',
+  [SumSubRejectionLabels.DOCUMENT_PAGE_MISSING]: 'Some pages of a document are missing',
+  [SumSubRejectionLabels.DOCUMENT_DAMAGED]: 'Your document is damaged',
+  [SumSubRejectionLabels.REGULATIONS_VIOLATIONS]: 'Violations of regulations were found',
+  [SumSubRejectionLabels.INCONSISTENT_PROFILE]: 'Data or documents of different persons were uploaded',
+  [SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA]: 'Applicant data does not match the data in your documents',
+  [SumSubRejectionLabels.ADDITIONAL_DOCUMENT_REQUIRED]: 'Additional documents are required to pass the check',
+  [SumSubRejectionLabels.AGE_REQUIREMENT_MISMATCH]: 'The age requirement is not met',
+  [SumSubRejectionLabels.REQUESTED_DATA_MISMATCH]:
+    'Provided information does not match with the data from the document',
+  [SumSubRejectionLabels.EXPERIENCE_REQUIREMENT_MISMATCH]: 'You do not have enough experience',
+  [SumSubRejectionLabels.COMPROMISED_PERSONS]: 'You correspond to compromised person politics',
+  [SumSubRejectionLabels.PEP]: 'You belong to the PEP category',
+  [SumSubRejectionLabels.ADVERSE_MEDIA]: 'You were found in the adverse media',
+  [SumSubRejectionLabels.FRAUDULENT_PATTERNS]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.SANCTIONS]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.NOT_ALL_CHECKS_COMPLETED]: 'Not all of the checks were completed',
+  [SumSubRejectionLabels.FRONT_SIDE_MISSING]: 'The front side of the document is missing',
+  [SumSubRejectionLabels.BACK_SIDE_MISSING]: 'The back side of the document is missing',
+  [SumSubRejectionLabels.SCREENSHOTS]: 'You uploaded screenshots',
+  [SumSubRejectionLabels.BLACK_AND_WHITE]: 'You uploaded black and white photos of your documents',
+  [SumSubRejectionLabels.INCOMPATIBLE_LANGUAGE]: 'A translation of your documents is required',
+  [SumSubRejectionLabels.EXPIRATION_DATE]: 'You uploaded an expired document',
+  [SumSubRejectionLabels.UNFILLED_ID]: 'You uploaded the document without signatures and stamps',
+  [SumSubRejectionLabels.BAD_SELFIE]: 'You uploaded a selfie in poor quality',
+  [SumSubRejectionLabels.BAD_VIDEO_SELFIE]: 'You uploaded a video selfie in poor quality',
+  [SumSubRejectionLabels.BAD_FACE_MATCHING]: 'A face check between a document and a selfie was failed',
+  [SumSubRejectionLabels.BAD_PROOF_OF_IDENTITY]: 'You uploaded a poor quality ID document',
+  [SumSubRejectionLabels.BAD_PROOF_OF_ADDRESS]: 'You uploaded a poor quality proof of address',
+  [SumSubRejectionLabels.BAD_PROOF_OF_PAYMENT]: 'You uploaded a poor quality proof of payment',
+  [SumSubRejectionLabels.FRAUDULENT_LIVENESS]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.COMPANY_NOT_DEFINED_STRUCTURE]: 'The organization control structure was not defined',
+  [SumSubRejectionLabels.COMPANY_NOT_DEFINED_BENEFICIARIES]:
+    'The organization beneficial owners were not identified and duly verified',
+  [SumSubRejectionLabels.COMPANY_NOT_VALIDATED_BENEFICIARIES]: 'The organization beneficial owners were not validated',
+  [SumSubRejectionLabels.COMPANY_NOT_DEFINED_REPRESENTATIVES]: 'The organization representatives were not defined',
+  [SumSubRejectionLabels.COMPANY_NOT_VALIDATED_REPRESENTATIVES]: 'The organization representatives were not validated',
+  [SumSubRejectionLabels.APPLICANT_INTERRUPTED_INTERVIEW]:
+    'You refused to finish the interview during the video ident call',
+  [SumSubRejectionLabels.DOCUMENT_MISSING]:
+    'You refused to show or did not have required documents during the video ident call',
+  [SumSubRejectionLabels.UNSUITABLE_ENV]: 'You are either not alone or not visible during the video ident call',
+  [SumSubRejectionLabels.CONNECTION_INTERRUPTED]: 'The video ident call connection was interrupted',
+
+  [SumSubRejectionLabels.INCORRECT_SOCIAL_NUMBER]: 'Your social number is incorrect',
+  [SumSubRejectionLabels.SELFIE_WITH_PAPER]: 'Unknown',
+  [SumSubRejectionLabels.CHECK_UNAVAILABLE]: 'Unknown',
+  [SumSubRejectionLabels.DB_DATA_MISMATCH]: 'Unknown',
+  [SumSubRejectionLabels.DB_DATA_NOT_FOUND]: 'Unknown',
+  [SumSubRejectionLabels.THIRD_PARTY_INVOLVED]: 'You are not allowed to complete KYC',
+  [SumSubRejectionLabels.UNSUPPORTED_LANGUAGE]: 'Your language is unsupported',
+
+  //[RejectionLabels.FOREIGNER]: 'Document from unsupported country',
+  //[RejectionLabels.OTHER]: 'There is some unclassified reason of rejection',
+  //[RejectionLabels.SELFIE_WITH_PAYMENT]: 'A special selfie is required',
+  //[RejectionLabels.OK]: 'Unknown',
+};
+
+export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
+  if (dto.type == SumSubWebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
+  if (dto.type == SumSubWebhookType.APPLICANT_REVIEWED)
+    return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+}
+
+export function getSumSubReason(reasons: SumSubRejectionLabels[]): string {
+  return `<ul>${reasons.map((r) => `<li>${SumSubReasonMap[r] ?? r}</li>`).join('')}</ul>`;
+}

@@ -5,6 +5,7 @@ import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -28,8 +29,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly updateTimestamps = new Map<Blockchain, Date>();
 
   private btcClient: BtcClient;
-  private lightningClient: LightningClient;
-  private moneroClient: MoneroClient;
+  private readonly lightningClient: LightningClient;
+  private readonly moneroClient: MoneroClient;
 
   constructor(
     private readonly dexService: DexService,
@@ -104,11 +105,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.ARBITRUM:
         case Blockchain.POLYGON:
         case Blockchain.BASE:
-          await this.getForEvm(assets);
-          break;
-
         case Blockchain.BINANCE_SMART_CHAIN:
-          await this.getForBsc(assets);
+          await this.getForEvm(assets);
           break;
 
         default:
@@ -161,6 +159,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.evmRegistryService.getClient(blockchain);
 
+    await this.getForEvmAsset(
+      assets.filter((a) => a.type !== AssetType.POOL),
+      client,
+    );
+    await this.getForEvmPosition(
+      assets.filter((a) => a.type === AssetType.POOL),
+      client,
+    );
+  }
+
+  private async getForEvmAsset(assets: Asset[], client: EvmClient): Promise<void> {
     let coinBalance: number;
     let tokenBalances: EvmTokenBalance[];
 
@@ -168,7 +177,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       coinBalance = await client.getNativeCoinBalance();
       tokenBalances = await client.getTokenBalances(assets);
     } catch (e) {
-      this.logger.error(`Failed to update liquidity management balance for all assets of blockchain ${blockchain}:`, e);
+      this.logger.error(`Failed to update balance for assets of blockchain ${assets[0].blockchain}:`, e);
       this.invalidateCacheFor(assets);
       return;
     }
@@ -185,32 +194,21 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForBsc(assets: Asset[]): Promise<void> {
-    if (assets.length === 0) return;
+  private async getForEvmPosition(assets: Asset[], client: EvmClient): Promise<void> {
+    const assetMap = Util.groupByAccessor(assets, (a) => a.chainId.split('/').slice(0, 2).join('/'));
 
-    const blockchain = assets[0].blockchain;
-    const client = this.evmRegistryService.getClient(blockchain);
-
-    const currentBlockHeight = await client.getCurrentBlock();
-    const recentTransactions = await client.getERC20Transactions(client.dfxAddress, currentBlockHeight - 1200);
-
-    // update all assets with missing cache or with recent transactions
-    const assetsToUpdate = assets.filter(
-      (a) =>
-        a.type === AssetType.COIN ||
-        !this.balanceCache.has(a.id) ||
-        recentTransactions.some((tx) => tx.contractAddress === a.chainId),
-    );
-
-    for (const asset of assetsToUpdate) {
+    for (const pool of new Set(assetMap.keys())) {
       try {
-        const balance =
-          asset.type === AssetType.COIN ? await client.getNativeCoinBalance() : await client.getTokenBalance(asset);
+        const [positionsNft, positionId] = pool.split('/');
+        const amounts = await client.getUniswapLiquidity(positionsNft, +positionId);
 
-        this.balanceCache.set(asset.id, balance);
+        for (const asset of assetMap.get(pool)) {
+          const balance = amounts[+asset.chainId.split('/').pop()];
+          this.balanceCache.set(asset.id, balance);
+        }
       } catch (e) {
-        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
-        this.invalidateCacheFor([asset]);
+        this.logger.error(`Failed to update balance for pools of blockchain ${assets[0].blockchain}:`, e);
+        this.invalidateCacheFor(assetMap.get(pool));
       }
     }
   }

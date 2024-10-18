@@ -48,19 +48,30 @@ export class BscStrategy extends EvmStrategy {
     await this.processNewPayInEntries();
   }
 
-  protected async processNewPayInEntries(): Promise<void> {
-    const addresses: string[] = await this.getPayInAddresses();
-    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
+  async processNewPayInEntries(): Promise<void> {
+    const payInAddresses: string[] = await this.getPayInAddresses();
+    const allPayInAddresses = payInAddresses.map((a) => a.toLowerCase());
 
-    await this.getTransactionsAndCreatePayIns(addresses, lastCheckedBlockHeight);
+    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
+    const currentBlockHeight = await this.alchemyService.getBlockNumber(this.blockchain);
+
+    await this.getTransactionsAndCreatePayIns(allPayInAddresses, lastCheckedBlockHeight, currentBlockHeight);
   }
 
-  private async getTransactionsAndCreatePayIns(addresses: string[], lastCheckedBlockHeight: number): Promise<void> {
+  private async getTransactionsAndCreatePayIns(
+    addresses: string[],
+    lastCheckedBlockHeight: number,
+    currentBlockHeight: number,
+  ): Promise<void> {
     const log = this.createNewLogObject();
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     for (const address of addresses) {
-      const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, lastCheckedBlockHeight + 1);
+      const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(
+        address,
+        lastCheckedBlockHeight + 1,
+        currentBlockHeight - 2, // fixes Alchemy sync issues
+      );
 
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
@@ -126,13 +137,20 @@ export class BscStrategy extends EvmStrategy {
   }
 
   private mapTokenEntries(tokenTransactions: EvmTokenHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
-    return tokenTransactions.map((tx) => ({
+    return tokenTransactions.map((tx) => this.mapTokenEntry(tx, supportedAssets));
+  }
+
+  private mapTokenEntry(tx: EvmTokenHistoryEntry, supportedAssets: Asset[]): PayInEntry {
+    const asset = this.getTransactionAsset(supportedAssets, tx.contractAddress);
+    const decimals = asset?.decimals ?? 0;
+
+    return {
       address: BlockchainAddress.create(tx.to, this.blockchain),
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: EvmUtil.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
-      asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
-    }));
+      amount: EvmUtil.fromWeiAmount(tx.value, decimals),
+      asset: asset ?? null,
+    };
   }
 }

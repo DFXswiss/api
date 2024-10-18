@@ -170,6 +170,11 @@ export class UpdateBuyCryptoDto {
   chargebackAllowedDate: Date;
 
   @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDateUser: Date;
+
+  @IsOptional()
   @IsString()
   chargebackIban: string;
 
@@ -179,7 +184,11 @@ export class UpdateBuyCryptoDto {
 
   @IsOptional()
   @IsBoolean()
-  bankDataActive: boolean;
+  bankDataApproved: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  bankDataManualApproved: boolean;
 
   @IsOptional()
   @IsString()

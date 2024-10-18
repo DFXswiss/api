@@ -39,6 +39,7 @@ import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -202,7 +203,7 @@ export class AuthService {
 
     // create random key
     const key = randomUUID();
-    const loginUrl = `${Config.frontend.services}/mail-login?code=${key}`;
+    const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
     this.mailKeyList.set(key, {
       created: new Date(),
@@ -250,8 +251,11 @@ export class AuthService {
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const account = await this.userDataService.getUserData(entry.userDataId);
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
+
+      if (account.isDeactivated)
+        await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);
@@ -306,6 +310,14 @@ export class AuthService {
     };
   }
 
+  // --- VERIFY SIGN MESSAGES --- //
+
+  async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
+    return {
+      isValid: await this.cryptoService.verifySignature(message, address, signature),
+    };
+  }
+
   // --- HELPER METHODS --- //
 
   private async getLinkedUser(userDataId: number, address: string): Promise<User> {
@@ -352,7 +364,7 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  private generateUserToken(user: User, ip: string): string {
+  generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       user: user.id,
       address: user.address,
@@ -364,7 +376,7 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  private generateAccountToken(userData: UserData, ip: string): string {
+  generateAccountToken(userData: UserData, ip: string): string {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,

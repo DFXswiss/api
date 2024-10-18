@@ -320,6 +320,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   paymentLinksName: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  paymentLinksConfig: string; // PaymentLinkConfig
+
   // References
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
@@ -514,7 +517,7 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    return this.accountType === AccountType.BUSINESS
+    return this.accountType === AccountType.ORGANIZATION
       ? {
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,

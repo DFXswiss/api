@@ -39,12 +39,13 @@ export class LightningStrategy extends SendStrategy {
 
       for (const payIn of payIns) {
         try {
-          const { targetFee } = await this.getEstimatedFee(payIn.asset, payIn.amount);
+          this.designateSend(payIn, type);
+
+          const { targetFee } = await this.getEstimatedFee(payIn.asset, payIn.amount, payIn.destinationAddress.address);
           const minInputFee = await this.getMinInputFee(payIn.asset);
 
           CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
 
-          this.designateSend(payIn, type);
           const { outTxId, feeAmount } = await this.lightningService.sendTransfer(payIn);
           this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 

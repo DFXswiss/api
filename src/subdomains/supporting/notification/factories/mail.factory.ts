@@ -18,15 +18,16 @@ export enum MailTranslationKey {
   CRYPTO_OUTPUT = 'mail.payment.crypto_output',
   FIAT_OUTPUT = 'mail.payment.fiat_output',
   PENDING = 'mail.payment.pending',
-  RETURN = 'mail.payment.return',
-  RETURN_REASON = 'mail.payment.return.reasons',
-  CRYPTO_RETURN = 'mail.payment.return.crypto',
-  FIAT_RETURN = 'mail.payment.return.fiat',
+  CHARGEBACK = 'mail.payment.chargeback',
+  CHARGEBACK_REASON = 'mail.payment.chargeback.reasons',
+  CRYPTO_CHARGEBACK = 'mail.payment.chargeback.crypto',
+  FIAT_CHARGEBACK = 'mail.payment.chargeback.fiat',
   REFERRAL = 'mail.referral',
   KYC = 'mail.kyc',
   IDENT_STARTED = 'mail.kyc.identStarted',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
+  KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
   KYC_REMINDER = 'mail.kyc.reminder',
   LOGIN = 'mail.login',
   ACCOUNT_MERGE_REQUEST = 'mail.account_merge.request',
@@ -36,7 +37,7 @@ export enum MailTranslationKey {
   BLACK_SQUAD = 'mail.black_squad',
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
   SUPPORT_MESSAGE = 'mail.support_message',
-  CHARGEBACK_NOT_POSSIBLE = 'mail.payment.chargeback_not_possible',
+  CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
 }
 
 export enum MailKey {
@@ -171,7 +172,7 @@ export class MailFactory {
 
   //*** TRANSLATION METHODS ***//
 
-  private translate(key: string, lang: string, args?: any): string {
+  public translate(key: string, lang: string, args?: any): string {
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
   }
 
@@ -253,7 +254,7 @@ export class MailFactory {
 
   //*** STATIC HELPER METHODS ***//
 
-  static parseMailKey(mailKey: MailTranslationKey, amlReason: string): string {
-    return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
+  static parseMailKey(mailKey: MailTranslationKey, value: string): string {
+    return `${mailKey}.${value.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }

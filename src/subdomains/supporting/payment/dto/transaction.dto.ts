@@ -21,6 +21,7 @@ export enum TransactionState {
   FEE_TOO_HIGH = 'FeeTooHigh',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
+  RETURN_PENDING = 'ReturnPending',
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
 }
@@ -125,6 +126,21 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional()
   inputTxUrl?: string;
 
+  @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
+  chargebackTarget?: string;
+
+  @ApiPropertyOptional({ description: 'Chargeback amount in input asset' })
+  chargebackAmount?: number;
+
+  @ApiPropertyOptional()
+  chargebackTxId?: string;
+
+  @ApiPropertyOptional()
+  chargebackTxUrl?: string;
+
+  @ApiPropertyOptional({ type: Date })
+  chargebackDate?: Date;
+
   @ApiProperty({ type: Date })
   date: Date;
 }
@@ -159,6 +175,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   outputTxUrl?: string;
+
+  @ApiPropertyOptional({ type: Date })
+  outputDate?: Date;
 
   @ApiPropertyOptional()
   priceSteps?: PriceStep[];

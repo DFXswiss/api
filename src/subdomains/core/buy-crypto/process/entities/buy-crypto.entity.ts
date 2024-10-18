@@ -1,14 +1,16 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -159,6 +161,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   blockchainFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee: number;
+
   // Fail
   @Column({ type: 'datetime2', nullable: true })
   chargebackDate: Date;
@@ -171,6 +176,12 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDateUser: Date;
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount: number;
 
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy: string;
@@ -386,6 +397,34 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  chargebackFillUp(
+    chargebackIban: string,
+    chargebackAmount: number,
+    chargebackAllowedDate: Date,
+    chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
+    chargebackOutput?: FiatOutput,
+    chargebackRemittanceInfo?: string,
+  ): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      chargebackDate: chargebackAllowedDate ? new Date() : null,
+      chargebackAllowedDate,
+      chargebackAllowedDateUser,
+      chargebackIban,
+      chargebackAmount,
+      chargebackOutput,
+      chargebackAllowedBy,
+      chargebackRemittanceInfo,
+      amlCheck: CheckStatus.FAIL,
+      mailSendDate: null,
+      isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
@@ -424,26 +463,30 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    instantBanks: Bank[],
+    banks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
       bankData,
       blacklist,
-      instantBanks,
+      banks,
       ibanCountry,
     );
 
@@ -481,11 +524,33 @@ export class BuyCrypto extends IEntity {
       comment: null,
       chargebackIban: null,
       chargebackAllowedDate: null,
+      chargebackAllowedDateUser: null,
+      chargebackAmount: null,
+      chargebackAllowedBy: null,
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    if (this.outputAmount) return 0;
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+      case 'Olkypay':
+        return BankService.isBankMatching(asset, this.bankTx?.accountIban) ? this.inputReferenceAmount : 0;
+
+      case 'Checkout':
+        return this.checkoutTx?.currency === asset.dexName ? this.inputReferenceAmount : 0;
+
+      default:
+        return this.cryptoInput?.asset.id === asset.id ? this.inputAmount : 0;
+    }
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
   get isCryptoCryptoTransaction(): boolean {
@@ -504,8 +569,8 @@ export class BuyCrypto extends IEntity {
   }
 
   get translationReturnMailKey(): MailTranslationKey {
-    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_RETURN;
-    return MailTranslationKey.CRYPTO_RETURN;
+    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_CHARGEBACK;
+    return MailTranslationKey.CRYPTO_CHARGEBACK;
   }
 
   get user(): User {

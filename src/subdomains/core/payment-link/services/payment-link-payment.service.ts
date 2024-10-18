@@ -1,25 +1,34 @@
 import {
   BadRequestException,
   ConflictException,
-  forwardRef,
-  Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
-import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
-import { PaymentActivation } from '../entities/payment-activation.entity';
-import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentRequestMapper } from '../dto/payment-request.mapper';
+import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
+import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus } from '../enums';
+import { PaymentQuote } from '../entities/payment-quote.entity';
+import {
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentQuoteFinalStates,
+  PaymentQuoteStatus,
+  PaymentQuoteTxStates,
+} from '../enums';
 import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payment.repository';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -27,33 +36,67 @@ import { PaymentWebhookService } from './payment-webhook.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
-  private readonly logger = new DfxLogger(PaymentLinkPaymentService);
-
   static readonly PREFIX_UNIQUE_ID = 'plp';
 
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
+  private readonly deviceActivationSubject = new Subject<PaymentDevice>();
 
   constructor(
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
-    @Inject(forwardRef(() => PaymentActivationService))
     private readonly paymentActivationService: PaymentActivationService,
-    private readonly fiatService: FiatService,
+    private readonly evmRegistryService: EvmRegistryService,
   ) {}
 
-  // --- HANDLE PENDING PAYMENTS --- //
-  async processPendingPayments(): Promise<void> {
+  getDeviceActivationObservable(): Observable<PaymentDevice> {
+    return this.deviceActivationSubject.asObservable();
+  }
+
+  // --- JOBS --- //
+  async processExpiredPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
-    const pendingPaymentLinkPayments = await this.paymentLinkPaymentRepo.findBy({
-      status: PaymentLinkPaymentStatus.PENDING,
-      expiryDate: LessThan(maxDate),
+    const pendingPayments = await this.paymentLinkPaymentRepo.find({
+      where: {
+        status: PaymentLinkPaymentStatus.PENDING,
+        expiryDate: LessThan(maxDate),
+      },
+      relations: { link: true },
     });
 
-    for (const pendingPaymentLinkPayment of pendingPaymentLinkPayments) {
-      await this.doSave(pendingPaymentLinkPayment.expire());
+    for (const payment of pendingPayments) {
+      await this.doSave(payment.expire(), true);
+
+      await this.cancelQuotesForPayment(payment);
     }
+  }
+
+  async checkTxConfirmations(): Promise<void> {
+    const confirmingQuotes = await this.paymentQuoteService.getConfirmingQuotes();
+
+    for (const quote of confirmingQuotes) {
+      const blockchain = quote.txBlockchain;
+
+      if (blockchain) {
+        const client = this.evmRegistryService.getClient(blockchain);
+        const isTxComplete = await client.isTxComplete(quote.txId, Config.payment.minConfirmations(blockchain));
+
+        if (isTxComplete) {
+          await this.paymentQuoteService.saveFinallyConfirmed(quote);
+          await this.handleQuoteChange(quote.payment, quote);
+        }
+      }
+    }
+  }
+
+  // --- CRUD --- //
+
+  async updatePayment(id: number, dto: UpdatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
+    const entity = await this.paymentLinkPaymentRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('Payment not found');
+
+    return this.paymentLinkPaymentRepo.save(Object.assign(entity, dto));
   }
 
   async getPendingPaymentByUniqueId(uniqueId: string): Promise<PaymentLinkPayment | null> {
@@ -70,28 +113,6 @@ export class PaymentLinkPaymentService {
       ],
       relations: {
         link: { route: { deposit: true, user: { userData: true } } },
-      },
-    });
-  }
-
-  async getPendingPaymentByAsset(asset: Asset, amount: number): Promise<PaymentLinkPayment | null> {
-    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
-      where: {
-        activations: { asset: { id: asset.id }, amount },
-        status: PaymentLinkPaymentStatus.PENDING,
-      },
-      relations: {
-        activations: true,
-      },
-    });
-
-    if (!pendingPayment) return null;
-
-    return this.paymentLinkPaymentRepo.findOne({
-      where: { id: pendingPayment.id },
-      relations: {
-        link: true,
-        activations: true,
       },
     });
   }
@@ -116,11 +137,8 @@ export class PaymentLinkPaymentService {
     });
   }
 
-  async waitForPayment(paymentLink: PaymentLink): Promise<void> {
-    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
-    if (!pendingPayment) throw new NotFoundException('No pending payment found');
-
-    await this.paymentWaitMap.wait(pendingPayment.id, 0);
+  async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+    return this.paymentWaitMap.wait(payment.id, 0);
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
@@ -138,101 +156,140 @@ export class PaymentLinkPaymentService {
       if (exists) throw new ConflictException('Payment already exists');
     }
 
-    const currency = dto.currency ? await this.fiatService.getFiatByName(dto.currency) : paymentLink.route.fiat;
-    if (!currency) throw new NotFoundException('Currency not found');
+    if (dto.currency && dto.currency !== paymentLink.route.fiat.name)
+      throw new BadRequestException('Payment currency mismatch');
 
-    return this.save(dto, currency, paymentLink);
+    const payment = this.paymentLinkPaymentRepo.create({
+      amount: dto.amount,
+      externalId: dto.externalId,
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.defaultPaymentTimeout),
+      mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
+      currency: paymentLink.route.fiat,
+      uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
+      status: PaymentLinkPaymentStatus.PENDING,
+      link: paymentLink,
+    });
+
+    return this.doSave(payment, false);
   }
 
   async cancelPayment(paymentLink: PaymentLink): Promise<PaymentLink> {
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
-    await this.doSave(pendingPayment.cancel());
+    pendingPayment.link = paymentLink;
 
-    await this.paymentQuoteService.cancel(pendingPayment.id);
-    await this.paymentActivationService.cancel(pendingPayment.id);
+    await this.doSave(pendingPayment.cancel(), true);
+
+    await this.cancelQuotesForPayment(pendingPayment);
 
     return paymentLink;
   }
 
-  private async save(
-    dto: CreatePaymentLinkPaymentDto,
-    currency: Fiat,
-    paymentLink: PaymentLink,
-  ): Promise<PaymentLinkPayment> {
-    const payment = this.paymentLinkPaymentRepo.create({
-      amount: dto.amount,
-      externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.timeout),
-      mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
-      currency,
-      uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
-      status: PaymentLinkPaymentStatus.PENDING,
-      link: paymentLink,
+  private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.paymentQuoteService.cancelAllForPayment(payment.id);
+    await this.paymentActivationService.closeAllForPayment(payment.id);
+  }
+
+  // --- HANDLE CALLBACKS --- //
+  async createActivationRequest(
+    uniqueId: string,
+    transferInfo: TransferInfo,
+  ): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+    const pendingPayment = await this.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
+
+    const activation = await this.paymentActivationService.doCreateRequest(pendingPayment, transferInfo);
+    return PaymentRequestMapper.toPaymentRequest(activation);
+  }
+
+  async handleHexPayment(uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkHexResultDto> {
+    const pendingPayment = await this.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
+
+    const quote = await this.paymentQuoteService.executeHexPayment(transferInfo);
+    await this.handleQuoteChange(pendingPayment, quote);
+
+    if (quote.status === PaymentQuoteStatus.TX_FAILED) throw new ServiceUnavailableException(quote.errorMessage);
+
+    return { txId: quote.txId };
+  }
+
+  // --- HANDLE INPUTS --- //
+  async getPaymentQuoteByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | undefined> {
+    const quote = await this.getQuoteForInput(cryptoInput);
+    if (!quote) throw new Error(`No matching quote found`);
+
+    await this.paymentQuoteService.saveBlockchainConfirmed(quote, cryptoInput.address.blockchain, cryptoInput.inTxId);
+
+    const payment = await this.paymentLinkPaymentRepo.findOne({
+      where: { id: quote.payment.id },
+      relations: { link: { route: { user: { userData: true } } } },
     });
 
-    return this.doSave(payment);
+    await this.handleQuoteChange(payment, quote);
+
+    return quote;
   }
 
-  async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> {
-    if (cryptoInput.txType !== PayInType.PAYMENT) return;
+  private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
+    const quote =
+      cryptoInput.address.blockchain === Blockchain.LIGHTNING
+        ? await this.getLightningQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId)
+        : await this.getQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
-    const pendingPayment = await this.getPendingPaymentByAsset(cryptoInput.asset, cryptoInput.amount);
+    if (quote) return quote;
 
-    if (!pendingPayment) {
-      this.logger.error(`CryptoInput ${cryptoInput.id}: No pending payment found by asset ${cryptoInput.asset.id}`);
-      return;
+    return this.paymentQuoteService.getQuoteByAsset(cryptoInput.asset, cryptoInput.amount);
+  }
+
+  private async getLightningQuoteByTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+    const activation = await this.paymentActivationService.getActivationByTxId(txId);
+    if (!activation) return null;
+
+    const quote = activation.quote;
+    if (quote && !quote.txId) await this.paymentQuoteService.saveTransaction(quote, txBlockchain, txId);
+
+    return quote;
+  }
+
+  private async getQuoteByTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+    return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId);
+  }
+
+  private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {
+    // close activations
+    if (PaymentQuoteFinalStates.includes(quote.status))
+      if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
+        await this.paymentActivationService.closeAllForPayment(payment.id);
+      } else {
+        await this.paymentActivationService.closeAllForQuote(quote.id);
+      }
+
+    if (payment.status !== PaymentLinkPaymentStatus.PENDING) return;
+
+    // update payment status
+    const { minCompletionStatus } = payment.link.configObj;
+
+    const isPaymentComplete =
+      PaymentQuoteTxStates.indexOf(quote.status) >= PaymentQuoteTxStates.indexOf(minCompletionStatus);
+    if (isPaymentComplete) {
+      payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
+
+      if (payment.mode === PaymentLinkPaymentMode.SINGLE) payment.complete();
+
+      await this.doSave(payment, true);
     }
-
-    const pendingActivationData = this.paymentActivationService.getPendingActivation(
-      pendingPayment,
-      cryptoInput.asset.blockchain,
-      cryptoInput.amount,
-    );
-
-    if (!pendingActivationData) return;
-
-    return this.doUpdateStatus(
-      pendingActivationData.pendingActivation,
-      pendingActivationData.otherPendingActivations,
-      pendingPayment,
-    );
   }
 
-  private async doUpdateStatus(
-    activationToBeCompleted: PaymentActivation,
-    otherPendingActivations: PaymentActivation[],
-    pendingPayment: PaymentLinkPayment,
-  ): Promise<PaymentLinkPayment> {
-    await this.paymentActivationService.complete(activationToBeCompleted);
-
-    pendingPayment.txCount = await this.doUpdateTxCount(pendingPayment.id);
-
-    if (pendingPayment.mode === PaymentLinkPaymentMode.MULTIPLE) {
-      this.paymentWaitMap.resolve(pendingPayment.id, pendingPayment);
-      return pendingPayment;
-    }
-
-    await this.paymentActivationService.expire(otherPendingActivations);
-
-    return this.doSave(pendingPayment.complete());
-  }
-
-  private async doUpdateTxCount(paymentId: number): Promise<number> {
-    const numberOfCompletedActivations = await this.paymentActivationService.getNumberOfCompletedActivations(paymentId);
-    await this.paymentLinkPaymentRepo.update(paymentId, { txCount: numberOfCompletedActivations });
-
-    return numberOfCompletedActivations;
-  }
-
-  private async doSave(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+  private async doSave(payment: PaymentLinkPayment, isPaymentDone: boolean): Promise<PaymentLinkPayment> {
     const savedPayment = await this.paymentLinkPaymentRepo.save(payment);
 
-    await this.sendWebhook(savedPayment);
+    if (savedPayment.link.webhookUrl) await this.sendWebhook(savedPayment);
 
-    if (savedPayment.status !== PaymentLinkPaymentStatus.PENDING) {
+    if (isPaymentDone) {
       this.paymentWaitMap.resolve(savedPayment.id, savedPayment);
+      if (payment.device) this.deviceActivationSubject.next(payment.device);
     }
 
     return savedPayment;

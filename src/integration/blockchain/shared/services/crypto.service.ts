@@ -6,8 +6,10 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { NodeService } from '../../ain/node/node.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
@@ -66,6 +68,44 @@ export class CryptoService {
   }
 
   // --- ADDRESSES --- //
+  public static getAddressType(address: string): UserAddressType {
+    const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
+
+    switch (blockchain) {
+      case Blockchain.BITCOIN:
+        if (address.startsWith('bc1')) return UserAddressType.BITCOIN_BECH32;
+        return UserAddressType.BITCOIN_LEGACY;
+
+      case Blockchain.LIGHTNING:
+        if (address.startsWith('$')) return UserAddressType.UMA;
+        return LightningHelper.getAddressType(address) as unknown as UserAddressType;
+
+      case Blockchain.ETHEREUM:
+      case Blockchain.BINANCE_SMART_CHAIN:
+      case Blockchain.POLYGON:
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
+      case Blockchain.BASE:
+      case Blockchain.HAQQ:
+        return UserAddressType.EVM;
+
+      case Blockchain.MONERO:
+        return UserAddressType.MONERO;
+
+      case Blockchain.LIQUID:
+        return UserAddressType.LIQUID;
+
+      case Blockchain.ARWEAVE:
+        return UserAddressType.ARWEAVE;
+
+      case Blockchain.CARDANO:
+        return UserAddressType.CARDANO;
+
+      default:
+        return UserAddressType.OTHER;
+    }
+  }
+
   public static getBlockchainsBasedOn(address: string): Blockchain[] {
     if (isEthereumAddress(address)) return this.EthereumBasedChains;
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];

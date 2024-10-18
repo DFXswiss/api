@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -11,14 +11,15 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
@@ -41,6 +42,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly evmRegistryService: EvmRegistryService,
@@ -58,32 +60,61 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async validateInput(from: Active, amount: number): Promise<boolean> {
+  async validateInput(payIn: CryptoInput): Promise<boolean> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(from, from, true);
-    if (amount < minVolume * 0.5) return false;
+    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, true, payIn.isPayment);
+    if (payIn.amount < minVolume * 0.5) return false;
 
     return true;
   }
 
-  async getMinVolumeIn(from: Active, fromReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
+  async getMinVolumeIn(
+    from: Active,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
 
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
       .then((p) => p.invert());
-    return this.convert(spec.minVolume, price, isFiat(from));
+    return this.convert(minVolume, price, isFiat(from));
   }
 
-  async getMinVolumeOut(to: Active, toReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
+  async getMinVolumeOut(
+    to: Active,
+    toReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
     const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
-    return this.convert(spec.minVolume, price, isFiat(to));
+    return this.convert(minVolume, price, isFiat(to));
+  }
+
+  async getMinVolume(
+    from: Active,
+    to: Active,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
+
+    const price = await this.pricingService
+      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .then((p) => p.invert());
+    return this.convert(minVolume, price, isFiat(from));
   }
 
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
-    return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
+    return this.feeService.getBlockchainFeeInChf(asset, allowCachedBlockchainFee);
   }
 
   getMinSpecs(from: Active, to: Active): TxMinSpec {
@@ -231,8 +262,8 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number,
     from: Active,
     allowExpiredPrice: boolean,
-    dateFrom: Date,
-    dateTo: Date,
+    dateFrom?: Date,
+    dateTo?: Date,
     users?: User[],
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
@@ -455,17 +486,11 @@ export class TransactionHelper implements OnModuleInit {
     const isSwap = isAsset(from) && isAsset(to);
 
     // KYC checks
-    if (isBuy) {
-      if (
-        (user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_2 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_3 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_50)
-      )
-        return QuoteError.KYC_REQUIRED;
-    }
+    if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
+      return QuoteError.KYC_REQUIRED;
+
+    if (isBuy && AmlHelperService.amlRuleUserCheck([user?.wallet.amlRule], user, paymentMethodIn))
+      return QuoteError.KYC_REQUIRED;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
       return QuoteError.KYC_REQUIRED;

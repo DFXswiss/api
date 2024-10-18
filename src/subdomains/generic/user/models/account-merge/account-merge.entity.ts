@@ -3,6 +3,12 @@ import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Generated, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
+export enum MergeReason {
+  IDENT_DOCUMENT = 'IdentDocument',
+  MAIL = 'Mail',
+  IBAN = 'Iban',
+}
+
 @Entity()
 export class AccountMerge extends IEntity {
   @ManyToOne(() => UserData, { nullable: false })
@@ -22,10 +28,14 @@ export class AccountMerge extends IEntity {
   @Column({ type: 'datetime2' })
   expiration: Date;
 
-  static create(master: UserData, slave: UserData): AccountMerge {
+  @Column({ length: 256, nullable: true })
+  reason: MergeReason;
+
+  static create(master: UserData, slave: UserData, reason: MergeReason): AccountMerge {
     const entity = new AccountMerge();
     entity.master = master;
     entity.slave = slave;
+    entity.reason = reason;
 
     entity.expiration = Util.daysAfter(1);
 

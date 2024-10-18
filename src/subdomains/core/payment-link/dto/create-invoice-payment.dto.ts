@@ -1,17 +1,24 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { PaymentStandard } from '../enums';
 
 export class CreateInvoicePaymentDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.routeId || !b.r))
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.routeId || !(b.route || b.r)))
   routeId: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @IsString()
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.route || !(b.routeId || b.r)))
+  route: string;
 
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.routeId || b.r))
+  @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.r || !(b.routeId || b.route)))
   r: string;
 
   @ApiPropertyOptional()
@@ -66,4 +73,22 @@ export class CreateInvoicePaymentDto {
   @IsDate()
   @Type(() => Date)
   d: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(PaymentStandard)
+  standard?: PaymentStandard;
+
+  @IsOptional()
+  @IsEnum(PaymentStandard)
+  s?: PaymentStandard;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  w?: string;
 }

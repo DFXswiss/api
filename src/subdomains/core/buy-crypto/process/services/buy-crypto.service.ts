@@ -7,7 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -18,7 +17,12 @@ import { Util } from 'src/shared/utils/util';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { RefundCryptoInputDto } from 'src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto';
+import {
+  BankTxRefund,
+  CheckoutTxRefund,
+  CryptoInputRefund,
+  RefundInternalDto,
+} from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -79,6 +83,8 @@ export class BuyCryptoService {
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => TransactionUtilService))
+    private readonly transactionUtilService: TransactionUtilService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -181,41 +187,6 @@ export class BuyCryptoService {
     );
   }
 
-  private async createEntity(
-    entity: BuyCrypto,
-    dto: UpdateTransactionDto,
-    request?: TransactionRequest,
-  ): Promise<BuyCrypto> {
-    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
-
-    // transaction
-    request = await this.getAndCompleteTxRequest(entity, request);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
-
-    entity = await this.buyCryptoRepo.save(entity);
-
-    await this.buyCryptoWebhookService.triggerWebhook(entity);
-
-    return entity;
-  }
-
-  private async getAndCompleteTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
-    if (request) {
-      await this.transactionRequestService.complete(request.id);
-    } else {
-      const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
-
-      request = await this.transactionRequestService.findAndComplete(
-        entity.inputAmount,
-        entity.route.id,
-        inputCurrency.id,
-        entity.outputAsset.id,
-      );
-    }
-
-    return request;
-  }
-
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne({
       where: { id },
@@ -273,9 +244,10 @@ export class BuyCryptoService {
       if (!update.bankData) throw new NotFoundException('BankData not found');
     }
 
-    if (dto.bankDataActive != null && (update.bankData || entity.bankData))
+    if ((dto.bankDataApproved != null || dto.bankDataManualApproved != null) && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        active: dto.bankDataActive,
+        approved: dto.bankDataApproved,
+        manualApproved: dto.bankDataManualApproved,
       });
 
     if (dto.chargebackAllowedDate) {
@@ -286,7 +258,7 @@ export class BuyCryptoService {
         });
 
       if (entity.checkoutTx) {
-        await this.refundCheckoutTx(entity);
+        await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
         Object.assign(dto, { isComplete: true, chargebackDate: new Date() });
       }
     }
@@ -346,7 +318,7 @@ export class BuyCryptoService {
     return entity;
   }
 
-  async refundBuyCrypto(buyCryptoId: number, dto: RefundCryptoInputDto): Promise<void> {
+  async refundBuyCrypto(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({
       where: { id: buyCryptoId },
       relations: {
@@ -357,57 +329,115 @@ export class BuyCryptoService {
     });
 
     if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
-    if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
+    if (buyCrypto.checkoutTx)
+      return this.refundCheckoutTx(buyCrypto, {
+        chargebackAllowedDate: dto.chargebackAllowedDate,
+        chargebackAllowedBy: dto.chargebackAllowedBy,
+      });
     if (buyCrypto.cryptoInput)
-      return this.refundCryptoInput(buyCrypto, buyCrypto.chargebackIban, dto.refundUser?.id, dto.chargebackAmount);
+      return this.refundCryptoInput(buyCrypto, {
+        refundUserId: dto.refundUser?.id,
+        chargebackAmount: dto.chargebackAmount,
+        chargebackAllowedDate: dto.chargebackAllowedDate,
+        chargebackAllowedBy: dto.chargebackAllowedBy,
+      });
 
-    throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
-  }
-
-  async refundCheckoutTx(buyCrypto: BuyCrypto): Promise<void> {
-    if (
-      [
-        CheckoutPaymentStatus.REFUNDED,
-        CheckoutPaymentStatus.REFUND_PENDING,
-        CheckoutPaymentStatus.PARTIALLY_REFUNDED,
-      ].includes(buyCrypto.checkoutTx.status)
-    )
-      throw new BadRequestException('CheckoutTx already refunded');
-
-    const chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
-
-    await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
-    await this.buyCryptoRepo.update(buyCrypto.id, {
-      chargebackDate: new Date(),
-      chargebackRemittanceInfo: chargebackRemittanceInfo.reference,
+    return this.refundBankTx(buyCrypto, {
+      refundIban: dto.refundIban,
+      chargebackAmount: dto.chargebackAmount,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
 
-  async refundCryptoInput(
-    buyCrypto: BuyCrypto,
-    refundUserAddress: string,
-    refundUserId?: number,
-    chargebackAmount?: number,
-  ): Promise<void> {
-    if (!refundUserAddress && !refundUserId) throw new BadRequestException('You have to define a chargebackAddress');
+  async refundCheckoutTx(buyCrypto: BuyCrypto, dto: CheckoutTxRefund): Promise<void> {
+    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount ?? buyCrypto.inputAmount;
 
-    const refundUser = refundUserId
-      ? await this.userService.getUser(refundUserId, { userData: true, wallet: true })
-      : await this.userService.getUserByAddress(refundUserAddress, { userData: true, wallet: true });
+    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount });
 
-    TransactionUtilService.validateRefund(buyCrypto, refundUser, chargebackAmount);
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
+      await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
+    }
 
-    if (chargebackAmount)
+    await this.buyCryptoRepo.update(
+      ...buyCrypto.chargebackFillUp(
+        undefined,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
+        undefined,
+        dto.chargebackRemittanceInfo.reference,
+      ),
+    );
+  }
+
+  async refundCryptoInput(buyCrypto: BuyCrypto, dto: CryptoInputRefund): Promise<void> {
+    if (!dto.refundUserAddress && !dto.refundUserId && !buyCrypto.chargebackIban)
+      throw new BadRequestException('You have to define a chargebackAddress');
+
+    const refundUser = dto.refundUserId
+      ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
+      : await this.userService.getUserByAddress(dto.refundUserAddress ?? buyCrypto.chargebackIban, {
+          userData: true,
+          wallet: true,
+        });
+
+    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+
+    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
+
+    if (dto.chargebackAllowedDate && chargebackAmount)
       await this.payInService.returnPayIn(
         buyCrypto.cryptoInput,
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
       );
 
-    await this.buyCryptoRepo.update(buyCrypto.id, {
-      chargebackDate: chargebackAmount ? new Date() : null,
-      chargebackIban: refundUser.address ?? buyCrypto.chargebackIban,
+    await this.buyCryptoRepo.update(
+      ...buyCrypto.chargebackFillUp(
+        refundUser.address ?? buyCrypto.chargebackIban,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
+      ),
+    );
+  }
+
+  async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
+    if (!dto.refundIban && !buyCrypto.chargebackIban)
+      throw new BadRequestException('You have to define a chargebackIban');
+
+    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+    const chargebackIban = dto.refundIban ?? buyCrypto.chargebackIban;
+
+    TransactionUtilService.validateRefund(buyCrypto, {
+      refundIban: chargebackIban,
+      chargebackAmount,
     });
+
+    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban, buyCrypto.userData)))
+      throw new BadRequestException('IBAN not valid or BIC not available');
+
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      dto.chargebackOutput = await this.fiatOutputService.create({
+        buyCryptoId: buyCrypto.id,
+        type: 'BuyCryptoFail',
+      });
+    }
+
+    await this.buyCryptoRepo.update(
+      ...buyCrypto.chargebackFillUp(
+        chargebackIban,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
+        dto.chargebackOutput,
+      ),
+    );
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
@@ -548,7 +578,49 @@ export class BuyCryptoService {
       .then((history) => history.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: { isComplete: false },
+      relations: { cryptoInput: true, checkoutTx: true, bankTx: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async createEntity(
+    entity: BuyCrypto,
+    dto: UpdateTransactionDto,
+    request?: TransactionRequest,
+  ): Promise<BuyCrypto> {
+    entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;
+
+    // transaction
+    request = await this.getAndCompleteTxRequest(entity, request);
+    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
+
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
+
+    return entity;
+  }
+
+  private async getAndCompleteTxRequest(entity: BuyCrypto, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
+
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.route.id,
+        inputCurrency.id,
+        entity.outputAsset.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {

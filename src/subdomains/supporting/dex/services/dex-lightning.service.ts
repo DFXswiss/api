@@ -16,7 +16,7 @@ export class DexLightningService {
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount();
-    const availableAmount = await this.lightningClient.getBalance();
+    const availableAmount = await this.lightningClient.getAvailableBalance();
 
     return [inputAmount, availableAmount - pendingAmount];
   }

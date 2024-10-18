@@ -1,3 +1,5 @@
+import { Active } from 'src/shared/models/active';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -13,9 +15,9 @@ import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/pri
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { AmlHelperService } from '../../aml/services/aml-helper.service';
 import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
 
@@ -126,6 +128,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   blockchainFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee: number;
+
   // Fail
   @Column({ length: 256, nullable: true })
   chargebackTxId: string;
@@ -141,6 +146,12 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   chargebackAllowedDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDateUser: Date;
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount: number;
 
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy: string;
@@ -212,7 +223,7 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  returnMail(): UpdateResult<BuyFiat> {
+  chargebackMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
@@ -227,6 +238,29 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
       mail3SendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  chargebackFillUp(
+    chargebackAddress: string,
+    chargebackAmount: number,
+    chargebackAllowedDate: Date,
+    chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
+  ): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      chargebackDate: chargebackAllowedDate ? new Date() : null,
+      chargebackAllowedDate,
+      chargebackAllowedDateUser,
+      chargebackAddress,
+      chargebackAmount,
+      chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
+      mailReturnSendDate: null,
     };
 
     Object.assign(this, update);
@@ -273,16 +307,14 @@ export class BuyFiat extends IEntity {
   setPaymentLinkPayment(
     amountInEur: number,
     amountInChf: number,
+    feeRate: number,
     totalFee: number,
     totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
-    outputReferenceAsset: Fiat,
-    outputAmount: number,
-    outputAsset: Fiat,
+    paymentLinkFee: number,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
-    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
-    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> =
@@ -297,6 +329,7 @@ export class BuyFiat extends IEntity {
             percentFeeAmount: totalFee,
             totalFeeAmount: totalFee,
             totalFeeAmountChf,
+            paymentLinkFee,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
@@ -304,10 +337,8 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount,
+            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            outputAsset,
-            outputReferenceAsset,
             priceSteps: this.priceSteps,
           };
 
@@ -316,14 +347,12 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
+  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAsset: outputAssetEntity,
-      outputReferenceAsset: outputAssetEntity,
       priceSteps: this.priceSteps,
     };
 
@@ -333,7 +362,9 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
+    amountInChf: number,
     last24hVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -342,7 +373,9 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
+      inputAsset,
       minVolume,
+      amountInChf,
       last24hVolume,
       0,
       last30dVolume,
@@ -390,7 +423,11 @@ export class BuyFiat extends IEntity {
       chargebackDate: null,
       mailReturnSendDate: null,
       comment: null,
+      chargebackAddress: null,
       chargebackAllowedDate: null,
+      chargebackAllowedDateUser: null,
+      chargebackAmount: null,
+      chargebackAllowedBy: null,
     };
 
     Object.assign(this, update);
@@ -438,6 +475,18 @@ export class BuyFiat extends IEntity {
 
   get paymentLinkPayment(): PaymentLinkPayment | undefined {
     return this.cryptoInput?.paymentLinkPayment;
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      (asset.blockchain as string) === 'MaerkiBaumann'
+      ? this.outputAmount
+      : 0;
   }
 }
 

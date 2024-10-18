@@ -35,6 +35,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
+import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
@@ -158,7 +159,7 @@ export class UserService {
     wallet?: Wallet,
     discountCode?: string,
   ): Promise<User> {
-    let user = this.userRepo.create({ address, signature });
+    let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
     user.ip = userIp;
     user.ipCountry = this.geoLocationService.getCountry(userIp);
@@ -235,12 +236,14 @@ export class UserService {
     return { user: await this.toDto(user, true), isKnownUser };
   }
 
-  async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
+  async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
+
+    if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
     return this.userRepo.save({ ...user, ...update });
   }

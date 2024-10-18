@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -55,8 +61,10 @@ export interface FeeRequestBase {
 const FeeValidityMinutes = 30;
 
 @Injectable()
-export class FeeService {
+export class FeeService implements OnModuleInit {
   private readonly logger = new DfxLogger(FeeService);
+
+  private chf: Fiat;
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -70,16 +78,19 @@ export class FeeService {
     private readonly pricingService: PricingService,
   ) {}
 
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+  }
+
   // --- JOBS --- //
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(1800)
   async updateBlockchainFees() {
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
-    const chf = await this.fiatService.getFiatByName('CHF');
 
     for (const blockchainFee of blockchainFees) {
       try {
-        blockchainFee.amount = await this.calculateBlockchainFee(blockchainFee.asset, true, chf);
+        blockchainFee.amount = await this.calculateBlockchainFeeInChf(blockchainFee.asset, true);
         blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
@@ -220,7 +231,7 @@ export class FeeService {
     }
   }
 
-  async getBlockchainFee(active: Active, allowCached: boolean): Promise<number> {
+  async getBlockchainFeeInChf(active: Active, allowCached: boolean): Promise<number> {
     if (isAsset(active) && active.type !== AssetType.CUSTOM) {
       const where = {
         asset: { id: active.id },
@@ -229,13 +240,20 @@ export class FeeService {
 
       const feeAmount = allowCached
         ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where).then((fee) => fee?.amount)
-        : await this.calculateBlockchainFee(active, false);
+        : await this.calculateBlockchainFeeInChf(active, false);
       if (feeAmount == null && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
       return feeAmount ?? this.getBlockchainMaxFee(active.blockchain);
     } else {
       return 0;
     }
+  }
+
+  async getBlockchainFee(active: Active, allowCached: boolean): Promise<number> {
+    const price = await this.pricingService.getPrice(active, this.chf, allowCached);
+
+    const blockchainFeeChf = await this.getBlockchainFeeInChf(active, allowCached);
+    return price.invert().convert(blockchainFeeChf);
   }
 
   // --- HELPER METHODS --- //
@@ -256,8 +274,8 @@ export class FeeService {
     userDataId?: number,
   ): Promise<InternalFeeDto> {
     const blockchainFee =
-      (await this.getBlockchainFee(from, allowCachedBlockchainFee)) +
-      (await this.getBlockchainFee(to, allowCachedBlockchainFee));
+      (await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee)) +
+      (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -342,11 +360,9 @@ export class FeeService {
     };
   }
 
-  private async calculateBlockchainFee(asset: Asset, allowExpiredPrice: boolean, chf?: Fiat): Promise<number> {
-    chf ??= await this.fiatService.getFiatByName('CHF');
-
+  private async calculateBlockchainFeeInChf(asset: Asset, allowExpiredPrice: boolean): Promise<number> {
     const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
-    const price = await this.pricingService.getPrice(feeAsset, chf, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(feeAsset, this.chf, allowExpiredPrice);
 
     return price.convert(amount);
   }

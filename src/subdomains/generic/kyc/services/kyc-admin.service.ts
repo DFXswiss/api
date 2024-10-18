@@ -2,16 +2,17 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
+import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
 
 @Injectable()
@@ -24,6 +25,8 @@ export class KycAdminService {
     @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly kycService: KycService,
     private readonly countryService: CountryService,
+    private readonly kycNotificationService: KycNotificationService,
+    private readonly mailFactory: MailFactory,
   ) {}
 
   async getKycSteps(userDataId: number): Promise<KycStep[]> {
@@ -39,28 +42,52 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
 
-    if (kycStep.isCompleted) {
-      if (kycStep.name === KycStepName.COMMERCIAL_REGISTER) {
-        kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
-      }
-      if (kycStep.name === KycStepName.IDENT) {
-        const result = kycStep.getResult<IdentResultDto>();
-        const nationality = result.userdata?.nationality?.value
-          ? await this.countryService.getCountryWithSymbol(result.userdata.nationality.value)
-          : null;
+    switch (kycStep.name) {
+      case KycStepName.COMMERCIAL_REGISTER:
+        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+        break;
 
-        kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
+      case KycStepName.IDENT:
+        if (kycStep.isCompleted) {
+          const result = kycStep.resultData;
+          const nationality = result.nationality
+            ? await this.countryService.getCountryWithSymbol(result.nationality)
+            : null;
 
-        if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-          await this.bankDataService.createBankData(kycStep.userData, {
-            name: kycStep.userName,
-            iban: `Ident${kycStep.identDocumentId}`,
-            type: BankDataType.IDENT,
-          });
-      }
+          kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
+
+          if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+            await this.bankDataService.createBankData(kycStep.userData, {
+              name: kycStep.userName,
+              iban: `Ident${kycStep.identDocumentId}`,
+              type: BankDataType.IDENT,
+            });
+        }
+        if (kycStep.isFailed) {
+          const reasons = `<ul>${kycStep.comment
+            ?.split(';')
+            .map(
+              (c) =>
+                `<li>${this.mailFactory.translate(
+                  MailFactory.parseMailKey(MailTranslationKey.KYC_FAILED_REASONS, c),
+                  kycStep.userData.language.symbol,
+                )}</li>`,
+            )
+            .join('')}</ul>`;
+          await this.kycNotificationService.identFailed(kycStep.userData, reasons);
+        }
+
+        break;
     }
 
     await this.kycStepRepo.save(kycStep);
+  }
+
+  async syncIdentStep(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    await this.kycService.syncIdentStep(kycStep);
   }
 
   async resetKyc(userData: UserData): Promise<void> {

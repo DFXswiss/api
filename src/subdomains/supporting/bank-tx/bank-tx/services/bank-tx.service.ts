@@ -15,11 +15,11 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull, Like, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
-import { BankName } from '../../../bank/bank/bank.entity';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
@@ -48,16 +48,17 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BUY_CRYPTO]: TransactionTypeInternal.BUY_CRYPTO,
   [BankTxType.BUY_FIAT]: TransactionTypeInternal.BUY_FIAT_OUTPUT,
   [BankTxType.BANK_TX_REPEAT]: TransactionTypeInternal.BANK_TX_REPEAT,
-  [BankTxType.BANK_TX_RETURN_CHARGEBACK]: null,
-  [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: null,
-  [BankTxType.FIAT_FIAT]: null,
+  [BankTxType.BANK_TX_RETURN_CHARGEBACK]: TransactionTypeInternal.BANK_TX_RETURN_CHARGEBACK,
+  [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
+  [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
+  [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCB]: TransactionTypeInternal.SCB,
+  [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
+  [BankTxType.REVOLUT_CARD_PAYMENT]: TransactionTypeInternal.REVOLUT_CARD_PAYMENT,
+  [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
+  [BankTxType.EXTRAORDINARY_EXPENSES]: TransactionTypeInternal.EXTRAORDINARY_EXPENSES,
   [BankTxType.TEST_FIAT_FIAT]: null,
   [BankTxType.GSHEET]: null,
-  [BankTxType.KRAKEN]: null,
-  [BankTxType.CHECKOUT_LTD]: null,
-  [BankTxType.REVOLUT_CARD_PAYMENT]: null,
-  [BankTxType.BANK_ACCOUNT_FEE]: null,
-  [BankTxType.EXTRAORDINARY_EXPENSES]: null,
   [BankTxType.PENDING]: null,
   [BankTxType.UNKNOWN]: null,
 };
@@ -102,8 +103,8 @@ export class BankTxService {
 
     const newModificationTime = new Date().toISOString();
 
-    const olkyBank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
-    const revolutBank = await this.bankService.getBankInternal(BankName.REVOLUT, 'EUR');
+    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+    const revolutBank = await this.bankService.getBankInternal(IbanBankName.REVOLUT, 'EUR');
 
     // Get bank transactions
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
@@ -141,7 +142,11 @@ export class BankTxService {
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
         buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
-      const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
+      const update = buy
+        ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id }
+        : tx.name === 'Payward Trading Ltd.'
+        ? { type: BankTxType.KRAKEN }
+        : { type: BankTxType.GSHEET };
 
       await this.update(tx.id, update);
     }
@@ -232,6 +237,33 @@ export class BankTxService {
       .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
       .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBankTxByRemittanceInfo(remittanceInfo: string, subStringSearch = false): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({
+      remittanceInfo: subStringSearch ? Like(`%${remittanceInfo}%`) : remittanceInfo,
+    });
+  }
+
+  async getPendingTx(): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
+      {
+        type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]),
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+      },
+    ]);
+  }
+
+  async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
+      { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
+    ]);
+  }
+
+  async getRecentExchangeTx(type: BankTxType, start = Util.daysBefore(21)): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

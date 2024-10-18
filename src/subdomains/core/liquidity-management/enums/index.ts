@@ -1,8 +1,8 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
-import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 
-export type LiquidityManagementContext = Blockchain | BankName | ExchangeName;
+export type LiquidityManagementContext = Blockchain | ExchangeName | IbanBankName | CardBankName;
 
 export enum LiquidityManagementSystem {
   CAKE = 'Cake',
@@ -21,6 +21,7 @@ export enum LiquidityManagementRuleStatus {
   INACTIVE = 'Inactive',
   PAUSED = 'Paused',
   PROCESSING = 'Processing',
+  DISABLED = 'Disabled',
 }
 
 export enum LiquidityManagementOrderStatus {

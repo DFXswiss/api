@@ -1,8 +1,11 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -23,6 +26,7 @@ export enum BankTxType {
   TEST_FIAT_FIAT = 'TestFiatFiat',
   GSHEET = 'GSheet',
   KRAKEN = 'Kraken',
+  SCB = 'SCB',
   CHECKOUT_LTD = 'CheckoutLtd',
   REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
@@ -233,7 +237,7 @@ export class BankTx extends IEntity {
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
       if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().split(' ').join('')}`;
-      if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
+      if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().split(' ').join('')}`;
       return this.iban;
     }
 
@@ -256,6 +260,50 @@ export class BankTx extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    if (this.type && ![BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
+
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+      case 'Olkypay':
+        return BankService.isBankMatching(asset, this.accountIban) ? this.amount : 0;
+
+      default:
+        return 0;
+    }
+  }
+
+  pendingOutputAmount(_: Asset): number {
+    return 0;
+  }
+
+  pendingBankAmount(asset: Asset, type: BankExchangeType, sourceIban?: string, targetIban?: string): number {
+    if (this.instructedCurrency !== asset.dexName) return 0;
+
+    switch (type) {
+      case BankTxType.INTERNAL:
+        if (!BankService.isBankMatching(asset, targetIban)) return 0;
+
+        return this.iban === targetIban && this.accountIban === sourceIban
+          ? this.instructedAmount
+          : this.iban === sourceIban && this.accountIban === targetIban
+          ? -this.instructedAmount
+          : 0;
+
+      case BankTxType.KRAKEN:
+        if (
+          !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
+          (targetIban && asset.dexName !== this.instructedCurrency)
+        )
+          return 0;
+
+        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : this.instructedAmount;
+
+      default:
+        return 0;
+    }
   }
 }
 

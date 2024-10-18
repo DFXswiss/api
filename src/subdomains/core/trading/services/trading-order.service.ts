@@ -1,5 +1,6 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -160,12 +161,14 @@ export class TradingOrderService implements OnModuleInit {
 
     const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
     const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
-    const fee = await client.getTxActualFee(order.txId);
+    const txFee = await client.getTxActualFee(order.txId);
+    const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
 
     const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
-    const chfPrice = await this.pricingService.getPrice(coin, this.chf, true);
+    const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
+    const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
 
-    order.complete(outputAmount, fee, chfPrice.convert(fee));
+    order.complete(outputAmount, txFee, coinChfPrice.convert(txFee), swapFee, inChfPrice.convert(swapFee));
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();

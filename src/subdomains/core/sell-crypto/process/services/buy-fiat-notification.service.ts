@@ -30,8 +30,9 @@ export class BuyFiatNotificationService {
   async sendNotificationMails(): Promise<void> {
     if (DisabledProcess(Process.BUY_FIAT_MAIL)) return;
     await this.paymentCompleted();
-    await this.paybackToAddressInitiated();
+    await this.chargebackInitiated();
     await this.pendingBuyFiat();
+    await this.chargebackUnconfirmed();
   }
 
   private async paymentCompleted(): Promise<void> {
@@ -79,80 +80,6 @@ export class BuyFiatNotificationService {
         await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
       } catch (e) {
         this.logger.error(`Failed to send buy-fiat completed mail ${entity.id}:`, e);
-      }
-    }
-  }
-
-  private async paybackToAddressInitiated(): Promise<void> {
-    const entities = await this.buyFiatRepo.find({
-      where: {
-        chargebackTxId: Not(IsNull()),
-        chargebackDate: Not(IsNull()),
-        amlCheck: CheckStatus.FAIL,
-        amlReason: Not(IsNull()),
-        mailReturnSendDate: IsNull(),
-      },
-      relations: { sell: true, cryptoInput: true, transaction: { user: { userData: true } } },
-    });
-
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
-
-    for (const entity of entities) {
-      try {
-        if (
-          entity.userData.mail &&
-          (entity.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
-          !entity.noCommunication
-        ) {
-          await this.notificationService.sendMail({
-            type: MailType.USER,
-            context: MailContext.BUY_FIAT_RETURN,
-            input: {
-              userData: entity.userData,
-              title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
-              salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
-              suffix: [
-                {
-                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
-                },
-                {
-                  key: `${MailTranslationKey.GENERAL}.link`,
-                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
-                },
-                ,
-                !AmlReasonWithoutReason.includes(entity.amlReason)
-                  ? {
-                      key: `${MailTranslationKey.RETURN}.introduction`,
-                      params: {
-                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
-                        url: entity.userData.dilisenseUrl,
-                        urlText: entity.userData.dilisenseUrl,
-                      },
-                    }
-                  : null,
-                KycAmlReasons.includes(entity.amlReason)
-                  ? {
-                      key: `${MailTranslationKey.RETURN}.kyc_start`,
-                      params: {
-                        url: entity.userData.kycUrl,
-                        urlText: entity.userData.kycUrl,
-                      },
-                    }
-                  : null,
-                { key: MailKey.SPACE, params: { value: '2' } },
-                { key: `${MailTranslationKey.GENERAL}.support` },
-                { key: MailKey.SPACE, params: { value: '4' } },
-                { key: `${MailTranslationKey.GENERAL}.thanks` },
-                { key: MailKey.DFX_TEAM_CLOSING },
-              ],
-            },
-          });
-        }
-
-        await this.buyFiatRepo.update(...entity.returnMail());
-      } catch (e) {
-        this.logger.error(`Failed to send payback to address mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -205,7 +132,10 @@ export class BuyFiatNotificationService {
                     urlText: entity.userData.kycUrl,
                   },
                 },
-                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5`,
+                  params: { url: entity.transaction.url },
+                },
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '2' } },
@@ -220,6 +150,131 @@ export class BuyFiatNotificationService {
         await this.buyFiatRepo.update(...entity.pendingMail());
       } catch (e) {
         this.logger.error(`Failed to send pending mail for buy-fiat ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private async chargebackInitiated(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        chargebackTxId: Not(IsNull()),
+        chargebackDate: Not(IsNull()),
+        chargebackAllowedDate: Not(IsNull()),
+        amlCheck: CheckStatus.FAIL,
+        amlReason: Not(IsNull()),
+        mailReturnSendDate: IsNull(),
+      },
+      relations: { sell: true, cryptoInput: true, transaction: { user: { userData: true } } },
+    });
+
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} chargeback email(s)`);
+
+    for (const entity of entities) {
+      try {
+        if (
+          entity.userData.mail &&
+          (entity.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          !entity.noCommunication
+        ) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            context: MailContext.BUY_FIAT_RETURN,
+            input: {
+              userData: entity.userData,
+              title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
+              salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
+              suffix: [
+                {
+                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.link`,
+                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
+                },
+                ,
+                !AmlReasonWithoutReason.includes(entity.amlReason)
+                  ? {
+                      key: `${MailTranslationKey.CHARGEBACK}.introduction`,
+                      params: {
+                        reason: MailFactory.parseMailKey(MailTranslationKey.CHARGEBACK_REASON, entity.amlReason),
+                        url: entity.userData.dilisenseUrl,
+                        urlText: entity.userData.dilisenseUrl,
+                      },
+                    }
+                  : null,
+                KycAmlReasons.includes(entity.amlReason)
+                  ? {
+                      key: `${MailTranslationKey.CHARGEBACK}.kyc_start`,
+                      params: {
+                        url: entity.userData.kycUrl,
+                        urlText: entity.userData.kycUrl,
+                      },
+                    }
+                  : null,
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
+            },
+          });
+        }
+
+        await this.buyFiatRepo.update(...entity.chargebackMail());
+      } catch (e) {
+        this.logger.error(`Failed to send chargeback mail for buy-fiat ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private async chargebackUnconfirmed(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        mailReturnSendDate: IsNull(),
+        outputAmount: IsNull(),
+        chargebackTxId: IsNull(),
+        chargebackAddress: IsNull(),
+        chargebackAllowedDateUser: IsNull(),
+        chargebackAllowedDate: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackAmount: IsNull(),
+        amlReason: Not(IsNull()),
+        amlCheck: CheckStatus.FAIL,
+      },
+      relations: { transaction: { user: { userData: true } } },
+    });
+
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);
+
+    for (const entity of entities) {
+      try {
+        if (entity.userData.mail) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            context: MailContext.BUY_FIAT_CHARGEBACK_UNCONFIRMED,
+            input: {
+              userData: entity.userData,
+              title: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.title`,
+              salutation: {
+                key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation`,
+              },
+              suffix: [
+                {
+                  key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
+            },
+          });
+        }
+
+        await this.buyFiatRepo.update(...entity.chargebackMail());
+      } catch (e) {
+        this.logger.error(`Failed to send buy-fiat chargebackUnconfirmed mail ${entity.id}:`, e);
       }
     }
   }

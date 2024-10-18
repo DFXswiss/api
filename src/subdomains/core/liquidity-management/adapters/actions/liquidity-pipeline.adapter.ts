@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Equal } from 'typeorm';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipelineStatus, LiquidityManagementSystem } from '../../enums';
 import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
@@ -53,14 +54,19 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { assetId } = this.parseBuyParams(order.action.paramMap);
+    const { assetId, orderIndex } = this.parseBuyParams(order.action.paramMap);
 
     // get amount from previous order
-    const previousOrder = order.previousOrderId && (await this.orderRepo.findOneBy({ id: order.previousOrderId }));
-    const [_, balance, requested] = /\(balance: (.*), requested: (.*)\)/.exec(previousOrder?.errorMessage ?? '') ?? [];
+    let relevantOrder = order;
+    for (let index = 0; index < orderIndex; index++) {
+      relevantOrder = await this.orderRepo.findOneBy({ id: Equal(relevantOrder.previousOrderId) });
+      if (!relevantOrder) throw new Error(`Previous order ${index + 1} not found`);
+    }
+
+    const [_, balance, requested] = /\(balance: (.*), requested: (.*)\)/.exec(relevantOrder?.errorMessage ?? '') ?? [];
 
     if (!balance || !requested)
-      throw new Error(`Error (${previousOrder?.errorMessage}) of previous order ${order.previousOrderId} is invalid`);
+      throw new Error(`Error (${relevantOrder?.errorMessage}) of previous order ${relevantOrder.id} is invalid`);
 
     const amount = +requested - +balance;
 
@@ -82,8 +88,13 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
 
       case LiquidityManagementPipelineStatus.STOPPED:
       case LiquidityManagementPipelineStatus.FAILED:
+        const failedOrder = await this.orderRepo.findOne({
+          where: { pipeline: { id: pipeline.id } },
+          order: { id: 'DESC' },
+        });
+
         throw new OrderNotProcessableException(
-          `Triggered pipeline ${pipeline.id} failed with status ${pipeline.status}`,
+          `Triggered pipeline ${pipeline.id} failed with error: ${failedOrder.errorMessage}`,
         );
     }
   }
@@ -99,11 +110,13 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseBuyParams(params: Record<string, unknown>): { assetId: number } {
+  private parseBuyParams(params: Record<string, unknown>): { assetId: number; orderIndex: number } {
     const assetId = params.assetId as number | undefined;
+    const orderIndex = (params.orderIndex as number | undefined) ?? 1;
 
-    if (!assetId) throw new Error(`Params provided to LiquidityPipelineAdapter.buy(...) command are invalid.`);
+    if (!assetId || (orderIndex && orderIndex < 1))
+      throw new Error(`Params provided to LiquidityPipelineAdapter.buy(...) command are invalid.`);
 
-    return { assetId };
+    return { assetId, orderIndex };
   }
 }

@@ -20,12 +20,21 @@ export enum TransactionTypeInternal {
   BUY_FIAT = 'BuyFiat',
   BUY_FIAT_OUTPUT = 'BuyFiatOutput',
   CRYPTO_CRYPTO = 'CryptoCrypto',
+  FIAT_FIAT = 'FiatFiat',
   INTERNAL = 'Internal',
+  KRAKEN = 'Kraken',
   BANK_TX_RETURN = 'BankTxReturn',
   BANK_TX_REPEAT = 'BankTxRepeat',
   CRYPTO_INPUT_RETURN = 'CryptoInputReturn',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
+  BANK_TX_RETURN_CHARGEBACK = 'BankTxReturn-Chargeback',
+  BANK_TX_REPEAT_CHARGEBACK = 'BankTxRepeat-Chargeback',
   REF_REWARD = 'RefReward',
+  CHECKOUT_LTD = 'CheckoutLtd',
+  SCB = 'SCB',
+  REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
+  BANK_ACCOUNT_FEE = 'BankAccountFee',
+  EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
 }
 
 export enum TransactionSourceType {

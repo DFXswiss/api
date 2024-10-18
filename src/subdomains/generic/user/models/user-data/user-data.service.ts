@@ -22,14 +22,15 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -63,7 +64,7 @@ export class UserDataService {
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
-    private readonly documentStorageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
   ) {}
 
@@ -116,8 +117,11 @@ export class UserDataService {
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
     return this.userDataRepo.find({
-      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY]) },
-      relations: ['users'],
+      where: {
+        mail,
+        status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
+      },
+      relations: { users: true },
     });
   }
 
@@ -255,6 +259,9 @@ export class UserDataService {
       });
     }
 
+    const mailChanged = data.mail && data.mail !== userData.mail;
+    if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
+
     return this.userDataRepo.save(Object.assign(userData, data));
   }
 
@@ -312,6 +319,8 @@ export class UserDataService {
         await this.siftService.updateAccount(updateSiftAccount);
       }
     }
+
+    if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
 
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
@@ -496,7 +505,7 @@ export class UserDataService {
       );
       if (matchingUser) {
         // send a merge request
-        await this.mergeService.sendMergeRequest(matchingUser, user);
+        await this.mergeService.sendMergeRequest(matchingUser, user, MergeReason.MAIL);
         return true;
       }
     }
@@ -562,7 +571,10 @@ export class UserDataService {
 
     // Adapt slave kyc step sequenceNumber
     const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
-    slave.kycSteps.forEach((k) => (k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset));
+    slave.kycSteps.forEach((k) => {
+      k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset;
+      if (k.status === KycStepStatus.IN_PROGRESS) k.status = KycStepStatus.CANCELED;
+    });
 
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
@@ -575,7 +587,7 @@ export class UserDataService {
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
     // copy all documents
-    void this.documentStorageService
+    void this.documentService
       .copyFiles(slave.id, master.id)
       .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
 

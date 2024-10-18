@@ -65,6 +65,15 @@
     "kycWebhookIps": {
       "value": "193.169.187.168"
     },
+    "kycAppToken": {
+      "value": "xxx"
+    },
+    "kycSecretKey": {
+      "value": "xxx"
+    },
+    "kycWebhookSecret": {
+      "value": "xxx"
+    },
     "kycPrefix": {
       "value": ""
     },
@@ -102,6 +111,9 @@
       "value": "xxx"
     },
     "paymentEvmSeed": {
+      "value": "xxx"
+    },
+    "paymentMoneroAddress": {
       "value": "xxx"
     },
     "evmDepositSeed": {
@@ -204,7 +216,7 @@
       "value": "xxx"
     },
     "bscGatewayUrl": {
-      "value": "https://bsc-dataseed.binance.org"
+      "value": "https://bnb-mainnet.g.alchemy.com/v2"
     },
     "bscChainId": {
       "value": "56"
@@ -214,12 +226,6 @@
     },
     "bscQuoteContractAddress": {
       "value": "0x78D78E420Da98ad378D7799bE8f4AF69033EB077"
-    },
-    "bscScanApiUrl": {
-      "value": "https://api.bscscan.com/api"
-    },
-    "bscScanApiKey": {
-      "value": "xxx"
     },
     "lightningApiCertificate": {
       "value": "xxx"
@@ -456,6 +462,12 @@
       "value": "xxx"
     },
     "alchemyAuthToken": {
+      "value": "xxx"
+    },
+    "customBalanceAssets": {
+      "value": "xxx"
+    },
+    "customBalanceAddresses": {
       "value": "xxx"
     }
   }

@@ -7,7 +7,10 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -32,6 +35,7 @@ export class Configuration {
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
+  transactionRefundExpirySeconds = 30;
 
   defaults = {
     currency: 'EUR',
@@ -147,7 +151,7 @@ export class Configuration {
   i18n: I18nOptions = {
     fallbackLanguage: this.defaults.language.toLowerCase(),
     loaderOptions: {
-      path: join(__dirname, '../shared/i18n/'),
+      path: join(process.cwd(), 'src/shared/i18n/'),
       watch: true,
     },
     resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
@@ -183,6 +187,9 @@ export class Configuration {
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
     reminderAfterDays: 2,
+    appToken: process.env.KYC_APP_TOKEN,
+    secretKey: process.env.KYC_SECRET_KEY,
+    webhookKey: process.env.KYC_WEBHOOK_KEY,
   };
 
   support = {
@@ -236,7 +243,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: join(__dirname, '../subdomains/supporting/notification/templates'),
+        dir: join(process.cwd(), 'src/subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -256,12 +263,49 @@ export class Configuration {
     apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
+  financialLog = {
+    customAssets: process.env.CUSTOM_BALANCE_ASSETS?.split(';') ?? [], // asset uniqueName
+    customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
+  };
+
   payment = {
-    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
-    quoteTimeout: +(process.env.PAYMENT_QUOTE_TIMEOUT ?? 300),
     evmSeed: process.env.PAYMENT_EVM_SEED,
-    fee: 0.02,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    minVolume: 0.01, // CHF
+
+    defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+
+    defaultForexFee: 0.01,
+    addressForexFee: 0.02,
+    defaultQuoteTimeout: 300, // sec
+    addressQuoteTimeout: 7200, // sec
+
+    webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
+    webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
+      if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
+
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressForexFee;
+
+        default:
+          return this.payment.defaultForexFee;
+      }
+    },
+
+    quoteTimeout: (standard: PaymentStandard): number => {
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressQuoteTimeout;
+
+        default:
+          return this.payment.defaultQuoteTimeout;
+      }
+    },
   };
 
   blockchain = {
@@ -345,11 +389,10 @@ export class Configuration {
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
-      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
-      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
@@ -549,6 +592,10 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
+  }
+
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
   // --- HELPERS --- //

@@ -7,6 +7,11 @@ import { PaymentActivation } from './payment-activation.entity';
 import { PaymentLink } from './payment-link.entity';
 import { PaymentQuote } from './payment-quote.entity';
 
+export interface PaymentDevice {
+  id: string;
+  command: string;
+}
+
 @Entity()
 export class PaymentLinkPayment extends IEntity {
   @ManyToOne(() => PaymentLink, (p) => p.payments, { nullable: false })
@@ -37,8 +42,14 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ nullable: false, default: 0 })
   txCount: number;
 
+  @Column({ length: 256, nullable: true })
+  deviceId: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  deviceCommand: string;
+
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
-  cryptoInput: CryptoInput;
+  cryptoInputs: CryptoInput[];
 
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
   activations: PaymentActivation[];
@@ -71,9 +82,14 @@ export class PaymentLinkPayment extends IEntity {
   }
 
   get displayName(): string {
-    const name = this.link.route.userData.paymentLinksName ?? this.link.route.userData.verifiedName;
-    const amount = `${this.currency.name} ${this.amount}`;
+    return this.link.displayName(this.metaId);
+  }
 
-    return name ? `${name} - ${amount}` : `Payment ${this.metaId} (${amount}) to ${this.link.metaId}`;
+  get memo(): string {
+    return `${this.displayName} - ${this.currency.name} ${this.amount}`;
+  }
+
+  get device(): PaymentDevice | undefined {
+    return this.deviceId && this.deviceCommand ? { id: this.deviceId, command: this.deviceCommand } : undefined;
   }
 }
