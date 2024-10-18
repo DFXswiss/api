@@ -30,24 +30,9 @@ import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { PayInService } from '../payin/services/payin.service';
+import { AssetLog, BalancesByFinancialType, BankExchangeType, ManualDebtPosition, TradingLog } from './dto/log.dto';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
-
-export type BankExchangeType = ExchangeTxType | BankTxType;
-
-type BalancesByFinancialType = {
-  [financialType: string]: {
-    plusBalance: number;
-    plusBalanceChf: number;
-    minusBalance: number;
-    minusBalanceChf: number;
-  };
-};
-
-type ManualDebtPosition = {
-  assetId: number;
-  value: number;
-};
 
 @Injectable()
 export class LogJobService {
@@ -75,7 +60,72 @@ export class LogJobService {
     if (DisabledProcess(Process.TRADING_LOG)) return;
 
     // trading log
-    const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
+    const tradingLog = await this.getTradingLog();
+
+    // assets
+    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
+
+    // asset log
+    const assetLog = await this.getAssetLog(assets);
+
+    // balances sorted by financialType
+    const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+
+    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
+    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+
+    await this.logService.create({
+      system: 'LogService',
+      subsystem: 'FinancialDataLog',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({
+        assets: assetLog,
+        tradings: tradingLog,
+        balancesByFinancialType,
+        balancesTotal: {
+          plusBalanceChf,
+          minusBalanceChf,
+          totalBalanceChf: plusBalanceChf - minusBalanceChf,
+        },
+      }),
+    });
+  }
+
+  // --- LOG METHODS --- //
+
+  private getBalancesByFinancialType(assets: Asset[], assetLog: any): BalancesByFinancialType {
+    const financialTypeMap = Util.groupBy<Asset, string>(
+      assets.filter((a) => a.financialType),
+      'financialType',
+    );
+
+    return Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
+      const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
+      const plusBalanceChf = assets.reduce(
+        (prev, curr) =>
+          prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
+        0,
+      );
+      const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
+      const minusBalanceChf = assets.reduce(
+        (prev, curr) =>
+          prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
+        0,
+      );
+
+      acc[financialType] = {
+        plusBalance,
+        plusBalanceChf,
+        minusBalance,
+        minusBalanceChf,
+      };
+
+      return acc;
+    }, {});
+  }
+
+  private async getTradingLog(): Promise<TradingLog> {
+    return this.tradingRuleService.getCurrentTradingOrders().then((t) =>
       t.reduce((prev, curr) => {
         prev[curr.tradingRule.id] = {
           price1: curr.price1,
@@ -86,10 +136,9 @@ export class LogJobService {
         return prev;
       }, {}),
     );
+  }
 
-    // assets
-    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
-
+  private async getAssetLog(assets: Asset[]): Promise<AssetLog> {
     // custom balance
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
     const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
@@ -200,8 +249,8 @@ export class LogJobService {
       recentEurBankTxKraken[0],
     );
 
-    // asset log
-    const assetLog = assets.reduce((prev, curr) => {
+    // assetLog
+    return assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
@@ -276,7 +325,7 @@ export class LogJobService {
         pendingMaerkiKrakenPlusAmount +
         pendingChfMaerkiKrakenMinusAmount +
         pendingEurMaerkiKrakenMinusAmount;
-      const totalPlus = liquidityBalance + totalPlusPending;
+      const totalPlus = liquidity + totalPlusPending;
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -362,58 +411,9 @@ export class LogJobService {
 
       return prev;
     }, {});
-
-    const financialTypeMap = Util.groupBy<Asset, string>(
-      assets.filter((a) => a.financialType),
-      'financialType',
-    );
-
-    const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
-      (acc, [financialType, assets]) => {
-        const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
-        const plusBalanceChf = assets.reduce(
-          (prev, curr) =>
-            prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
-          0,
-        );
-        const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
-        const minusBalanceChf = assets.reduce(
-          (prev, curr) =>
-            prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
-          0,
-        );
-
-        acc[financialType] = {
-          plusBalance,
-          plusBalanceChf,
-          minusBalance,
-          minusBalanceChf,
-        };
-
-        return acc;
-      },
-      {},
-    );
-
-    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
-    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
-
-    await this.logService.create({
-      system: 'LogService',
-      subsystem: 'FinancialDataLog',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify({
-        assets: assetLog,
-        tradings: tradingLog,
-        balancesByFinancialType,
-        balancesTotal: {
-          plusBalanceChf,
-          minusBalanceChf,
-          totalBalanceChf: plusBalanceChf - minusBalanceChf,
-        },
-      }),
-    });
   }
+
+  // --- HELPER METHODS --- //
 
   private getPendingAmounts(
     assets: Asset[],
