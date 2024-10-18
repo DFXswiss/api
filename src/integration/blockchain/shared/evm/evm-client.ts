@@ -274,8 +274,10 @@ export abstract class EvmClient {
   }
 
   async sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse> {
+    const txToUse = tx.toLowerCase().startsWith('0x') ? tx : '0x' + tx;
+
     return this.alchemyService
-      .sendTransaction(this.chainId, tx)
+      .sendTransaction(this.chainId, txToUse)
       .then((r) => ({
         response: r,
       }))
