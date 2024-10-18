@@ -11,9 +11,9 @@ import { SumSubWebhookType } from '../dto/sum-sub.dto';
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
+  NATIONALITY_DATA = 'NationalityData',
   LEGAL_ENTITY = 'LegalEntity',
   STOCK_REGISTER = 'StockRegister',
-  NATIONALITY_DATA = 'NationalityData',
   COMMERCIAL_REGISTER = 'CommercialRegister',
   SIGNATORY_POWER = 'SignatoryPower',
   AUTHORITY = 'Authority',
@@ -32,9 +32,9 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
   return [
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
+    KycStepName.NATIONALITY_DATA,
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
     userData.legalEntity === LegalEntity.PUBLIC_LIMITED_COMPANY ? KycStepName.STOCK_REGISTER : null,
-    KycStepName.NATIONALITY_DATA,
     [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
       ? KycStepName.COMMERCIAL_REGISTER
       : null,
