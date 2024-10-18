@@ -1,5 +1,5 @@
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
-import { EvmClient, FromToTransactionHistory } from 'src/integration/blockchain/shared/evm/evm-client';
+import { Direction, EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -42,14 +42,14 @@ export abstract class PayInEvmService {
       address,
       fromBlock,
       toBlock,
-      FromToTransactionHistory.TO_ADDRESS,
+      Direction.INCOMING,
     );
 
     const allTokenTransactions = await this.#client.getERC20Transactions(
       address,
       fromBlock,
       toBlock,
-      FromToTransactionHistory.TO_ADDRESS,
+      Direction.INCOMING,
     );
 
     return [allCoinTransactions, allTokenTransactions];

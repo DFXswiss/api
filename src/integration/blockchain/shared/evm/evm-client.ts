@@ -43,10 +43,10 @@ interface UniswapPosition {
   liquidity: EthersNumber;
 }
 
-export enum FromToTransactionHistory {
-  FROM_TO_ADDRESS,
-  FROM_ADDRESS,
-  TO_ADDRESS,
+export enum Direction {
+  BOTH = 'both',
+  OUTGOING = 'outgoing',
+  INCOMING = 'incoming',
 }
 
 export abstract class EvmClient {
@@ -87,22 +87,22 @@ export abstract class EvmClient {
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
-    fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS,
+    direction = Direction.BOTH,
   ): Promise<EvmCoinHistoryEntry[]> {
     const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
-    return this.getHistory(fromToHistory, walletAddress, categories, fromBlock, toBlock);
+    return this.getHistory(direction, walletAddress, categories, fromBlock, toBlock);
   }
 
   async getERC20Transactions(
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
-    fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS,
+    direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
     const categories = this.alchemyService.getERC20Categories(this.chainId);
 
-    return this.getHistory(fromToHistory, walletAddress, categories, fromBlock, toBlock);
+    return this.getHistory(direction, walletAddress, categories, fromBlock, toBlock);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -730,7 +730,7 @@ export abstract class EvmClient {
   }
 
   private async getHistory<T>(
-    fromToHistory: FromToTransactionHistory,
+    direction: Direction,
     walletAddress: string,
     categories: AssetTransfersCategory[],
     fromBlock: number,
@@ -744,14 +744,14 @@ export abstract class EvmClient {
 
     const assetTransferResult: AssetTransfersWithMetadataResult[] = [];
 
-    if ([FromToTransactionHistory.FROM_ADDRESS, FromToTransactionHistory.FROM_TO_ADDRESS].includes(fromToHistory)) {
+    if ([Direction.OUTGOING, Direction.BOTH].includes(direction)) {
       params.fromAddress = walletAddress;
       params.toAddress = undefined;
 
       assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
     }
 
-    if ([FromToTransactionHistory.TO_ADDRESS, FromToTransactionHistory.FROM_TO_ADDRESS].includes(fromToHistory)) {
+    if ([Direction.INCOMING, Direction.BOTH].includes(direction)) {
       params.fromAddress = undefined;
       params.toAddress = walletAddress;
 
