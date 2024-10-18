@@ -68,7 +68,7 @@ export class LogJobService {
     // asset log
     const assetLog = await this.getAssetLog(assets);
 
-    // balances sorted by financialType
+    // balances grouped by financialType
     const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
 
     const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
@@ -93,7 +93,7 @@ export class LogJobService {
 
   // --- LOG METHODS --- //
 
-  private getBalancesByFinancialType(assets: Asset[], assetLog: any): BalancesByFinancialType {
+  private getBalancesByFinancialType(assets: Asset[], assetLog: AssetLog): BalancesByFinancialType {
     const financialTypeMap = Util.groupBy<Asset, string>(
       assets.filter((a) => a.financialType),
       'financialType',
