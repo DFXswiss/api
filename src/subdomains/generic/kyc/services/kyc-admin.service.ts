@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -40,7 +41,7 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
-    kycStep.update(dto.status, dto.result);
+    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
 
     switch (kycStep.name) {
       case KycStepName.COMMERCIAL_REGISTER:
@@ -79,8 +80,10 @@ export class KycAdminService {
 
         break;
     }
+  }
 
-    await this.kycStepRepo.save(kycStep);
+  async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
+    await this.kycStepRepo.update(...dto);
   }
 
   async syncIdentStep(stepId: number): Promise<void> {
