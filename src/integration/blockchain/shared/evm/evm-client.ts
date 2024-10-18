@@ -87,10 +87,8 @@ export abstract class EvmClient {
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
-    fromToHistory?: FromToTransactionHistory,
+    fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS,
   ): Promise<EvmCoinHistoryEntry[]> {
-    if (!fromToHistory) fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS;
-
     const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
     return this.getHistory(fromToHistory, walletAddress, categories, fromBlock, toBlock);
@@ -100,10 +98,8 @@ export abstract class EvmClient {
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
-    fromToHistory?: FromToTransactionHistory,
+    fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS,
   ): Promise<EvmTokenHistoryEntry[]> {
-    if (!fromToHistory) fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS;
-
     const categories = this.alchemyService.getERC20Categories(this.chainId);
 
     return this.getHistory(fromToHistory, walletAddress, categories, fromBlock, toBlock);
