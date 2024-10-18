@@ -4,7 +4,7 @@ import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/mai
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
-import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
+import { AssetTransfersCategory, AssetTransfersWithMetadataResult, BigNumberish } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
@@ -41,6 +41,12 @@ interface UniswapPosition {
   tickLower: number;
   tickUpper: number;
   liquidity: EthersNumber;
+}
+
+export enum FromToTransactionHistory {
+  FROM_TO_ADDRESS,
+  FROM_ADDRESS,
+  TO_ADDRESS,
 }
 
 export abstract class EvmClient {
@@ -81,20 +87,26 @@ export abstract class EvmClient {
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
+    fromToHistory?: FromToTransactionHistory,
   ): Promise<EvmCoinHistoryEntry[]> {
+    if (!fromToHistory) fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS;
+
     const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
-    return this.getHistory(walletAddress, categories, fromBlock, toBlock);
+    return this.getHistory(fromToHistory, walletAddress, categories, fromBlock, toBlock);
   }
 
   async getERC20Transactions(
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
+    fromToHistory?: FromToTransactionHistory,
   ): Promise<EvmTokenHistoryEntry[]> {
+    if (!fromToHistory) fromToHistory = FromToTransactionHistory.FROM_TO_ADDRESS;
+
     const categories = this.alchemyService.getERC20Categories(this.chainId);
 
-    return this.getHistory(walletAddress, categories, fromBlock, toBlock);
+    return this.getHistory(fromToHistory, walletAddress, categories, fromBlock, toBlock);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -722,25 +734,33 @@ export abstract class EvmClient {
   }
 
   private async getHistory<T>(
+    fromToHistory: FromToTransactionHistory,
     walletAddress: string,
     categories: AssetTransfersCategory[],
     fromBlock: number,
     toBlock?: number,
   ): Promise<T[]> {
     const params: AssetTransfersParams = {
-      fromAddress: walletAddress,
-      toAddress: undefined,
       fromBlock: fromBlock,
       toBlock: toBlock,
       categories: categories,
     };
 
-    const assetTransferResult = await this.alchemyService.getAssetTransfers(this.chainId, params);
+    const assetTransferResult: AssetTransfersWithMetadataResult[] = [];
 
-    params.fromAddress = undefined;
-    params.toAddress = walletAddress;
+    if ([FromToTransactionHistory.FROM_ADDRESS, FromToTransactionHistory.FROM_TO_ADDRESS].includes(fromToHistory)) {
+      params.fromAddress = walletAddress;
+      params.toAddress = undefined;
 
-    assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+      assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+    }
+
+    if ([FromToTransactionHistory.TO_ADDRESS, FromToTransactionHistory.FROM_TO_ADDRESS].includes(fromToHistory)) {
+      params.fromAddress = undefined;
+      params.toAddress = walletAddress;
+
+      assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+    }
 
     assetTransferResult.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
 
