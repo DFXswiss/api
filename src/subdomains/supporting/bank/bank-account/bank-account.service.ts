@@ -45,7 +45,7 @@ export class BankAccountService {
       try {
         if (entity.userData) {
           if (entity.userData.status === UserDataStatus.MERGED) {
-            await this.bankAccountRepo.update(entity.id, { synced: false });
+            await this.bankAccountRepo.update(entity.id, { synced: true });
             continue;
           }
 
@@ -62,6 +62,7 @@ export class BankAccountService {
         await this.bankAccountRepo.update(entity.id, { synced: true });
       } catch (e) {
         this.logger.error(`Error in bankAccount-bankData sync ${entity.id}:`, e);
+        await this.bankAccountRepo.update(entity.id, { synced: false });
       }
     }
   }
