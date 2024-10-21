@@ -1,6 +1,6 @@
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { KycStatus, KycType } from '../../user-data/user-data.entity';
-import { AmlRule } from '../wallet.entity';
 
 export class WalletDto {
   @IsOptional()

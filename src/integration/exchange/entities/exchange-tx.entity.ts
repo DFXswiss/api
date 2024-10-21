@@ -96,16 +96,24 @@ export class ExchangeTx extends IEntity {
 
   //*** ENTITY METHODS ***//
 
-  pendingBankAmount(
-    asset: Asset,
-    type: BankExchangeType,
-    _: string | undefined,
-    address: string | undefined,
-    toIban: string,
-  ): number {
-    if (!BankService.isBankMatching(asset, toIban) || this.currency !== asset.dexName) return 0;
+  pendingBankAmount(asset: Asset, type: BankExchangeType, from?: string, to?: string): number {
+    if (
+      this.currency !== asset.dexName ||
+      this.type !== type ||
+      ((from || to) && !BankService.isBankMatching(asset, from ?? to))
+    )
+      return 0;
 
-    return this.type === type && this.address === address ? this.amount : 0;
+    switch (this.type) {
+      case ExchangeTxType.WITHDRAWAL:
+        return this.amount;
+
+      case ExchangeTxType.DEPOSIT:
+        return -this.amount;
+
+      default:
+        return 0;
+    }
   }
 }
 

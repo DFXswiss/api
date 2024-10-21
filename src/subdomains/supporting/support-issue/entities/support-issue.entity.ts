@@ -19,6 +19,7 @@ export enum SupportIssueType {
   LIMIT_REQUEST = 'LimitRequest',
   PARTNERSHIP_REQUEST = 'PartnershipRequest',
   NOTIFICATION_OF_CHANGES = 'NotificationOfChanges',
+  BUG_REPORT = 'BugReport',
 }
 
 export enum SupportIssueReason {

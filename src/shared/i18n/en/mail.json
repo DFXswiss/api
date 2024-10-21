@@ -4,7 +4,6 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "If you have any questions,<br>we are happy to help you at [url:https://services.dfx.swiss/support].",
         "thanks": "Thank you very much for your trust",
-        "happy_trading": "Happy Trading",
         "welcome": "Hi {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
@@ -38,7 +37,12 @@
             "title": "Payout paid out",
             "salutation": "Your payout has been sent to your bank account"
         },
-        "return": {
+        "chargeback": {
+            "unconfirmed": {
+                "title": "Action required",
+                "salutation": "An action is required for your transaction",
+                "transaction_button": "You can perform the action via the following link:<br>[url:click here]"
+            },
             "fiat": {
                 "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your bank account"
@@ -85,9 +89,9 @@
                 "salutation": "You have exceeded your 24h volume limit",
                 "line1": "Please verify yourself by KYC (know your customer) to increase your limit.",
                 "line2": "After a successful KYC we proceed with your transaction.",
-                "line3": "Without verification, your money will be automatically returned after 2 days.",
-                "line4": "Increase limit with verification?<br>Click the following link to verify yourself:<br>[url:{urlText}]",
-                "line5": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button."
+                "line3": "Increase limit with verification?<br>Click the following link to verify yourself:<br>[url:{urlText}]",
+                "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "annual_limit": {
                 "title": "Annual limit exceeded",
@@ -95,8 +99,8 @@
                 "line1": "Please apply for a new annual limit.",
                 "line2": "Once the new limit has been approved,<br> we proceed with your transaction.",
                 "line3": "Increase the limit?",
-                "line4": "Open the payment page via \"My DFX\" in the DFX App.",
-                "line5": "Go to the red arrow under \"Your limit\" and<br> request a new desired limit."
+                "line4": "You can apply for a limit increase via the following link:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "annual_limit_without_kyc": {
                 "title": "Pending transaction - annual limit exceeded without KYC",
@@ -105,7 +109,7 @@
                 "line2": "Unfortunately, we cannot process without a full verification as you exceed your annual limit.",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "olky_no_kyc": {
                 "title": "KYC required to use SEPA instant wire transfers",
@@ -114,7 +118,7 @@
                 "line2": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line3": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line4": "Without verification, you can continue to use our bank account from Switzerland up to EUR 1,000 per day without KYC via standard Sepa.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "name_check_without_kyc": {
                 "title": "KYC required to execute your pending transaction",
@@ -123,7 +127,7 @@
                 "line2": "Unfortunately, we cannot process your order without a full verification (KYC).",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "high_risk_kyc_needed": {
                 "title": "Problem with your deposit",
@@ -132,7 +136,7 @@
                 "line2": "Unfortunately, without full verification, we cannot ensure that this transaction is not fraudulent.",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "manual_check": {
                 "title": "Checking deposit",
@@ -141,7 +145,7 @@
                 "line2": "Unfortunately, the transaction could not be released fully automatically and must now be checked manually by an employee.",
                 "line3": "This usually takes 24 hours, but a maximum of 7 days.",
                 "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
-                "line5": ""
+                "line5": "To view the current status of your transaction:<br>[url:click here]"
             },
             "asset_kyc_needed": {
                 "title": "Verification (KYC) required",
@@ -150,7 +154,7 @@
                 "line2": "Unfortunately, we need verification (KYC) from you for the asset you have deposited.",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "video_ident_needed": {
                 "title": "Video ident verification (KYC) required",
@@ -159,13 +163,8 @@
                 "line2": "Unfortunately, we need a video ident verification (KYC) from you for your transaction.",
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line5": "If you do not want to carry out the verification, the asset will be returned fully automatically after 2 days."
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             }
-        },
-        "chargeback_not_possible": {
-            "title": "Chargeback not possible",
-            "salutation": "Your chargeback is not possible",
-            "message": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.<br>Please get in touch with our support team.<br>You can contact support via [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",
         "blockchain": "Blockchain",

@@ -7,7 +7,7 @@ export class Country extends IEntity {
   @Column({ unique: true, length: 10 })
   symbol: string;
 
-  @Column({ nullable: true, length: 10 })
+  @Column({ unique: true, length: 10 })
   symbol3: string;
 
   @Column({ length: 256 })

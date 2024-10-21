@@ -263,7 +263,7 @@ export class BankTx extends IEntity {
   }
 
   pendingInputAmount(asset: Asset): number {
-    if ([BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
+    if (this.type && ![BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
 
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
@@ -279,25 +279,27 @@ export class BankTx extends IEntity {
     return 0;
   }
 
-  pendingBankAmount(
-    asset: Asset,
-    type: BankExchangeType,
-    fromIban: string | undefined,
-    _: string | undefined,
-    toIban: string,
-  ): number {
-    if (!BankService.isBankMatching(asset, toIban) || this.instructedCurrency !== asset.dexName) return 0;
+  pendingBankAmount(asset: Asset, type: BankExchangeType, sourceIban?: string, targetIban?: string): number {
+    if (this.instructedCurrency !== asset.dexName) return 0;
 
     switch (type) {
       case BankTxType.INTERNAL:
-        return this.iban === toIban && this.accountIban === fromIban
+        if (!BankService.isBankMatching(asset, targetIban)) return 0;
+
+        return this.iban === targetIban && this.accountIban === sourceIban
           ? this.instructedAmount
-          : this.iban === fromIban && this.accountIban === toIban
+          : this.iban === sourceIban && this.accountIban === targetIban
           ? -this.instructedAmount
           : 0;
 
       case BankTxType.KRAKEN:
-        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : 0;
+        if (
+          !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
+          (targetIban && asset.dexName !== this.instructedCurrency)
+        )
+          return 0;
+
+        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : this.instructedAmount;
 
       default:
         return 0;

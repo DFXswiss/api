@@ -11,6 +11,7 @@ export class AssetDtoMapper {
       id: asset.id,
       name: asset.name,
       chainId: asset.chainId,
+      decimals: asset.decimals,
       explorerUrl: assetExplorerUrl(asset),
       uniqueName: asset.uniqueName,
       description: asset.description,

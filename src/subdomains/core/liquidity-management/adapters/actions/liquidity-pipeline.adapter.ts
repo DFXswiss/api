@@ -88,8 +88,13 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
 
       case LiquidityManagementPipelineStatus.STOPPED:
       case LiquidityManagementPipelineStatus.FAILED:
+        const failedOrder = await this.orderRepo.findOne({
+          where: { pipeline: { id: pipeline.id } },
+          order: { id: 'DESC' },
+        });
+
         throw new OrderNotProcessableException(
-          `Triggered pipeline ${pipeline.id} failed with status ${pipeline.status}`,
+          `Triggered pipeline ${pipeline.id} failed with error: ${failedOrder.errorMessage}`,
         );
     }
   }
