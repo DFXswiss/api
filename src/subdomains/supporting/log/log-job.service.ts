@@ -337,35 +337,35 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: totalPlus,
-          liquidity: liquidity || undefined,
+          total: this.getJsonValue(totalPlus),
+          liquidity: this.getJsonValue(liquidity),
           pending: totalPlusPending
             ? {
-                total: totalPlusPending < 0 ? 0 : totalPlusPending,
-                cryptoInput: cryptoInput || undefined,
-                exchangeOrder: exchangeOrder || undefined,
-                fromOlky: pendingOlkyMaerkiAmount || undefined,
-                fromKraken: fromKraken || undefined,
-                toKraken: toKraken || undefined,
+                total: this.getJsonValue(totalPlusPending),
+                cryptoInput: this.getJsonValue(cryptoInput),
+                exchangeOrder: this.getJsonValue(exchangeOrder),
+                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount),
+                fromKraken: this.getJsonValue(fromKraken),
+                toKraken: this.getJsonValue(toKraken),
               }
             : undefined,
         },
         minusBalance: {
-          total: totalMinus,
-          debt: manualDebtPosition || undefined,
+          total: this.getJsonValue(totalMinus),
+          debt: this.getJsonValue(manualDebtPosition),
           pending: totalMinusPending
             ? {
-                total: totalMinusPending,
-                buyFiat: buyFiat || undefined,
-                buyFiatPass: buyFiatPass || undefined,
-                buyCrypto: buyCrypto || undefined,
-                buyCryptoPass: buyCryptoPass || undefined,
-                bankTxNull: bankTxNull || undefined,
-                bankTxPending: bankTxPending || undefined,
-                bankTxUnknown: bankTxUnknown || undefined,
-                bankTxGSheet: bankTxGSheet || undefined,
-                bankTxRepeat: bankTxRepeat || undefined,
-                bankTxReturn: bankTxReturn || undefined,
+                total: this.getJsonValue(totalMinusPending),
+                buyFiat: this.getJsonValue(buyFiat),
+                buyFiatPass: this.getJsonValue(buyFiatPass),
+                buyCrypto: this.getJsonValue(buyCrypto),
+                buyCryptoPass: this.getJsonValue(buyCryptoPass),
+                bankTxNull: this.getJsonValue(bankTxNull),
+                bankTxPending: this.getJsonValue(bankTxPending),
+                bankTxUnknown: this.getJsonValue(bankTxUnknown),
+                bankTxGSheet: this.getJsonValue(bankTxGSheet),
+                bankTxRepeat: this.getJsonValue(bankTxRepeat),
+                bankTxReturn: this.getJsonValue(bankTxReturn),
               }
             : undefined,
         },
@@ -395,10 +395,10 @@ export class LogJobService {
         );
 
         acc[financialType] = {
-          plusBalance,
-          plusBalanceChf,
-          minusBalance,
-          minusBalanceChf,
+          plusBalance: this.getJsonValue(plusBalance),
+          plusBalanceChf: this.getJsonValue(plusBalanceChf),
+          minusBalance: this.getJsonValue(minusBalance),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf),
         };
 
         return acc;
@@ -418,8 +418,8 @@ export class LogJobService {
         tradings: tradingLog,
         balancesByFinancialType,
         balancesTotal: {
-          plusBalanceChf,
-          minusBalanceChf,
+          plusBalanceChf: this.getJsonValue(plusBalanceChf),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf),
           totalBalanceChf: plusBalanceChf - minusBalanceChf,
         },
       }),
@@ -473,5 +473,9 @@ export class LogJobService {
 
   private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
     return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
+  }
+
+  private getJsonValue(value: number | undefined): number | undefined {
+    return !value || value < 0 ? undefined : value;
   }
 }
