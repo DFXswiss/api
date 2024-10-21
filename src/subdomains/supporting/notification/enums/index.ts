@@ -44,4 +44,5 @@ export enum MailContext {
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   UNASSIGNED_TX = 'UnassignedTx',
   SUPPORT_MESSAGE = 'SupportMessage',
+  VERIFICATION_MAIL = 'VerificationMail',
 }

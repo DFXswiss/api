@@ -1,9 +1,17 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export enum TfaType {
+  APP = 'App',
+  MAIL = 'Mail',
+}
 
 export class Setup2faDto {
-  @ApiProperty()
-  secret: string;
+  @ApiProperty({ enum: TfaType })
+  type: TfaType;
 
-  @ApiProperty()
-  uri: string;
+  @ApiPropertyOptional()
+  secret?: string;
+
+  @ApiPropertyOptional()
+  uri?: string;
 }

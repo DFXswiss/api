@@ -255,5 +255,11 @@
         "line4": "Wir würden uns freuen, wenn du dieser Gruppe beitreten möchtest.",
         "line5": "Wir haben dir hierfür einen Direktzugang zu dieser Gruppe auf deiner persönlichen DFX Payment Seite hinterlegt. Klicke hierfür einfach in der DFX App auf MyDFX und folge dem Link.",
         "closing": "Vielen Dank für dein Vertrauen in uns.<br>Oli"
+    },
+    "verification_code": {
+        "title": "Verifizierungscode",
+        "salutation": "Du hast einen 2FA Verifizierungscode angefordert",
+        "message": "Dein Verifizierungscode lautet:<br>{code}",
+        "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
     }
 }

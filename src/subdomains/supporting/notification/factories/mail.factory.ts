@@ -37,6 +37,7 @@ export enum MailTranslationKey {
   BLACK_SQUAD = 'mail.black_squad',
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
   SUPPORT_MESSAGE = 'mail.support_message',
+  VERIFICATION_CODE = 'mail.verification_code',
   CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
 }
 
