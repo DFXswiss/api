@@ -580,11 +580,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
       case KycStepName.NATIONALITY_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
-
       case KycStepName.LEGAL_ENTITY:
-        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
-
       case KycStepName.STOCK_REGISTER:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
