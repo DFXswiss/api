@@ -8,17 +8,13 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UpdateUserBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/update-bank-data.dto';
-import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateIbanDto, IbanDto } from './dto/iban.dto';
 
 @ApiTags('Bank Account')
 @Controller('bankAccount')
 export class BankAccountController {
-  constructor(
-    private readonly bankAccountService: BankAccountService,
-    private readonly bankDataService: BankDataService,
-  ) {}
+  constructor(private readonly bankDataService: BankDataService) {}
 
   @Get()
   @ApiBearerAuth()

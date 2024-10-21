@@ -253,7 +253,7 @@ export class BankDataService {
     });
     if (existing) {
       const userData = await this.userDataRepo.findOneBy({ id: userDataId });
-      if (userData.id === existing.userData.id) return;
+      if (userData.id === existing.userData.id) return existing;
 
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
         throw new ForbiddenException('IBAN already in use');
