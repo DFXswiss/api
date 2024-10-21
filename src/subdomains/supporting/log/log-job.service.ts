@@ -134,32 +134,35 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
     ]);
 
+    const before14Days = Util.daysBefore(14);
+    const before21Days = Util.daysBefore(21);
+
     // receiver data
     const recentEurKrakenBankTx = recentKrakenBankTx.filter(
       (b) =>
         b.accountIban === maerkiEurBank.iban &&
         b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > Util.daysBefore(14),
+        b.created > before14Days,
     );
     const recentChfKrakenBankTx = recentKrakenBankTx.filter(
       (b) =>
         b.accountIban === maerkiChfBank.iban &&
         b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > Util.daysBefore(14),
+        b.created > before14Days,
     );
     const recentChfBankTxKraken = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SIC) International' &&
         k.address === 'MAEBCHZZXXX' &&
-        k.created > Util.daysBefore(14),
+        k.created > before14Days,
     );
     const recentEurBankTxKraken = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SEPA) International' &&
         k.address === 'MAEBCHZZXXX' &&
-        k.created > Util.daysBefore(14),
+        k.created > before14Days,
     );
 
     // sender data
@@ -169,9 +172,9 @@ export class LogJobService {
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SIC) International' &&
           k.address === 'Maerki Baumann' &&
-          k.created > Util.daysBefore(21),
+          k.created > before21Days,
       ),
-      recentChfKrakenBankTx?.[0],
+      recentChfKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
     );
     const recentEurKrakenMaerkiTx = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
@@ -179,9 +182,9 @@ export class LogJobService {
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SEPA) International' &&
           k.address === 'Maerki Baumann & Co. AG' &&
-          k.created > Util.daysBefore(21),
+          k.created > before21Days,
       ),
-      recentEurKrakenBankTx?.[0],
+      recentEurKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
     );
 
     const recentChfMaerkiKrakenTx = this.filterSenderPendingList(
@@ -189,18 +192,18 @@ export class LogJobService {
         (b) =>
           b.accountIban === maerkiChfBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > Util.daysBefore(21),
+          b.created > before21Days,
       ),
-      recentChfBankTxKraken[0],
+      recentChfBankTxKraken?.sort((a, b) => a.id - b.id)[0],
     );
     const recentEurMaerkiKrakenTx = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiEurBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > Util.daysBefore(21),
+          b.created > before21Days,
       ),
-      recentEurBankTxKraken[0],
+      recentEurBankTxKraken?.sort((a, b) => a.id - b.id)[0],
     );
 
     // asset log
