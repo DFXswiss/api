@@ -51,10 +51,8 @@ export class BankAccountService {
 
           await this.bankDataService.createIbanForUser(
             entity.userData?.id,
-            entity.iban,
+            { iban: entity.iban, label: entity.label, preferredCurrency: entity.preferredCurrency },
             false,
-            entity.label,
-            entity.preferredCurrency,
             BankDataType.USER,
           );
         }
