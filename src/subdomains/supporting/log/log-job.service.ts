@@ -341,7 +341,7 @@ export class LogJobService {
           liquidity: liquidity || undefined,
           pending: totalPlusPending
             ? {
-                total: totalPlusPending,
+                total: totalPlusPending < 0 ? 0 : totalPlusPending,
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyMaerkiAmount || undefined,
