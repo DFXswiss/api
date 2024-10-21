@@ -11,6 +11,7 @@ import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -51,6 +52,8 @@ type ManualDebtPosition = {
 
 @Injectable()
 export class LogJobService {
+  private readonly logger = new DfxLogger(LogJobService);
+
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -317,6 +320,20 @@ export class LogJobService {
         bankTxReturn;
       const totalMinus = manualDebtPosition + totalMinusPending;
 
+      let fromKraken =
+        pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
+      let toKraken =
+        pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
+
+      if (fromKraken < 0) {
+        this.logger.error('Error in financial log, fromKraken balance < 0');
+        fromKraken = 0;
+      }
+      if (toKraken < 0) {
+        this.logger.error('Error in financial log, toKraken balance < 0');
+        toKraken = 0;
+      }
+
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
@@ -328,14 +345,8 @@ export class LogJobService {
                 cryptoInput: cryptoInput || undefined,
                 exchangeOrder: exchangeOrder || undefined,
                 fromOlky: pendingOlkyMaerkiAmount || undefined,
-                fromKraken:
-                  pendingChfKrakenMaerkiPlusAmount +
-                    pendingEurKrakenMaerkiPlusAmount +
-                    pendingKrakenMaerkiMinusAmount || undefined,
-                toKraken:
-                  pendingMaerkiKrakenPlusAmount +
-                    pendingChfMaerkiKrakenMinusAmount +
-                    pendingEurMaerkiKrakenMinusAmount || undefined,
+                fromKraken: fromKraken || undefined,
+                toKraken: toKraken || undefined,
               }
             : undefined,
         },
