@@ -18,7 +18,7 @@ import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-lo
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, MoreThan } from 'typeorm';
+import { MoreThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { Setup2faDto, TfaType } from '../dto/output/setup-2fa.dto';
@@ -71,7 +71,7 @@ export class TfaService {
       // mail 2FA
       const type = TfaType.MAIL;
       const secret = Util.randomId().toString().slice(0, 6);
-      const codeExpiryMinutes = 10;
+      const codeExpiryMinutes = 30;
 
       this.secretCache.set(user.id, {
         type,
@@ -104,6 +104,7 @@ export class TfaService {
     const user = await this.getUser(kycHash);
 
     let level: TfaLevel;
+    let type: TfaType;
 
     const cacheEntry = this.secretCache.get(user.id);
 
@@ -111,6 +112,7 @@ export class TfaService {
       if (token !== cacheEntry.secret) throw new ForbiddenException('Invalid or expired 2FA token');
 
       level = user.users.length > 0 ? TfaLevel.STRICT : TfaLevel.BASIC;
+      type = TfaType.MAIL;
     } else {
       const secret = user.totpSecret ?? cacheEntry?.secret;
       if (!secret) throw new NotFoundException('2FA not set up');
@@ -120,20 +122,23 @@ export class TfaService {
       if (!user.totpSecret) await this.userDataService.updateTotpSecret(user, secret);
 
       level = TfaLevel.STRICT;
+      type = TfaType.APP;
     }
 
     this.secretCache.delete(user.id);
-    await this.createTfaLog(user, ip, level);
+    await this.createTfaLog(user, ip, level, type);
   }
 
   async checkVerification(user: UserData, ip: string, level: TfaLevel) {
-    const requiredLevel = level === TfaLevel.STRICT ? TfaLevel.STRICT : In([TfaLevel.BASIC, TfaLevel.STRICT]);
-    const isVerified = await this.tfaRepo.existsBy({
+    const allowedLevels = level === TfaLevel.STRICT ? [TfaLevel.STRICT] : [TfaLevel.BASIC, TfaLevel.STRICT];
+    const logs = await this.tfaRepo.findBy({
       userData: { id: user.id },
       ipAddress: ip,
-      comment: requiredLevel,
       created: MoreThan(Util.hoursBefore(TfaValidityHours)),
     });
+    const isVerified = logs.some(
+      (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
+    );
     if (!isVerified) throw new ForbiddenException(`2FA required (${level.toLowerCase()})`);
   }
 
@@ -146,12 +151,12 @@ export class TfaService {
     }
   }
 
-  private async createTfaLog(userData: UserData, ipAddress: string, comment: TfaLevel) {
+  private async createTfaLog(userData: UserData, ipAddress: string, level: TfaLevel, type: TfaType) {
     const logEntity = this.tfaRepo.create({
       type: KycLogType.TFA,
       ipAddress,
       userData,
-      comment,
+      comment: `${level} (${type})`,
     });
 
     await this.tfaRepo.save(logEntity);
