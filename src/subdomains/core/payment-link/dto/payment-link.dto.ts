@@ -144,6 +144,9 @@ export class PaymentLinkPaymentDto {
   txCount: number;
 
   @ApiProperty()
+  isConfirmed: boolean;
+
+  @ApiProperty()
   url: string;
 
   @ApiProperty()

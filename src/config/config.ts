@@ -145,7 +145,7 @@ export class Configuration {
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
-    requestTimeout: 30000,
+    requestTimeout: 60000,
   };
 
   i18n: I18nOptions = {

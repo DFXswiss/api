@@ -35,6 +35,7 @@ export class PaymentLinkDtoMapper {
         mode: payment.mode,
         expiryDate: payment.expiryDate,
         txCount: payment.txCount,
+        isConfirmed: payment.isConfirmed,
         url: LightningHelper.createLnurlp(payment.uniqueId),
         lnurl: LightningHelper.createEncodedLnurlp(payment.uniqueId),
       }

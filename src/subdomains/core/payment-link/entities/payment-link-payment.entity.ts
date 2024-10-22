@@ -42,6 +42,9 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ nullable: false, default: 0 })
   txCount: number;
 
+  @Column({ nullable: false, default: false })
+  isConfirmed: boolean;
+
   @Column({ length: 256, nullable: true })
   deviceId: string;
 
