@@ -466,11 +466,11 @@ export class LogJobService {
   ): (BankTx | ExchangeTx)[] {
     if (!receiverTx) return senderTx;
     if (!(senderTx[0] instanceof BankTx)) senderTx.sort((a, b) => b.id - a.id);
-    const senderPair = senderTx.find(
-      (s) =>
-        (s instanceof BankTx ? s.instructedAmount : s.amount) ===
-          (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount) &&
-        receiverTx.created > (s instanceof BankTx ? s.valueDate : s.created),
+    const receiverAmount = receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount;
+    const senderPair = senderTx.find((s) =>
+      s instanceof BankTx
+        ? s.instructedAmount === receiverAmount && receiverTx.created.toDateString() === s.valueDate.toDateString()
+        : s.amount === receiverAmount && receiverTx.created > s.created,
     );
     return (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id);
   }
