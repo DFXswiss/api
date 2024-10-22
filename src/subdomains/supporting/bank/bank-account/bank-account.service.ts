@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -15,7 +15,6 @@ import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Injectable()
 export class BankAccountService {
@@ -93,16 +92,6 @@ export class BankAccountService {
     return this.updateEntity(dto, bankAccount);
   }
 
-  async updateBankAccount(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
-    const bankAccount = await this.bankAccountRepo.findOne({
-      where: { id, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
-    if (!bankAccount) throw new NotFoundException('BankAccount not found');
-
-    return this.updateEntity(dto, bankAccount);
-  }
-
   // --- INTERNAL METHODS --- //
 
   @Cron(CronExpression.EVERY_WEEK)
@@ -122,10 +111,7 @@ export class BankAccountService {
   }
 
   // --- HELPER METHODS --- //
-  private async updateEntity(
-    dto: CreateBankAccountDto | UpdateBankAccountDto,
-    bankAccount: BankAccount,
-  ): Promise<BankAccount> {
+  private async updateEntity(dto: CreateBankAccountDto, bankAccount: BankAccount): Promise<BankAccount> {
     Object.assign(bankAccount, dto);
 
     // check currency

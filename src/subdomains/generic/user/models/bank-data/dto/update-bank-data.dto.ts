@@ -5,7 +5,7 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { BankDataType } from '../bank-data.entity';
 
-export class UpdateUserBankDataDto {
+export class UpdateBankAccountDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -18,7 +18,7 @@ export class UpdateUserBankDataDto {
   preferredCurrency?: Fiat;
 }
 
-export class UpdateBankDataDto extends UpdateUserBankDataDto {
+export class UpdateBankDataDto extends UpdateBankAccountDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

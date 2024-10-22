@@ -1,13 +1,20 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UpdateUserBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/update-bank-data.dto';
+import { UpdateBankAccountDto } from 'src/subdomains/generic/user/models/bank-data/dto/update-bank-data.dto';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateIbanDto, IbanDto } from './dto/iban.dto';
 
@@ -39,7 +46,7 @@ export class BankAccountController {
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateUserBankDataDto,
+    @Body() dto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
     return this.bankDataService.updateUserBankData(+id, jwt.account, dto).then((b) => this.toDto(b));
   }
@@ -50,6 +57,7 @@ export class BankAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
+  @ApiOperation({ deprecated: true })
   async getAllUserIban(@GetJwt() jwt: JwtPayload): Promise<IbanDto[]> {
     const bankDatas = await this.bankDataService.getUserBankData(jwt.account);
 
@@ -60,6 +68,7 @@ export class BankAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
+  @ApiOperation({ deprecated: true })
   async addUserIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<IbanDto> {
     return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => ({ iban: b.iban }));
   }

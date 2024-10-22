@@ -24,7 +24,7 @@ import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
-import { UpdateBankDataDto, UpdateUserBankDataDto } from './dto/update-bank-data.dto';
+import { UpdateBankAccountDto, UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
@@ -127,7 +127,7 @@ export class BankDataService {
   }
 
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: { bankDatas: true } });
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
@@ -227,10 +227,10 @@ export class BankDataService {
     );
   }
 
-  async updateUserBankData(id: number, userDataId: number, dto: UpdateUserBankDataDto): Promise<BankData> {
+  async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
     const bankData = await this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
-    if (!bankData) throw new NotFoundException('Bank data not found');
-    if (bankData.userData.id !== userDataId) throw new BadRequestException('You can only update your own bankData');
+    if (!bankData) throw new NotFoundException('Bank account not found');
+    if (bankData.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
     return this.updateBankData(id, dto);
   }
