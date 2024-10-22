@@ -237,6 +237,10 @@ export class Util {
     return this.daysAfter(-days, from);
   }
 
+  static firstDayOfMonth(date = new Date()): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
   static isoDate(date: Date): string {
     return date.toISOString().split('T')[0];
   }

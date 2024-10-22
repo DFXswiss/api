@@ -3,36 +3,44 @@ import { BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 
 export type BankExchangeType = ExchangeTxType | BankTxType;
 
-export type BalancesByFinancialType = {
+export interface ChangeLog {
+  plus: ChangePlusBalance;
+  minus: ChangeMinusBalance;
+}
+
+export interface BalancesByFinancialType {
   [financialType: string]: {
     plusBalance: number;
     plusBalanceChf: number;
     minusBalance: number;
     minusBalanceChf: number;
   };
-};
+}
 
-export type TradingLog = {
+export interface TradingLog {
   [priceRuleId: string]: {
     price1: number;
     price2: number;
     price3: number;
   };
-};
+}
 
-export type AssetLog = {
+export interface AssetLog {
   [assetId: string]: {
     priceChf: number;
     plusBalance: AssetLogPlusBalance;
     minusBalance: AssetLogMinusBalance;
   };
-};
+}
+
+// manual debt
 
 export type ManualDebtPosition = {
   assetId: number;
   value: number;
 };
 
+// asset log
 type AssetLogPlusBalance = {
   total: number;
   liquidity?: number;
@@ -66,4 +74,48 @@ type AssetLogMinusPending = {
   bankTxGSheet?: number;
   bankTxRepeat?: number;
   bankTxReturn?: number;
+};
+
+// change log
+
+type ChangePlusBalance = {
+  total: number;
+  buyCrypto?: number;
+  buyFiat?: number;
+  paymentLink?: number;
+  trading?: number;
+};
+
+type ChangeMinusBalance = {
+  total: number;
+  bank?: number;
+  kraken?: ChangeExchangeBalance;
+  binance?: ChangeExchangeBalance;
+  blockchain?: ChangeBlockchainBalance;
+  ref?: ChangeRefBalance;
+};
+
+type ChangeExchangeBalance = {
+  total: number;
+  withdraw?: number;
+  trading?: number;
+};
+
+type ChangeBlockchainBalance = {
+  total: number;
+  tx?: ChangeBlockchainTxBalance;
+  trading?: number;
+  lm?: number;
+};
+
+type ChangeBlockchainTxBalance = {
+  total: number;
+  in?: number;
+  out?: number;
+};
+
+type ChangeRefBalance = {
+  total: number;
+  amount?: number;
+  fee?: number;
 };

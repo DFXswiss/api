@@ -1,8 +1,11 @@
 import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import {
   CryptoInput,
@@ -33,14 +36,18 @@ export enum SendType {
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
+  private chf: Fiat;
 
   @Inject() private readonly priceProvider: PricingService;
   @Inject() private readonly payoutService: PayoutService;
   @Inject(forwardRef(() => TransactionHelper)) private readonly transactionHelper: TransactionHelper;
   @Inject() private readonly registry: SendStrategyRegistry;
+  @Inject() private readonly pricingService: PricingService;
+  @Inject() private readonly fiatService: FiatService;
 
   onModuleInit() {
     this.registry.add({ blockchain: this.blockchain, assetType: this.assetType }, this);
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
   }
 
   onModuleDestroy() {
@@ -55,15 +62,21 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
   protected abstract getForwardAddress(): BlockchainAddress;
 
-  protected updatePayInWithSendData(
+  protected async updatePayInWithSendData(
     payIn: CryptoInput,
     type: SendType,
     outTxId: string,
     feeAmount: number = null,
-  ): CryptoInput | null {
+  ): Promise<CryptoInput | null> {
+    const feeAmountChf = feeAmount
+      ? await this.pricingService
+          .getPrice(payIn.asset, this.chf, false)
+          .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+      : null;
+
     switch (type) {
       case SendType.FORWARD:
-        return payIn.forward(outTxId, feeAmount);
+        return payIn.forward(outTxId, feeAmount, feeAmountChf);
 
       case SendType.RETURN:
         return payIn.return(outTxId, feeAmount);

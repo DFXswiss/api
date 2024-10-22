@@ -104,6 +104,9 @@ export class BankTx extends IEntity {
   chargeCurrency: string;
 
   @Column({ type: 'float', nullable: true })
+  chargeAmountChf: number;
+
+  @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
 
   @Column({ type: 'float', nullable: true })
@@ -217,6 +220,10 @@ export class BankTx extends IEntity {
 
   get user(): User {
     return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiat?.user;
+  }
+
+  get feeAmountChf(): number {
+    return this.chargeAmountChf;
   }
 
   completeName(multiAccountName?: string): string {

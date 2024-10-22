@@ -43,6 +43,9 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256, nullable: true })
   feeCurrency?: string;
 
+  @Column({ type: 'float', nullable: true })
+  feeAmountChf?: number;
+
   // Withdrawal/Deposit
 
   @Column({ length: 256, nullable: true })

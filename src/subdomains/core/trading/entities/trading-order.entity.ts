@@ -58,6 +58,9 @@ export class TradingOrder extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   errorMessage: string;
 
+  @Column({ type: 'float', nullable: true })
+  profitChf: number;
+
   // --- FACTORY --- //
 
   static create(tradingRule: TradingRule, tradingInfo: TradingInfo): TradingOrder {
@@ -107,12 +110,14 @@ export class TradingOrder extends IEntity {
     txFeeAmountChf: number,
     swapFeeAmount: number,
     swapFeeAmountChf: number,
+    profitChf: number,
   ): this {
     this.amountOut = outputAmount;
     this.txFeeAmount = txFeeAmount;
     this.txFeeAmountChf = txFeeAmountChf;
     this.swapFeeAmount = swapFeeAmount;
     this.swapFeeAmountChf = swapFeeAmountChf;
+    this.profitChf = profitChf;
 
     this.status = TradingOrderStatus.COMPLETE;
 
@@ -124,5 +129,9 @@ export class TradingOrder extends IEntity {
     this.errorMessage = errorMessage;
 
     return this;
+  }
+
+  get feeAmountChf(): number {
+    return this.txFeeAmountChf + this.swapFeeAmountChf;
   }
 }

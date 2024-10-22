@@ -101,6 +101,9 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float', nullable: true })
   forwardFeeAmount: number;
 
+  @Column({ type: 'float', nullable: true })
+  forwardFeeAmountChf: number;
+
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   asset: Asset;
 
@@ -219,11 +222,12 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  forward(outTxId: string, forwardFeeAmount?: number): this {
+  forward(outTxId: string, forwardFeeAmount?: number, feeAmountChf?: number): this {
     this.outTxId = outTxId;
 
     if (forwardFeeAmount != null) {
       this.forwardFeeAmount = forwardFeeAmount;
+      this.forwardFeeAmountChf = feeAmountChf;
     }
 
     this.status = PayInStatus.FORWARDED;
@@ -301,5 +305,9 @@ export class CryptoInput extends IEntity {
 
   get isPayment(): boolean {
     return this.txType === PayInType.PAYMENT;
+  }
+
+  get feeAmountChf(): number {
+    return this.forwardFeeAmountChf;
   }
 }
