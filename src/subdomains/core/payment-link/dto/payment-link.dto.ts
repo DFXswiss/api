@@ -173,7 +173,7 @@ export class PaymentLinkDto {
   lnurl: string;
 
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto })
-  payment?: PaymentLinkPaymentDto;
+  payment?: PaymentLinkPaymentDto | PaymentLinkPaymentDto[];
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   recipient?: PaymentLinkRecipientDto;

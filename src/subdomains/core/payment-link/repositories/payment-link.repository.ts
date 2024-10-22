@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
-import { EntityManager, Equal } from 'typeorm';
+import { Between, EntityManager, Equal, In } from 'typeorm';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { PaymentLinkPaymentStatus } from '../enums';
 
 @Injectable()
 export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
@@ -13,6 +14,21 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
     return this.find({
       where: { route: { user: { id: userId }, active: true } },
       relations: { route: { user: { userData: true } } },
+    });
+  }
+
+  async getHistoryByStatus(
+    userId: number,
+    paymentStatus: PaymentLinkPaymentStatus[],
+    from: Date,
+    to: Date,
+  ): Promise<PaymentLink[]> {
+    return this.find({
+      where: {
+        route: { user: { id: userId }, active: true },
+        payments: { status: In(paymentStatus), created: Between(from, to) },
+      },
+      relations: { route: { user: { userData: true } }, payments: true },
     });
   }
 
