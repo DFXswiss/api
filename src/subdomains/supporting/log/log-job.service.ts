@@ -331,11 +331,17 @@ export class LogJobService {
         pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
 
       if (fromKraken < 0) {
-        this.logger.error('Error in financial log, fromKraken balance < 0');
+        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+        pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
-        this.logger.error('Error in financial log, toKraken balance < 0');
+        this.logger.error(
+          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+          pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
+        );
         toKraken = 0;
       }
 
