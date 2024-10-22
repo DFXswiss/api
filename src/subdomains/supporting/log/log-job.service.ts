@@ -343,7 +343,7 @@ export class LogJobService {
           liquidity: this.getJsonValue(liquidity),
           pending: totalPlusPending
             ? {
-                total: this.getJsonValue(totalPlusPending),
+                total: this.getJsonValue(totalPlusPending, true),
                 cryptoInput: this.getJsonValue(cryptoInput),
                 exchangeOrder: this.getJsonValue(exchangeOrder),
                 fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount),
@@ -357,7 +357,7 @@ export class LogJobService {
           debt: this.getJsonValue(manualDebtPosition),
           pending: totalMinusPending
             ? {
-                total: this.getJsonValue(totalMinusPending),
+                total: this.getJsonValue(totalMinusPending, true),
                 buyFiat: this.getJsonValue(buyFiat),
                 buyFiatPass: this.getJsonValue(buyFiatPass),
                 buyCrypto: this.getJsonValue(buyCrypto),
