@@ -173,6 +173,10 @@ export class PaymentLinkPaymentService {
     return this.doSave(payment, false);
   }
 
+  async confirmPayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.paymentLinkPaymentRepo.update(payment.id, { isConfirmed: true });
+  }
+
   async cancelPayment(paymentLink: PaymentLink): Promise<PaymentLink> {
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');

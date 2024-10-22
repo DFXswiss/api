@@ -147,6 +147,24 @@ export class PaymentLinkController {
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
+  @Put('payment/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: PaymentLinkDto })
+  @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  async confirmPayment(
+    @GetJwt() jwt: JwtPayload,
+    @Query('linkId') linkId: string,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('externalPaymentId') externalPaymentId: string,
+  ): Promise<PaymentLinkDto> {
+    return this.paymentLinkService
+      .confirmPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
   @Delete('payment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))

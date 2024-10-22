@@ -322,4 +322,19 @@ export class PaymentLinkService {
 
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }
+
+  async confirmPayment(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const payment = paymentLink.payments[0];
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    await this.paymentLinkPaymentService.confirmPayment(payment);
+
+    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+  }
 }
