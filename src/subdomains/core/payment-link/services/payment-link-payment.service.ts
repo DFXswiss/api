@@ -174,6 +174,9 @@ export class PaymentLinkPaymentService {
   }
 
   async confirmPayment(payment: PaymentLinkPayment): Promise<void> {
+    if (payment.status !== PaymentLinkPaymentStatus.COMPLETED)
+      throw new BadRequestException('Payment is not completed');
+
     await this.paymentLinkPaymentRepo.update(payment.id, { isConfirmed: true });
   }
 
