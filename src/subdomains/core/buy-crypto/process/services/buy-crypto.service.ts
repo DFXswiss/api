@@ -368,7 +368,7 @@ export class BuyCryptoService {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         undefined,
-        dto.chargebackRemittanceInfo.reference,
+        dto.chargebackRemittanceInfo?.reference,
       ),
     );
   }

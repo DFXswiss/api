@@ -31,7 +31,6 @@ export class KycInfoMapper {
     const dto: KycLevelDto | KycSessionDto = {
       kycLevel: userData.kycLevelDisplay,
       tradingLimit: userData.tradingLimit,
-      twoFactorEnabled: userData.totpSecret != null,
       kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
       kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep)),
