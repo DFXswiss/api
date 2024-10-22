@@ -273,17 +273,28 @@ export class LogJobService {
         maerkiEurBank.iban,
       );
 
+      let fromKraken =
+        pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
+      let toKraken =
+        pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
+
+      if (fromKraken < 0) {
+        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+        pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
+        fromKraken = 0;
+      }
+      if (toKraken < 0) {
+        this.logger.error(
+          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+          pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
+        );
+        toKraken = 0;
+      }
+
       // total pending balance
-      const totalPlusPending =
-        cryptoInput +
-        exchangeOrder +
-        pendingOlkyMaerkiAmount +
-        pendingChfKrakenMaerkiPlusAmount +
-        pendingEurKrakenMaerkiPlusAmount +
-        pendingKrakenMaerkiMinusAmount +
-        pendingMaerkiKrakenPlusAmount +
-        pendingChfMaerkiKrakenMinusAmount +
-        pendingEurMaerkiKrakenMinusAmount;
+      const totalPlusPending = cryptoInput + exchangeOrder + pendingOlkyMaerkiAmount + fromKraken + toKraken;
       const totalPlus = liquidity + totalPlusPending;
 
       // minus
@@ -324,26 +335,6 @@ export class LogJobService {
         bankTxRepeat +
         bankTxReturn;
       const totalMinus = manualDebtPosition + totalMinusPending;
-
-      let fromKraken =
-        pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
-      let toKraken =
-        pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
-
-      if (fromKraken < 0) {
-        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
-        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
-        pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
-        fromKraken = 0;
-      }
-      if (toKraken < 0) {
-        this.logger.error(
-          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
-          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
-          pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
-        );
-        toKraken = 0;
-      }
 
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
