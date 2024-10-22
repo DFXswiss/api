@@ -348,7 +348,7 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus),
+          total: this.getJsonValue(totalPlus, true),
           liquidity: this.getJsonValue(liquidity),
           pending: totalPlusPending
             ? {
@@ -362,7 +362,7 @@ export class LogJobService {
             : undefined,
         },
         minusBalance: {
-          total: this.getJsonValue(totalMinus),
+          total: this.getJsonValue(totalMinus, true),
           debt: this.getJsonValue(manualDebtPosition),
           pending: totalMinusPending
             ? {
@@ -406,10 +406,10 @@ export class LogJobService {
         );
 
         acc[financialType] = {
-          plusBalance: this.getJsonValue(plusBalance),
-          plusBalanceChf: this.getJsonValue(plusBalanceChf),
-          minusBalance: this.getJsonValue(minusBalance),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf),
+          plusBalance: this.getJsonValue(plusBalance, true),
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+          minusBalance: this.getJsonValue(minusBalance, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
         };
 
         return acc;
@@ -429,8 +429,8 @@ export class LogJobService {
         tradings: tradingLog,
         balancesByFinancialType,
         balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf),
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
           totalBalanceChf: plusBalanceChf - minusBalanceChf,
         },
       }),
@@ -485,7 +485,7 @@ export class LogJobService {
     return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined): number | undefined {
-    return !value || value < 0 ? undefined : value;
+  private getJsonValue(value: number | undefined, returnZero = false): number | undefined {
+    return (!returnZero && !value) || value < 0 ? undefined : value;
   }
 }
