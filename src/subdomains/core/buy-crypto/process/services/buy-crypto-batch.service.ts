@@ -9,6 +9,7 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -50,6 +51,7 @@ export class BuyCryptoBatchService {
           outputAmount: IsNull(),
           priceDefinitionAllowedDate: Not(IsNull()),
           batch: IsNull(),
+          cryptoInput: { status: PayInStatus.FORWARD_CONFIRMED },
           inputReferenceAmountMinusFee: Not(IsNull()),
           status: In([
             BuyCryptoStatus.CREATED,
@@ -58,19 +60,13 @@ export class BuyCryptoBatchService {
             BuyCryptoStatus.MISSING_LIQUIDITY,
           ]),
         },
-        relations: [
-          'bankTx',
-          'checkoutTx',
-          'buy',
-          'buy.user',
-          'buy.asset',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.asset',
-          'cryptoInput',
-          'fee',
-        ],
+        relations: {
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          buy: { user: true },
+          cryptoRoute: { user: true },
+        },
       });
 
       if (txWithAssets.length === 0) return;
