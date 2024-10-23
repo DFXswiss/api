@@ -473,7 +473,7 @@ export class LogJobService {
 
     if (senderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${receiverTx.id}/${receiverTx.created}; senderTx[0] id/date: ${
+        `FinanceLog receiverTxId/date: ${receiverTx.id}/${receiverTx.created.toDateString()}; senderTx[0] id/date: ${
           senderTx[0].id
         }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair.id}/${
           senderPair instanceof BankTx ? senderPair.valueDate.toDateString() : senderPair.created.toDateString()
