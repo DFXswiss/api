@@ -44,6 +44,9 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ type: 'int', nullable: true })
   reactivationTime: number;
 
+  @Column({ default: true })
+  sendNotifications: boolean;
+
   //*** FACTORY METHODS ***//
 
   static create(

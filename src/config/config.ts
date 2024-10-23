@@ -145,7 +145,7 @@ export class Configuration {
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
-    requestTimeout: 30000,
+    requestTimeout: 60000,
   };
 
   i18n: I18nOptions = {
@@ -261,6 +261,11 @@ export class Configuration {
 
   coinGecko = {
     apiKey: process.env.COIN_GECKO_API_KEY,
+  };
+
+  financialLog = {
+    customAssets: process.env.CUSTOM_BALANCE_ASSETS?.split(';') ?? [], // asset uniqueName
+    customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
   };
 
   payment = {
@@ -384,11 +389,10 @@ export class Configuration {
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
-      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
-      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
@@ -588,6 +592,10 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
+  }
+
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
   // --- HELPERS --- //

@@ -8,7 +8,6 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -61,6 +60,20 @@ export class PaymentLinkService {
     return allPaymentLinks;
   }
 
+  async getHistoryByStatus(userId: number, status?: string, from?: Date, to?: Date): Promise<PaymentLink[]> {
+    const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
+      PaymentLinkPaymentStatus.COMPLETED,
+    ];
+
+    const fromDate = from ?? Util.firstDayOfMonth();
+    const toDate = to ?? Util.lastDayOfMonth();
+
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
+
+    return this.paymentLinkRepo.getHistoryByStatus(userId, paymentStatus, fromDate, toDate);
+  }
+
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = dto.route
       ? await this.sellService.getByLabel(userId, dto.route)
@@ -83,10 +96,15 @@ export class PaymentLinkService {
   }
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
+    const route = dto.route
+      ? await this.sellService.getByLabel(undefined, dto.route)
+      : await this.sellService.getById(+dto.routeId);
+    if (!route) throw new NotFoundException('Route not found');
+
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
         externalId: dto.externalId,
-        route: { id: +dto.routeId },
+        route: { user: { id: route.user.id } },
       },
       relations: { payments: true },
     });
@@ -113,10 +131,6 @@ export class PaymentLinkService {
       webhookUrl: dto.webhookUrl,
       payment,
     };
-
-    const route = dto.route
-      ? await this.sellService.getByLabel(undefined, dto.route)
-      : await this.sellService.getById(+dto.routeId);
 
     return this.createForRoute(route, paymentLinkDto);
   }
@@ -183,7 +197,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(pendingPayment.link),
+      recipient: pendingPayment.link.recipient,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -222,7 +236,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: PaymentLinkDtoMapper.toRecipientDto(paymentLink),
+      recipient: paymentLink.recipient,
     };
   }
 
@@ -304,7 +318,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    return this.paymentLinkPaymentService.cancelPayment(paymentLink);
+    return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
   async waitForPayment(
@@ -319,6 +333,21 @@ export class PaymentLinkService {
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
     await this.paymentLinkPaymentService.waitForPayment(pendingPayment);
+
+    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+  }
+
+  async confirmPayment(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const payment = paymentLink.payments[0];
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    await this.paymentLinkPaymentService.confirmPayment(payment);
 
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }

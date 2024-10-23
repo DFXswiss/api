@@ -5,6 +5,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -262,7 +263,7 @@ export class BankTx extends IEntity {
   }
 
   pendingInputAmount(asset: Asset): number {
-    if ([BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
+    if (this.type && ![BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
 
     switch (asset.blockchain as string) {
       case 'MaerkiBaumann':
@@ -276,6 +277,33 @@ export class BankTx extends IEntity {
 
   pendingOutputAmount(_: Asset): number {
     return 0;
+  }
+
+  pendingBankAmount(asset: Asset, type: BankExchangeType, sourceIban?: string, targetIban?: string): number {
+    if (this.instructedCurrency !== asset.dexName) return 0;
+
+    switch (type) {
+      case BankTxType.INTERNAL:
+        if (!BankService.isBankMatching(asset, targetIban)) return 0;
+
+        return this.iban === targetIban && this.accountIban === sourceIban
+          ? this.instructedAmount
+          : this.iban === sourceIban && this.accountIban === targetIban
+          ? -this.instructedAmount
+          : 0;
+
+      case BankTxType.KRAKEN:
+        if (
+          !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
+          (targetIban && asset.dexName !== this.instructedCurrency)
+        )
+          return 0;
+
+        return this.creditDebitIndicator === BankTxIndicator.CREDIT ? -this.instructedAmount : this.instructedAmount;
+
+      default:
+        return 0;
+    }
   }
 }
 

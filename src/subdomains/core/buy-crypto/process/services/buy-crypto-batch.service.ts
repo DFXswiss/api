@@ -9,6 +9,7 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -42,35 +43,36 @@ export class BuyCryptoBatchService {
 
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
+      const search = {
+        outputReferenceAsset: Not(IsNull()),
+        outputAsset: { type: Not(AssetType.CUSTOM) },
+        outputReferenceAmount: IsNull(),
+        outputAmount: IsNull(),
+        priceDefinitionAllowedDate: Not(IsNull()),
+        batch: IsNull(),
+        inputReferenceAmountMinusFee: Not(IsNull()),
+        status: In([
+          BuyCryptoStatus.CREATED,
+          BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+          BuyCryptoStatus.PRICE_INVALID,
+          BuyCryptoStatus.MISSING_LIQUIDITY,
+        ]),
+      };
       const txWithAssets = await this.buyCryptoRepo.find({
-        where: {
-          outputReferenceAsset: Not(IsNull()),
-          outputAsset: { type: Not(AssetType.CUSTOM) },
-          outputReferenceAmount: IsNull(),
-          outputAmount: IsNull(),
-          priceDefinitionAllowedDate: Not(IsNull()),
-          batch: IsNull(),
-          inputReferenceAmountMinusFee: Not(IsNull()),
-          status: In([
-            BuyCryptoStatus.CREATED,
-            BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
-            BuyCryptoStatus.PRICE_INVALID,
-            BuyCryptoStatus.MISSING_LIQUIDITY,
-          ]),
-        },
-        relations: [
-          'bankTx',
-          'checkoutTx',
-          'buy',
-          'buy.user',
-          'buy.asset',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.asset',
-          'cryptoInput',
-          'fee',
+        where: [
+          {
+            ...search,
+            cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+          },
+          { ...search, cryptoInput: IsNull() },
         ],
+        relations: {
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          buy: { user: true },
+          cryptoRoute: { user: true },
+        },
       });
 
       if (txWithAssets.length === 0) return;

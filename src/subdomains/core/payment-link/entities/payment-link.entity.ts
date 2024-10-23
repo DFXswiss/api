@@ -3,9 +3,18 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
+import { PaymentLinkRecipientDto } from '../dto/payment-link.dto';
 import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
+
+const DefaultPaymentLinkConfig: PaymentLinkConfig = {
+  standards: Object.values(PaymentStandard),
+  blockchains: Object.values(Blockchain),
+  minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
+  displayQr: false,
+  fee: 0.002,
+};
 
 @Entity()
 export class PaymentLink extends IEntity {
@@ -70,6 +79,41 @@ export class PaymentLink extends IEntity {
     return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
   }
 
+  get recipient(): PaymentLinkRecipientDto | undefined {
+    if (this.hasRecipient) {
+      return {
+        name: this.name,
+        address: {
+          street: this.street,
+          houseNumber: this.houseNumber,
+          zip: this.zip,
+          city: this.city,
+          country: this.country?.name,
+        },
+        phone: this.phone,
+        mail: this.mail,
+        website: this.website,
+      };
+    }
+
+    // fallback to config
+    const { recipient } = this.configObj;
+    if (recipient) return recipient;
+
+    // fallback to user data
+    const userData = this.route.userData;
+    return {
+      name: userData.completeName,
+      address: {
+        ...userData.address,
+        country: userData.address.country?.name,
+      },
+      phone: userData.phone,
+      mail: userData.mail,
+      website: null,
+    };
+  }
+
   get hasRecipient(): boolean {
     return !!(
       this.name ||
@@ -85,15 +129,12 @@ export class PaymentLink extends IEntity {
   }
 
   get configObj(): PaymentLinkConfig {
-    const defaultConfig: PaymentLinkConfig = {
-      standards: Object.values(PaymentStandard),
-      blockchains: Object.values(Blockchain),
-      minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
-      displayQr: false,
-    };
-
-    const config = this.config ?? this.route.userData.paymentLinksConfig;
-    return config ? Object.assign(defaultConfig, JSON.parse(config)) : defaultConfig;
+    return Object.assign(
+      {},
+      DefaultPaymentLinkConfig,
+      JSON.parse(this.route.userData.paymentLinksConfig ?? '{}'),
+      JSON.parse(this.config ?? '{}'),
+    );
   }
 
   get defaultStandard(): PaymentStandard {

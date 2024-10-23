@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createSign, createVerify, KeyLike } from 'crypto';
+import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 
@@ -146,7 +146,7 @@ export class Util {
       .replace(/[ł]/g, 'l')
       .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
-      .replace(/[ßșš]/g, 's')
+      .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
       .replace(/[\.]/g, '')
@@ -243,6 +243,16 @@ export class Util {
 
   static isoDateTime(date: Date): string {
     return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
+  }
+
+  static firstDayOfMonth(first?: Date): Date {
+    const date = first ?? new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  static lastDayOfMonth(last?: Date): Date {
+    const date = last ?? new Date();
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
   }
 
   // --- ENCRYPTION --- //
@@ -438,6 +448,17 @@ export class Util {
     const verify = createVerify(algo);
     verify.update(data);
     return verify.verify(key, signature, encoding);
+  }
+
+  static createHmac(
+    key: BinaryLike,
+    data: BinaryLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    const hmac = createHmac(algo, key);
+    hmac.update(data);
+    return hmac.digest(encoding);
   }
 
   static async retry<T>(

@@ -1,30 +1,64 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
-import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Injectable()
 export class BankAccountService {
+  private readonly logger = new DfxLogger(BankAccountService);
+
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
     private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
-    private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
-  async getUserBankAccounts(userDataId: number): Promise<BankAccount[]> {
-    return this.bankAccountRepo.findBy({ userData: { id: userDataId } });
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
+  async process() {
+    if (DisabledProcess(Process.BANK_DATA_SYNC)) return;
+
+    const entities = await this.bankAccountRepo.find({
+      where: { synced: IsNull() },
+      relations: { userData: true },
+      take: 5000,
+    });
+
+    for (const entity of entities) {
+      try {
+        if (entity.userData) {
+          if (entity.userData.status === UserDataStatus.MERGED) {
+            await this.bankAccountRepo.update(entity.id, { synced: true });
+            continue;
+          }
+
+          await this.bankDataService.createIbanForUser(
+            entity.userData?.id,
+            { iban: entity.iban, label: entity.label, preferredCurrency: entity.preferredCurrency },
+            false,
+            BankDataType.USER,
+          );
+        }
+
+        await this.bankAccountRepo.update(entity.id, { synced: true });
+      } catch (e) {
+        this.logger.error(`Error in bankAccount-bankData sync ${entity.id}:`, e);
+        await this.bankAccountRepo.update(entity.id, { synced: false });
+      }
+    }
   }
 
   async getBankAccountByKey(key: string, value: any): Promise<BankAccount> {
@@ -41,24 +75,6 @@ export class BankAccountService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `bankAccount.${key}`} = :param`, { param: value })
       .getOne();
-  }
-
-  async createBankAccount(userDataId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const userData = await this.userDataService.getUserData(userDataId);
-
-    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userData);
-
-    return this.updateEntity(dto, bankAccount);
-  }
-
-  async updateBankAccount(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
-    const bankAccount = await this.bankAccountRepo.findOne({
-      where: { id, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
-    if (!bankAccount) throw new NotFoundException('BankAccount not found');
-
-    return this.updateEntity(dto, bankAccount);
   }
 
   // --- INTERNAL METHODS --- //
@@ -80,20 +96,6 @@ export class BankAccountService {
   }
 
   // --- HELPER METHODS --- //
-  private async updateEntity(
-    dto: CreateBankAccountDto | UpdateBankAccountDto,
-    bankAccount: BankAccount,
-  ): Promise<BankAccount> {
-    Object.assign(bankAccount, dto);
-
-    // check currency
-    if (dto.preferredCurrency) {
-      bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
-      if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
-    }
-
-    return this.bankAccountRepo.save(bankAccount);
-  }
 
   async getOrCreateBankAccountInternal(iban: string, userData?: UserData): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({

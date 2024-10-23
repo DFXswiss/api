@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -288,7 +289,7 @@ export class TransactionController {
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<TransactionRefundData> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       user: { userData: true },
-      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true },
+      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: { route: { user: true } } },
     });
 
@@ -299,8 +300,8 @@ export class TransactionController {
       throw new NotFoundException('Transaction not found');
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (transaction.targetEntity.amlCheck !== CheckStatus.FAIL)
-      throw new BadRequestException('You can only refund failed transactions');
+    if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.targetEntity.amlCheck))
+      throw new BadRequestException('You can only refund failed or pending transactions');
     if (transaction.targetEntity.chargebackAmount)
       throw new BadRequestException('You can only refund a transaction once');
 
@@ -318,14 +319,15 @@ export class TransactionController {
     let refundTarget = null;
 
     if (transaction.targetEntity instanceof BuyCrypto) {
-      refundTarget =
-        transaction.targetEntity.bankTx?.iban &&
-        (await this.transactionUtilService.validateChargebackIban(
-          transaction.targetEntity.bankTx.iban,
-          transaction.userData,
-        ))
-          ? transaction.targetEntity.bankTx.iban
-          : transaction.targetEntity.chargebackIban;
+      refundTarget = transaction.targetEntity.checkoutTx
+        ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
+        : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
+          (await this.transactionUtilService.validateChargebackIban(
+            transaction.targetEntity.bankTx.iban,
+            transaction.userData,
+          ))
+        ? transaction.targetEntity.bankTx.iban
+        : transaction.targetEntity.chargebackIban;
     } else {
       refundTarget = transaction.targetEntity.chargebackAddress;
     }
@@ -357,7 +359,12 @@ export class TransactionController {
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       user: { userData: true },
-      buyCrypto: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      buyCrypto: {
+        transaction: { user: { userData: true } },
+        cryptoInput: { route: { user: true } },
+        bankTx: true,
+        checkoutTx: true,
+      },
       buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
     });
 
@@ -387,6 +394,9 @@ export class TransactionController {
         refundUserAddress: dto.refundTarget,
         ...refundDto,
       });
+
+    if (transaction.targetEntity.checkoutTx)
+      return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
 
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,

@@ -73,7 +73,7 @@ import { IdentService } from './integration/ident.service';
 import { KycDocumentService } from './integration/kyc-document.service';
 import { SumsubService } from './integration/sum-sub.service';
 import { KycNotificationService } from './kyc-notification.service';
-import { TfaService } from './tfa.service';
+import { TfaLevel, TfaService } from './tfa.service';
 
 @Injectable()
 export class KycService {
@@ -576,13 +576,9 @@ export class KycService {
       case KycStepName.PERSONAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
-      case KycStepName.LEGAL_ENTITY:
-        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
-
-      case KycStepName.STOCK_REGISTER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
-
       case KycStepName.NATIONALITY_DATA:
+      case KycStepName.LEGAL_ENTITY:
+      case KycStepName.STOCK_REGISTER:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.COMMERCIAL_REGISTER:
@@ -809,7 +805,7 @@ export class KycService {
   }
 
   private async verify2fa(user: UserData, ip: string): Promise<void> {
-    await this.tfaService.checkVerification(user, ip);
+    await this.tfaService.checkVerification(user, ip, TfaLevel.STRICT);
   }
 
   private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {

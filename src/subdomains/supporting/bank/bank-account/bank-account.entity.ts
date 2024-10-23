@@ -36,6 +36,9 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256 })
   iban: string;
 
+  @Column({ nullable: true })
+  synced: boolean;
+
   @Column({ length: 256, nullable: true })
   label: string;
 

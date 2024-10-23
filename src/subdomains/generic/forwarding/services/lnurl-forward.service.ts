@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmPaymentDto,
   PaymentLinkHexResultDto,
+  PaymentLinkPaymentDto,
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
@@ -101,6 +103,16 @@ export class LnUrlForwardService {
     return {
       status: updatedPayment.status,
     };
+  }
+
+  // cancel
+  async cancelPayment(id: string): Promise<PaymentLinkPaymentDto> {
+    const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
+    if (!payment) throw new NotFoundException('No pending payment found');
+
+    await this.paymentLinkPaymentService.cancelByPayment(payment);
+
+    return PaymentLinkDtoMapper.toPaymentDto(payment);
   }
 
   // --- LNURLw --- //

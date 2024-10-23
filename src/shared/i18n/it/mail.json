@@ -4,7 +4,6 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Se hai domande,<br>siamo felici di aiutarti su [url:https://services.dfx.swiss/support].",
         "thanks": "Grazie mille per la tua fiducia",
-        "happy_trading": "Buon trading",
         "welcome": "Ciao {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
@@ -38,7 +37,12 @@
             "title": "Pagamento versato",
             "salutation": "Il pagamento è stato inviato al vostro conto corrente bancario"
         },
-        "return": {
+        "chargeback": {
+            "unconfirmed": {
+                "title": "Azione necessaria",
+                "salutation": "Per la transazione è necessaria un'azione",
+                "transaction_button": "È possibile eseguire l'azione tramite il seguente link:<br>[url:clicca qui]"
+            },
             "fiat": {
                 "title": "Trasferimento bancario effettuato",
                 "salutation": "I tuoi fondi sono stati rimborsati sul tuo conto corrente"
@@ -85,9 +89,9 @@
                 "salutation": "Hai superato il tuo limite di volume nelle 24 ore",
                 "line1": "Per favore, completa la verifica KYC (conosci il tuo cliente) per incrementare il tuo limite.",
                 "line2": "Dopo una verifica KYC eseguita con successo procederemo con le tue transazioni.",
-                "line3": "In assenza di verifica, il denaro verrà automaticamente restituito dopo 2 giorni.",
-                "line4": "Aumentare il limite con la verifica? <br>Cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
-                "line5": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\"."
+                "line3": "Aumentare il limite con la verifica? <br>Cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
+                "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "annual_limit": {
                 "title": "Limite annuale superato",
@@ -95,8 +99,8 @@
                 "line1": "Per favore, richiedi un nuovo limite annuale.",
                 "line2": "Una volta che il nuovo limite è stato approvato,<br> procederemo con la tua transazione.",
                 "line3": "Aumentare il limite?",
-                "line4": "Apri la pagina di pagamento attraverso \"My DFX\" nell'app DFX.",
-                "line5": "Vai sulla freccia rossa sotto \"Il tuo limite\" e<br> fai richiesta per un nuovo limite desiderato.."
+                "line4": "È possibile richiedere un aumento del limite tramite il seguente link:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "annual_limit_without_kyc": {
                 "title": "Transazione in sospeso - limite annuo senza KYC superato",
@@ -105,7 +109,7 @@
                 "line2": "Sfortunatamente non possiamo procedere senza una verifica completa poiché hai superato il tuo limite annuale.",
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "olky_no_kyc": {
                 "title": "KYC richiesta per utilizzare i trasferimenti immediati SEPA",
@@ -114,7 +118,7 @@
                 "line2": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line3": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line4": "Senza verifica, puoi continuare a usare il nostro conto corrente svizzero fino a 1000 EUR al giorno senza KYC utilizzando il SEPA standard.",
-                "line5": "Se non vuoi eseguire la verifica, i soldi saranno pienamente rimborsati in modo automatico dopo 2 giorni."
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "name_check_without_kyc": {
                 "title": "KYC richiesta per eseguire la transazione in sospeso",
@@ -123,7 +127,7 @@
                 "line2": "Sfortunatamente non possiamo processare il tuo ordine senza una verifica completa (KYC).",
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "high_risk_kyc_needed": {
                 "title": "Problemi con il deposito",
@@ -132,7 +136,7 @@
                 "line2": "Purtroppo, senza una verifica completa, non possiamo garantire che questa transazione non sia fraudolenta.",
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "manual_check": {
                 "title": "Deposito in conto corrente",
@@ -141,7 +145,7 @@
                 "line2": "Purtroppo non è stato possibile sbloccare la transazione in modo completamente automatico e ora deve essere controllata manualmente da un dipendente.",
                 "line3": "Questo processo richiede solitamente 24 ore, ma un massimo di 7 giorni.",
                 "line4": "Sarete informati non appena il controllo sarà stato completato e il pagamento sarà stato elaborato.",
-                "line5": ""
+                "line5": "Per visualizzare lo stato attuale della transazione:<br>[url:clicca qui]"
             },
             "asset_kyc_needed": {
                 "title": "Verifica (KYC) richiesta",
@@ -150,7 +154,7 @@
                 "line2": "Purtroppo abbiamo bisogno di una verifica (KYC) da parte vostra per il bene che avete depositato.",
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non si desidera effettuare la verifica, il bene verrà restituito in modo completamente automatico dopo 2 giorni."
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "video_ident_needed": {
                 "title": "È richiesta la verifica della video identità (KYC)",
@@ -159,13 +163,8 @@
                 "line2": "Purtroppo abbiamo bisogno di una verifica dell'identità video (KYC) da parte vostra per la vostra transazione.",
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non si desidera effettuare la verifica, il bene verrà restituito in modo completamente automatico dopo 2 giorni."
+                "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             }
-        },
-        "chargeback_not_possible": {
-            "title": "Il chargeback non è possibile",
-            "salutation": "Il vostro Chargeback non è possibile",
-            "message": "Purtroppo il vostro chargeback non è possibile perché la vostra banca non ha fornito un IBAN.<br>Contattate il nostro team di assistenza.<br>È possibile contattare l'assistenza tramite [url:https://services.dfx.swiss/support]."
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",
         "blockchain": "Blockchain",
@@ -256,5 +255,11 @@
         "line4": "We would be pleased if you would like to join this group.",
         "line5": "We have provided you with direct access to this group on your personal DFX Payment page. Just click on MyDFX in the DFX app and follow the link.",
         "closing": "Thank you for your trust in us.<br>Oli"
+    },
+    "verification_code": {
+        "title": "Codice di verifica",
+        "salutation": "Avete richiesto un codice di verifica 2FA",
+        "message": "Il codice di verifica è:<br>{code}",
+        "closing": "Il codice di verifica è valido per {expiration} minuti. Si prega di non condividere questo codice di verifica con altre persone. Se non avete richiesto un codice di verifica, contattate immediatamente l'assistenza via [url:https://services.dfx.swiss/support]."
     }
 }

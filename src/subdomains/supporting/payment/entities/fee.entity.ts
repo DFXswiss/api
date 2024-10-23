@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { isAsset, isFiat } from 'src/shared/models/active';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -59,6 +61,9 @@ export class Fee extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   fiats: string; // semicolon separated id's
+
+  @Column({ length: 'MAX', nullable: true })
+  financialTypes: string; // semicolon separated financialTypes
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
   wallet: Wallet;
@@ -148,8 +153,8 @@ export class Fee extends IEntity {
   verifyForTx(request: FeeRequest): boolean {
     const annualUserTxVolume = this.getAnnualUserTxVolume(request.userDataId) + (request.txVolume ?? 0);
 
-    const assets = [request.from, request.to].filter((a) => isAsset(a));
-    const fiats = [request.from, request.to].filter((f) => isFiat(f));
+    const assets = [request.from, request.to].filter((a) => isAsset(a)) as Asset[];
+    const fiats = [request.from, request.to].filter((f) => isFiat(f)) as Fiat[];
 
     return (
       this?.active &&
@@ -160,6 +165,9 @@ export class Fee extends IEntity {
       (!this.paymentMethodsOut || this.paymentMethodsOut.includes(request.paymentMethodOut)) &&
       (!this.assetList?.length || assets.some((a) => this.assetList.includes(a.id))) &&
       (!this.fiatList?.length || fiats.some((f) => this.fiatList.includes(f.id))) &&
+      (!this.financialTypeList?.length ||
+        (fiats.every((f) => this.financialTypeList.includes(f.name)) &&
+          assets.every((a) => this.financialTypeList.includes(a.financialType)))) &&
       (!this.maxTxVolume || this.maxTxVolume >= request.txVolume) &&
       (!this.minTxVolume || this.minTxVolume <= request.txVolume) &&
       (!this.maxAnnualUserTxVolume || this.maxAnnualUserTxVolume >= annualUserTxVolume)
@@ -195,6 +203,10 @@ export class Fee extends IEntity {
 
   get fiatList(): number[] {
     return this.fiats?.split(';')?.map(Number);
+  }
+
+  get financialTypeList(): string[] {
+    return this.financialTypes?.split(';')?.map(String);
   }
 
   //*** HELPER METHODS ***//+

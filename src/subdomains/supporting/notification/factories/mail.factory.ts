@@ -18,10 +18,10 @@ export enum MailTranslationKey {
   CRYPTO_OUTPUT = 'mail.payment.crypto_output',
   FIAT_OUTPUT = 'mail.payment.fiat_output',
   PENDING = 'mail.payment.pending',
-  RETURN = 'mail.payment.return',
-  RETURN_REASON = 'mail.payment.return.reasons',
-  CRYPTO_RETURN = 'mail.payment.return.crypto',
-  FIAT_RETURN = 'mail.payment.return.fiat',
+  CHARGEBACK = 'mail.payment.chargeback',
+  CHARGEBACK_REASON = 'mail.payment.chargeback.reasons',
+  CRYPTO_CHARGEBACK = 'mail.payment.chargeback.crypto',
+  FIAT_CHARGEBACK = 'mail.payment.chargeback.fiat',
   REFERRAL = 'mail.referral',
   KYC = 'mail.kyc',
   IDENT_STARTED = 'mail.kyc.identStarted',
@@ -37,7 +37,8 @@ export enum MailTranslationKey {
   BLACK_SQUAD = 'mail.black_squad',
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
   SUPPORT_MESSAGE = 'mail.support_message',
-  CHARGEBACK_NOT_POSSIBLE = 'mail.payment.chargeback_not_possible',
+  VERIFICATION_CODE = 'mail.verification_code',
+  CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
 }
 
 export enum MailKey {

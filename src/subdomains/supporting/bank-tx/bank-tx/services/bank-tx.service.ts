@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull, Like, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -142,7 +142,11 @@ export class BankTxService {
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
         buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
-      const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
+      const update = buy
+        ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id }
+        : tx.name === 'Payward Trading Ltd.'
+        ? { type: BankTxType.KRAKEN }
+        : { type: BankTxType.GSHEET };
 
       await this.update(tx.id, update);
     }
@@ -235,11 +239,31 @@ export class BankTxService {
       .getOne();
   }
 
+  async getBankTxByRemittanceInfo(remittanceInfo: string, subStringSearch = false): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({
+      remittanceInfo: subStringSearch ? Like(`%${remittanceInfo}%`) : remittanceInfo,
+    });
+  }
+
   async getPendingTx(): Promise<BankTx[]> {
     return this.bankTxRepo.findBy([
-      { type: IsNull() },
-      { type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]) },
+      { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
+      {
+        type: In([BankTxType.PENDING, BankTxType.UNKNOWN, BankTxType.GSHEET]),
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+      },
     ]);
+  }
+
+  async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy([
+      { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
+      { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
+    ]);
+  }
+
+  async getRecentExchangeTx(type: BankTxType, start = Util.daysBefore(21)): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({ type, created: MoreThan(start) });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
