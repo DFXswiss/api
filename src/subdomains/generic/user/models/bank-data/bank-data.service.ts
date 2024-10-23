@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -17,13 +17,14 @@ import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { CreateIbanDto } from 'src/subdomains/supporting/bank/bank-account/dto/iban.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
-import { UpdateBankDataDto } from './dto/update-bank-data.dto';
+import { UpdateBankAccountDto, UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
@@ -35,6 +36,7 @@ export class BankDataService {
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly accountMergeService: AccountMergeService,
     private readonly nameCheckService: NameCheckService,
+    private readonly fiatService: FiatService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -125,7 +127,7 @@ export class BankDataService {
   }
 
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: { bankDatas: true } });
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
@@ -156,6 +158,11 @@ export class BankDataService {
         approved: true,
       });
       if (activeBankData) throw new BadRequestException('Active bankData with same iban found');
+    }
+
+    if (dto.preferredCurrency) {
+      dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
+      if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
     return this.bankDataRepo.save({ ...bankData, ...dto });
@@ -208,35 +215,45 @@ export class BankDataService {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
-  async getIbansForUser(userDataId: number): Promise<string[]> {
+  async getUserBankData(userDataId: number): Promise<BankData[]> {
     const bankDatas = await this.getBankDatasForUser(userDataId);
 
     return Array.from(
-      new Set(bankDatas.map((b) => b.iban.split(';')[0]).filter((b) => IbanTools.validateIBAN(b).valid)),
+      new Set(
+        bankDatas
+          .map((b) => ({ ...b, iban: b.iban.split(';')[0] } as BankData))
+          .filter((b) => IbanTools.validateIBAN(b.iban).valid),
+      ),
     );
+  }
+
+  async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
+    const bankData = await this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
+    if (!bankData) throw new NotFoundException('Bank account not found');
+    if (bankData.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
+
+    return this.updateBankData(id, dto);
   }
 
   async createIbanForUser(
     userDataId: number,
-    iban: string,
+    dto: CreateIbanDto,
     sendMergeRequest = true,
-    label?: string,
-    preferredCurrency?: Fiat,
     type?: BankDataType,
-  ): Promise<void> {
+  ): Promise<BankData> {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
-    if (multiIbans.includes(iban)) throw new BadRequestException('Multi-account IBANs not allowed');
+    if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
     const existing = await this.bankDataRepo.findOne({
       where: [
-        { iban, approved: true, type },
-        { iban, approved: IsNull(), type },
+        { iban: dto.iban, approved: true, type },
+        { iban: dto.iban, approved: IsNull(), type },
       ],
       relations: { userData: true },
     });
     if (existing) {
       const userData = await this.userDataRepo.findOneBy({ id: userDataId });
-      if (userData.id === existing.userData.id) return;
+      if (userData.id === existing.userData.id) return existing;
 
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
         throw new ForbiddenException('IBAN already in use');
@@ -252,14 +269,20 @@ export class BankDataService {
       throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
     }
 
+    if (dto.preferredCurrency) {
+      dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
+      if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
+    }
+
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },
-      iban,
+      iban: dto.iban,
       approved: null,
       type: BankDataType.USER,
-      label,
-      preferredCurrency,
+      label: dto.label,
+      preferredCurrency: dto.preferredCurrency,
     });
-    await this.bankDataRepo.save(bankData);
+
+    return this.bankDataRepo.save(bankData);
   }
 }
