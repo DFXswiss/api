@@ -9,13 +9,14 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -213,7 +214,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) } },
+        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) }, status: PayInStatus.COMPLETED },
       },
       relations: {
         sell: true,
@@ -284,6 +285,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         inputReferenceAmountMinusFee: Not(IsNull()),
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
+        cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
       },
       relations: { sell: true, cryptoInput: true },
     });

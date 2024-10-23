@@ -134,7 +134,8 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
     ]);
 
-    const before14Days = Util.daysBefore(14);
+    // TODO reset to 14 after testing
+    const before14Days = Util.daysBefore(15);
     const before21Days = Util.daysBefore(21);
 
     before14Days.setHours(0, 0, 0, 0);
@@ -215,14 +216,14 @@ export class LogJobService {
 
       const customBalance = customBalances
         .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce((sum, result) => (sum + result.contractAddress === curr.chainId ? result.balance : 0), 0);
+        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
 
       // plus
       const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
 
-      const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
-        (sum, tx) => (sum + tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
         0,
       );
 
@@ -469,6 +470,17 @@ export class LogJobService {
         ? s.instructedAmount === receiverAmount && receiverTx.created.toDateString() === s.valueDate.toDateString()
         : s.amount === receiverAmount && receiverTx.created > s.created,
     );
+
+    if (senderTx[0] instanceof BankTx) {
+      this.logger.verbose(
+        `FinanceLog receiverTxId/date: ${receiverTx.id}/${receiverTx.created.toDateString()}; senderTx[0] id/date: ${
+          senderTx[0].id
+        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair.id}/${
+          senderPair instanceof BankTx ? senderPair.valueDate.toDateString() : senderPair.created.toDateString()
+        }; senderTx length: ${senderTx.length}`,
+      );
+    }
+
     return (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id);
   }
 
