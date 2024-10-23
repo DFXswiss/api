@@ -12,10 +12,14 @@ import { KycClientController } from './controllers/kyc-client.controller';
 import { KycController } from './controllers/kyc.controller';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
+import { MailChangeLog } from './entities/mail-change-log.entity';
+import { MergeLog } from './entities/merge-log.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
 import { StepLog } from './entities/step-log.entity';
 import { KycLogRepository } from './repositories/kyc-log.repository';
 import { KycStepRepository } from './repositories/kyc-step.repository';
+import { MailChangeLogRepository } from './repositories/mail-change-log.repository';
+import { MergeLogRepository } from './repositories/merge-log.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { StepLogRepository } from './repositories/step-log.repository';
 import { TfaLogRepository } from './repositories/tfa-log.repository';
@@ -34,7 +38,7 @@ import { TfaService } from './services/tfa.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog]),
+    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog, MergeLog, MailChangeLog]),
     SharedModule,
     NotificationModule,
     forwardRef(() => UserModule),
@@ -54,6 +58,8 @@ import { TfaService } from './services/tfa.service';
     NameCheckLogRepository,
     StepLogRepository,
     TfaLogRepository,
+    MergeLogRepository,
+    MailChangeLogRepository,
     DilisenseService,
     IdentService,
     FinancialService,
