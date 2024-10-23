@@ -30,7 +30,7 @@ export class LnUrlPForwardController {
     return this.forwardService.waitForPayment(id);
   }
 
-  @Delete('payment/:id')
+  @Delete('cancel/:id')
   async cancelPayment(@Param('id') id: string): Promise<PaymentLinkPaymentDto> {
     return this.forwardService.cancelPayment(id);
   }
