@@ -26,6 +26,10 @@ export class PaymentLinkDtoMapper {
     return paymentLinks.map(PaymentLinkDtoMapper.toLinkHistoryDto);
   }
 
+  static toPaymentDto(payment: PaymentLinkPayment): PaymentLinkPaymentDto {
+    return PaymentLinkDtoMapper.createPaymentLinkPaymentDto(payment);
+  }
+
   static toPaymentDtoList(payments: PaymentLinkPayment[]): PaymentLinkPaymentDto[] {
     return payments.map(PaymentLinkDtoMapper.createPaymentLinkPaymentDto);
   }
