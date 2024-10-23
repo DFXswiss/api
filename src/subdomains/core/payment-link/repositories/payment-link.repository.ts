@@ -12,7 +12,7 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
 
   async getAllPaymentLinks(userId: number): Promise<PaymentLink[]> {
     return this.find({
-      where: { route: { user: { id: userId }, active: true } },
+      where: { route: { user: { id: Equal(userId) }, active: true } },
       relations: { route: { user: { userData: true } } },
     });
   }
