@@ -17,9 +17,9 @@ export class PaymentLinkDtoMapper {
 
   static toLinkHistoryDto(paymentLink: PaymentLink): PaymentLinkHistoryDto {
     const dto = <PaymentLinkHistoryDto>PaymentLinkDtoMapper.createPaymentLinkBaseDto(paymentLink);
-    dto.payment = PaymentLinkDtoMapper.toPaymentDtoList(paymentLink.payments);
+    dto.payments = PaymentLinkDtoMapper.toPaymentDtoList(paymentLink.payments);
 
-    return Object.assign(new PaymentLinkDto(), dto);
+    return Object.assign(new PaymentLinkHistoryDto(), dto);
   }
 
   static toLinkHistoryDtoList(paymentLinks: PaymentLink[]): PaymentLinkHistoryDto[] {

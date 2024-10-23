@@ -183,5 +183,5 @@ export class PaymentLinkDto extends PaymentLinkBaseDto {
 
 export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
-  payment?: PaymentLinkPaymentDto[];
+  payments?: PaymentLinkPaymentDto[];
 }
