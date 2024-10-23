@@ -1,20 +1,14 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
-import { UpdateBankAccountDto } from 'src/subdomains/generic/user/models/bank-data/dto/update-bank-data.dto';
 import { IbanType, IsDfxIban } from '../is-dfx-iban.validator';
+import { UpdateBankAccountDto } from './update-bank-account.dto';
 
 export class CreateBankAccountDto extends UpdateBankAccountDto {
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
   @IsDfxIban(IbanType.BOTH)
   @Transform(Util.trimAll)
   iban: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  active = true;
 }

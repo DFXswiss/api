@@ -14,9 +14,10 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UpdateBankAccountDto } from 'src/subdomains/generic/user/models/bank-data/dto/update-bank-data.dto';
 import { BankAccountDto } from './dto/bank-account.dto';
+import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateIbanDto, IbanDto } from './dto/iban.dto';
+import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @ApiTags('Bank Account')
 @Controller('bankAccount')
@@ -35,7 +36,7 @@ export class BankAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse({ type: BankAccountDto })
-  async createBankAccount(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<BankAccountDto> {
+  async createBankAccount(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBankAccountDto): Promise<BankAccountDto> {
     return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => this.toDto(b));
   }
 

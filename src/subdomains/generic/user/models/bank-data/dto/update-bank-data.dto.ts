@@ -1,22 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { BankDataType } from '../bank-data.entity';
-
-export class UpdateBankAccountDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  label?: string;
-
-  @ApiPropertyOptional({ type: EntityDto })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  preferredCurrency?: Fiat;
-}
 
 export class UpdateBankDataDto extends UpdateBankAccountDto {
   @ApiPropertyOptional()

@@ -17,14 +17,15 @@ import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
-import { CreateIbanDto } from 'src/subdomains/supporting/bank/bank-account/dto/iban.dto';
+import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
+import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
-import { UpdateBankAccountDto, UpdateBankDataDto } from './dto/update-bank-data.dto';
+import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
@@ -237,7 +238,7 @@ export class BankDataService {
 
   async createIbanForUser(
     userDataId: number,
-    dto: CreateIbanDto,
+    dto: CreateBankAccountDto,
     sendMergeRequest = true,
     type?: BankDataType,
   ): Promise<BankData> {
