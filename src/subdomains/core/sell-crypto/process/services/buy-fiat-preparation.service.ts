@@ -214,7 +214,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) } },
+        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) }, status: PayInStatus.COMPLETED },
       },
       relations: {
         sell: true,

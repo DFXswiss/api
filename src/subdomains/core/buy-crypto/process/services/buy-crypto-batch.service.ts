@@ -43,23 +43,29 @@ export class BuyCryptoBatchService {
 
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
+      const search = {
+        outputReferenceAsset: Not(IsNull()),
+        outputAsset: { type: Not(AssetType.CUSTOM) },
+        outputReferenceAmount: IsNull(),
+        outputAmount: IsNull(),
+        priceDefinitionAllowedDate: Not(IsNull()),
+        batch: IsNull(),
+        inputReferenceAmountMinusFee: Not(IsNull()),
+        status: In([
+          BuyCryptoStatus.CREATED,
+          BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+          BuyCryptoStatus.PRICE_INVALID,
+          BuyCryptoStatus.MISSING_LIQUIDITY,
+        ]),
+      };
       const txWithAssets = await this.buyCryptoRepo.find({
-        where: {
-          outputReferenceAsset: Not(IsNull()),
-          outputAsset: { type: Not(AssetType.CUSTOM) },
-          outputReferenceAmount: IsNull(),
-          outputAmount: IsNull(),
-          priceDefinitionAllowedDate: Not(IsNull()),
-          batch: IsNull(),
-          cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
-          inputReferenceAmountMinusFee: Not(IsNull()),
-          status: In([
-            BuyCryptoStatus.CREATED,
-            BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
-            BuyCryptoStatus.PRICE_INVALID,
-            BuyCryptoStatus.MISSING_LIQUIDITY,
-          ]),
-        },
+        where: [
+          {
+            ...search,
+            cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+          },
+          { ...search, cryptoInput: IsNull() },
+        ],
         relations: {
           bankTx: true,
           checkoutTx: true,
