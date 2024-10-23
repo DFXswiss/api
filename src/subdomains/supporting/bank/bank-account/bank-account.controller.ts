@@ -12,6 +12,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { BankAccountDto } from './dto/bank-account.dto';
@@ -84,7 +85,7 @@ export class BankAccountController {
       id: bankData.id,
       iban: bankData.iban,
       label: bankData.label,
-      preferredCurrency: bankData.preferredCurrency,
+      preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
       sepaInstant: false,
       active: true,
     };
