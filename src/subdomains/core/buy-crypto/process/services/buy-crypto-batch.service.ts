@@ -51,7 +51,7 @@ export class BuyCryptoBatchService {
           outputAmount: IsNull(),
           priceDefinitionAllowedDate: Not(IsNull()),
           batch: IsNull(),
-          cryptoInput: { status: PayInStatus.FORWARD_CONFIRMED },
+          cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
           inputReferenceAmountMinusFee: Not(IsNull()),
           status: In([
             BuyCryptoStatus.CREATED,
