@@ -18,7 +18,7 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
-import { PaymentLinkDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
+import { PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -59,14 +59,14 @@ export class PaymentLinkController {
   @Get('history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
+  @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
   async getPendingPayments(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
-  ): Promise<PaymentLinkDto[]> {
+  ): Promise<PaymentLinkHistoryDto[]> {
     return this.paymentLinkService
       .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
-      .then(PaymentLinkDtoMapper.toLinkWithPaymentListDtoList);
+      .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 
   @Post()
