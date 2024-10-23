@@ -159,10 +159,12 @@ export class PaymentLinkPaymentService {
     if (dto.currency && dto.currency !== paymentLink.route.fiat.name)
       throw new BadRequestException('Payment currency mismatch');
 
+    const expiry = paymentLink.expiry ?? Config.payment.defaultPaymentTimeout;
+
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.defaultPaymentTimeout),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(expiry),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),

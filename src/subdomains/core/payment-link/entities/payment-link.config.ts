@@ -9,4 +9,5 @@ export interface PaymentLinkConfig {
   displayQr: boolean;
   fee: number;
   recipient?: PaymentLinkRecipientDto;
+  expiry?: number;
 }
