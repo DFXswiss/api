@@ -304,7 +304,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    return this.paymentLinkPaymentService.cancelPayment(paymentLink);
+    return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
   async waitForPayment(
