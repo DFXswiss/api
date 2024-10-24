@@ -21,10 +21,6 @@ export class OptimismCoinStrategy extends EvmCoinStrategy {
     return AssetType.COIN;
   }
 
-  get forwardRequired(): boolean {
-    return true;
-  }
-
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.optimism.optimismWalletAddress, Blockchain.OPTIMISM);
   }

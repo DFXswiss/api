@@ -21,10 +21,6 @@ export class BscTokenStrategy extends EvmTokenStrategy {
     return AssetType.TOKEN;
   }
 
-  get forwardRequired(): boolean {
-    return true;
-  }
-
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.bsc.bscWalletAddress, Blockchain.BINANCE_SMART_CHAIN);
   }

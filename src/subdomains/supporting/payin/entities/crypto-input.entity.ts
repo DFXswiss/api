@@ -231,12 +231,6 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  completed() {
-    this.status = PayInStatus.COMPLETED;
-
-    return this;
-  }
-
   confirm(direction: PayInConfirmationType, forwardRequired: boolean): this {
     switch (direction) {
       case 'Input':

@@ -21,10 +21,6 @@ export class ArbitrumTokenStrategy extends EvmTokenStrategy {
     return AssetType.TOKEN;
   }
 
-  get forwardRequired(): boolean {
-    return true;
-  }
-
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.arbitrum.arbitrumWalletAddress, Blockchain.ARBITRUM);
   }

@@ -305,10 +305,7 @@ export class TransactionController {
       throw new BadRequestException('You can only refund failed or pending transactions');
     if (transaction.targetEntity.chargebackAmount)
       throw new BadRequestException('You can only refund a transaction once');
-    if (
-      transaction.targetEntity?.cryptoInput?.paymentLinkPayment ||
-      transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT
-    )
+    if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
       throw new BadRequestException('You cannot refund payment transactions');
 
     const feeAmount = transaction.targetEntity.cryptoInput

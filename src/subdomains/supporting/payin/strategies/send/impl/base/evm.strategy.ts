@@ -22,6 +22,10 @@ export abstract class EvmStrategy extends SendStrategy {
   protected abstract prepareSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<void>;
   protected abstract checkPreparation(payInGroup: SendGroup): Promise<boolean>;
 
+  get forwardRequired(): boolean {
+    return true;
+  }
+
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     this.logInput(payIns, type);
 

@@ -21,10 +21,6 @@ export class EthereumTokenStrategy extends EvmTokenStrategy {
     return AssetType.TOKEN;
   }
 
-  get forwardRequired(): boolean {
-    return true;
-  }
-
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.ethereum.ethWalletAddress, Blockchain.ETHEREUM);
   }
