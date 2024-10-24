@@ -51,6 +51,7 @@ import { UserRepository } from './user.repository';
 
 interface SecretCacheEntry {
   secret: string;
+  mail: string;
   expiryDate: Date;
 }
 
@@ -237,11 +238,14 @@ export class UserService {
 
       this.secretCache.set(userData.id, {
         secret,
+        mail: dto.mail,
         expiryDate: Util.minutesAfter(codeExpiryMinutes),
       });
 
       // send mail
-      await this.sendVerificationMail(userData, secret, codeExpiryMinutes);
+      await this.sendVerificationMail({ ...userData, mail: dto.mail } as UserData, secret, codeExpiryMinutes);
+
+      delete dto.mail;
     }
 
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
@@ -249,16 +253,25 @@ export class UserService {
     return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
   }
 
-  async verifyMail(userDataId: number, token: string, ip: string): Promise<void> {
+  async verifyMail(
+    userDataId: number,
+    token: string,
+    userId: number,
+  ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
+      relations: { users: { wallet: true } },
     });
 
     const cacheEntry = this.secretCache.get(userData.id);
     if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired Email verification token');
     this.secretCache.delete(userData.id);
 
-    // await this.createTfaLog(userData, ip, level, type);
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, {
+      mail: cacheEntry.mail,
+    });
+
+    return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
@@ -641,6 +654,7 @@ export class UserService {
         });
     } catch (e) {
       this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
+      throw new BadRequestException('Failed to send verification mail');
     }
   }
 }

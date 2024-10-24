@@ -240,12 +240,14 @@ export class UserV2Controller {
   @ApiCreatedResponse({ description: 'Email verification successful' })
   @ApiForbiddenResponse({ description: 'Invalid or expired Email verification token' })
   async verifyMail(
-    // @Headers(CodeHeaderName) code: string,
     @GetJwt() jwt: JwtPayload,
     @Body() verificationCode: { token: string },
-    @RealIP() ip: string,
-  ): Promise<void> {
-    return this.userService.verifyMail(jwt.account, verificationCode.token, ip);
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserV2Dto> {
+    const { user, isKnownUser } = await this.userService.verifyMail(jwt.account, verificationCode.token, jwt.user);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
   }
 
   @Put('addresses/:address')
