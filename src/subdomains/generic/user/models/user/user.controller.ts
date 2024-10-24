@@ -5,6 +5,7 @@ import {
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -33,6 +34,7 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
 
+const CodeHeaderName = 'x-kyc-code';
 const AccountExistsResponse = {
   type: UserDetailDto,
   description:
@@ -223,12 +225,27 @@ export class UserV2Controller {
   async updateUser(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
+    @RealIP() ip: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserV2Dto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, jwt.user);
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, ip, jwt.user);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
+  }
+
+  @Post('mail/verify')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiCreatedResponse({ description: 'Email verification successful' })
+  @ApiForbiddenResponse({ description: 'Invalid or expired Email verification token' })
+  async verifyMail(
+    // @Headers(CodeHeaderName) code: string,
+    @GetJwt() jwt: JwtPayload,
+    @Body() verificationCode: { token: string },
+    @RealIP() ip: string,
+  ): Promise<void> {
+    return this.userService.verifyMail(jwt.account, verificationCode.token, ip);
   }
 
   @Put('addresses/:address')

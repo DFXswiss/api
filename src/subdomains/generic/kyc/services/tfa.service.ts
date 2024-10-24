@@ -20,6 +20,7 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MoreThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
+import { UserDataRepository } from '../../user/models/user-data/user-data.repository';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { Setup2faDto, TfaType } from '../dto/output/setup-2fa.dto';
 
@@ -47,6 +48,7 @@ export class TfaService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly notificationService: NotificationService,
+    private readonly userDataRepo: UserDataRepository,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -129,6 +131,13 @@ export class TfaService {
     await this.createTfaLog(user, ip, level, type);
   }
 
+  async check(userDataId: number, ip: string, level: TfaLevel): Promise<void> {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    if (!userData) throw new NotFoundException('User data not found');
+
+    await this.checkVerification(userData, ip, level);
+  }
+
   async checkVerification(user: UserData, ip: string, level: TfaLevel) {
     const allowedLevels = level === TfaLevel.STRICT ? [TfaLevel.STRICT] : [TfaLevel.BASIC, TfaLevel.STRICT];
     const logs = await this.tfaRepo.findBy({
@@ -136,6 +145,7 @@ export class TfaService {
       ipAddress: ip,
       created: MoreThan(Util.hoursBefore(TfaValidityHours)),
     });
+
     const isVerified = logs.some(
       (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
     );

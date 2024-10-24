@@ -21,12 +21,16 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
+import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -45,9 +49,16 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
+interface SecretCacheEntry {
+  secret: string;
+  expiryDate: Date;
+}
+
 @Injectable()
 export class UserService {
   private readonly logger = new DfxLogger(UserService);
+
+  private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(
     private readonly userRepo: UserRepository,
@@ -55,9 +66,11 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
+    private readonly notificationService: NotificationService,
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
+    private readonly tfaService: TfaService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -202,6 +215,7 @@ export class UserService {
   async updateUser(
     userDataId: number,
     dto: UpdateUserDto,
+    ip: string,
     userId?: number,
   ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
     const userData = await this.userDataRepo.findOne({
@@ -210,9 +224,41 @@ export class UserService {
     });
     if (!userData) throw new NotFoundException('User not found');
 
+    if (dto.mail) {
+      this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
+
+      // TODO: Add back
+      // const user = await this.userRepo.findOneBy({ userData: { mail: dto.mail } });
+      // if (user) throw new BadRequestException('Mail already in use');
+
+      // mail verification
+      const secret = Util.randomId().toString().slice(0, 6);
+      const codeExpiryMinutes = 30;
+
+      this.secretCache.set(userData.id, {
+        secret,
+        expiryDate: Util.minutesAfter(codeExpiryMinutes),
+      });
+
+      // send mail
+      await this.sendVerificationMail(userData, secret, codeExpiryMinutes);
+    }
+
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
 
     return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
+  }
+
+  async verifyMail(userDataId: number, token: string, ip: string): Promise<void> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+    });
+
+    const cacheEntry = this.secretCache.get(userData.id);
+    if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired Email verification token');
+    this.secretCache.delete(userData.id);
+
+    // await this.createTfaLog(userData, ip, level, type);
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
@@ -563,5 +609,38 @@ export class UserService {
           refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
         }
       : { refCount: 0, refCountActive: 0 };
+  }
+
+  // --- HELPER METHODS --- //
+  private async sendVerificationMail(userData: UserData, code: string, expirationMinutes: number): Promise<void> {
+    try {
+      if (userData.mail)
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context: MailContext.VERIFICATION_MAIL,
+          input: {
+            userData: userData,
+            title: `${MailTranslationKey.VERIFICATION_CODE}.title`,
+            salutation: {
+              key: `${MailTranslationKey.VERIFICATION_CODE}.salutation`,
+            },
+            suffix: [
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
+                params: { code },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
+                params: { expiration: `${expirationMinutes}` },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+    } catch (e) {
+      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
+    }
   }
 }
