@@ -25,6 +25,10 @@ export class BitcoinStrategy extends BitcoinBasedStrategy {
     return undefined;
   }
 
+  get forwardRequired(): boolean {
+    return true;
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
