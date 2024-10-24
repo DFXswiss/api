@@ -162,7 +162,7 @@ export class PaymentLinkPaymentService {
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout ?? 60),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),

@@ -147,7 +147,7 @@ export class PaymentLink extends IEntity {
     return this.configObj.standards.includes(param) ? param : this.defaultStandard;
   }
 
-  get paymentTimeout(): number | undefined {
+  get paymentTimeout(): number {
     return this.configObj.paymentTimeout;
   }
 }
