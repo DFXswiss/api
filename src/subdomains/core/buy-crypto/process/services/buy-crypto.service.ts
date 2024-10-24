@@ -43,7 +43,7 @@ import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entit
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, Brackets, In, IsNull, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -463,6 +463,10 @@ export class BuyCryptoService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBuyCrypto(from: Date, relations?: FindOptionsRelations<BuyCrypto>): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

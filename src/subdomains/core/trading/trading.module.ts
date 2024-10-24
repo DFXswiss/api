@@ -35,6 +35,6 @@ import { TradingService } from './services/trading.service';
     TradingRuleService,
     TradingOrderService,
   ],
-  exports: [TradingRuleService],
+  exports: [TradingRuleService, TradingOrderService],
 })
 export class TradingModule {}

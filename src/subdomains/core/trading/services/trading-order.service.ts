@@ -1,4 +1,5 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -13,6 +14,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FindOptionsRelations, MoreThan } from 'typeorm';
 import { LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
 import { LiquidityManagementService } from '../../liquidity-management/services/liquidity-management.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -49,6 +51,10 @@ export class TradingOrderService implements OnModuleInit {
   async processOrders() {
     await this.startNewOrders();
     await this.checkRunningOrders();
+  }
+
+  async getTradingOrder(from: Date, relations?: FindOptionsRelations<TradingOrder>): Promise<TradingOrder[]> {
+    return this.orderRepo.find({ where: { created: MoreThan(from) }, relations });
   }
 
   // --- HELPER METHODS --- //
@@ -167,8 +173,17 @@ export class TradingOrderService implements OnModuleInit {
     const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
     const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
     const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
+    const outChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
 
-    order.complete(outputAmount, txFee, coinChfPrice.convert(txFee), swapFee, inChfPrice.convert(swapFee));
+    order.complete(
+      outputAmount,
+      txFee,
+      coinChfPrice.convert(txFee),
+      swapFee,
+      inChfPrice.convert(swapFee),
+      outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
+        inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
+    );
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();

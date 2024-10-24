@@ -18,7 +18,7 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, In } from 'typeorm';
+import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -197,6 +197,10 @@ export class BuyFiatService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
 
   async triggerWebhookManual(id: number): Promise<void> {

@@ -1,23 +1,36 @@
+import { Inject, OnModuleInit } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class EvmStrategy extends PayoutStrategy {
+export abstract class EvmStrategy extends PayoutStrategy implements OnModuleInit {
   private readonly logger = new DfxLogger(EvmStrategy);
+  private chf: Fiat;
 
   private readonly txFees = new AsyncCache<number>(CacheItemResetPeriod.EVERY_30_SECONDS);
+
+  @Inject() private readonly pricingService: PricingService;
+  @Inject() private readonly fiatService: FiatService;
 
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super();
+  }
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
   }
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
@@ -53,7 +66,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
         if (isComplete) {
           order.complete();
-          order.recordPayoutFee(await this.feeAsset(), payoutFee);
+
+          const feeAsset = await this.feeAsset();
+          const price = await this.pricingService.getPrice(feeAsset, this.chf, false);
+          order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);
         }

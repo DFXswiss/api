@@ -7,7 +7,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, IsNull, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
@@ -31,6 +31,10 @@ export class PayoutService {
   ) {}
 
   //*** PUBLIC API ***//
+
+  async getPayoutOrders(from: Date, relations?: FindOptionsRelations<PayoutOrder>): Promise<PayoutOrder[]> {
+    return this.payoutOrderRepo.find({ where: { created: MoreThan(from) }, relations });
+  }
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {

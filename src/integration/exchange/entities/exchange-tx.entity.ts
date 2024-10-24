@@ -1,7 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Column, Entity, Index } from 'typeorm';
 import { ExchangeName } from '../enums/exchange.enum';
 
@@ -42,6 +42,9 @@ export class ExchangeTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   feeCurrency?: string;
+
+  @Column({ type: 'float', nullable: true })
+  feeAmountChf?: number;
 
   // Withdrawal/Deposit
 

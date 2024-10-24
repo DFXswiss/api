@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -23,7 +23,7 @@ import { PricingService } from './services/pricing.service';
   imports: [
     TypeOrmModule.forFeature([PriceRule]),
     SharedModule,
-    ExchangeModule,
+    forwardRef(() => ExchangeModule),
     DexModule,
     NotificationModule,
     BlockchainModule,

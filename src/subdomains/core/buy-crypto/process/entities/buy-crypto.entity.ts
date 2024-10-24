@@ -553,6 +553,10 @@ export class BuyCrypto extends IEntity {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
+  get feeAmountChf(): number {
+    return this.totalFeeAmountChf;
+  }
+
   get isCryptoCryptoTransaction(): boolean {
     return this.cryptoInput != null;
   }

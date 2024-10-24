@@ -11,7 +11,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
@@ -98,6 +98,10 @@ export class PayInService {
       { status: PayInStatus.ACKNOWLEDGED, action: IsNull() },
       { status: PayInStatus.ACKNOWLEDGED, action: PayInAction.WAITING },
     ]);
+  }
+
+  async getPayIn(from: Date, relations?: FindOptionsRelations<CryptoInput>): Promise<CryptoInput[]> {
+    return this.payInRepository.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
