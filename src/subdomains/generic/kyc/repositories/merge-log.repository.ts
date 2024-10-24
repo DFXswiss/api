@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { StepLog } from '../entities/step-log.entity';
+import { MergeLog } from '../entities/merge-log.entity';
 
 @Injectable()
-export class MergeLogRepository extends BaseRepository<StepLog> {
+export class MergeLogRepository extends BaseRepository<MergeLog> {
   constructor(manager: EntityManager) {
-    super(StepLog, manager);
+    super(MergeLog, manager);
   }
 }

@@ -135,7 +135,7 @@ export class LogJobService {
     ]);
 
     // TODO reset to 14 after testing
-    const before14Days = Util.daysBefore(15);
+    const before14Days = Util.daysBefore(16);
     const before21Days = Util.daysBefore(21);
 
     before14Days.setHours(0, 0, 0, 0);
@@ -463,7 +463,7 @@ export class LogJobService {
     receiverTx: BankTx | ExchangeTx | undefined,
   ): (BankTx | ExchangeTx)[] {
     if (!receiverTx) return senderTx;
-    if (!(senderTx[0] instanceof BankTx)) senderTx.sort((a, b) => b.id - a.id);
+    senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
     const receiverAmount = receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount;
     const senderPair = senderTx.find((s) =>
       s instanceof BankTx

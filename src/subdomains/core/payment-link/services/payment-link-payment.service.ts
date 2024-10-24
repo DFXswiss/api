@@ -162,7 +162,7 @@ export class PaymentLinkPaymentService {
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.defaultPaymentTimeout),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
@@ -180,17 +180,20 @@ export class PaymentLinkPaymentService {
     await this.paymentLinkPaymentRepo.update(payment.id, { isConfirmed: true });
   }
 
-  async cancelPayment(paymentLink: PaymentLink): Promise<PaymentLink> {
+  async cancelByLink(paymentLink: PaymentLink): Promise<PaymentLink> {
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
     pendingPayment.link = paymentLink;
 
-    await this.doSave(pendingPayment.cancel(), true);
-
-    await this.cancelQuotesForPayment(pendingPayment);
+    await this.cancelByPayment(pendingPayment);
 
     return paymentLink;
+  }
+
+  async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.doSave(payment.cancel(), true);
+    await this.cancelQuotesForPayment(payment);
   }
 
   private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {

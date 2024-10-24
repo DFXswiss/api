@@ -60,6 +60,20 @@ export class PaymentLinkService {
     return allPaymentLinks;
   }
 
+  async getHistoryByStatus(userId: number, status?: string, from?: Date, to?: Date): Promise<PaymentLink[]> {
+    const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
+      PaymentLinkPaymentStatus.COMPLETED,
+    ];
+
+    const fromDate = from ?? Util.firstDayOfMonth();
+    const toDate = to ?? Util.lastDayOfMonth();
+
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
+
+    return this.paymentLinkRepo.getHistoryByStatus(userId, paymentStatus, fromDate, toDate);
+  }
+
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = dto.route
       ? await this.sellService.getByLabel(userId, dto.route)
@@ -304,7 +318,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    return this.paymentLinkPaymentService.cancelPayment(paymentLink);
+    return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
   async waitForPayment(
