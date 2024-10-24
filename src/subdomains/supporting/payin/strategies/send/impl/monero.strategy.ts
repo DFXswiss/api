@@ -27,6 +27,10 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     return undefined;
   }
 
+  get forwardRequired(): boolean {
+    return false;
+  }
+
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     if (type === SendType.FORWARD) {
       // no forwarding required

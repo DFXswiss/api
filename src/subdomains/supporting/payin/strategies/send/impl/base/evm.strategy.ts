@@ -88,7 +88,7 @@ export abstract class EvmStrategy extends SendStrategy {
 
         const isConfirmed = await this.isConfirmed(payIn, direction);
         if (isConfirmed) {
-          payIn.confirm(direction);
+          payIn.confirm(direction, this.forwardRequired);
           await this.payInRepo.save(payIn);
         }
       } catch (e) {

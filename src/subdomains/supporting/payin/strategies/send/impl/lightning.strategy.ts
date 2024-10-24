@@ -25,6 +25,10 @@ export class LightningStrategy extends SendStrategy {
     return undefined;
   }
 
+  get forwardRequired(): boolean {
+    return false;
+  }
+
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     if (type === SendType.FORWARD) {
       // no forwarding required
@@ -61,7 +65,7 @@ export class LightningStrategy extends SendStrategy {
 
   async checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void> {
     for (const payIn of payIns) {
-      payIn.confirm(direction);
+      payIn.confirm(direction, this.forwardRequired);
 
       await this.payInRepo.save(payIn);
     }

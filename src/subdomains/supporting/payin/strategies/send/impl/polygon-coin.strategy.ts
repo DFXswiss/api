@@ -21,6 +21,10 @@ export class PolygonCoinStrategy extends EvmCoinStrategy {
     return AssetType.COIN;
   }
 
+  get forwardRequired(): boolean {
+    return true;
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.polygon.polygonWalletAddress, Blockchain.POLYGON);
   }
