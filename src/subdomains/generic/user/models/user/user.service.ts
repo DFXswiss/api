@@ -617,21 +617,21 @@ export class UserService {
       if (userData.mail)
         await this.notificationService.sendMail({
           type: MailType.USER,
-          context: MailContext.VERIFICATION_MAIL,
+          context: MailContext.EMAIL_VERIFICATION,
           input: {
             userData: userData,
-            title: `${MailTranslationKey.VERIFICATION_CODE}.title`,
+            title: `${MailTranslationKey.EMAIL_VERIFICATION}.title`,
             salutation: {
-              key: `${MailTranslationKey.VERIFICATION_CODE}.salutation`,
+              key: `${MailTranslationKey.EMAIL_VERIFICATION}.salutation`,
             },
             suffix: [
               {
-                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
+                key: `${MailTranslationKey.EMAIL_VERIFICATION}.message`,
                 params: { code },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
+                key: `${MailTranslationKey.EMAIL_VERIFICATION}.closing`,
                 params: { expiration: `${expirationMinutes}` },
               },
               { key: MailKey.SPACE, params: { value: '4' } },

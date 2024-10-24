@@ -261,5 +261,11 @@
         "salutation": "Du hast einen 2FA Verifizierungscode angefordert",
         "message": "Dein Verifizierungscode lautet:<br>{code}",
         "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
+    },
+    "email_verification": {
+      "title": "E-Mail Verifizierungscode",
+      "salutation": "Du hast eine Änderung deiner E-Mail Adresse angefordert",
+      "message": "Dein Verifizierungscode lautet:<br>{code}",
+      "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
     }
 }
