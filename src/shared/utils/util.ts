@@ -245,13 +245,11 @@ export class Util {
     return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
   }
 
-  static firstDayOfMonth(first?: Date): Date {
-    const date = first ?? new Date();
+  static firstDayOfMonth(date = new Date()): Date {
     return new Date(date.getFullYear(), date.getMonth(), 1);
   }
 
-  static lastDayOfMonth(last?: Date): Date {
-    const date = last ?? new Date();
+  static lastDayOfMonth(date = new Date()): Date {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0);
   }
 

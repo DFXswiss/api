@@ -60,7 +60,7 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
-  async getPendingPayments(
+  async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
   ): Promise<PaymentLinkHistoryDto[]> {
