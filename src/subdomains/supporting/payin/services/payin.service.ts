@@ -94,10 +94,7 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy([
-      { status: PayInStatus.ACKNOWLEDGED, action: IsNull() },
-      { status: PayInStatus.ACKNOWLEDGED, action: PayInAction.WAITING },
-    ]);
+    return this.payInRepository.findBy([{ status: PayInStatus.ACKNOWLEDGED, isConfirmed: true }]);
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {

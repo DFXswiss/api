@@ -44,6 +44,7 @@ import {
   BankTxTypeUnassigned,
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -304,6 +305,11 @@ export class TransactionController {
       throw new BadRequestException('You can only refund failed or pending transactions');
     if (transaction.targetEntity.chargebackAmount)
       throw new BadRequestException('You can only refund a transaction once');
+    if (
+      transaction.targetEntity?.cryptoInput?.paymentLinkPayment ||
+      transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT
+    )
+      throw new BadRequestException('You cannot refund payment transactions');
 
     const feeAmount = transaction.targetEntity.cryptoInput
       ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
