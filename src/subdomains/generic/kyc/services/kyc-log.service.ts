@@ -2,19 +2,21 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
-import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
+import { MailChangeLogRepository } from '../repositories/mail-change-log.repository';
+import { MergeLogRepository } from '../repositories/merge-log.repository';
 
 @Injectable()
 export class KycLogService {
   constructor(
     private readonly kycLogRepo: KycLogRepository,
+    private readonly mergeLogRepo: MergeLogRepository,
+    private readonly mailChangeLogRepo: MailChangeLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
   async createMergeLog(user: UserData, log: string): Promise<void> {
-    const entity = this.kycLogRepo.create({
-      type: KycLogType.MERGE,
+    const entity = this.mergeLogRepo.create({
       result: log,
       userData: user,
     });
@@ -46,8 +48,7 @@ export class KycLogService {
   }
 
   async createMailChangeLog(user: UserData, oldMail: string, newMail: string) {
-    const entity = this.kycLogRepo.create({
-      type: KycLogType.MAIL_CHANGE,
+    const entity = this.mailChangeLogRepo.create({
       result: `${oldMail} -> ${newMail}`,
       userData: user,
     });

@@ -11,6 +11,7 @@ import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -50,6 +51,8 @@ import { LogService } from './log.service';
 
 @Injectable()
 export class LogJobService {
+  private readonly logger = new DfxLogger(LogJobService);
+
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -103,8 +106,8 @@ export class LogJobService {
         tradings: tradingLog,
         balancesByFinancialType,
         balancesTotal: {
-          plusBalanceChf,
-          minusBalanceChf,
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
           totalBalanceChf: plusBalanceChf - minusBalanceChf,
         },
         changes: changeLog,
@@ -135,10 +138,10 @@ export class LogJobService {
       );
 
       acc[financialType] = {
-        plusBalance,
-        plusBalanceChf,
-        minusBalance,
-        minusBalanceChf,
+        plusBalance: this.getJsonValue(plusBalance, true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+        minusBalance: this.getJsonValue(minusBalance, true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
       };
 
       return acc;
@@ -201,32 +204,38 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
     ]);
 
+    // TODO reset to 14 after testing
+    const before14Days = Util.daysBefore(16);
+    const before21Days = Util.daysBefore(21);
+
+    before14Days.setHours(0, 0, 0, 0);
+
     // receiver data
     const recentEurKrakenBankTx = recentKrakenBankTx.filter(
       (b) =>
         b.accountIban === maerkiEurBank.iban &&
         b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > Util.daysBefore(14),
+        b.created > before14Days,
     );
     const recentChfKrakenBankTx = recentKrakenBankTx.filter(
       (b) =>
         b.accountIban === maerkiChfBank.iban &&
         b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > Util.daysBefore(14),
+        b.created > before14Days,
     );
     const recentChfBankTxKraken = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SIC) International' &&
         k.address === 'MAEBCHZZXXX' &&
-        k.created > Util.daysBefore(14),
+        k.created > before14Days,
     );
     const recentEurBankTxKraken = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SEPA) International' &&
         k.address === 'MAEBCHZZXXX' &&
-        k.created > Util.daysBefore(14),
+        k.created > before14Days,
     );
 
     // sender data
@@ -236,9 +245,9 @@ export class LogJobService {
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SIC) International' &&
           k.address === 'Maerki Baumann' &&
-          k.created > Util.daysBefore(21),
+          k.created > before21Days,
       ),
-      recentChfKrakenBankTx?.[0],
+      recentChfKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
     );
     const recentEurKrakenMaerkiTx = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
@@ -246,9 +255,9 @@ export class LogJobService {
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SEPA) International' &&
           k.address === 'Maerki Baumann & Co. AG' &&
-          k.created > Util.daysBefore(21),
+          k.created > before21Days,
       ),
-      recentEurKrakenBankTx?.[0],
+      recentEurKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
     );
 
     const recentChfMaerkiKrakenTx = this.filterSenderPendingList(
@@ -256,18 +265,18 @@ export class LogJobService {
         (b) =>
           b.accountIban === maerkiChfBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > Util.daysBefore(21),
+          b.created > before21Days,
       ),
-      recentChfBankTxKraken[0],
+      recentChfBankTxKraken?.sort((a, b) => a.id - b.id)[0],
     );
     const recentEurMaerkiKrakenTx = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiEurBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > Util.daysBefore(21),
+          b.created > before21Days,
       ),
-      recentEurBankTxKraken[0],
+      recentEurBankTxKraken?.sort((a, b) => a.id - b.id)[0],
     );
 
     // assetLog
@@ -277,14 +286,14 @@ export class LogJobService {
 
       const customBalance = customBalances
         .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce((sum, result) => (sum + result.contractAddress === curr.chainId ? result.balance : 0), 0);
+        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
 
       // plus
       const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
 
-      const cryptoInput = pendingPayIns.reduce((sum, tx) => (sum + tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
-        (sum, tx) => (sum + tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
         0,
       );
 
@@ -335,17 +344,28 @@ export class LogJobService {
         maerkiEurBank.iban,
       );
 
+      let fromKraken =
+        pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
+      let toKraken =
+        pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
+
+      if (fromKraken < 0) {
+        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+        pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
+        fromKraken = 0;
+      }
+      if (toKraken < 0) {
+        this.logger.error(
+          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+          pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
+        );
+        toKraken = 0;
+      }
+
       // total pending balance
-      const totalPlusPending =
-        cryptoInput +
-        exchangeOrder +
-        pendingOlkyMaerkiAmount +
-        pendingChfKrakenMaerkiPlusAmount +
-        pendingEurKrakenMaerkiPlusAmount +
-        pendingKrakenMaerkiMinusAmount +
-        pendingMaerkiKrakenPlusAmount +
-        pendingChfMaerkiKrakenMinusAmount +
-        pendingEurMaerkiKrakenMinusAmount;
+      const totalPlusPending = cryptoInput + exchangeOrder + pendingOlkyMaerkiAmount + fromKraken + toKraken;
       const totalPlus = liquidity + totalPlusPending;
 
       // minus
@@ -390,41 +410,35 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: totalPlus,
-          liquidity: liquidity || undefined,
+          total: this.getJsonValue(totalPlus, true),
+          liquidity: this.getJsonValue(liquidity),
           pending: totalPlusPending
             ? {
-                total: totalPlusPending,
-                cryptoInput: cryptoInput || undefined,
-                exchangeOrder: exchangeOrder || undefined,
-                fromOlky: pendingOlkyMaerkiAmount || undefined,
-                fromKraken:
-                  pendingChfKrakenMaerkiPlusAmount +
-                    pendingEurKrakenMaerkiPlusAmount +
-                    pendingKrakenMaerkiMinusAmount || undefined,
-                toKraken:
-                  pendingMaerkiKrakenPlusAmount +
-                    pendingChfMaerkiKrakenMinusAmount +
-                    pendingEurMaerkiKrakenMinusAmount || undefined,
+                total: this.getJsonValue(totalPlusPending, true),
+                cryptoInput: this.getJsonValue(cryptoInput),
+                exchangeOrder: this.getJsonValue(exchangeOrder),
+                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount),
+                fromKraken: this.getJsonValue(fromKraken),
+                toKraken: this.getJsonValue(toKraken),
               }
             : undefined,
         },
         minusBalance: {
-          total: totalMinus,
-          debt: manualDebtPosition || undefined,
+          total: this.getJsonValue(totalMinus, true),
+          debt: this.getJsonValue(manualDebtPosition),
           pending: totalMinusPending
             ? {
-                total: totalMinusPending,
-                buyFiat: buyFiat || undefined,
-                buyFiatPass: buyFiatPass || undefined,
-                buyCrypto: buyCrypto || undefined,
-                buyCryptoPass: buyCryptoPass || undefined,
-                bankTxNull: bankTxNull || undefined,
-                bankTxPending: bankTxPending || undefined,
-                bankTxUnknown: bankTxUnknown || undefined,
-                bankTxGSheet: bankTxGSheet || undefined,
-                bankTxRepeat: bankTxRepeat || undefined,
-                bankTxReturn: bankTxReturn || undefined,
+                total: this.getJsonValue(totalMinusPending, true),
+                buyFiat: this.getJsonValue(buyFiat),
+                buyFiatPass: this.getJsonValue(buyFiatPass),
+                buyCrypto: this.getJsonValue(buyCrypto),
+                buyCryptoPass: this.getJsonValue(buyCryptoPass),
+                bankTxNull: this.getJsonValue(bankTxNull),
+                bankTxPending: this.getJsonValue(bankTxPending),
+                bankTxUnknown: this.getJsonValue(bankTxUnknown),
+                bankTxGSheet: this.getJsonValue(bankTxGSheet),
+                bankTxRepeat: this.getJsonValue(bankTxRepeat),
+                bankTxReturn: this.getJsonValue(bankTxReturn),
               }
             : undefined,
         },
@@ -576,18 +590,32 @@ export class LogJobService {
     receiverTx: BankTx | ExchangeTx | undefined,
   ): (BankTx | ExchangeTx)[] {
     if (!receiverTx) return senderTx;
-    const senderPair = senderTx
-      .sort((a, b) => b.id - a.id)
-      .find(
-        (s) =>
-          (s instanceof BankTx ? s.instructedAmount : s.amount) ===
-            (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount) &&
-          receiverTx.created > s.created,
+    senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+    const receiverAmount = receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount;
+    const senderPair = senderTx.find((s) =>
+      s instanceof BankTx
+        ? s.instructedAmount === receiverAmount && receiverTx.created.toDateString() === s.valueDate.toDateString()
+        : s.amount === receiverAmount && receiverTx.created > s.created,
+    );
+
+    if (senderTx[0] instanceof BankTx) {
+      this.logger.verbose(
+        `FinanceLog receiverTxId/date: ${receiverTx.id}/${receiverTx.created.toDateString()}; senderTx[0] id/date: ${
+          senderTx[0].id
+        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair.id}/${
+          senderPair instanceof BankTx ? senderPair.valueDate.toDateString() : senderPair.created.toDateString()
+        }; senderTx length: ${senderTx.length}`,
       );
+    }
+
     return (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id);
   }
 
   private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
     return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
+  }
+
+  private getJsonValue(value: number | undefined, returnZero = false): number | undefined {
+    return (!returnZero && !value) || value < 0 ? undefined : value;
   }
 }

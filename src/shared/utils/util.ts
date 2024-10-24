@@ -249,6 +249,14 @@ export class Util {
     return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
   }
 
+  static firstDayOfMonth(date = new Date()): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  static lastDayOfMonth(date = new Date()): Date {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  }
+
   // --- ENCRYPTION --- //
 
   static encrypt(input: string, key: string): string {

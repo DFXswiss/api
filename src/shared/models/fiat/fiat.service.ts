@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
+import { Equal } from 'typeorm';
 import { Fiat } from './fiat.entity';
 
 @Injectable()
@@ -23,7 +24,7 @@ export class FiatService {
   }
 
   async getFiat(id: number): Promise<Fiat> {
-    return this.fiatRepo.findOneCachedBy(id, { id });
+    return this.fiatRepo.findOneCachedBy(id, { id: Equal(id) });
   }
 
   async getFiatByName(name: string): Promise<Fiat> {

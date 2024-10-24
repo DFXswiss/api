@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -8,6 +8,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { CustomCronExpression } from 'src/shared/utils/cron';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { PayInEntry } from '../../../interfaces';
@@ -40,7 +41,7 @@ export class BscStrategy extends EvmStrategy {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CustomCronExpression.EVERY_15_MINUTES)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
     if (DisabledProcess(Process.PAY_IN)) return;
@@ -137,13 +138,20 @@ export class BscStrategy extends EvmStrategy {
   }
 
   private mapTokenEntries(tokenTransactions: EvmTokenHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
-    return tokenTransactions.map((tx) => ({
+    return tokenTransactions.map((tx) => this.mapTokenEntry(tx, supportedAssets));
+  }
+
+  private mapTokenEntry(tx: EvmTokenHistoryEntry, supportedAssets: Asset[]): PayInEntry {
+    const asset = this.getTransactionAsset(supportedAssets, tx.contractAddress);
+    const decimals = asset?.decimals ?? 0;
+
+    return {
       address: BlockchainAddress.create(tx.to, this.blockchain),
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: EvmUtil.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
-      asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
-    }));
+      amount: EvmUtil.fromWeiAmount(tx.value, decimals),
+      asset: asset ?? null,
+    };
   }
 }
