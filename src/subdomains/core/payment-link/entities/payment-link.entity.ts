@@ -1,3 +1,4 @@
+import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
@@ -14,6 +15,7 @@ const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
   fee: 0.002,
+  paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
 };
 
 @Entity()
@@ -145,7 +147,7 @@ export class PaymentLink extends IEntity {
     return this.configObj.standards.includes(param) ? param : this.defaultStandard;
   }
 
-  get expiry(): number | undefined {
-    return this.configObj.expiry;
+  get paymentTimeout(): number | undefined {
+    return this.configObj.paymentTimeout;
   }
 }
