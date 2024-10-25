@@ -473,7 +473,7 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    user.apiKeyCT = ApiKeyService.createKey(user.address);
+    user.apiKeyCT = ApiKeyService.createKey(user.id);
     user.apiFilterCT = ApiKeyService.getFilterCode(filter);
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiFilterCT: user.apiFilterCT });

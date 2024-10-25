@@ -1,14 +1,18 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserData, UserDataStatus } from './user-data.entity';
@@ -33,6 +37,31 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.find();
+  }
+
+  // --- API KEYS --- //
+  @Post('apiKey/CT')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: ApiKeyDto })
+  async createApiKey(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<ApiKeyDto> {
+    return this.userDataService.createApiKey(jwt.user, filter);
+  }
+
+  @Delete('apiKey/CT')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userDataService.deleteApiKey(jwt.user);
+  }
+
+  @Put('apiFilter/CT')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: String, isArray: true })
+  async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+    return this.userDataService.updateApiFilter(jwt.user, filter);
   }
 
   @Put(':id')

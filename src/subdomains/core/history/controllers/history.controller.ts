@@ -25,6 +25,8 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { ExportFormat, HistoryQuery, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
@@ -43,6 +45,7 @@ export class HistoryController {
     private readonly historyService: HistoryService,
     private readonly transactionController: TransactionController,
     private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   // --- DEPRECATED ENDPOINTS --- //
@@ -68,14 +71,26 @@ export class HistoryController {
     @Headers('DFX-ACCESS-SIGN') sign: string,
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
   ): Promise<CoinTrackingApiHistoryDto[]> {
-    const user = await this.userService.checkApiKey(key, sign, timestamp);
+    const user =
+      key.charAt(key.length - 1) === '0'
+        ? await this.userService.checkApiKey(key, sign, timestamp)
+        : await this.userDataService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
     return (
-      await this.historyService.getJsonHistory(
-        { format: ExportFormat.JSON, userAddress: user.address, ...query },
-        ExportType.COIN_TRACKING,
-      )
+      user instanceof User
+        ? await this.historyService.getJsonHistory(
+            { format: ExportFormat.JSON, userAddress: user.address, ...query },
+            ExportType.COIN_TRACKING,
+          )
+        : await Promise.all(
+            user.users.map(async (u) => {
+              return await this.historyService.getJsonHistory(
+                { format: ExportFormat.JSON, userAddress: u.address, ...query },
+                ExportType.COIN_TRACKING,
+              );
+            }),
+          ).then((t) => t.flat())
     ).map((tx) => ({
       ...tx,
       date: tx.date?.getTime() / 1000,
