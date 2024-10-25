@@ -30,8 +30,6 @@ export interface EvmClientParams {
   chainId: ChainId;
   swapContractAddress: string;
   quoteContractAddress: string;
-  scanApiUrl?: string;
-  scanApiKey?: string;
 }
 
 interface UniswapPosition {
