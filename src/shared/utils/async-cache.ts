@@ -24,7 +24,7 @@ export class AsyncCache<T> {
     if (!id) throw new Error('Error in AsyncCache: id is null');
 
     const entry = this.cache.get(id);
-    if (!entry || forceUpdate?.(entry.data) || !(entry.updated > this.expiration)) {
+    if (entry?.data == null || forceUpdate?.(entry.data) || entry.updated <= this.expiration) {
       await this.updateInternal(id, update, fallbackToCache);
     }
 
@@ -41,7 +41,7 @@ export class AsyncCache<T> {
     try {
       // wait for an existing update
       const entry = this.cache.get(id);
-      if (entry?.update) return await entry.update;
+      if (entry?.update != null) return await entry.update;
 
       const updateCall = update()
         .then((data) => {
