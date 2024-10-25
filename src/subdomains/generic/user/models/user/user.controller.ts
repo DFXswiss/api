@@ -34,7 +34,6 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
 
-const CodeHeaderName = 'x-kyc-code';
 const AccountExistsResponse = {
   type: UserDetailDto,
   description:

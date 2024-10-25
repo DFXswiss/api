@@ -226,7 +226,7 @@ export class UserService {
     if (!userData) throw new NotFoundException('User not found');
 
     if (dto.mail) {
-      this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
+      await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
       const user = await this.userRepo.findOneBy({ userData: { mail: dto.mail } });
       if (user) throw new BadRequestException('Mail already in use');
