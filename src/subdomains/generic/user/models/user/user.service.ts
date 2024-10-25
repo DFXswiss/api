@@ -228,9 +228,8 @@ export class UserService {
     if (dto.mail) {
       this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
-      // TODO: Add back
-      // const user = await this.userRepo.findOneBy({ userData: { mail: dto.mail } });
-      // if (user) throw new BadRequestException('Mail already in use');
+      const user = await this.userRepo.findOneBy({ userData: { mail: dto.mail } });
+      if (user) throw new BadRequestException('Mail already in use');
 
       // mail verification
       const secret = Util.randomId().toString().slice(0, 6);

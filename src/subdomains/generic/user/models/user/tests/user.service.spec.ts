@@ -6,6 +6,8 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { UserDataRepository } from '../../user-data/user-data.repository';
 import { UserDataService } from '../../user-data/user-data.service';
@@ -21,11 +23,13 @@ describe('UserService', () => {
   let userDataService: UserDataService;
   let walletService: WalletService;
   let geoLocationService: GeoLocationService;
+  let notificationService: NotificationService;
   let countryService: CountryService;
   let cryptoService: CryptoService;
   let feeService: FeeService;
   let languageService: LanguageService;
   let fiatService: FiatService;
+  let tfaService: TfaService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -33,11 +37,13 @@ describe('UserService', () => {
     userDataService = createMock<UserDataService>();
     walletService = createMock<WalletService>();
     geoLocationService = createMock<GeoLocationService>();
+    notificationService = createMock<NotificationService>();
     countryService = createMock<CountryService>();
     cryptoService = createMock<CryptoService>();
     feeService = createMock<FeeService>();
     languageService = createMock<LanguageService>();
     fiatService = createMock<FiatService>();
+    tfaService = createMock<TfaService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -47,11 +53,13 @@ describe('UserService', () => {
         { provide: UserDataService, useValue: userDataService },
         { provide: WalletService, useValue: walletService },
         { provide: GeoLocationService, useValue: geoLocationService },
+        { provide: NotificationService, useValue: notificationService },
         { provide: CountryService, useValue: countryService },
         { provide: CryptoService, useValue: cryptoService },
         { provide: FeeService, useValue: feeService },
         { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
+        { provide: TfaService, useValue: tfaService },
         TestUtil.provideConfig(),
       ],
     }).compile();
