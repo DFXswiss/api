@@ -34,7 +34,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     if (type === SendType.FORWARD) {
       // no forwarding required
-      throw new Error('Lightning inputs not required to forward');
+      throw new Error('Monero inputs not required to forward');
     } else {
       this.logger.verbose(`Returning ${payIns.length} Monero input(s): ${payIns.map((p) => p.id)}`);
 
