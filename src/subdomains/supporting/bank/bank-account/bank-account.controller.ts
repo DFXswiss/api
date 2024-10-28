@@ -1,13 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiExcludeEndpoint,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -17,7 +10,6 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { CreateIbanDto, IbanDto } from './dto/iban.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @ApiTags('Bank Account')
@@ -51,28 +43,6 @@ export class BankAccountController {
     @Body() dto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
     return this.bankDataService.updateUserBankData(+id, jwt.account, dto).then((b) => this.toDto(b));
-  }
-
-  // --- IBAN --- //
-
-  @Get('iban')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiExcludeEndpoint()
-  @ApiOperation({ deprecated: true })
-  async getAllUserIban(@GetJwt() jwt: JwtPayload): Promise<IbanDto[]> {
-    const bankDatas = await this.bankDataService.getUserBankData(jwt.account);
-
-    return bankDatas.map((bankData) => ({ iban: bankData.iban }));
-  }
-
-  @Post('iban')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiExcludeEndpoint()
-  @ApiOperation({ deprecated: true })
-  async addUserIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<IbanDto> {
-    return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => ({ iban: b.iban }));
   }
 
   // --- DTO --- //

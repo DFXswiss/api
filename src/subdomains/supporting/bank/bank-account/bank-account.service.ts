@@ -6,11 +6,9 @@ import { IEntity } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { IsNull } from 'typeorm';
+import { IsNull, MoreThan } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
@@ -23,7 +21,6 @@ export class BankAccountService {
     private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
     private readonly countryService: CountryService,
-    private readonly bankDataService: BankDataService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -33,29 +30,21 @@ export class BankAccountService {
 
     const entities = await this.bankAccountRepo.find({
       where: { synced: IsNull() },
-      relations: { userData: true },
       take: 5000,
     });
 
     for (const entity of entities) {
       try {
-        if (entity.userData) {
-          if (entity.userData.status === UserDataStatus.MERGED) {
-            await this.bankAccountRepo.update(entity.id, { synced: true });
-            continue;
+        const existing = await this.bankAccountRepo.findBy({ id: MoreThan(entity.id), iban: entity.iban });
+        if (existing.length) {
+          for (const duplicate of existing) {
+            await this.bankAccountRepo.delete({ id: duplicate.id });
           }
-
-          await this.bankDataService.createIbanForUser(
-            entity.userData?.id,
-            { iban: entity.iban, label: entity.label, preferredCurrency: entity.preferredCurrency },
-            false,
-            BankDataType.USER,
-          );
         }
 
         await this.bankAccountRepo.update(entity.id, { synced: true });
       } catch (e) {
-        this.logger.error(`Error in bankAccount-bankData sync ${entity.id}:`, e);
+        this.logger.error(`Error in bankAccount duplicate remove ${entity.id}:`, e);
         await this.bankAccountRepo.update(entity.id, { synced: false });
       }
     }
