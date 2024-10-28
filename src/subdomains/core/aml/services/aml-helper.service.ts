@@ -6,6 +6,7 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   SpecialExternalAccount,
@@ -61,7 +62,8 @@ export class AmlHelperService {
       if (!entity.userData.hasBankTxVerification) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
       if (!entity.userData.letterSentDate) errors.push(AmlError.NO_LETTER);
       if (!entity.userData.amlListAddedDate) errors.push(AmlError.NO_AML_LIST);
-      if (!entity.userData.kycFileId) errors.push(AmlError.NO_KYC_FILE_ID);
+      if (!entity.userData.kycFileId && (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT))
+        errors.push(AmlError.NO_KYC_FILE_ID);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
     }
 
