@@ -135,7 +135,7 @@ export class LogJobService {
     ]);
 
     // TODO reset to 14 after testing
-    const before14Days = Util.daysBefore(16);
+    const before14Days = Util.daysBefore(17);
     const before21Days = Util.daysBefore(21);
 
     before14Days.setHours(0, 0, 0, 0);
@@ -177,7 +177,7 @@ export class LogJobService {
           k.address === 'Maerki Baumann' &&
           k.created > before21Days,
       ),
-      recentChfKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
+      recentChfKrakenBankTx?.sort((a, b) => a.id - b.id),
     );
     const recentEurKrakenMaerkiTx = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
@@ -187,7 +187,7 @@ export class LogJobService {
           k.address === 'Maerki Baumann & Co. AG' &&
           k.created > before21Days,
       ),
-      recentEurKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
+      recentEurKrakenBankTx?.sort((a, b) => a.id - b.id),
     );
 
     const recentChfMaerkiKrakenTx = this.filterSenderPendingList(
@@ -197,7 +197,7 @@ export class LogJobService {
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > before21Days,
       ),
-      recentChfBankTxKraken?.sort((a, b) => a.id - b.id)[0],
+      recentChfBankTxKraken?.sort((a, b) => a.id - b.id),
     );
     const recentEurMaerkiKrakenTx = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
@@ -206,7 +206,7 @@ export class LogJobService {
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > before21Days,
       ),
-      recentEurBankTxKraken?.sort((a, b) => a.id - b.id)[0],
+      recentEurBankTxKraken?.sort((a, b) => a.id - b.id),
     );
 
     // asset log
@@ -460,23 +460,39 @@ export class LogJobService {
 
   private filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
-    receiverTx: BankTx | ExchangeTx | undefined,
+    receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): (BankTx | ExchangeTx)[] {
-    if (!receiverTx) return senderTx;
+    if (!receiverTx?.length) return senderTx;
+    let receiverIndex = 0;
+    let senderPair = undefined;
+
     senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
-    const receiverAmount = receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount;
-    const senderPair = senderTx.find((s) =>
-      s instanceof BankTx
-        ? s.instructedAmount === receiverAmount && receiverTx.created.toDateString() === s.valueDate.toDateString()
-        : s.amount === receiverAmount && receiverTx.created > s.created,
-    );
+
+    do {
+      const receiverAmount =
+        receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx[receiverIndex].amount;
+
+      senderPair = senderTx.find((s) =>
+        s instanceof BankTx
+          ? s.instructedAmount === receiverAmount &&
+            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
+            receiverTx[receiverIndex].created > s.created
+          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
+      );
+
+      receiverIndex++;
+    } while (!senderPair && receiverTx.length > receiverIndex);
 
     if (senderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${receiverTx.id}/${receiverTx.created.toDateString()}; senderTx[0] id/date: ${
+        `FinanceLog receiverTxId/date: ${receiverTx?.[receiverIndex]?.id}/${receiverTx?.[
+          receiverIndex
+        ]?.created.toDateString()}; senderTx[0] id/date: ${
           senderTx[0].id
         }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair.id}/${
-          senderPair instanceof BankTx ? senderPair.valueDate.toDateString() : senderPair.created.toDateString()
+          senderPair && senderPair instanceof BankTx
+            ? senderPair.valueDate.toDateString()
+            : senderPair?.created.toDateString()
         }; senderTx length: ${senderTx.length}`,
       );
     }
