@@ -23,8 +23,7 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -242,7 +241,12 @@ export class UserService {
       });
 
       // send mail
-      await this.sendVerificationMail({ ...userData, mail: dto.mail } as UserData, secret, codeExpiryMinutes);
+      await this.tfaService.sendVerificationMail(
+        { ...userData, mail: dto.mail } as UserData,
+        secret,
+        codeExpiryMinutes,
+        MailContext.EMAIL_VERIFICATION,
+      );
 
       delete dto.mail;
     }
@@ -621,39 +625,5 @@ export class UserService {
           refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
         }
       : { refCount: 0, refCountActive: 0 };
-  }
-
-  // --- HELPER METHODS --- //
-  private async sendVerificationMail(userData: UserData, code: string, expirationMinutes: number): Promise<void> {
-    try {
-      if (userData.mail)
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          context: MailContext.EMAIL_VERIFICATION,
-          input: {
-            userData: userData,
-            title: `${MailTranslationKey.EMAIL_VERIFICATION}.title`,
-            salutation: {
-              key: `${MailTranslationKey.EMAIL_VERIFICATION}.salutation`,
-            },
-            suffix: [
-              {
-                key: `${MailTranslationKey.EMAIL_VERIFICATION}.message`,
-                params: { code },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
-                key: `${MailTranslationKey.EMAIL_VERIFICATION}.closing`,
-                params: { expiration: `${expirationMinutes}` },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: MailKey.DFX_TEAM_CLOSING },
-            ],
-          },
-        });
-    } catch (e) {
-      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
-      throw new BadRequestException('Failed to send verification mail');
-    }
   }
 }

@@ -257,15 +257,15 @@
         "closing": "Thank you for your trust in us.<br>Oli"
     },
     "verification_code": {
-        "title": "Codice di verifica",
-        "salutation": "Avete richiesto un codice di verifica 2FA",
+        "default": {
+            "title": "Codice di verifica",
+            "salutation": "Avete richiesto un codice di verifica 2FA"
+        },
+        "email": {
+            "title": "Codice di verifica dell'e-mail",
+            "salutation": "Hai richiesto di cambiare il tuo indirizzo e-mail"
+        },
         "message": "Il codice di verifica è:<br>{code}",
         "closing": "Il codice di verifica è valido per {expiration} minuti. Si prega di non condividere questo codice di verifica con altre persone. Se non avete richiesto un codice di verifica, contattate immediatamente l'assistenza via [url:https://services.dfx.swiss/support]."
-    },
-    "email_verification": {
-      "title": "Codice di verifica dell'e-mail",
-      "salutation": "Hai richiesto di cambiare il tuo indirizzo e-mail",
-      "message": "Il codice di verifica è:<br>{code}",
-      "closing": "Il codice di verifica è valido per {expiration} minuti. Si prega di non condividere questo codice di verifica con altre persone. Se non avete richiesto un codice di verifica, contattate immediatamente l'assistenza via [url:https://services.dfx.swiss/support]."
     }
 }

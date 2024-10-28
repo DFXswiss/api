@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -82,7 +83,7 @@ export class TfaService {
       });
 
       // send mail
-      await this.sendVerificationMail(user, secret, codeExpiryMinutes);
+      await this.sendVerificationMail(user, secret, codeExpiryMinutes, MailContext.VERIFICATION_MAIL);
 
       return { type };
     } else {
@@ -153,6 +154,46 @@ export class TfaService {
   }
 
   // --- HELPER METHODS --- //
+  async sendVerificationMail(
+    userData: UserData,
+    code: string,
+    expirationMinutes: number,
+    context: MailContext.VERIFICATION_MAIL | MailContext.EMAIL_VERIFICATION,
+  ): Promise<void> {
+    try {
+      const tag = context === MailContext.VERIFICATION_MAIL ? 'default' : 'email';
+
+      if (userData.mail)
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context,
+          input: {
+            userData: userData,
+            title: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.title`,
+            salutation: {
+              key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,
+            },
+            suffix: [
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
+                params: { code },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
+                params: { expiration: `${expirationMinutes}` },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+    } catch (e) {
+      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
+      throw new BadRequestException('Failed to send verification mail');
+    }
+  }
+
   private verifyOrThrow(secret: string, token: string): void {
     const result = verifyToken(secret, token);
     if (!result || ![0, -1].includes(result.delta)) {
@@ -174,37 +215,5 @@ export class TfaService {
 
   private async getUser(kycHash: string): Promise<UserData> {
     return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
-  }
-
-  private async sendVerificationMail(userData: UserData, code: string, expirationMinutes: number): Promise<void> {
-    try {
-      if (userData.mail)
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          context: MailContext.VERIFICATION_MAIL,
-          input: {
-            userData: userData,
-            title: `${MailTranslationKey.VERIFICATION_CODE}.title`,
-            salutation: {
-              key: `${MailTranslationKey.VERIFICATION_CODE}.salutation`,
-            },
-            suffix: [
-              {
-                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
-                params: { code },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
-                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
-                params: { expiration: `${expirationMinutes}` },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: MailKey.DFX_TEAM_CLOSING },
-            ],
-          },
-        });
-    } catch (e) {
-      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
-    }
   }
 }
