@@ -179,7 +179,7 @@ export abstract class EvmStrategy extends SendStrategy {
     type: SendType,
   ): Promise<CryptoInput[]> {
     return Promise.all(
-      payInGroup.payIns.map(async (p) => await this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null),
+      payInGroup.payIns.map(async (p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null),
     );
   }
 

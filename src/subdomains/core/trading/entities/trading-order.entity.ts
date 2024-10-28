@@ -132,6 +132,6 @@ export class TradingOrder extends IEntity {
   }
 
   get feeAmountChf(): number {
-    return this.txFeeAmountChf + this.swapFeeAmountChf;
+    return this.txFeeAmountChf;
   }
 }

@@ -66,7 +66,7 @@ export class ExchangeTxService {
             }));
           const price = await this.pricingService.getPrice(feeAsset, this.chf, false);
 
-          entity.feeAmountChf = Util.round(price.convert(entity.feeAmount), Config.defaultVolumeDecimal);
+          entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
       }
 

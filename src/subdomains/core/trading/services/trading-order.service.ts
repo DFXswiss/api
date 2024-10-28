@@ -173,7 +173,7 @@ export class TradingOrderService implements OnModuleInit {
     const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
     const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
     const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
-    const outChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
+    const outChfPrice = await this.pricingService.getPrice(order.assetOut, this.chf, true);
 
     order.complete(
       outputAmount,
