@@ -513,7 +513,7 @@ export class UserDataService {
     return false;
   }
 
-  async mergeUserData(masterId: number, slaveId: number, notifyUser = false): Promise<void> {
+  async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     const [master, slave] = await Promise.all([
@@ -542,6 +542,8 @@ export class UserDataService {
     ]);
     master.checkIfMergePossibleWith(slave);
 
+    if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
+
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
     );
@@ -560,13 +562,13 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
-    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
+    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
     this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);
 
     // Notify user about changed mail
-    if (notifyUser && slave.mail && master.mail !== slave.mail)
+    if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
       await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
     // Adapt slave kyc step sequenceNumber
@@ -601,7 +603,7 @@ export class UserDataService {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
-    master.mail = slave.mail ?? master.mail;
+    master.mail = mail ?? slave.mail ?? master.mail;
 
     // update slave status
     await this.userDataRepo.update(slave.id, {
