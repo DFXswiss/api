@@ -6,7 +6,6 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
-import { UserDataRepository } from '../user/models/user-data/user-data.repository';
 import { UserModule } from '../user/user.module';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { KycClientController } from './controllers/kyc-client.controller';
@@ -66,11 +65,10 @@ import { TfaService } from './services/tfa.service';
     FinancialService,
     KycLogRepository,
     KycStepRepository,
-    UserDataRepository,
     KycNotificationService,
     KycClientService,
     SumsubService,
   ],
-  exports: [KycDocumentService, NameCheckService, KycAdminService, KycLogService, KycNotificationService],
+  exports: [KycDocumentService, NameCheckService, TfaService, KycAdminService, KycLogService, KycNotificationService],
 })
 export class KycModule {}

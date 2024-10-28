@@ -30,6 +30,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
+import { VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
@@ -240,10 +241,10 @@ export class UserV2Controller {
   @ApiForbiddenResponse({ description: 'Invalid or expired Email verification token' })
   async verifyMail(
     @GetJwt() jwt: JwtPayload,
-    @Body() verificationCode: { token: string },
+    @Body() dto: VerifyMailDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserV2Dto> {
-    const { user, isKnownUser } = await this.userService.verifyMail(jwt.account, verificationCode.token, jwt.user);
+    const { user, isKnownUser } = await this.userService.verifyMail(jwt.account, dto.token, jwt.user);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;

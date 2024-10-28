@@ -24,7 +24,6 @@ import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.ma
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -66,7 +65,6 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
-    private readonly notificationService: NotificationService,
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
@@ -102,7 +100,10 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true, wallet: true } });
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: { userData: true, wallet: true },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -227,8 +228,8 @@ export class UserService {
     if (dto.mail) {
       await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
-      const user = await this.userRepo.findOneBy({ userData: { mail: dto.mail } });
-      if (user) throw new BadRequestException('Mail already in use');
+      const isKnownUser = await this.userDataService.isKnownKycUser({ ...userData, mail: dto.mail } as UserData);
+      if (isKnownUser) throw new BadRequestException('Mail already in use. Sent merge request');
 
       // mail verification
       const secret = Util.randomId().toString().slice(0, 6);
@@ -285,7 +286,10 @@ export class UserService {
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    const user = await this.userRepo.findOne({
+      where: { id },
+      relations: ['userData', 'userData.users', 'wallet'],
+    });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));

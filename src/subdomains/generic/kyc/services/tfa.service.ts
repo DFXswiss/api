@@ -21,7 +21,6 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MoreThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { UserDataRepository } from '../../user/models/user-data/user-data.repository';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { Setup2faDto, TfaType } from '../dto/output/setup-2fa.dto';
 
@@ -49,7 +48,6 @@ export class TfaService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly notificationService: NotificationService,
-    private readonly userDataRepo: UserDataRepository,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -133,7 +131,7 @@ export class TfaService {
   }
 
   async check(userDataId: number, ip: string, level: TfaLevel): Promise<void> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('User data not found');
 
     await this.checkVerification(userData, ip, level);
