@@ -459,8 +459,9 @@ export class LogJobService {
     let receiverIndex = 0;
     let senderPair = undefined;
 
-    senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
-    receiverTx.sort((a, b) => a.id - b.id);
+    if (senderTx.length > 1)
+      senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+    if (receiverTx.length > 1) receiverTx.sort((a, b) => a.id - b.id);
 
     do {
       const receiverAmount =
@@ -482,8 +483,8 @@ export class LogJobService {
         `FinanceLog receiverTxId/date: ${receiverTx?.[receiverIndex]?.id}/${receiverTx?.[
           receiverIndex
         ]?.created.toDateString()}; senderTx[0] id/date: ${
-          senderTx[0].id
-        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair.id}/${
+          senderTx[0]?.id
+        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
           senderPair && senderPair instanceof BankTx
             ? senderPair.valueDate.toDateString()
             : senderPair?.created.toDateString()
@@ -492,7 +493,7 @@ export class LogJobService {
     }
 
     return {
-      receiver: receiverTx.filter((r) => r.id >= receiverTx[receiverIndex].id),
+      receiver: receiverTx.filter((r) => r.id >= receiverTx[receiverIndex]?.id ?? 0),
       sender: (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id),
     };
   }
