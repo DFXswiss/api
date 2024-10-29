@@ -135,7 +135,7 @@ export class LogJobService {
     ]);
 
     // TODO reset to 14 after testing
-    const before14Days = Util.daysBefore(18);
+    const before14Days = Util.daysBefore(14);
     const before21Days = Util.daysBefore(21);
 
     before14Days.setHours(0, 0, 0, 0);
