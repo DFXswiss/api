@@ -135,41 +135,13 @@ export class LogJobService {
     ]);
 
     // TODO reset to 14 after testing
-    const before14Days = Util.daysBefore(17);
+    const before14Days = Util.daysBefore(18);
     const before21Days = Util.daysBefore(21);
 
     before14Days.setHours(0, 0, 0, 0);
 
-    // receiver data
-    const recentEurKrakenBankTx = recentKrakenBankTx.filter(
-      (b) =>
-        b.accountIban === maerkiEurBank.iban &&
-        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > before14Days,
-    );
-    const recentChfKrakenBankTx = recentKrakenBankTx.filter(
-      (b) =>
-        b.accountIban === maerkiChfBank.iban &&
-        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > before14Days,
-    );
-    const recentChfBankTxKraken = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.DEPOSIT &&
-        k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'MAEBCHZZXXX' &&
-        k.created > before14Days,
-    );
-    const recentEurBankTxKraken = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.DEPOSIT &&
-        k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'MAEBCHZZXXX' &&
-        k.created > before14Days,
-    );
-
-    // sender data
-    const recentChfKrakenMaerkiTx = this.filterSenderPendingList(
+    // sender and receiver data
+    const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
@@ -177,9 +149,14 @@ export class LogJobService {
           k.address === 'Maerki Baumann' &&
           k.created > before21Days,
       ),
-      recentChfKrakenBankTx?.sort((a, b) => a.id - b.id),
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.accountIban === maerkiChfBank.iban &&
+          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+          b.created > before14Days,
+      ),
     );
-    const recentEurKrakenMaerkiTx = this.filterSenderPendingList(
+    const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
@@ -187,26 +164,43 @@ export class LogJobService {
           k.address === 'Maerki Baumann & Co. AG' &&
           k.created > before21Days,
       ),
-      recentEurKrakenBankTx?.sort((a, b) => a.id - b.id),
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.accountIban === maerkiEurBank.iban &&
+          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+          b.created > before14Days,
+      ),
     );
 
-    const recentChfMaerkiKrakenTx = this.filterSenderPendingList(
+    const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiChfBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > before21Days,
       ),
-      recentChfBankTxKraken?.sort((a, b) => a.id - b.id),
+      recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.DEPOSIT &&
+          k.method === 'Bank Frick (SIC) International' &&
+          k.address === 'MAEBCHZZXXX' &&
+          k.created > before14Days,
+      ),
     );
-    const recentEurMaerkiKrakenTx = this.filterSenderPendingList(
+    const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiEurBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > before21Days,
       ),
-      recentEurBankTxKraken?.sort((a, b) => a.id - b.id),
+      recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.DEPOSIT &&
+          k.method === 'Bank Frick (SEPA) International' &&
+          k.address === 'MAEBCHZZXXX' &&
+          k.created > before14Days,
+      ),
     );
 
     // asset log
@@ -461,12 +455,13 @@ export class LogJobService {
   private filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
-  ): (BankTx | ExchangeTx)[] {
-    if (!receiverTx?.length) return senderTx;
+  ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
+    if (!receiverTx?.length) return { sender: senderTx, receiver: receiverTx };
     let receiverIndex = 0;
     let senderPair = undefined;
 
     senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+    receiverTx.sort((a, b) => a.id - b.id);
 
     do {
       const receiverAmount =
@@ -480,7 +475,7 @@ export class LogJobService {
           : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
       );
 
-      receiverIndex++;
+      if (!senderPair) receiverIndex++;
     } while (!senderPair && receiverTx.length > receiverIndex);
 
     if (senderTx[0] instanceof BankTx) {
@@ -497,7 +492,10 @@ export class LogJobService {
       );
     }
 
-    return (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id);
+    return {
+      receiver: receiverTx.filter((r) => r.id >= receiverTx[receiverIndex].id),
+      sender: (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id),
+    };
   }
 
   private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
