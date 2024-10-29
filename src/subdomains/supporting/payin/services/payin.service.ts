@@ -99,8 +99,9 @@ export class PayInService {
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
+    const strategy = this.sendStrategyRegistry.getSendStrategy(payIn.asset);
 
-    payIn.acknowledge(purpose, route);
+    payIn.acknowledge(purpose, route, strategy.forwardRequired);
 
     await this.payInRepository.save(payIn);
   }
@@ -265,7 +266,7 @@ export class PayInService {
   private async checkInputConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       isConfirmed: false,
-      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.COMPLETED]),
+      status: Not(PayInStatus.FAILED),
     });
 
     if (payIns.length === 0) return;
