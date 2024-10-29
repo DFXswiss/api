@@ -381,7 +381,7 @@ export class UserDataService {
   }
 
   async checkApiKey(key: string, sign: string, timestamp: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOneBy({ apiKeyCT: key });
+    const userData = await this.userDataRepo.findOne({ where: { apiKeyCT: key }, relations: { users: true } });
     if (!userData) throw new NotFoundException('API key not found');
 
     if (!ApiKeyService.isValidSign(userData, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');

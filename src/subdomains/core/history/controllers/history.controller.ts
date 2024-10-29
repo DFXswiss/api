@@ -26,7 +26,6 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { ExportFormat, HistoryQuery, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
@@ -76,24 +75,14 @@ export class HistoryController {
       : await this.userDataService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
-    return (
-      user instanceof User
-        ? await this.historyService.getJsonHistory(
-            { format: ExportFormat.JSON, userAddress: user.address, ...query },
-            ExportType.COIN_TRACKING,
-          )
-        : await Promise.all(
-            user.users.map(async (u) => {
-              return this.historyService.getJsonHistory(
-                { format: ExportFormat.JSON, userAddress: u.address, ...query },
-                ExportType.COIN_TRACKING,
-              );
-            }),
-          ).then((t) => t.flat())
-    ).map((tx) => ({
-      ...tx,
-      date: tx.date?.getTime() / 1000,
-    }));
+    return this.historyService
+      .getJsonHistory(user, { format: ExportFormat.JSON, ...query }, ExportType.COIN_TRACKING)
+      .then((h) =>
+        h.map((tx) => ({
+          ...tx,
+          date: tx.date?.getTime() / 1000,
+        })),
+      );
   }
 
   @Post('csv')
