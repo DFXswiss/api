@@ -322,7 +322,7 @@ export class BankTxService implements OnModuleInit {
         tx.chargeAmountChf = tx.chargeAmount;
       } else {
         const chargeCurrency = await this.fiatService.getFiatByName(tx.chargeCurrency);
-        const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, false);
+        const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, true);
 
         tx.chargeAmountChf = chargeChfPrice.convert(tx.chargeAmount, Config.defaultVolumeDecimal);
       }
