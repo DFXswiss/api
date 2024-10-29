@@ -92,7 +92,8 @@ export class LogJobService {
     const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
 
     // changes
-    const changeLog = await this.getChangeLog();
+    //TODO reactivate
+    //const changeLog = await this.getChangeLog();
 
     const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
     const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
@@ -110,7 +111,8 @@ export class LogJobService {
           minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
           totalBalanceChf: plusBalanceChf - minusBalanceChf,
         },
-        changes: changeLog,
+        //TODO reactivate
+        //changes: changeLog,
       }),
     });
   }
