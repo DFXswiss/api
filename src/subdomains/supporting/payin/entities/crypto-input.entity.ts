@@ -173,10 +173,10 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRouteType, isForwardRequired: boolean): this {
     this.purpose = purpose;
     this.route = route;
-    this.status = this.isPayment ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
+    this.status = this.isPayment || !isForwardRequired ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
 
     return this;
   }
