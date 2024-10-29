@@ -64,7 +64,7 @@ export class ExchangeTxService {
               type: undefined,
               dexName: entity.feeCurrency,
             }));
-          const price = await this.pricingService.getPrice(feeAsset, this.chf, false);
+          const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }

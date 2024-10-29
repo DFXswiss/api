@@ -208,9 +208,10 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  preparing(prepareTxId: string | null, forwardFeeAmount: number): this {
+  preparing(prepareTxId: string | null, forwardFeeAmount: number, feeAmountChf: number): this {
     this.prepareTxId = prepareTxId;
     this.forwardFeeAmount = forwardFeeAmount;
+    this.forwardFeeAmountChf = feeAmountChf;
     this.status = PayInStatus.PREPARING;
 
     return this;

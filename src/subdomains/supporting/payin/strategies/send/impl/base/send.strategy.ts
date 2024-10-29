@@ -37,15 +37,15 @@ export enum SendType {
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
-  private chf: Fiat;
+  protected chf: Fiat;
 
   @Inject() private readonly priceProvider: PricingService;
   @Inject() private readonly payoutService: PayoutService;
   @Inject(forwardRef(() => TransactionHelper)) private readonly transactionHelper: TransactionHelper;
   @Inject() private readonly registry: SendStrategyRegistry;
-  @Inject() private readonly pricingService: PricingService;
   @Inject() private readonly fiatService: FiatService;
-  @Inject() private readonly assetService: AssetService;
+  @Inject() protected readonly pricingService: PricingService;
+  @Inject() protected readonly assetService: AssetService;
 
   onModuleInit() {
     this.registry.add({ blockchain: this.blockchain, assetType: this.assetType }, this);
@@ -70,15 +70,15 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     outTxId: string,
     feeAmount: number = null,
   ): Promise<CryptoInput | null> {
-    const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
-    const feeAmountChf = feeAmount
-      ? await this.pricingService
-          .getPrice(feeAsset, this.chf, false)
-          .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
-      : null;
-
     switch (type) {
       case SendType.FORWARD:
+        const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
+        const feeAmountChf = feeAmount
+          ? await this.pricingService
+              .getPrice(feeAsset, this.chf, true)
+              .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+          : null;
+
         return payIn.forward(outTxId, feeAmount, feeAmountChf);
 
       case SendType.RETURN:
