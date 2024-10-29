@@ -172,13 +172,19 @@ export abstract class EvmStrategy extends SendStrategy {
   private async dispatch(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<void> {
     const outTxId = await this.dispatchSend(payInGroup, estimatedNativeFee);
 
-    const updatedPayIns = this.updatePayInsWithSendData(payInGroup, outTxId, type);
+    const updatedPayIns = await this.updatePayInsWithSendData(payInGroup, outTxId, type);
 
     await this.saveUpdatedPayIns(updatedPayIns);
   }
 
-  private updatePayInsWithSendData(payInGroup: SendGroup, outTxId: string, type: SendType): CryptoInput[] {
-    return payInGroup.payIns.map((p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null);
+  private async updatePayInsWithSendData(
+    payInGroup: SendGroup,
+    outTxId: string,
+    type: SendType,
+  ): Promise<CryptoInput[]> {
+    return Promise.all(payInGroup.payIns.map((p) => this.updatePayInWithSendData(p, type, outTxId))).then((p) =>
+      p.filter((p) => p != null),
+    );
   }
 
   private async saveUpdatedPayIns(payIns: CryptoInput[]): Promise<void> {
