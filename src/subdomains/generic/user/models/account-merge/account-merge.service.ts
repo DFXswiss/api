@@ -82,14 +82,16 @@ export class AccountMergeService {
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
-    const [masterId, slaveId] =
+    const [master, slave] =
       request.master.kycLevel < request.slave.kycLevel
-        ? [request.slave.id, request.master.id]
-        : [request.master.id, request.slave.id];
+        ? [request.slave, request.master]
+        : [request.master, request.slave];
 
-    await this.userDataService.mergeUserData(masterId, slaveId, request.slave.mail);
+    await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
-    return this.accountMergeRepo.save(request.complete());
+    await this.accountMergeRepo.update(...request.complete(master, slave));
+
+    return request;
   }
 
   private buildConfirmationUrl(code: string): string {
