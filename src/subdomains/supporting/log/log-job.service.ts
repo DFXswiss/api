@@ -465,7 +465,9 @@ export class LogJobService {
 
     do {
       const receiverAmount =
-        receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx[receiverIndex].amount;
+        receiverTx[receiverIndex] instanceof BankTx
+          ? (receiverTx[receiverIndex] as BankTx).instructedAmount
+          : receiverTx[receiverIndex].amount;
 
       senderPair = senderTx.find((s) =>
         s instanceof BankTx
