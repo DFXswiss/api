@@ -14,7 +14,6 @@ import { NotificationModule } from 'src/subdomains/supporting/notification/notif
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
-import { TfaLogRepository } from '../kyc/repositories/tfa-log.repository';
 import { AccountMerge } from './models/account-merge/account-merge.entity';
 import { AccountMergeRepository } from './models/account-merge/account-merge.repository';
 import { AccountMergeService } from './models/account-merge/account-merge.service';
@@ -77,7 +76,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataRepository,
     UserDataRelationRepository,
     AccountMergeRepository,
-    TfaLogRepository,
     UserService,
     WalletService,
     UserDataService,

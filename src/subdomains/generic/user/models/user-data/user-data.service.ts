@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -27,13 +28,15 @@ import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integrat
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
+import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
-import { UpdateUserDto } from '../user/dto/update-user.dto';
+import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
@@ -45,9 +48,17 @@ import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
 
+interface SecretCacheEntry {
+  secret: string;
+  mail: string;
+  expiryDate: Date;
+}
+
 @Injectable()
 export class UserDataService {
   private readonly logger = new DfxLogger(UserDataService);
+
+  private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(
     private readonly repos: RepositoryFactory,
@@ -66,6 +77,7 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
+    private readonly tfaService: TfaService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -192,6 +204,24 @@ export class UserDataService {
     return userData;
   }
 
+  async updateUserMailInternal(
+    userData: UserData,
+    dto: UpdateUserMailDto,
+  ): Promise<{ user: UserData; isKnownUser: boolean }> {
+    const updateSiftAccount: CreateAccount = { $time: Date.now() };
+    updateSiftAccount.$user_email = dto.mail;
+
+    for (const user of userData.users) {
+      updateSiftAccount.$user_id = user.id.toString();
+      await this.siftService.updateAccount(updateSiftAccount);
+    }
+
+    await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
+    userData = await this.userDataRepo.save(Object.assign(userData, { mail: dto.mail }));
+
+    return { user: userData, isKnownUser: await this.isKnownKycUser(userData) };
+  }
+
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
@@ -281,16 +311,47 @@ export class UserDataService {
     await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
+  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
+    await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
+
+    const isKnownUser = await this.isKnownKycUser({ ...userData, mail: dto.mail } as UserData);
+    if (isKnownUser) throw new BadRequestException('Mail already in use. Sent merge request');
+
+    // mail verification
+    const secret = Util.randomId().toString().slice(0, 6);
+    const codeExpiryMinutes = 30;
+
+    this.secretCache.set(userData.id, {
+      secret,
+      mail: dto.mail,
+      expiryDate: Util.minutesAfter(codeExpiryMinutes),
+    });
+
+    // send mail
+    return this.tfaService.sendVerificationMail(
+      { ...userData, mail: dto.mail } as UserData,
+      secret,
+      codeExpiryMinutes,
+      MailContext.EMAIL_VERIFICATION,
+    );
+  }
+
+  async verifyUserMail(userData: UserData, token: string): Promise<{ user: UserData; isKnownUser: boolean }> {
+    const cacheEntry = this.secretCache.get(userData.id);
+    if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired Email verification token');
+    this.secretCache.delete(userData.id);
+
+    return this.updateUserMailInternal(userData, { mail: cacheEntry.mail });
+  }
+
   async updateUserSettings(
     userData: UserData,
     dto: UpdateUserDto,
+    ip?: string,
     forceUpdate?: boolean,
   ): Promise<{ user: UserData; isKnownUser: boolean }> {
-    // check phone & mail if KYC is already started
-    if (
-      userData.kycLevel != KycLevel.LEVEL_0 &&
-      (dto.mail === null || dto.mail === '' || dto.phone === null || dto.phone === '')
-    )
+    // check phone KYC is already started
+    if (userData.kycLevel != KycLevel.LEVEL_0 && (dto.phone === null || dto.phone === ''))
       throw new BadRequestException('KYC already started, user data deletion not allowed');
 
     // check language
@@ -305,26 +366,28 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
-    const mailChanged = dto.mail && dto.mail !== userData.mail;
+    // check mail
+    if (dto.mail && dto.mail !== userData.mail) {
+      this.updateUserMail(userData, { mail: dto.mail }, ip);
+      delete dto.mail;
+    }
+
     const phoneChanged = dto.phone && dto.phone !== userData.phone;
 
     const updateSiftAccount: CreateAccount = { $time: Date.now() };
 
     if (phoneChanged) updateSiftAccount.$phone = dto.phone;
-    if (mailChanged) updateSiftAccount.$user_email = dto.mail;
 
-    if (phoneChanged || mailChanged) {
+    if (phoneChanged) {
       for (const user of userData.users) {
         updateSiftAccount.$user_id = user.id.toString();
         await this.siftService.updateAccount(updateSiftAccount);
       }
     }
 
-    if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
-
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
-    const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(userData));
+    const isKnownUser = forceUpdate && (await this.isKnownKycUser(userData));
     return { user: userData, isKnownUser };
   }
 

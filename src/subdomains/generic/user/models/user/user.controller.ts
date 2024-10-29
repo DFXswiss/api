@@ -78,9 +78,10 @@ export class UserController {
   async updateUserV1(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
+    @RealIP() ip: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser);
+    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser, ip);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;

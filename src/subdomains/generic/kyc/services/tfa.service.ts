@@ -1,10 +1,10 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   forwardRef,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -188,7 +188,7 @@ export class TfaService {
         });
     } catch (e) {
       this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
-      throw new BadRequestException('Failed to send verification mail');
+      throw new ServiceUnavailableException('Failed to send verification mail');
     }
   }
 

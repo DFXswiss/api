@@ -259,7 +259,7 @@ export class KycService {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
+    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserMailInternal(user, data);
     user = isKnownUser ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
 
     await this.createStepLog(user, kycStep);

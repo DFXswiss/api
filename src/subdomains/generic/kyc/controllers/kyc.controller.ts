@@ -74,6 +74,34 @@ export class KycController {
 
   constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
 
+  // --- 2FA --- //
+  @Get('2fa')
+  @ApiOkResponse({ description: '2FA active' })
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
+    return this.tfaService.check(jwt.account, ip, level);
+  }
+
+  @Post('2fa')
+  @ApiCreatedResponse({ type: Setup2faDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
+    return this.tfaService.setup(code, level);
+  }
+
+  @Post('2fa/verify')
+  @ApiCreatedResponse({ description: '2FA successful' })
+  @ApiUnauthorizedResponse(MergedResponse)
+  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
+  async verify2fa(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Body() dto: Verify2faDto,
+  ): Promise<void> {
+    return this.tfaService.verify(code, dto.token, ip);
+  }
+
+  // --- KYC --- //
   @Get()
   @ApiOkResponse({ type: KycLevelDto })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -319,33 +347,6 @@ export class KycController {
     const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
     this.allowFrameIntegration(res);
     res.redirect(307, redirectUri);
-  }
-
-  // --- 2FA --- //
-  @Post('2fa')
-  @ApiCreatedResponse({ type: Setup2faDto })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
-    return this.tfaService.setup(code, level);
-  }
-
-  @Post('2fa/verify')
-  @ApiCreatedResponse({ description: '2FA successful' })
-  @ApiUnauthorizedResponse(MergedResponse)
-  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
-  async verify2fa(
-    @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
-    @Body() dto: Verify2faDto,
-  ): Promise<void> {
-    return this.tfaService.verify(code, dto.token, ip);
-  }
-
-  @Get('2fa')
-  @ApiCreatedResponse({ description: '2FA active' })
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
-    return this.tfaService.check(jwt.account, ip, level);
   }
 
   // --- HELPER METHODS --- //
