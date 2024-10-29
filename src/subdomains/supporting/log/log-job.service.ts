@@ -134,7 +134,6 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
     ]);
 
-    // TODO reset to 14 after testing
     const before14Days = Util.daysBefore(14);
     const before21Days = Util.daysBefore(21);
 
