@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
+import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { ExchangeController } from './controllers/exchange.controller';
 import { ExchangeTx } from './entities/exchange-tx.entity';
 import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
@@ -14,7 +15,7 @@ import { KucoinService } from './services/kucoin.service';
 // import { P2BService } from './services/p2b.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExchangeTx]), SharedModule],
+  imports: [TypeOrmModule.forFeature([ExchangeTx]), SharedModule, forwardRef(() => PricingModule)],
   controllers: [ExchangeController],
   providers: [
     ExchangeTxRepository,

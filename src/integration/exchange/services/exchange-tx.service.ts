@@ -2,11 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { In, MoreThan } from 'typeorm';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -17,11 +20,14 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 @Injectable()
 export class ExchangeTxService {
   private readonly logger = new DfxLogger(ExchangeTxService);
+  private chf: Fiat;
 
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
     private readonly registryService: ExchangeRegistryService,
     private readonly assetService: AssetService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
 
   //*** JOBS ***//
@@ -47,8 +53,29 @@ export class ExchangeTxService {
       });
       entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
 
+      if (entity.feeAmount && !entity.feeAmountChf) {
+        if (entity.feeCurrency === 'CHF') {
+          entity.feeAmountChf = entity.feeAmount;
+        } else {
+          const feeAsset =
+            (await this.fiatService.getFiatByName(entity.feeCurrency)) ??
+            (await this.assetService.getAssetByQuery({
+              blockchain: undefined,
+              type: undefined,
+              dexName: entity.feeCurrency,
+            }));
+          const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+
+          entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
+        }
+      }
+
       await this.exchangeTxRepo.save(entity);
     }
+  }
+
+  async getExchangeTx(from: Date, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx[]> {
+    return this.exchangeTxRepo.find({ where: { created: MoreThan(from) }, relations });
   }
 
   async getRecentExchangeTx(
