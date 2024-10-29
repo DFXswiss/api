@@ -195,11 +195,10 @@ export class UserService {
     dto: UpdateUserDto,
     ip: string,
   ): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     // update
-    user = await this.userRepo.save({ ...user, ...dto });
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto, ip);
     user.userData = update;
 

@@ -368,7 +368,7 @@ export class UserDataService {
 
     // check mail
     if (dto.mail && dto.mail !== userData.mail) {
-      this.updateUserMail(userData, { mail: dto.mail }, ip);
+      await this.updateUserMail(userData, { mail: dto.mail }, ip);
       delete dto.mail;
     }
 
