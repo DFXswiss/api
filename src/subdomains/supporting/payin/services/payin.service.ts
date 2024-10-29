@@ -181,6 +181,7 @@ export class PayInService {
       action: PayInAction.FORWARD,
       outTxId: IsNull(),
       asset: Not(IsNull()),
+      isConfirmed: true,
     });
 
     if (payIns.length === 0) return;
@@ -244,6 +245,7 @@ export class PayInService {
       returnTxId: IsNull(),
       asset: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
+      isConfirmed: true,
     });
 
     if (payIns.length === 0) return;
@@ -263,7 +265,7 @@ export class PayInService {
   private async checkInputConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       isConfirmed: false,
-      status: Not(PayInStatus.FAILED),
+      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.COMPLETED]),
     });
 
     if (payIns.length === 0) return;
