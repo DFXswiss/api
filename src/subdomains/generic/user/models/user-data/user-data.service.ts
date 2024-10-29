@@ -351,31 +351,31 @@ export class UserDataService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const userData = await this.userDataRepo.findOneBy({ id: userId });
+  async createApiKey(userDataId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (!userData) throw new BadRequestException('User not found');
     if (userData.apiKeyCT) throw new ConflictException('API key already exists');
 
     userData.apiKeyCT = ApiKeyService.createKey(userData.id);
     userData.apiFilterCT = ApiKeyService.getFilterCode(filter);
 
-    await this.userRepo.update(userId, { apiKeyCT: userData.apiKeyCT, apiFilterCT: userData.apiFilterCT });
+    await this.userDataRepo.update(userDataId, { apiKeyCT: userData.apiKeyCT, apiFilterCT: userData.apiFilterCT });
 
     const secret = ApiKeyService.getSecret(userData);
 
     return { key: userData.apiKeyCT, secret };
   }
 
-  async deleteApiKey(userId: number): Promise<void> {
-    await this.userDataRepo.update(userId, { apiKeyCT: null });
+  async deleteApiKey(userDataId: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, { apiKeyCT: null });
   }
 
-  async updateApiFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userId } });
+  async updateApiFilter(userDataId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new BadRequestException('UserData not found');
 
     userData.apiFilterCT = ApiKeyService.getFilterCode(filter);
-    await this.userRepo.update(userId, { apiFilterCT: userData.apiFilterCT });
+    await this.userDataRepo.update(userDataId, { apiFilterCT: userData.apiFilterCT });
 
     return ApiKeyService.getFilterArray(userData.apiFilterCT);
   }
