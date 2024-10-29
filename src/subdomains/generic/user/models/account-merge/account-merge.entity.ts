@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Generated, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
@@ -42,10 +42,16 @@ export class AccountMerge extends IEntity {
     return entity;
   }
 
-  complete(): this {
-    this.isCompleted = true;
+  complete(master: UserData, slave: UserData): UpdateResult<AccountMerge> {
+    const update: Partial<AccountMerge> = {
+      isCompleted: true,
+      master,
+      slave,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   get isExpired(): boolean {

@@ -59,7 +59,7 @@ export class AmlService {
                 ? [entity.userData.id, bankData.userData.id]
                 : [bankData.userData.id, entity.userData.id];
 
-            await this.userDataService.mergeUserData(masterId, slaveId, true);
+            await this.userDataService.mergeUserData(masterId, slaveId, entity.userData.mail, true);
 
             entity.userData = await this.userDataService.getUserData(masterId, { users: true });
             if (masterId !== bankData.userData.id) bankData = await this.getBankData(entity);
