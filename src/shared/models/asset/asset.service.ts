@@ -7,7 +7,8 @@ import { Asset, AssetCategory, AssetType } from './asset.entity';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 
 export interface AssetQuery {
-  dexName: string;
+  dexName?: string;
+  name?: string;
   blockchain: Blockchain;
   type: AssetType;
 }

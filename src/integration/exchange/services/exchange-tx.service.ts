@@ -66,7 +66,7 @@ export class ExchangeTxService implements OnModuleInit {
             (await this.assetService.getAssetByQuery({
               blockchain: undefined,
               type: undefined,
-              dexName: entity.feeCurrency,
+              name: entity.feeCurrency,
             }));
           const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
 
