@@ -109,7 +109,7 @@ export class SepaParser {
   } {
     if (!charges) return { chargeAmount: 0, chargeCurrency: Config.defaults.currency };
 
-    charges = Array.isArray(charges) ? charges : [charges];
+    charges = (Array.isArray(charges) ? charges : [charges]).filter((c) => +c.Amt['#text'] !== 0);
 
     const amount = charges.reduce(
       (prev, curr) => prev + (curr.CdtDbtInd === SepaCdi.DEBIT ? +curr.Amt['#text'] : -+curr.Amt['#text']),
