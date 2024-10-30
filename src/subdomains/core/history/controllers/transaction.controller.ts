@@ -322,15 +322,19 @@ export class TransactionController {
     let refundTarget = null;
 
     if (transaction.targetEntity instanceof BuyCrypto) {
-      refundTarget = transaction.targetEntity.checkoutTx
-        ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
-        : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
-          (await this.transactionUtilService.validateChargebackIban(
-            transaction.targetEntity.bankTx.iban,
-            transaction.userData,
-          ))
-        ? transaction.targetEntity.bankTx.iban
-        : transaction.targetEntity.chargebackIban;
+      try {
+        refundTarget = transaction.targetEntity.checkoutTx
+          ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
+          : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
+            (await this.transactionUtilService.validateChargebackIban(
+              transaction.targetEntity.bankTx.iban,
+              transaction.userData,
+            ))
+          ? transaction.targetEntity.bankTx.iban
+          : transaction.targetEntity.chargebackIban;
+      } catch (_) {
+        refundTarget = transaction.targetEntity.chargebackIban;
+      }
     } else {
       refundTarget = transaction.targetEntity.chargebackAddress;
     }
