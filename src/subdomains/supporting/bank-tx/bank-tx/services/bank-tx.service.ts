@@ -5,13 +5,9 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -22,7 +18,6 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { DeepPartial, FindOptionsRelations, In, IsNull, Like, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
@@ -69,9 +64,8 @@ export const TransactionBankTxTypeMapper: {
 };
 
 @Injectable()
-export class BankTxService implements OnModuleInit {
+export class BankTxService {
   private readonly logger = new DfxLogger(BankTxService);
-  private chf: Fiat;
 
   constructor(
     private readonly bankTxRepo: BankTxRepository,
@@ -88,13 +82,8 @@ export class BankTxService implements OnModuleInit {
     private readonly revolutService: RevolutService,
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
-    private readonly pricingService: PricingService,
-    private readonly fiatService: FiatService,
+    private readonly sepaParser: SepaParser,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   // --- TRANSACTION HANDLING --- //
   @Cron(CronExpression.EVERY_30_SECONDS)
@@ -283,13 +272,15 @@ export class BankTxService implements OnModuleInit {
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
-    const sepaFile = SepaParser.parseSepaFile(xmlFile);
+    const sepaFile = this.sepaParser.parseSepaFile(xmlFile);
 
     const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
 
     // parse the file
-    let batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    const txList = SepaParser.parseEntries(sepaFile, batch.iban).map((e) => this.createTx(e, multiAccountIbans));
+    let batch = this.bankTxBatchRepo.create(this.sepaParser.parseBatch(sepaFile));
+    const txList = await this.sepaParser
+      .parseEntries(sepaFile, batch.iban)
+      .then((l) => l.map((e) => this.createTx(e, multiAccountIbans)));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
@@ -317,15 +308,6 @@ export class BankTxService implements OnModuleInit {
 
     for (const tx of newTxs) {
       tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
-
-      if (!tx.chargeAmount || tx.chargeCurrency === 'CHF') {
-        tx.chargeAmountChf = tx.chargeAmount;
-      } else {
-        const chargeCurrency = await this.fiatService.getFiatByName(tx.chargeCurrency);
-        const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, true);
-
-        tx.chargeAmountChf = chargeChfPrice.convert(tx.chargeAmount, Config.defaultVolumeDecimal);
-      }
     }
 
     // store batch and entries in one transaction

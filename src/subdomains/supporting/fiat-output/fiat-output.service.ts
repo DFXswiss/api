@@ -1,5 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
@@ -14,6 +15,8 @@ import { FiatOutputRepository } from './fiat-output.repository';
 
 @Injectable()
 export class FiatOutputService {
+  private readonly logger = new DfxLogger(FiatOutputService);
+
   constructor(
     private readonly fiatOutputRepo: FiatOutputRepository,
     private readonly buyFiatRepo: BuyFiatRepository,
@@ -28,15 +31,19 @@ export class FiatOutputService {
     if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
 
     const entities = await this.fiatOutputRepo.find({
-      where: { amount: Not(IsNull()), isComplete: IsNull(), bankTx: { id: IsNull() } },
+      where: { amount: Not(IsNull()), isComplete: false, bankTx: { id: IsNull() } },
       relations: { bankTx: true },
     });
 
     for (const entity of entities) {
-      const bankTx = await this.getMatchingBankTx(entity);
-      if (!bankTx || entity.isApprovedDate > bankTx.created) continue;
+      try {
+        const bankTx = await this.getMatchingBankTx(entity);
+        if (!bankTx || entity.isApprovedDate > bankTx.created) continue;
 
-      await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
+        await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
+      } catch (e) {
+        this.logger.error(`Error in fiatOutput complete job: ${entity.id}`, e);
+      }
     }
   }
 

@@ -327,7 +327,7 @@ export class BuyCryptoBatchService {
 
       // order liquidity
       try {
-        const asset = oa.dexName === 'DFI' ? await this.assetService.getDfiToken() : oa;
+        const asset = oa;
         const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${orderId}`);
       } catch (e) {

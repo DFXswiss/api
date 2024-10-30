@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -18,7 +18,7 @@ import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
-export class ExchangeTxService {
+export class ExchangeTxService implements OnModuleInit {
   private readonly logger = new DfxLogger(ExchangeTxService);
   private chf: Fiat;
 
@@ -29,6 +29,10 @@ export class ExchangeTxService {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
   ) {}
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+  }
 
   //*** JOBS ***//
 
@@ -62,7 +66,7 @@ export class ExchangeTxService {
             (await this.assetService.getAssetByQuery({
               blockchain: undefined,
               type: undefined,
-              dexName: entity.feeCurrency,
+              name: entity.feeCurrency,
             }));
           const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
 
