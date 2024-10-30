@@ -82,10 +82,7 @@ export class AccountMergeService {
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
-    const [master, slave] =
-      request.master.kycLevel < request.slave.kycLevel
-        ? [request.slave, request.master]
-        : [request.master, request.slave];
+    const [master, slave] = [request.master, request.slave].sort((a, b) => b.kycLevel - a.kycLevel);
 
     await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
