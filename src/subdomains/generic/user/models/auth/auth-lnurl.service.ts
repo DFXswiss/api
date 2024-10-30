@@ -16,6 +16,7 @@ import {
   AuthLnurlSignupDto,
   AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
+import { UserService } from '../user/user.service';
 
 export interface AuthCacheDto {
   servicesIp: string;
@@ -30,7 +31,11 @@ export interface AuthCacheDto {
 export class AuthLnUrlService {
   private authCache: Map<string, AuthCacheDto> = new Map();
 
-  constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly ipLogService: IpLogService,
+    private readonly userService: UserService,
+  ) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock()
@@ -91,7 +96,9 @@ export class AuthLnUrlService {
     const authCacheEntry = this.authCache.get(k1);
     const { servicesIp, servicesUrl } = authCacheEntry;
 
-    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address);
+    const user = await this.userService.getUserByAddress(address);
+
+    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address, user);
 
     if (!ipLog.result) {
       this.authCache.delete(k1);

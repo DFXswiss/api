@@ -6,6 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { AlbySignupDto } from '../user/dto/alby.dto';
+import { UserService } from '../user/user.service';
 import { AuthService } from './auth.service';
 
 interface AlbyAuthResponse {
@@ -40,6 +41,7 @@ export class AuthAlbyService {
     private readonly http: HttpService,
     private readonly authService: AuthService,
     private readonly ipLogService: IpLogService,
+    private readonly userService: UserService,
   ) {}
 
   getOauthUrl(dto: AlbySignupDto): string {
@@ -84,7 +86,9 @@ export class AuthAlbyService {
       // construct session and create IP log
       const session = { address: LightningHelper.addressToLnurlp(lightning_address), signature: identifier };
 
-      const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address);
+      const user = await this.userService.getUserByAddress(session.address);
+
+      const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address, user);
       if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
       const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
