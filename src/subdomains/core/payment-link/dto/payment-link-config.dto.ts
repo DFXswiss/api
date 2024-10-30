@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsEnum, IsOptional, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
-import { PaymentLinkRecipientDto } from './payment-link.dto';
+import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
 export class PaymentLinkConfigDto {
   @ApiPropertyOptional({ enum: PaymentStandard, isArray: true })
@@ -31,7 +31,7 @@ export class PaymentLinkConfigDto {
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   @IsOptional()
-  @Type()
+  @Type(() => PaymentLinkRecipientDto)
   @ValidateNested()
   recipient?: PaymentLinkRecipientDto;
 

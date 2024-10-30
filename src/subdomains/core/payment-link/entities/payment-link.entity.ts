@@ -4,7 +4,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
-import { PaymentLinkRecipientDto } from '../dto/payment-link.dto';
+import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';

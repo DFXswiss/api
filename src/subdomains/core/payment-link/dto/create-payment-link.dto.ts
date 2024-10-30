@@ -33,13 +33,13 @@ export class CreatePaymentLinkDto {
 
   @ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })
   @IsOptional()
-  @Type()
+  @Type(() => CreatePaymentLinkPaymentDto)
   @ValidateNested()
   payment?: CreatePaymentLinkPaymentDto;
 
   @ApiPropertyOptional({ type: PaymentLinkConfigDto })
   @IsOptional()
-  @Type()
+  @Type(() => PaymentLinkConfigDto)
   @ValidateNested()
   config?: PaymentLinkConfigDto;
 }
