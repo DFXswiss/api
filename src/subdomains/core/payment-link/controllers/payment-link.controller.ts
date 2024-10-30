@@ -76,6 +76,7 @@ export class PaymentLinkController {
   async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
     await this.checkPaymentLinksAllowed(jwt.account);
 
+    console.log('dto', dto);
     return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 

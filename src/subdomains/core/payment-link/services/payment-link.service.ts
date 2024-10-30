@@ -141,9 +141,12 @@ export class PaymentLinkService {
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
 
-    const country = dto.recipient?.address?.country
-      ? await this.countryService.getCountryWithSymbol(dto.recipient?.address?.country)
+    const country = dto.config?.recipient?.address?.country
+      ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
       : undefined;
+
+    console.log('createForRoute dto.config', dto.config);
+    console.log('createForRoute dto.config?.recipient', dto.config?.recipient);
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
@@ -151,16 +154,17 @@ export class PaymentLinkService {
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
       webhookUrl: dto.webhookUrl,
-      name: dto.recipient?.name,
-      street: dto.recipient?.address?.street,
-      houseNumber: dto.recipient?.address?.houseNumber,
-      zip: dto.recipient?.address?.zip,
-      city: dto.recipient?.address?.city,
+      name: dto.config?.recipient?.name,
+      street: dto.config?.recipient?.address?.street,
+      houseNumber: dto.config?.recipient?.address?.houseNumber,
+      zip: dto.config?.recipient?.address?.zip,
+      city: dto.config?.recipient?.address?.city,
       country: country,
-      phone: dto.recipient?.phone,
-      mail: dto.recipient?.mail,
-      website: dto.recipient?.website,
+      phone: dto.config?.recipient?.phone,
+      mail: dto.config?.recipient?.mail,
+      website: dto.config?.recipient?.website,
       payments: [],
+      config: JSON.stringify(dto.config),
     });
 
     await this.paymentLinkRepo.save(paymentLink);
@@ -259,8 +263,8 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    const { status, webhookUrl, recipient } = dto;
-    const { name, address, phone, mail, website } = recipient ?? {};
+    const { status, webhookUrl, config } = dto;
+    const { name, address, phone, mail, website } = config.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
     const updatePaymentLink: Partial<PaymentLink> = {
@@ -274,6 +278,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
+      config: JSON.stringify(config),
     };
 
     if (country === null) {

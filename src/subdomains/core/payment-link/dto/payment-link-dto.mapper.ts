@@ -42,6 +42,7 @@ export class PaymentLinkDtoMapper {
       webhookUrl: paymentLink.webhookUrl ?? undefined,
       recipient: paymentLink.recipient,
       status: paymentLink.status,
+      config: JSON.parse(paymentLink.config),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),
       lnurl: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
     };

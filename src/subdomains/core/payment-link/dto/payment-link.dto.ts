@@ -4,6 +4,7 @@ import { IsEmail, IsOptional, IsString, IsUrl, ValidateNested } from 'class-vali
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ErrorDto } from 'src/shared/dto/error.dto';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
+import { PaymentLinkConfigDto } from './payment-link-config.dto';
 
 export type TransferMethod = Blockchain;
 
@@ -177,6 +178,9 @@ export class PaymentLinkBaseDto {
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   recipient?: PaymentLinkRecipientDto;
+
+  @ApiPropertyOptional({ type: PaymentLinkConfigDto })
+  config?: PaymentLinkConfigDto;
 }
 
 export class PaymentLinkDto extends PaymentLinkBaseDto {
