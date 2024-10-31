@@ -165,7 +165,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse()
   async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {
-    await this.userService.deleteApiKey(jwt.user);
+    if (jwt.user) await this.userService.deleteApiKey(jwt.user);
     return this.userDataService.deleteApiKey(jwt.account);
   }
 
@@ -174,7 +174,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: String, isArray: true })
   async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    await this.userService.updateApiFilter(jwt.user, filter);
+    if (jwt.user) await this.userService.updateApiFilter(jwt.user, filter);
     return this.userDataService.updateApiFilter(jwt.account, filter);
   }
 
