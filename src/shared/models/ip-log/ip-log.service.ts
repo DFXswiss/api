@@ -40,6 +40,7 @@ export class IpLogService {
 
     const country = this.geoLocationService.getCountry(userIp);
     const countryObject = await this.countryService.getCountryWithSymbol(country);
+    
     const user = await this.repos.user.findOneBy({ address });
 
     if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true, user };
