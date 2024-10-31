@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -30,7 +24,6 @@ import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-d
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { ApiKeyDto } from './dto/api-key.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -468,21 +461,6 @@ export class UserService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const user = await this.userRepo.findOneBy({ id: userId });
-    if (!user) throw new BadRequestException('User not found');
-    if (user.apiKeyCT) throw new ConflictException('API key already exists');
-
-    user.apiKeyCT = ApiKeyService.createKey(user.address);
-    user.apiFilterCT = ApiKeyService.getFilterCode(filter);
-
-    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiFilterCT: user.apiFilterCT });
-
-    const secret = ApiKeyService.getSecret(user);
-
-    return { key: user.apiKeyCT, secret: secret };
-  }
-
   async deleteApiKey(userId: number): Promise<void> {
     await this.userRepo.update(userId, { apiKeyCT: null });
   }
