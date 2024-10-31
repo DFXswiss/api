@@ -86,9 +86,7 @@ export class AuthAlbyService {
       // construct session and create IP log
       const session = { address: LightningHelper.addressToLnurlp(lightning_address), signature: identifier };
 
-      const user = await this.userService.getUserByAddress(session.address);
-
-      const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address, user);
+      const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address);
       if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
       const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {

@@ -17,8 +17,8 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  async create(ip: string, url: string, address: string, user?: User): Promise<IpLog> {
-    const { country, result } = await this.checkIpCountry(ip, address);
+  async create(ip: string, url: string, address: string): Promise<IpLog> {
+    const { country, result, user } = await this.checkIpCountry(ip, address);
     const ipLog = this.ipLogRepo.create({
       ip,
       country,
@@ -31,16 +31,19 @@ export class IpLogService {
     return this.ipLogRepo.save(ipLog);
   }
 
-  private async checkIpCountry(userIp: string, address: string): Promise<{ country: string; result: boolean }> {
+  private async checkIpCountry(
+    userIp: string,
+    address: string,
+  ): Promise<{ country: string; result: boolean; user: User }> {
     if (Config.environment === Environment.LOC || userIp?.includes(Config.azureIpSubstring))
-      return { country: 'INTERN', result: true };
+      return { country: 'INTERN', result: true, user: undefined };
 
     const country = this.geoLocationService.getCountry(userIp);
     const countryObject = await this.countryService.getCountryWithSymbol(country);
-
     const user = await this.repos.user.findOneBy({ address });
-    if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true };
 
-    return { country, result: countryObject?.ipEnable };
+    if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true, user };
+
+    return { country, result: countryObject?.ipEnable, user };
   }
 }

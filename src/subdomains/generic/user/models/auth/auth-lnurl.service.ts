@@ -96,9 +96,7 @@ export class AuthLnUrlService {
     const authCacheEntry = this.authCache.get(k1);
     const { servicesIp, servicesUrl } = authCacheEntry;
 
-    const user = await this.userService.getUserByAddress(address);
-
-    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address, user);
+    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address);
 
     if (!ipLog.result) {
       this.authCache.delete(k1);
