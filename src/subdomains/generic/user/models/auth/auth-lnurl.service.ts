@@ -16,7 +16,6 @@ import {
   AuthLnurlSignupDto,
   AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
-import { UserService } from '../user/user.service';
 
 export interface AuthCacheDto {
   servicesIp: string;
@@ -31,11 +30,7 @@ export interface AuthCacheDto {
 export class AuthLnUrlService {
   private authCache: Map<string, AuthCacheDto> = new Map();
 
-  constructor(
-    private readonly authService: AuthService,
-    private readonly ipLogService: IpLogService,
-    private readonly userService: UserService,
-  ) {}
+  constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock()

@@ -6,7 +6,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { AlbySignupDto } from '../user/dto/alby.dto';
-import { UserService } from '../user/user.service';
 import { AuthService } from './auth.service';
 
 interface AlbyAuthResponse {
@@ -41,7 +40,6 @@ export class AuthAlbyService {
     private readonly http: HttpService,
     private readonly authService: AuthService,
     private readonly ipLogService: IpLogService,
-    private readonly userService: UserService,
   ) {}
 
   getOauthUrl(dto: AlbySignupDto): string {
