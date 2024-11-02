@@ -28,7 +28,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -85,7 +85,7 @@ export class UserDataService {
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
-    let user = await this.userDataRepo.findOne({ where: { kycHash }, relations });
+    let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
     if (user.status === UserDataStatus.MERGED) {
