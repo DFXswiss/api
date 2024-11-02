@@ -36,7 +36,7 @@ import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
@@ -190,16 +190,12 @@ export class UserService {
     return user;
   }
 
-  async updateUserV1(
-    id: number,
-    dto: UpdateUserDto,
-    ip: string,
-  ): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     // update
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto, ip);
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
     user.userData = update;
 
     return { user: await this.toDto(user, true), isKnownUser };
@@ -208,7 +204,6 @@ export class UserService {
   async updateUser(
     userDataId: number,
     dto: UpdateUserDto,
-    ip: string,
     userId?: number,
   ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
     const userData = await this.userDataRepo.findOne({
@@ -220,6 +215,16 @@ export class UserService {
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
 
     return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
+  }
+
+  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+
+    await this.userDataService.updateUserMail(userData, dto, ip);
   }
 
   async verifyMail(
@@ -253,10 +258,10 @@ export class UserService {
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, {
+    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserMailInternal(user.userData, {
       mail: dto.mail,
     });
-    user.userData = update;
+    user.userData = updatedUser;
 
     return { user: await this.toDto(user, true), isKnownUser };
   }

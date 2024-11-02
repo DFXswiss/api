@@ -9,11 +9,6 @@ import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.vali
 export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsEmail()
-  mail?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsString()
   @IsDfxPhone()
   @Transform(DfxPhoneTransform)

@@ -26,7 +26,7 @@ import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
@@ -78,10 +78,9 @@ export class UserController {
   async updateUserV1(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
-    @RealIP() ip: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser, ip);
+    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
@@ -226,13 +225,25 @@ export class UserV2Controller {
   async updateUser(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
-    @RealIP() ip: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserV2Dto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, ip, jwt.user);
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, jwt.user);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
+  }
+
+  @Put('mail')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse()
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateUserMail(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newMail: UpdateUserMailDto,
+    @RealIP() ip: string,
+  ): Promise<void> {
+    return this.userService.updateUserMail(jwt.account, newMail, ip);
   }
 
   @Post('mail/verify')

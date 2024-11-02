@@ -347,7 +347,6 @@ export class UserDataService {
   async updateUserSettings(
     userData: UserData,
     dto: UpdateUserDto,
-    ip?: string,
     forceUpdate?: boolean,
   ): Promise<{ user: UserData; isKnownUser: boolean }> {
     // check phone KYC is already started
@@ -364,12 +363,6 @@ export class UserDataService {
     if (dto.currency) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new BadRequestException('Currency not found');
-    }
-
-    // check mail
-    if (dto.mail && dto.mail !== userData.mail) {
-      await this.updateUserMail(userData, { mail: dto.mail }, ip);
-      delete dto.mail;
     }
 
     const phoneChanged = dto.phone && dto.phone !== userData.phone;
