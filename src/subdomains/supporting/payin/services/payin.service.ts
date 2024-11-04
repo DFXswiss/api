@@ -36,8 +36,26 @@ export class PayInService {
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
 
-    for (const { address, txId, txType, txSequence, blockHeight, amount, asset } of transactions) {
-      const payIn = CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset);
+    for (const {
+      senderAddresses,
+      receiverAddress,
+      txId,
+      txType,
+      txSequence,
+      blockHeight,
+      amount,
+      asset,
+    } of transactions) {
+      const payIn = CryptoInput.create(
+        senderAddresses,
+        receiverAddress,
+        txId,
+        txType,
+        txSequence,
+        blockHeight,
+        amount,
+        asset,
+      );
 
       const exists = await this.payInRepository.exists({
         where: {
@@ -45,8 +63,8 @@ export class PayInService {
           txSequence: txSequence,
           asset: { id: asset?.id },
           address: {
-            address: address.address,
-            blockchain: address.blockchain,
+            address: receiverAddress.address,
+            blockchain: receiverAddress.blockchain,
           },
         },
       });
