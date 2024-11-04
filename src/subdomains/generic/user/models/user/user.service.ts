@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -131,6 +137,7 @@ export class UserService {
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
     return UserDtoMapper.mapUser(userData, userId);
   }
