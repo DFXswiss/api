@@ -254,7 +254,8 @@ export class UserService {
       where: { id },
       relations: { userData: { users: true }, wallet: true },
     });
-    if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
+    if (user.userData.kycLevel !== KycLevel.LEVEL_0 || user.userData.mail)
+      throw new BadRequestException('KYC already started, mail already set');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
 

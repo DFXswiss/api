@@ -56,7 +56,8 @@ export class KycService {
 
   async updateKycData(code: string, data: KycUserDataDto, userDataId?: number): Promise<KycInfo> {
     const user = await this.getUser(code, userDataId);
-    if (user.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
+    if (user.kycLevel !== KycLevel.LEVEL_0 || user.mail)
+      throw new BadRequestException('KYC already started, mail already set');
 
     const updatedUser = await this.userDataService.updateKycData(user, data);
     return this.createKycInfoBasedOn(updatedUser);

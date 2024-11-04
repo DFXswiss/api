@@ -289,8 +289,7 @@ export class UserDataService {
       });
     }
 
-    const mailChanged = data.mail && data.mail !== userData.mail;
-    if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
+    if (data.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
 
     return this.userDataRepo.save(Object.assign(userData, data));
   }
