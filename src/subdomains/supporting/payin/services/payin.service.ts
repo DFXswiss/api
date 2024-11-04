@@ -94,7 +94,10 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy([{ status: PayInStatus.ACKNOWLEDGED, isConfirmed: true }]);
+    return this.payInRepository.findBy({
+      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
+      isConfirmed: true,
+    });
   }
 
   async getPayIn(from: Date, relations?: FindOptionsRelations<CryptoInput>): Promise<CryptoInput[]> {
