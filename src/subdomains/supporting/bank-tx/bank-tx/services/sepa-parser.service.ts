@@ -1,20 +1,33 @@
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SepaEntry } from '../dto/sepa-entry.dto';
 import { SepaFile } from '../dto/sepa-file.dto';
 import { ChargeRecord, SepaAddress, SepaCdi } from '../dto/sepa.dto';
 import { BankTxBatch } from '../entities/bank-tx-batch.entity';
 import { BankTx } from '../entities/bank-tx.entity';
 
-export class SepaParser {
-  private static readonly logger = new DfxLogger(SepaParser);
+@Injectable()
+export class SepaParser implements OnModuleInit {
+  private readonly logger = new DfxLogger(SepaParser);
 
-  static parseSepaFile(xmlFile: string): SepaFile {
+  private chf: Fiat;
+
+  constructor(private readonly pricingService: PricingService, private readonly fiatService: FiatService) {}
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+  }
+
+  parseSepaFile(xmlFile: string): SepaFile {
     return Util.parseXml<{ Document: SepaFile }>(xmlFile).Document;
   }
 
-  static parseBatch(file: SepaFile): Partial<BankTxBatch> {
+  parseBatch(file: SepaFile): Partial<BankTxBatch> {
     const info = file.BkToCstmrStmt.Stmt;
     const identification = info.Id;
 
@@ -52,12 +65,12 @@ export class SepaParser {
     };
   }
 
-  static parseEntries(file: SepaFile, accountIban: string): Partial<BankTx>[] {
+  async parseEntries(file: SepaFile, accountIban: string): Promise<Partial<BankTx>[]> {
     const entries = Array.isArray(file.BkToCstmrStmt.Stmt.Ntry)
       ? file.BkToCstmrStmt.Stmt.Ntry
       : [file.BkToCstmrStmt.Stmt.Ntry];
 
-    return entries.map((entry) => {
+    return Util.asyncMap(entries, async (entry) => {
       const accountServiceRef =
         entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ??
         `CUSTOM/${file.BkToCstmrStmt.Stmt?.Acct?.Id?.IBAN}/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
@@ -83,9 +96,9 @@ export class SepaParser {
           exchangeSourceCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy),
           exchangeTargetCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
-          ...this.getTotalCharge(
+          ...(await this.getTotalCharge(
             creditDebitIndicator === SepaCdi.CREDIT ? entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd : entry?.Chrgs?.Rcrd,
-          ),
+          )),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
           accountIban,
@@ -103,24 +116,39 @@ export class SepaParser {
     });
   }
 
-  private static getTotalCharge(charges: ChargeRecord | ChargeRecord[] | undefined): {
+  private async getTotalCharge(charges: ChargeRecord | ChargeRecord[] | undefined): Promise<{
     chargeAmount: number;
+    chargeAmountChf: number;
     chargeCurrency: string;
-  } {
-    if (!charges) return { chargeAmount: 0, chargeCurrency: Config.defaults.currency };
+  }> {
+    let chargeAmount = 0;
+    let chargeAmountChf = 0;
+    const chargeCurrencies = new Set<string>();
 
-    charges = Array.isArray(charges) ? charges : [charges];
+    if (!charges) return { chargeAmount, chargeAmountChf, chargeCurrency: Config.defaults.currency };
 
-    const amount = charges.reduce(
-      (prev, curr) => prev + (curr.CdtDbtInd === SepaCdi.DEBIT ? +curr.Amt['#text'] : -+curr.Amt['#text']),
-      0,
-    );
-    const currency = [...new Set(charges.map((c) => c.Amt['@_Ccy']))].join(', ');
+    charges = (Array.isArray(charges) ? charges : [charges]).filter((c) => +c.Amt['#text'] !== 0);
 
-    return { chargeAmount: Util.round(amount, Config.defaultVolumeDecimal), chargeCurrency: currency };
+    for (const charge of charges) {
+      const currency = charge.Amt['@_Ccy'];
+      const amount = charge.CdtDbtInd === SepaCdi.DEBIT ? +charge.Amt['#text'] : -+charge.Amt['#text'];
+
+      const chargeCurrency = await this.fiatService.getFiatByName(currency);
+      const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, true);
+
+      chargeAmount += amount;
+      chargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);
+      chargeCurrencies.add(currency);
+    }
+
+    return {
+      chargeAmount: Util.round(chargeAmount, Config.defaultVolumeDecimal),
+      chargeAmountChf: Util.round(chargeAmountChf, Config.defaultVolumeDecimal),
+      chargeCurrency: Array.from(chargeCurrencies).join(','),
+    };
   }
 
-  private static getRelatedPartyInfo(entry: SepaEntry): Partial<BankTx> {
+  private getRelatedPartyInfo(entry: SepaEntry): Partial<BankTx> {
     const parties = entry?.NtryDtls?.TxDtls?.RltdPties;
     const { party, account, ultimateParty } =
       entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT
@@ -152,7 +180,7 @@ export class SepaParser {
     };
   }
 
-  private static getRelatedAgentInfo(entry: SepaEntry): Partial<BankTx> {
+  private getRelatedAgentInfo(entry: SepaEntry): Partial<BankTx> {
     const agents = entry?.NtryDtls?.TxDtls?.RltdAgts;
     const agent = entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT ? agents?.DbtrAgt : agents?.CdtrAgt;
     const address = this.getAddress(agent?.FinInstnId?.PstlAdr);
@@ -167,7 +195,7 @@ export class SepaParser {
     };
   }
 
-  private static getAddress(address: SepaAddress): { line1: string; line2: string; country: string } {
+  private getAddress(address: SepaAddress): { line1: string; line2: string; country: string } {
     return {
       line1: this.toString(
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[0] : address?.AdrLine) ??
@@ -181,12 +209,12 @@ export class SepaParser {
     };
   }
 
-  private static join(array: (string | undefined)[]): string | undefined {
+  private join(array: (string | undefined)[]): string | undefined {
     const join = array.filter((s) => s).join(' ');
     return join ? join : undefined;
   }
 
-  private static toString(item: unknown): string | undefined {
+  private toString(item: unknown): string | undefined {
     return item != null ? `${item}` : undefined;
   }
 }

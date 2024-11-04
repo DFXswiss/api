@@ -84,4 +84,8 @@ export class RefReward extends Reward {
   get userData(): UserData {
     return this.user.userData;
   }
+
+  get feeAmountChf(): number {
+    return this.amountInChf;
+  }
 }

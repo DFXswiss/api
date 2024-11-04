@@ -290,6 +290,14 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   individualFees: string; // semicolon separated id's
 
+  // CT
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  apiKeyCT: string;
+
+  @Column({ length: 256, nullable: true })
+  apiFilterCT: string;
+
   // Volumes
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF

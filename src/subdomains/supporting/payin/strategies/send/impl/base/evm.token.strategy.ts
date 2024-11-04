@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
@@ -29,7 +30,15 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     const prepareTxId = await this.topUpCoin(payInGroup, Util.round(nativeFee * 1.1, 12));
 
     for (const payIn of payInGroup.payIns) {
-      payIn.preparing(prepareTxId, Util.round(nativeFee / payInGroup.payIns.length, 16));
+      const feeAmount = Util.round(nativeFee / payInGroup.payIns.length, 16);
+      const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
+      const feeAmountChf = feeAmount
+        ? await this.pricingService
+            .getPrice(feeAsset, this.chf, true)
+            .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+        : null;
+
+      payIn.preparing(prepareTxId, feeAmount, feeAmountChf);
       await this.payInRepo.save(payIn);
     }
   }

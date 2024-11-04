@@ -11,7 +11,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
@@ -94,13 +94,21 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy([{ status: PayInStatus.ACKNOWLEDGED, isConfirmed: true }]);
+    return this.payInRepository.findBy({
+      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
+      isConfirmed: true,
+    });
+  }
+
+  async getPayIn(from: Date, relations?: FindOptionsRelations<CryptoInput>): Promise<CryptoInput[]> {
+    return this.payInRepository.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
+    const strategy = this.sendStrategyRegistry.getSendStrategy(payIn.asset);
 
-    payIn.acknowledge(purpose, route);
+    payIn.acknowledge(purpose, route, strategy.forwardRequired);
 
     await this.payInRepository.save(payIn);
   }
@@ -265,7 +273,7 @@ export class PayInService {
   private async checkInputConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.findBy({
       isConfirmed: false,
-      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.COMPLETED]),
+      status: Not(PayInStatus.FAILED),
     });
 
     if (payIns.length === 0) return;

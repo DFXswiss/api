@@ -19,8 +19,12 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
+import { TradingOrderService } from 'src/subdomains/core/trading/services/trading-order.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
@@ -30,25 +34,20 @@ import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
+import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
+import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
+import { PayoutService } from '../payout/services/payout.service';
+import {
+  AssetLog,
+  BalancesByFinancialType,
+  BankExchangeType,
+  ChangeLog,
+  ManualDebtPosition,
+  TradingLog,
+} from './dto/log.dto';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
-
-export type BankExchangeType = ExchangeTxType | BankTxType;
-
-type BalancesByFinancialType = {
-  [financialType: string]: {
-    plusBalance: number;
-    plusBalanceChf: number;
-    minusBalance: number;
-    minusBalanceChf: number;
-  };
-};
-
-type ManualDebtPosition = {
-  assetId: number;
-  value: number;
-};
 
 @Injectable()
 export class LogJobService {
@@ -70,6 +69,9 @@ export class LogJobService {
     private readonly exchangeTxService: ExchangeTxService,
     private readonly bankService: BankService,
     private readonly evmRegistryService: EvmRegistryService,
+    private readonly refRewardService: RefRewardService,
+    private readonly tradingOrderService: TradingOrderService,
+    private readonly payoutService: PayoutService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -78,7 +80,78 @@ export class LogJobService {
     if (DisabledProcess(Process.TRADING_LOG)) return;
 
     // trading log
-    const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
+    const tradingLog = await this.getTradingLog();
+
+    // assets
+    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
+
+    // asset log
+    const assetLog = await this.getAssetLog(assets);
+
+    // balances grouped by financialType
+    const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+
+    // changes
+    //TODO reactivate
+    //const changeLog = await this.getChangeLog();
+
+    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
+    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+
+    await this.logService.create({
+      system: 'LogService',
+      subsystem: 'FinancialDataLog',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({
+        assets: assetLog,
+        tradings: tradingLog,
+        balancesByFinancialType,
+        balancesTotal: {
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
+          totalBalanceChf: plusBalanceChf - minusBalanceChf,
+        },
+        //TODO reactivate
+        //changes: changeLog,
+      }),
+    });
+  }
+
+  // --- LOG METHODS --- //
+
+  private getBalancesByFinancialType(assets: Asset[], assetLog: AssetLog): BalancesByFinancialType {
+    const financialTypeMap = Util.groupBy<Asset, string>(
+      assets.filter((a) => a.financialType),
+      'financialType',
+    );
+
+    return Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
+      const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
+      const plusBalanceChf = assets.reduce(
+        (prev, curr) =>
+          prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
+        0,
+      );
+      const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
+      const minusBalanceChf = assets.reduce(
+        (prev, curr) =>
+          prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
+        0,
+      );
+
+      acc[financialType] = {
+        plusBalance: this.getJsonValue(plusBalance, true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+        minusBalance: this.getJsonValue(minusBalance, true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
+      };
+
+      return acc;
+    }, {});
+  }
+
+  private async getTradingLog(): Promise<TradingLog> {
+    return this.tradingRuleService.getCurrentTradingOrders().then((t) =>
       t.reduce((prev, curr) => {
         prev[curr.tradingRule.id] = {
           price1: curr.price1,
@@ -89,10 +162,9 @@ export class LogJobService {
         return prev;
       }, {}),
     );
+  }
 
-    // assets
-    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
-
+  private async getAssetLog(assets: Asset[]): Promise<AssetLog> {
     // custom balance
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
     const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
@@ -202,8 +274,8 @@ export class LogJobService {
       ),
     );
 
-    // asset log
-    const assetLog = assets.reduce((prev, curr) => {
+    // assetLog
+    return assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
@@ -221,7 +293,7 @@ export class LogJobService {
       );
 
       // Olky to Maerki
-      const pendingOlkyMaerkiAmount = this.getPendingBankAmounts(
+      const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
         [curr],
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
@@ -230,37 +302,37 @@ export class LogJobService {
       );
 
       // Kraken to Maerki
-      const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmounts(
+      const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmount(
         [curr],
         recentChfKrakenMaerkiTx,
         ExchangeTxType.WITHDRAWAL,
         maerkiChfBank.iban,
       );
-      const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmounts(
+      const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmount(
         [curr],
         recentEurKrakenMaerkiTx,
         ExchangeTxType.WITHDRAWAL,
         maerkiEurBank.iban,
       );
-      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmounts(
+      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmount(
         [curr],
         [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
         BankTxType.KRAKEN,
       );
 
       // Maerki to Kraken
-      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmounts(
+      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
         [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
-      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
+      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentChfBankTxKraken,
         ExchangeTxType.DEPOSIT,
         maerkiChfBank.iban,
       );
-      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
+      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentEurBankTxKraken,
         ExchangeTxType.DEPOSIT,
@@ -369,57 +441,114 @@ export class LogJobService {
 
       return prev;
     }, {});
+  }
 
-    const financialTypeMap = Util.groupBy<Asset, string>(
-      assets.filter((a) => a.financialType),
-      'financialType',
-    );
+  private async getChangeLog(): Promise<ChangeLog> {
+    const firstDayOfMonth = Util.firstDayOfMonth();
 
-    const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
-      (acc, [financialType, assets]) => {
-        const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
-        const plusBalanceChf = assets.reduce(
-          (prev, curr) =>
-            prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
-          0,
-        );
-        const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
-        const minusBalanceChf = assets.reduce(
-          (prev, curr) =>
-            prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
-          0,
-        );
-
-        acc[financialType] = {
-          plusBalance: this.getJsonValue(plusBalance, true),
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
-          minusBalance: this.getJsonValue(minusBalance, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
-        };
-
-        return acc;
-      },
-      {},
-    );
-
-    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
-    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
-
-    await this.logService.create({
-      system: 'LogService',
-      subsystem: 'FinancialDataLog',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify({
-        assets: assetLog,
-        tradings: tradingLog,
-        balancesByFinancialType,
-        balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
-          totalBalanceChf: plusBalanceChf - minusBalanceChf,
-        },
-      }),
+    // plus amounts
+    const buyFiats = await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
+      cryptoInput: { paymentLinkPayment: true },
     });
+    const tradingOrders = await this.tradingOrderService.getTradingOrder(firstDayOfMonth);
+
+    const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
+    const paymentLinkFee = this.getFeeAmount(buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment));
+    const buyCryptoFee = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth).then((b) => this.getFeeAmount(b));
+    const tradingOrderProfits = Util.sumObjValue(tradingOrders, 'profitChf');
+
+    // minus amounts
+    const exchangeTx = await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
+    const payoutOrders = await this.payoutService.getPayoutOrders(firstDayOfMonth);
+
+    const bankTxFee = await this.bankTxService.getBankTx(firstDayOfMonth).then((b) => this.getFeeAmount(b));
+    const krakenTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const krakenTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.TRADE),
+    );
+    const binanceTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const binanceTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
+    );
+    const cryptoInputFee = await this.payInService.getPayIn(firstDayOfMonth).then((c) => this.getFeeAmount(c));
+    const tradingOrderFee = this.getFeeAmount(tradingOrders);
+    const refRewards = await this.refRewardService.getRefReward(firstDayOfMonth).then((r) => this.getFeeAmount(r));
+    const payoutOrderRefFee = this.getFeeAmount(
+      payoutOrders.filter((p) => p.context === PayoutOrderContext.REF_PAYOUT),
+    );
+    const payoutOrderFee = this.getFeeAmount(payoutOrders.filter((p) => p.context !== PayoutOrderContext.REF_PAYOUT));
+
+    const totalKrakenFee = krakenTxWithdrawFee + krakenTxTradingFee;
+    const totalBinanceFee = binanceTxWithdrawFee + binanceTxTradingFee;
+
+    const totalRefReward = refRewards + payoutOrderRefFee;
+    const totalTxFee = cryptoInputFee + payoutOrderFee;
+    const totalBlockchainFee = totalTxFee + tradingOrderFee;
+
+    // total amounts
+    const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfits;
+    const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward;
+
+    return {
+      plus: {
+        total: totalPlus,
+        buyCrypto: buyCryptoFee || undefined,
+        buyFiat: buyFiatFee || undefined,
+        paymentLink: paymentLinkFee || undefined,
+        trading: tradingOrderProfits || undefined,
+      },
+      minus: {
+        total: totalMinus,
+        bank: bankTxFee || undefined,
+        kraken: totalKrakenFee
+          ? {
+              total: totalKrakenFee,
+              withdraw: krakenTxWithdrawFee || undefined,
+              trading: krakenTxTradingFee || undefined,
+            }
+          : undefined,
+        binance: totalBinanceFee
+          ? {
+              total: totalBinanceFee,
+              withdraw: binanceTxWithdrawFee || undefined,
+              trading: binanceTxTradingFee || undefined,
+            }
+          : undefined,
+        blockchain: totalBlockchainFee
+          ? {
+              total: totalBlockchainFee,
+              tx: totalTxFee
+                ? {
+                    total: totalTxFee,
+                    in: cryptoInputFee || undefined,
+                    out: payoutOrderFee || undefined,
+                  }
+                : undefined,
+              trading: tradingOrderFee || undefined,
+              lm: undefined,
+            }
+          : undefined,
+        ref: totalRefReward
+          ? {
+              total: totalRefReward,
+              amount: refRewards || undefined,
+              fee: payoutOrderRefFee || undefined,
+            }
+          : undefined,
+      },
+    };
+  }
+
+  // --- HELPER METHODS --- //
+
+  private getFeeAmount(
+    tx: (BuyCrypto | BuyFiat | BankTx | ExchangeTx | RefReward | TradingOrder | CryptoInput | PayoutOrder)[],
+  ): number {
+    return tx.reduce((sum, tx) => sum + (tx.feeAmountChf ?? 0), 0);
   }
 
   private getPendingAmounts(
@@ -438,7 +567,7 @@ export class LogJobService {
     };
   }
 
-  private getPendingBankAmounts(
+  private getPendingBankAmount(
     assets: Asset[],
     pendingTx: (BankTx | ExchangeTx)[],
     type: BankExchangeType,
@@ -465,7 +594,9 @@ export class LogJobService {
 
     do {
       const receiverAmount =
-        receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx[receiverIndex].amount;
+        receiverTx[receiverIndex] instanceof BankTx
+          ? (receiverTx[receiverIndex] as BankTx).instructedAmount
+          : receiverTx[receiverIndex].amount;
 
       senderPair = senderTx.find((s) =>
         s instanceof BankTx
