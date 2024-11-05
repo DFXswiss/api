@@ -3,6 +3,7 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
@@ -32,6 +33,8 @@ export class UserDtoMapper {
       activeAddress: activeUser && this.mapAddress(activeUser),
       paymentLink: {
         active: userData.paymentLinksAllowed,
+        config:
+          userData.paymentLinksAllowed && (userData.paymentLinksConfig ?? JSON.stringify(DefaultPaymentLinkConfig)),
       },
     };
 

@@ -25,7 +25,7 @@ import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatePaymentLinksConfigDto, UpdateUserDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
@@ -229,6 +229,17 @@ export class UserV2Controller {
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
+  }
+
+  @Put('paymentLinksConfig')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: UserV2Dto })
+  async updatePaymentLinksConfig(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: UpdatePaymentLinksConfigDto,
+  ): Promise<UserV2Dto> {
+    return this.userService.updatePaymentLinksConfig(jwt.account, dto);
   }
 
   @Put('addresses/:address')

@@ -33,7 +33,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
-import { UpdateUserDto } from '../user/dto/update-user.dto';
+import { UpdatePaymentLinksConfigDto, UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
@@ -267,6 +267,15 @@ export class UserDataService {
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
+  }
+
+  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinksConfigDto): Promise<UserData> {
+    const paymentLinksConfig = JSON.stringify(dto.config);
+
+    await this.userDataRepo.update(user.id, { paymentLinksConfig });
+    user.paymentLinksConfig = paymentLinksConfig;
+
+    return user;
   }
 
   async updateUserName(userData: UserData, dto: UserNameDto) {

@@ -9,7 +9,7 @@ import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
-const DefaultPaymentLinkConfig: PaymentLinkConfig = {
+export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   standards: Object.values(PaymentStandard),
   blockchains: Object.values(Blockchain),
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,

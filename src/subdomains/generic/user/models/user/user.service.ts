@@ -36,7 +36,7 @@ import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatePaymentLinksConfigDto, UpdateUserDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
@@ -220,6 +220,18 @@ export class UserService {
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
     await this.userDataService.updateUserName(user.userData, dto);
+  }
+
+  async updatePaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinksConfigDto): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+
+    const updatedUserData = await this.userDataService.updatePaymentLinksConfig(userData, dto);
+
+    return UserDtoMapper.mapUser(updatedUserData);
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {

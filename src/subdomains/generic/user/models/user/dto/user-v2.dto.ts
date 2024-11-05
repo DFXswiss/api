@@ -84,6 +84,9 @@ export class UserKycDto {
 export class UserPaymentLinkDto {
   @ApiProperty()
   active: boolean;
+
+  @ApiPropertyOptional()
+  config?: string; // PaymentLinkConfig
 }
 
 export class UserV2Dto {
