@@ -188,7 +188,7 @@ export class UserService {
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    let user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     // update
@@ -216,14 +216,14 @@ export class UserService {
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
     await this.userDataService.updateUserName(user.userData, dto);
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
@@ -509,7 +509,7 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
-      apiKeyCT: user.apiKeyCT,
+      apiKeyCT: user.userData.apiKeyCT ?? user.apiKeyCT,
       apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
