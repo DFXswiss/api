@@ -118,6 +118,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
+        // check if amlCheck changed (e.g. reset or refund)
+        if (
+          entity.amlCheck === CheckStatus.PENDING &&
+          (await this.buyFiatRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
+        )
+          continue;
+
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(
             inputReferenceCurrency,
