@@ -509,8 +509,8 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
-      apiKeyCT: user.userData.apiKeyCT ?? user.apiKeyCT,
-      apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
+      apiKeyCT: user.userData?.apiKeyCT ?? user.apiKeyCT,
+      apiFilterCT: ApiKeyService.getFilterArray(user.userData?.apiFilterCT ?? user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
