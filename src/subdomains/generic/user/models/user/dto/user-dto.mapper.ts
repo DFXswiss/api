@@ -27,9 +27,9 @@ export class UserDtoMapper {
       volumes: this.mapVolumes(userData),
       addresses: userData.users
         .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
-        .map((u) => this.mapAddress(u)),
-      disabledAddresses: userData.users.filter((u) => u.isBlockedOrDeleted).map((u) => this.mapAddress(u)),
-      activeAddress: activeUser && this.mapAddress(activeUser),
+        .map((u) => this.mapAddress(u, userData)),
+      disabledAddresses: userData.users.filter((u) => u.isBlockedOrDeleted).map((u) => this.mapAddress(u, userData)),
+      activeAddress: activeUser && this.mapAddress(activeUser, userData),
       paymentLink: {
         active: userData.paymentLinksAllowed,
       },
@@ -38,7 +38,7 @@ export class UserDtoMapper {
     return Object.assign(new UserV2Dto(), dto);
   }
 
-  private static mapAddress(user: User): UserAddressDto {
+  private static mapAddress(user: User, userData: UserData): UserAddressDto {
     const dto: UserAddressDto = {
       wallet: user.wallet.displayName ?? user.wallet.name,
       label: user.label,
@@ -47,8 +47,8 @@ export class UserDtoMapper {
       blockchains: user.blockchains,
       volumes: this.mapVolumes(user),
       refCode: user.ref,
-      apiKeyCT: user.apiKeyCT,
-      apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
+      apiKeyCT: userData.apiKeyCT ?? user.apiKeyCT,
+      apiFilterCT: ApiKeyService.getFilterArray(userData.apiFilterCT ?? user.apiFilterCT),
     };
 
     return Object.assign(new UserAddressDto(), dto);

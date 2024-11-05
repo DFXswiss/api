@@ -135,8 +135,8 @@ export abstract class EvmClient {
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
-    // 10% cap
-    return this.provider.getGasPrice().then((p) => p.mul(11).div(10));
+    // 20% cap
+    return this.provider.getGasPrice().then((p) => p.mul(12).div(10));
   }
 
   async getCurrentBlock(): Promise<number> {
