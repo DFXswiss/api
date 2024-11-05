@@ -28,8 +28,7 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
-  @OneToOne(() => FiatOutput, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => FiatOutput, (o) => o.buyFiats, { nullable: true })
   fiatOutput: FiatOutput;
 
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })

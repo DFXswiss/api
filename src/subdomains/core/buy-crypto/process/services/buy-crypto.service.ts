@@ -252,10 +252,7 @@ export class BuyCryptoService {
 
     if (dto.chargebackAllowedDate) {
       if (entity.bankTx && !entity.chargebackOutput)
-        update.chargebackOutput = await this.fiatOutputService.create({
-          buyCryptoId: entity.id,
-          type: 'BuyCryptoFail',
-        });
+        update.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto: entity });
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -422,10 +419,7 @@ export class BuyCryptoService {
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
-      dto.chargebackOutput = await this.fiatOutputService.create({
-        buyCryptoId: buyCrypto.id,
-        type: 'BuyCryptoFail',
-      });
+      dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto: buyCrypto });
     }
 
     await this.buyCryptoRepo.update(
