@@ -292,7 +292,7 @@ export class GsService {
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
-          .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
+          .then((fiatOutput) => fiatOutput?.buyFiats[0].sell.user.userData);
       case SupportTable.TRANSACTION:
         return this.transactionService
           .getTransactionByKey(query.key, query.value)
