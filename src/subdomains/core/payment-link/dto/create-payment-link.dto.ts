@@ -25,12 +25,6 @@ export class CreatePaymentLinkDto {
   @IsString()
   webhookUrl?: string;
 
-  // @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
-  // @IsOptional()
-  // @Type()
-  // @ValidateNested()
-  // recipient?: PaymentLinkRecipientDto;
-
   @ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })
   @IsOptional()
   @Type(() => CreatePaymentLinkPaymentDto)

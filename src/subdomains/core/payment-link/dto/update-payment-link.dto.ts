@@ -19,12 +19,6 @@ export class UpdatePaymentLinkBaseDto {
 }
 
 export class UpdatePaymentLinkDto extends UpdatePaymentLinkBaseDto {
-  // @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
-  // @IsOptional()
-  // @Type()
-  // @ValidateNested()
-  // recipient?: PaymentLinkRecipientDto;
-
   @ApiPropertyOptional({ type: PaymentLinkConfigDto })
   @IsOptional()
   @Type(() => PaymentLinkConfigDto)

@@ -7,6 +7,8 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -532,6 +534,10 @@ export class UserData extends IEntity {
           zip: this.zip,
           country: this.country,
         };
+  }
+
+  get configObj(): PaymentLinkConfig {
+    return Object.assign({}, DefaultPaymentLinkConfig, JSON.parse(this.paymentLinksConfig ?? '{}'));
   }
 
   // --- KYC PROCESS --- //
