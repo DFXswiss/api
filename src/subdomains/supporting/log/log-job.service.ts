@@ -167,12 +167,26 @@ export class LogJobService {
   private async getAssetLog(assets: Asset[]): Promise<AssetLog> {
     // custom balance
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
-    const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
+    const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
     const customBalances = await Promise.all(
-      Array.from(assetMap.entries()).map(async ([e, a]) => {
+      Array.from(customAssetMap.entries()).map(async ([e, a]) => {
         const client = this.evmRegistryService.getClient(e);
-        const balances = await this.getCustomBalances(client, a).then((b) => b.flat());
+        const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
+          b.flat(),
+        );
+        return { blockchain: e, balances };
+      }),
+    );
+
+    // deposit address balance
+    const paymentAssets = assets.filter((a) => a.paymentEnabled);
+    const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
+
+    const depositBalances = await Promise.all(
+      Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
+        const client = this.evmRegistryService.getClient(e);
+        const balances = await this.getCustomBalances(client, a, [Config.payment.depositAddress]).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
     );
@@ -283,8 +297,12 @@ export class LogJobService {
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
 
+      const depositBalance = depositBalances
+        .find((c) => c.blockchain === curr.blockchain)
+        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
+
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
+      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -629,8 +647,12 @@ export class LogJobService {
     };
   }
 
-  private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
-    return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
+  private async getCustomBalances(
+    client: EvmClient,
+    assets: Asset[],
+    addresses: string[],
+  ): Promise<EvmTokenBalance[][]> {
+    return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
   private getJsonValue(value: number | undefined, returnZero = false): number | undefined {
