@@ -5,6 +5,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -186,7 +187,9 @@ export class LogJobService {
     const depositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.evmRegistryService.getClient(e);
-        const balances = await this.getCustomBalances(client, a, [Config.payment.depositAddress]).then((b) => b.flat());
+        const balances = await this.getCustomBalances(client, a, [
+          EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address,
+        ]).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
     );

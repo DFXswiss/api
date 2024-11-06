@@ -7,7 +7,6 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
-import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
@@ -272,7 +271,6 @@ export class Configuration {
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
-    depositAddress: EvmUtil.createWallet({ seed: process.env.PAYMENT_EVM_SEED, index: 0 }).address,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
     minVolume: 0.01, // CHF
