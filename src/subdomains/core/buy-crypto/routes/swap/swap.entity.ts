@@ -15,6 +15,8 @@ export const SwapInputBlockchains: Blockchain[] = [
   Blockchain.ARBITRUM,
   Blockchain.OPTIMISM,
   Blockchain.POLYGON,
+  Blockchain.BINANCE_SMART_CHAIN,
+  Blockchain.BASE,
 ];
 
 @ChildEntity('Crypto')

@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Readable } from 'stream';
@@ -14,7 +16,7 @@ import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward } from '../../staking/entities/staking-ref-reward.entity';
 import { StakingReward } from '../../staking/entities/staking-reward.entity';
 import { StakingService } from '../../staking/services/staking.service';
-import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
+import { ExportFormat, HistoryQuery, HistoryQueryUser } from '../dto/history-query.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { ChainReportHistoryDtoMapper } from '../mappers/chain-report-history-dto.mapper';
@@ -44,8 +46,12 @@ export class HistoryService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async getJsonHistory<T extends ExportType>(query: HistoryQueryUser, exportFormat: T): Promise<HistoryDto<T>[]> {
-    return (await this.getHistory(query, exportFormat)) as HistoryDto<T>[];
+  async getJsonHistory<T extends ExportType>(
+    user: User | UserData,
+    query: HistoryQuery,
+    exportType: T,
+  ): Promise<HistoryDto<T>[]> {
+    return (await this.getHistoryInternal(user, query, exportType)) as HistoryDto<T>[];
   }
 
   async getCsvHistory<T extends ExportType>(query: HistoryQueryUser, exportFormat: T): Promise<StreamableFile> {
@@ -59,19 +65,32 @@ export class HistoryService {
     const user = await this.userService.getUserByAddress(query.userAddress);
     if (!user) throw new NotFoundException('User not found');
 
+    return this.getHistoryInternal(user, query, exportType);
+  }
+
+  async getHistoryInternal<T extends ExportType>(
+    user: User | UserData,
+    query: HistoryQuery,
+    exportType: T,
+  ): Promise<HistoryDto<T>[] | StreamableFile> {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const transactions = await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
+    const transactions =
+      user instanceof UserData
+        ? await this.transactionService.getTransactionsForAccount(user.id, query.from, query.to)
+        : await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
+
+    const userIds = user instanceof UserData ? user.users.map((u) => u.id) : [user.id];
 
     const buyCryptos = (all || query.buy) && transactions.filter((t) => t.buyCrypto).map((t) => t.buyCrypto);
     const buyFiats = (all || query.sell) && transactions.filter((t) => t.buyFiat).map((t) => t.buyFiat);
     const refRewards = (all || query.ref) && transactions.filter((t) => t.refReward).map((t) => t.refReward);
     const stakingRewards =
-      query.staking && (await this.stakingService.getUserStakingRewards([user.id], query.from, query.to));
-    const stakingInvests = query.staking && (await this.stakingService.getUserInvests(user.id, query.from, query.to));
+      query.staking && (await this.stakingService.getUserStakingRewards(userIds, query.from, query.to));
+    const stakingInvests = query.staking && (await this.stakingService.getUserInvests(userIds, query.from, query.to));
     const refStakingReward =
-      query.staking && (await this.stakingService.getUserStakingRefRewards([user.id], query.from, query.to));
+      query.staking && (await this.stakingService.getUserStakingRefRewards(userIds, query.from, query.to));
 
     const txArray: HistoryDto<T>[] = [
       ...(await this.getBuyCryptoTransactions(buyCryptos, exportType)),

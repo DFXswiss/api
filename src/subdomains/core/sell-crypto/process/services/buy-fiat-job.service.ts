@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { IsNull } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
+import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { IsNull, LessThan, Like, Not } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -24,15 +26,41 @@ export class BuyFiatJobService {
   async addFiatOutputs(): Promise<void> {
     if (DisabledProcess(Process.BUY_FIAT)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: ['fiatOutput'],
-      where: { amlCheck: CheckStatus.PASS, fiatOutput: IsNull() },
+      relations: { fiatOutput: true },
+      where: {
+        amlCheck: CheckStatus.PASS,
+        fiatOutput: IsNull(),
+        user: { userData: { paymentLinksConfig: Not(Like(`%${PayoutFrequency.DAILY}%`)) } },
+      },
     });
 
     for (const buyFiat of buyFiatsWithoutOutput) {
-      await this.fiatOutputService.create({
-        buyFiatId: buyFiat.id,
-        type: 'BuyFiat',
-      });
+      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats: [buyFiat] });
+    }
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  @Lock(7200)
+  async addDailyFiatOutputs(): Promise<void> {
+    if (DisabledProcess(Process.BUY_FIAT)) return;
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
+      relations: { fiatOutput: true },
+      where: {
+        amlCheck: CheckStatus.PASS,
+        fiatOutput: IsNull(),
+        user: { userData: { paymentLinksConfig: Like(`%${PayoutFrequency.DAILY}%`) } },
+        created: LessThan(startOfDay),
+      },
+    });
+
+    const sellGroups = Util.groupByAccessor(buyFiatsWithoutOutput, (bf) => bf.sell.id);
+
+    for (const buyFiats of sellGroups.values()) {
+      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats });
     }
   }
 

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -17,10 +18,12 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -33,6 +36,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
+import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdatePaymentLinksConfigDto, UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
 import { UserRepository } from '../user/user.repository';
@@ -355,6 +359,46 @@ export class UserDataService {
     return ident === KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO;
   }
 
+  // --- API KEY --- //
+  async createApiKey(userDataId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (!userData) throw new BadRequestException('User not found');
+    if (userData.apiKeyCT) throw new ConflictException('API key already exists');
+
+    userData.apiKeyCT = ApiKeyService.createKey(userData.id);
+    userData.apiFilterCT = ApiKeyService.getFilterCode(filter);
+
+    await this.userDataRepo.update(userDataId, { apiKeyCT: userData.apiKeyCT, apiFilterCT: userData.apiFilterCT });
+
+    const secret = ApiKeyService.getSecret(userData);
+
+    return { key: userData.apiKeyCT, secret };
+  }
+
+  async deleteApiKey(userDataId: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, { apiKeyCT: null });
+  }
+
+  async updateApiFilter(userDataId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    if (!userData) throw new BadRequestException('UserData not found');
+
+    userData.apiFilterCT = ApiKeyService.getFilterCode(filter);
+    await this.userDataRepo.update(userDataId, { apiFilterCT: userData.apiFilterCT });
+
+    return ApiKeyService.getFilterArray(userData.apiFilterCT);
+  }
+
+  async checkApiKey(key: string, sign: string, timestamp: string): Promise<UserData> {
+    const userData = await this.userDataRepo.findOne({ where: { apiKeyCT: key }, relations: { users: true } });
+    if (!userData) throw new NotFoundException('API key not found');
+
+    if (!ApiKeyService.isValidSign(userData, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
+
+    return userData;
+  }
+
+  // --- HELPER METHODS --- //
   private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
     const userWithCustomMethod = await this.userRepo.findOne({
       where: {
