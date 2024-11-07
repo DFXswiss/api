@@ -181,14 +181,19 @@ export class LogJobService {
     );
 
     // deposit address balance
-    const paymentAssets = assets.filter((a) => a.paymentEnabled);
+    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
     const depositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.evmRegistryService.getClient(e);
         const balances = await this.getCustomBalances(client, a, [
-          EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address,
+          e === Blockchain.MONERO
+            ? Config.payment.moneroAddress
+            : EvmUtil.createWallet({
+                seed: Config.payment.evmSeed,
+                index: 0,
+              }).address,
         ]).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
@@ -302,7 +307,12 @@ export class LogJobService {
 
       const depositBalance = depositBalances
         .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
+        ?.balances?.reduce(
+          (sum, result) =>
+            sum +
+            (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+          0,
+        );
 
       // plus
       const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0);
