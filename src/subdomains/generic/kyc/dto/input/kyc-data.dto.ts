@@ -191,17 +191,17 @@ export class KycManualIdentData {
   @ApiProperty({ enum: IdentDocumentType })
   @IsNotEmpty()
   @IsEnum(IdentDocumentType)
-  identificationDocType: IdentDocumentType;
+  documentType: IdentDocumentType;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.trim)
-  identificationDocNumber: string;
+  documentNumber: string;
 
   @ApiProperty({ type: KycFileData })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => KycFileData)
-  identificationDoc: KycFileData;
+  document: KycFileData;
 }

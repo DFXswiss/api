@@ -20,8 +20,8 @@ export interface ManualIdentResult {
   birthday: Date;
   nationality: Country;
   birthplace?: string;
-  identificationDocType: IdentDocumentType;
-  identificationDocNumber: string;
-  identificationDocUrl: string;
-  identificationType: string;
+  documentType: IdentDocumentType;
+  documentNumber: string;
+  documentUrl: string;
+  kycType: string;
 }

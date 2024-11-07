@@ -456,18 +456,16 @@ export class KycService {
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
-    const { contentType, buffer } = Util.fromBase64(dto.identificationDoc.file);
+    const { contentType, buffer } = Util.fromBase64(dto.document.file);
     const newUrl = await this.documentService.uploadUserFile(
       user.id,
       FileType.IDENTIFICATION,
-      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${
-        dto.identificationDoc.fileName
-      }`,
+      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
       buffer,
       contentType as ContentType,
     );
 
-    user = user.internalReviewStep(kycStep, { ...dto, identificationDocUrl: newUrl, identificationDoc: undefined });
+    user = user.internalReviewStep(kycStep, { ...dto, documentUrl: newUrl, document: undefined });
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -678,16 +676,16 @@ export class KycService {
   }
 
   async completeIdent(data: IdentResultData, userData: UserData, nationality?: Country): Promise<UserData> {
-    const identificationType = getIdentificationType(data.type, data.identificationType);
+    const identificationType = getIdentificationType(data.type, data.type);
     if (
       data.birthday &&
       data.nationality &&
       identificationType &&
-      data.identificationDocType &&
-      data.identificationDocNumber &&
+      data.documentType &&
+      data.documentNumber &&
       nationality
     ) {
-      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.identificationDocNumber}`;
+      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}`;
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
 
       if (existing) {
@@ -702,7 +700,7 @@ export class KycService {
           identificationType,
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
-          identDocumentType: data.identificationDocType,
+          identDocumentType: data.documentType,
           identDocumentId,
           nationality,
         });
@@ -738,10 +736,9 @@ export class KycService {
       errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
     }
 
-    if (!['IDCARD', 'PASSPORT'].includes(data.identificationDocType))
-      errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
+    if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
 
-    if (!data.identificationDocNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+    if (!data.documentNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
 
     if (!data.success) errors.push(IdentCheckError.INVALID_RESULT);
 
