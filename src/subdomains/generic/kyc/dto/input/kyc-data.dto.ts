@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsDate,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -164,16 +165,11 @@ export class KycManualIdentData {
   @Transform(Util.trim)
   birthName: string;
 
-  @ApiProperty({ enum: IdentDocumentType })
-  @IsNotEmpty()
-  @IsEnum(IdentDocumentType)
-  documentType: IdentDocumentType;
-
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
-  @Transform(Util.trim)
-  documentNumber: string;
+  @IsDate()
+  @Type(() => Date)
+  birthday: Date;
 
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
@@ -192,9 +188,20 @@ export class KycManualIdentData {
   @IsEnum(GenderType)
   gender: GenderType;
 
+  @ApiProperty({ enum: IdentDocumentType })
+  @IsNotEmpty()
+  @IsEnum(IdentDocumentType)
+  identificationDocType: IdentDocumentType;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  identificationDocNumber: string;
+
   @ApiProperty({ type: KycFileData })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => KycFileData)
-  document: KycFileData;
+  identificationDoc: KycFileData;
 }

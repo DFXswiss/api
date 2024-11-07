@@ -263,10 +263,10 @@ export class KycStep extends IEntity {
         firstname: identResultData.firstName,
         lastname: identResultData.lastName,
         birthname: identResultData.birthName,
-        birthday: null,
+        birthday: identResultData.birthday,
         nationality: identResultData.nationality?.name,
-        identificationDocType: identResultData.documentType,
-        identificationDocNumber: identResultData.documentNumber,
+        identificationDocType: identResultData.identificationDocType,
+        identificationDocNumber: identResultData.identificationDocNumber,
         identificationType: IdentType.MANUAL,
         success: true,
       };

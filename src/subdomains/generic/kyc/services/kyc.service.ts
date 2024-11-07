@@ -456,16 +456,18 @@ export class KycService {
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
-    const { contentType, buffer } = Util.fromBase64(dto.document.file);
+    const { contentType, buffer } = Util.fromBase64(dto.identificationDoc.file);
     const newUrl = await this.documentService.uploadUserFile(
       user.id,
       FileType.IDENTIFICATION,
-      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
+      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${
+        dto.identificationDoc.fileName
+      }`,
       buffer,
       contentType as ContentType,
     );
 
-    user = user.internalReviewStep(kycStep, { ...dto, fileUrl: newUrl, document: undefined });
+    user = user.internalReviewStep(kycStep, { ...dto, identificationDocUrl: newUrl, identificationDoc: undefined });
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
