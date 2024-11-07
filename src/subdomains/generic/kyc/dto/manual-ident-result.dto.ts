@@ -13,13 +13,13 @@ export enum GenderType {
 }
 
 export interface ManualIdentResult {
-  gender: GenderType;
+  gender?: GenderType;
   firstName: string;
   lastName: string;
-  birthName: string;
+  birthName?: string;
   birthday: Date;
   nationality: Country;
-  birthplace: string;
+  birthplace?: string;
   identificationDocType: IdentDocumentType;
   identificationDocNumber: string;
   identificationDocUrl: string;

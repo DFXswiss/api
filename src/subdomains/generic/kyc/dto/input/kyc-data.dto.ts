@@ -159,8 +159,8 @@ export class KycManualIdentData {
   @Transform(Util.trim)
   lastName: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @Transform(Util.trim)
   birthName: string;
