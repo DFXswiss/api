@@ -18,6 +18,7 @@
 1. Copy script `infrastructure/config/docker/docker-compose.sh` to virtual machine `~/docker-compose.sh`
 1. Copy file `infrastructure/config/docker/docker-compose-bitcoin.yml` to virtual machine `~/docker-compose-bitcoin.yml`
 1. Copy file `infrastructure/config/docker/docker-compose-monero.yml` to virtual machine `~/docker-compose-monero.yml`
+1. Copy file `infrastructure/config/docker/docker-compose-frankencoin.yml` to virtual machine `~/docker-compose-frankencoin.yml`
 1. Execute Docker Compose (see [below](#docker-compose)) after all other setup steps are done:
    1. [Bitcoin Node Setup](#bitcoin-node-setup-bitcoind)
    1. [Lightning Node Setup](#lightning-node-setup-lnd)
@@ -88,7 +89,7 @@ After Docker Compose is successfully executed for the very first time, the follo
 
 ## Backup
 
-1. Run Script `runBackup.sh` before the update. This will backup all dynamic Bitcoin, Lightning, LNbits, ThunderHub and Monero data created from the different docker images - except the large blockchain data.
+1. Run Script `runBackup.sh` before the update. This will backup all dynamic Bitcoin, Lightning, LNbits, ThunderHub, Monero and Frankencoin data created from the different docker images - except the large blockchain data.
 
 ## Update
 
@@ -135,11 +136,16 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
 
 1. Run docker compose `docker compose -f docker-compose-monero.yml up -d`
 
+## Frankencoin (Ponder)
+
+1. Login to VM
+1. Run docker compose `docker compose -f docker-compose-frankencoin.yml up -d`
+
 ## Docker compose to start or stop all container
 
 ### Start all container
 
-1. Execute script: `sudo ./docker-compose.sh` - all `bitcoin/lightning` and `monero` containers are started
+1. Execute script: `sudo ./docker-compose.sh` - all `bitcoin/lightning`, `monero` and `frankencoin` containers are started
 
    - bitcoin-lightning-bitcoind-1
    - bitcoin-lightning-lnd-1
@@ -148,6 +154,7 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
    - bitcoin-lightning-nginx-1
    - monero-monerod-1
    - monero-monero-rpc-1
+   - frankencoin-mainnet-ponder-1
 
 ### Stop all container
 
