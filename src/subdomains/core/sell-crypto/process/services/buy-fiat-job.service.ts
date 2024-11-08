@@ -30,7 +30,7 @@ export class BuyFiatJobService {
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
-        user: { userData: { paymentLinksConfig: Not(Like(`%${PayoutFrequency.DAILY}%`)) } },
+        transaction: { user: { userData: { paymentLinksConfig: Not(Like(`%${PayoutFrequency.DAILY}%`)) } } },
       },
     });
 
@@ -52,7 +52,7 @@ export class BuyFiatJobService {
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
-        user: { userData: { paymentLinksConfig: Like(`%${PayoutFrequency.DAILY}%`) } },
+        transaction: { user: { userData: { paymentLinksConfig: Like(`%${PayoutFrequency.DAILY}%`) } } },
         created: LessThan(startOfDay),
       },
     });
