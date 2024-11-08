@@ -1,6 +1,6 @@
-import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { BitcoinUTXO } from 'src/integration/blockchain/ain/node/dto/btc-transaction.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -51,11 +51,12 @@ export class BitcoinStrategy extends RegisterStrategy {
     return this.mapUtxosToEntries(utxos);
   }
 
-  private async mapUtxosToEntries(utxos: UTXO[]): Promise<PayInEntry[]> {
+  private async mapUtxosToEntries(utxos: BitcoinUTXO[]): Promise<PayInEntry[]> {
     const asset = await this.assetService.getBtcCoin();
 
     return utxos.map((u) => ({
-      address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
+      senderAddresses: u.prevoutAddresses.toString(),
+      receiverAddress: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
       txId: u.txid,
       txType: null,
       txSequence: u.vout,

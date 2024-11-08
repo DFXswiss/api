@@ -78,7 +78,8 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     return transactions.map((tx) => ({
-      address: BlockchainAddress.create(tx.toAddress, this.blockchain),
+      senderAddresses: tx.fromAddress,
+      receiverAddress: BlockchainAddress.create(tx.toAddress, this.blockchain),
       txId: tx.hash,
       txType: this.getTxType(tx.toAddress),
       blockHeight: Number(tx.blockNum),
@@ -110,7 +111,8 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     const payInEntries = relevantAssetTransfers.map((tx) => ({
-      address: BlockchainAddress.create(tx.to, this.blockchain),
+      senderAddresses: tx.from,
+      receiverAddress: BlockchainAddress.create(tx.to, this.blockchain),
       txId: tx.hash,
       txType: this.getTxType(tx.to),
       blockHeight: Number(tx.blockNum),

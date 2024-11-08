@@ -52,7 +52,8 @@ export class LightningStrategy extends RegisterStrategy {
     const asset = await this.assetService.getLightningCoin();
 
     return {
-      address: BlockchainAddress.create(this.getAddress(transactionWebhook), this.blockchain),
+      senderAddresses: null,
+      receiverAddress: BlockchainAddress.create(this.getAddress(transactionWebhook), this.blockchain),
       txId: transactionWebhook.transaction.paymentHash,
       txType: transactionWebhook.transaction.txType,
       blockHeight: null,

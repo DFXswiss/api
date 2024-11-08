@@ -252,10 +252,7 @@ export class BuyCryptoService {
 
     if (dto.chargebackAllowedDate) {
       if (entity.bankTx && !entity.chargebackOutput)
-        update.chargebackOutput = await this.fiatOutputService.create({
-          buyCryptoId: entity.id,
-          type: 'BuyCryptoFail',
-        });
+        update.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto: entity });
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -422,10 +419,7 @@ export class BuyCryptoService {
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
-      dto.chargebackOutput = await this.fiatOutputService.create({
-        buyCryptoId: buyCrypto.id,
-        type: 'BuyCryptoFail',
-      });
+      dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto });
     }
 
     await this.buyCryptoRepo.update(
@@ -497,14 +491,16 @@ export class BuyCryptoService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyCryptoRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
-    if (entity.isComplete || entity.batch)
+    if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
 
     const fee = entity.fee;
+    const fiatOutputId = entity.chargebackOutput?.id;
 
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
+    if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
   }
 
   async getUserVolume(

@@ -51,7 +51,6 @@ export class BankDataService {
     const search: FindOptionsWhere<BankData> = {
       type: Not(In([BankDataType.IDENT, BankDataType.USER])),
       comment: IsNull(),
-      userData: { verifiedName: Not(IsNull()) },
     };
     const entities = await this.bankDataRepo.find({
       where: [
@@ -67,22 +66,21 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
-      if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
+    try {
+      if (
+        !entity.userData.verifiedName &&
+        (entity.userData.accountType === AccountType.PERSONAL || entity.type === BankDataType.BANK_IN)
+      )
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       if (entity.type === BankDataType.IDENT) await this.nameCheckService.closeAndRefreshRiskStatus(entity);
 
-      return;
-    }
-    try {
+      if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
+
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, approved: true },
         relations: { userData: true },
       });
-
-      if (!entity.userData.verifiedName && entity.type === BankDataType.BANK_IN)
-        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
