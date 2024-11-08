@@ -73,6 +73,8 @@ export function getIdentificationType(type: IdentType, companyId: string): KycId
       ? KycIdentificationType.VIDEO_ID
       : KycIdentificationType.ONLINE_ID;
 
+  if (type === IdentType.MANUAL) return KycIdentificationType.MANUAL;
+
   switch (companyId) {
     case 'dfxautonew':
     case 'dfxauto':
