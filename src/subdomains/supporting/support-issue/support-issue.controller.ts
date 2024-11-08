@@ -28,11 +28,12 @@ export class SupportIssueController {
     return this.supportIssueService.createIssue(jwt.account, { ...dto, author: CustomerAuthor });
   }
 
-  @Post(':userDataId')
+  @Post('support')
   @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async createIssueBySupport(
-    @Param('userDataId') userDataId: string,
+    @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
   ): Promise<SupportIssueDto> {
     return this.supportIssueService.createIssue(+userDataId, dto);
