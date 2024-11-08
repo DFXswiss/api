@@ -27,7 +27,7 @@ export class BuyFiatJobService {
     if (DisabledProcess(Process.BUY_FIAT)) return;
 
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true, transaction: { user: { userData: true } } },
+      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } } },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
