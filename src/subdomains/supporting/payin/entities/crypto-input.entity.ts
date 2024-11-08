@@ -132,10 +132,14 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
   paymentQuote: PaymentQuote;
 
+  @Column({ length: 'MAX', nullable: true })
+  senderAddresses: string;
+
   //*** FACTORY METHODS ***//
 
   static create(
-    address: BlockchainAddress,
+    senderAddresses: string,
+    receiverAddress: BlockchainAddress,
     txId: string,
     txType: PayInType,
     txSequence: number | null,
@@ -145,7 +149,8 @@ export class CryptoInput extends IEntity {
   ): CryptoInput {
     const payIn = new CryptoInput();
 
-    payIn.address = address;
+    payIn.senderAddresses = senderAddresses;
+    payIn.address = receiverAddress;
     payIn.inTxId = txId;
     payIn.txType = txType;
     payIn.txSequence = txSequence;

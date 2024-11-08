@@ -676,7 +676,7 @@ export class KycService {
   }
 
   async completeIdent(data: IdentResultData, userData: UserData, nationality?: Country): Promise<UserData> {
-    const identificationType = getIdentificationType(data.type, data.type);
+    const identificationType = getIdentificationType(data.type, data.kycType);
     if (
       data.birthday &&
       data.nationality &&

@@ -103,7 +103,8 @@ export class TransactionUtilService {
 
     const [payIn] = await this.payInService.createPayIns([
       {
-        address: BlockchainAddress.create(route.deposit.address, asset.blockchain),
+        senderAddresses: dto.permit.address,
+        receiverAddress: BlockchainAddress.create(route.deposit.address, asset.blockchain),
         txId,
         txType: PayInType.PERMIT_TRANSFER,
         blockHeight,

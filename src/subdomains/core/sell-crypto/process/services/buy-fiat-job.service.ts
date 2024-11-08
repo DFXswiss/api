@@ -4,7 +4,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { IsNull, LessThan, Like, Not } from 'typeorm';
+import { IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -25,39 +25,34 @@ export class BuyFiatJobService {
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
     if (DisabledProcess(Process.BUY_FIAT)) return;
+
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true },
+      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } } },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
-        transaction: { user: { userData: { paymentLinksConfig: Not(Like(`%${PayoutFrequency.DAILY}%`)) } } },
       },
     });
 
-    for (const buyFiat of buyFiatsWithoutOutput) {
+    // immediate payouts
+    const immediateOutputs = buyFiatsWithoutOutput.filter(
+      (bf) =>
+        !bf.userData.paymentLinksConfigObj.payoutFrequency ||
+        bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.IMMEDIATE,
+    );
+
+    for (const buyFiat of immediateOutputs) {
       await this.fiatOutputService.createInternal('BuyFiat', { buyFiats: [buyFiat] });
     }
-  }
 
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(7200)
-  async addDailyFiatOutputs(): Promise<void> {
-    if (DisabledProcess(Process.BUY_FIAT)) return;
-
+    // daily payouts
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true },
-      where: {
-        amlCheck: CheckStatus.PASS,
-        fiatOutput: IsNull(),
-        transaction: { user: { userData: { paymentLinksConfig: Like(`%${PayoutFrequency.DAILY}%`) } } },
-        created: LessThan(startOfDay),
-      },
-    });
-
-    const sellGroups = Util.groupByAccessor(buyFiatsWithoutOutput, (bf) => bf.sell.id);
+    const dailyOutputs = buyFiatsWithoutOutput.filter(
+      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
+    );
+    const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
 
     for (const buyFiats of sellGroups.values()) {
       await this.fiatOutputService.createInternal('BuyFiat', { buyFiats });
