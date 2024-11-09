@@ -56,7 +56,7 @@ export class OlkypayService {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
     try {
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(7));
       if (!transactions) return [];
 
       return transactions.map((t) => this.parseTransaction(t, accountIban));
