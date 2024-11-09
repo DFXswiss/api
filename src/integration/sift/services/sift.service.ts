@@ -28,6 +28,7 @@ import {
   SiftAssetType,
   SiftBase,
   SiftCheckoutDeclineMap,
+  SiftDecisionSource,
   SiftPaymentMethodMap,
   SiftResponse,
   Transaction,
@@ -38,6 +39,8 @@ import {
 @Injectable()
 export class SiftService {
   private readonly url = 'https://api.sift.com/v205/events';
+  private readonly decisionUrl = 'https://api.sift.com/v3/accounts/';
+
   private readonly logger = new DfxLogger(SiftService);
 
   constructor(private readonly http: HttpService) {}
@@ -219,6 +222,27 @@ export class SiftService {
       return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
+    }
+  }
+
+  private async sendDecision(userId: string, description?: string): Promise<SiftResponse> {
+    if (!Config.sift.apiKey) return;
+
+    const data = {
+      decision_id: 'looks_suspicious_payment_abuse',
+      analyst: Config.sift.source,
+      source: SiftDecisionSource.MANUAL_REVIEW,
+      description,
+    };
+
+    const scoreUrl = `${Config.sift.accountId}/users/${userId}/decisions`;
+
+    try {
+      return await this.http.post(`${this.url}${scoreUrl}`, data, {
+        headers: { Authorization: Config.sift.apiKey },
+      });
+    } catch (error) {
+      this.logger.error(`Error sending Sift decision for user ${userId}:`, error);
     }
   }
 }
