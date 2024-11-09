@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { BlockchainClient } from 'src/integration/blockchain/shared/blockchain-client';
+import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
-import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -69,7 +69,7 @@ export class LogJobService {
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
     private readonly exchangeTxService: ExchangeTxService,
     private readonly bankService: BankService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly refRewardService: RefRewardService,
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
@@ -172,7 +172,8 @@ export class LogJobService {
 
     const customBalances = await Promise.all(
       Array.from(customAssetMap.entries()).map(async ([e, a]) => {
-        const client = this.evmRegistryService.getClient(e);
+        const client = this.blockchainRegistryService.getClient(e);
+
         const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
           b.flat(),
         );
@@ -186,15 +187,17 @@ export class LogJobService {
 
     const depositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
-        const client = this.evmRegistryService.getClient(e);
-        const balances = await this.getCustomBalances(client, a, [
+        const client = this.blockchainRegistryService.getClient(e);
+
+        const balances =
           e === Blockchain.MONERO
-            ? Config.payment.moneroAddress
-            : EvmUtil.createWallet({
-                seed: Config.payment.evmSeed,
-                index: 0,
-              }).address,
-        ]).then((b) => b.flat());
+            ? [{ contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
+            : await this.getCustomBalances(client, a, [
+                EvmUtil.createWallet({
+                  seed: Config.payment.evmSeed,
+                  index: 0,
+                }).address,
+              ]).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
     );
@@ -661,10 +664,10 @@ export class LogJobService {
   }
 
   private async getCustomBalances(
-    client: EvmClient,
+    client: BlockchainClient,
     assets: Asset[],
     addresses: string[],
-  ): Promise<EvmTokenBalance[][]> {
+  ): Promise<BlockchainTokenBalance[][]> {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 

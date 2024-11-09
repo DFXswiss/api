@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { NativeCurrency } from '@uniswap/sdk-core';
 import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -21,7 +21,7 @@ export class TradingService {
   private readonly logger = new DfxLogger(TradingService);
 
   constructor(
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
   ) {}
@@ -90,7 +90,8 @@ export class TradingService {
     tradingRule: TradingRule,
     tradingInfo: TradingInfo,
   ): Promise<TradingInfo> {
-    const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
+    const client = this.blockchainRegistryService.getClient(tradingInfo.assetIn.blockchain);
+    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
     const tokenOut = await client.getToken(tradingInfo.assetOut);

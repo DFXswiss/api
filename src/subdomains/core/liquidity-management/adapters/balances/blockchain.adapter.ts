@@ -3,10 +3,11 @@ import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
+import { BlockchainClient } from 'src/integration/blockchain/shared/blockchain-client';
+import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
@@ -34,7 +35,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   constructor(
     private readonly dexService: DexService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     nodeService: NodeService,
     lightningService: LightningService,
     moneroService: MoneroService,
@@ -144,7 +145,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
 
-        const balance = await this.moneroClient.getBalance().then((b) => b.balance);
+        const balance = await this.moneroClient.getNativeCoinBalance();
         this.balanceCache.set(asset.id, balance);
       } catch (e) {
         this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
@@ -157,7 +158,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     if (assets.length === 0) return;
 
     const blockchain = assets[0].blockchain;
-    const client = this.evmRegistryService.getClient(blockchain);
+    const client = this.blockchainRegistryService.getClient(blockchain);
 
     await this.getForEvmAsset(
       assets.filter((a) => a.type !== AssetType.POOL),
@@ -169,9 +170,9 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
   }
 
-  private async getForEvmAsset(assets: Asset[], client: EvmClient): Promise<void> {
+  private async getForEvmAsset(assets: Asset[], client: BlockchainClient): Promise<void> {
     let coinBalance: number;
-    let tokenBalances: EvmTokenBalance[];
+    let tokenBalances: BlockchainTokenBalance[];
 
     try {
       coinBalance = await client.getNativeCoinBalance();
@@ -194,13 +195,14 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForEvmPosition(assets: Asset[], client: EvmClient): Promise<void> {
+  private async getForEvmPosition(assets: Asset[], client: BlockchainClient): Promise<void> {
     const assetMap = Util.groupByAccessor(assets, (a) => a.chainId.split('/').slice(0, 2).join('/'));
 
     for (const pool of new Set(assetMap.keys())) {
       try {
         const [positionsNft, positionId] = pool.split('/');
-        const amounts = await client.getUniswapLiquidity(positionsNft, +positionId);
+        const amounts =
+          client instanceof EvmClient ? await client.getUniswapLiquidity(positionsNft, +positionId) : undefined;
 
         for (const asset of assetMap.get(pool)) {
           const balance = amounts[+asset.chainId.split('/').pop()];

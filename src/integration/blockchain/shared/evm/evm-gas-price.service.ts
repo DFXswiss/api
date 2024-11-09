@@ -5,7 +5,9 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { Blockchain } from '../enums/blockchain.enum';
-import { EvmRegistryService } from './evm-registry.service';
+import { BlockchainRegistryService } from '../services/blockchain-registry.service';
+import { EvmClient } from './evm-client';
+
 interface EvmGasPriceCacheData {
   timestamp: Date;
   gasPrice: number;
@@ -27,7 +29,7 @@ export class EvmGasPriceService implements OnModuleInit {
 
   private gasPriceCache: Map<Blockchain, EvmGasPriceCacheData>;
 
-  constructor(private readonly evmRegistryService: EvmRegistryService) {
+  constructor(private readonly blockchainRegistryService: BlockchainRegistryService) {
     this.gasPriceCache = new Map();
   }
 
@@ -48,9 +50,10 @@ export class EvmGasPriceService implements OnModuleInit {
   private async updateGasPrice() {
     for (const blockchain of EvmGasPriceService.GAS_PRICE_BLOCKCHAINS) {
       try {
+        const client = this.blockchainRegistryService.getClient(blockchain);
         this.gasPriceCache.set(blockchain, {
           timestamp: new Date(),
-          gasPrice: +(await this.evmRegistryService.getClient(blockchain).getRecommendedGasPrice()),
+          gasPrice: client instanceof EvmClient ? +(await client.getRecommendedGasPrice()) : undefined,
         });
       } catch (e) {
         this.gasPriceCache.delete(blockchain);

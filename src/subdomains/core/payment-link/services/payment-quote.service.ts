@@ -3,8 +3,9 @@ import { Config } from 'src/config/config';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -43,7 +44,7 @@ export class PaymentQuoteService {
 
   constructor(
     private readonly paymentQuoteRepo: PaymentQuoteRepository,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
@@ -333,8 +334,9 @@ export class PaymentQuoteService {
   }
 
   private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    const evmClient = this.evmRegistryService.getClient(transferInfo.method);
-    const transactionResponse = await evmClient.sendSignedTransaction(transferInfo.hex);
+    const client = this.blockchainRegistryService.getClient(transferInfo.method);
+    const transactionResponse =
+      client instanceof EvmClient ? await client.sendSignedTransaction(transferInfo.hex) : undefined;
 
     transactionResponse.error
       ? quote.txFailed(transactionResponse.error.message)

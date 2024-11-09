@@ -3,15 +3,17 @@ import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BaseService } from '../../base/base.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
+import { MoneroClient } from '../../monero/monero-client';
+import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
 import { PolygonService } from '../../polygon/polygon.service';
 import { Blockchain } from '../enums/blockchain.enum';
-import { EvmClient } from './evm-client';
-import { EvmService } from './evm.service';
-import { L2BridgeEvmClient } from './interfaces';
+import { EvmClient } from '../evm/evm-client';
+import { EvmService } from '../evm/evm.service';
+import { L2BridgeEvmClient } from '../evm/interfaces';
 
 @Injectable()
-export class EvmRegistryService {
+export class BlockchainRegistryService {
   constructor(
     private readonly ethereumService: EthereumService,
     private readonly bscService: BscService,
@@ -19,13 +21,14 @@ export class EvmRegistryService {
     private readonly optimismService: OptimismService,
     private readonly polygonService: PolygonService,
     private readonly baseService: BaseService,
+    private readonly moneroService: MoneroService,
   ) {}
 
-  getClient(blockchain: Blockchain): EvmClient {
+  getClient(blockchain: Blockchain): EvmClient | MoneroClient {
     return this.getService(blockchain).getDefaultClient();
   }
 
-  getService(blockchain: Blockchain): EvmService {
+  getService(blockchain: Blockchain): EvmService | MoneroService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
@@ -39,9 +42,11 @@ export class EvmRegistryService {
         return this.polygonService;
       case Blockchain.BASE:
         return this.baseService;
+      case Blockchain.MONERO:
+        return this.moneroService;
 
       default:
-        throw new Error(`No evm service found for blockchain ${blockchain}`);
+        throw new Error(`No service found for blockchain ${blockchain}`);
     }
   }
 
@@ -57,7 +62,7 @@ export class EvmRegistryService {
         return this.baseService.getDefaultClient();
 
       default:
-        throw new Error(`No l2 evm client found for blockchain ${blockchain}`);
+        throw new Error(`No l2 client found for blockchain ${blockchain}`);
     }
   }
 }

@@ -16,9 +16,10 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { BlockchainClient } from '../blockchain-client';
+import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
 import { WalletAccount } from './domain/wallet-account';
 import { EvmSignedTransactionResponse } from './dto/evm-signed-transaction-reponse.dto';
-import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
@@ -48,7 +49,7 @@ export enum Direction {
   INCOMING = 'incoming',
 }
 
-export abstract class EvmClient {
+export abstract class EvmClient extends BlockchainClient {
   protected http: HttpService;
   private readonly alchemyService: AlchemyService;
   private readonly chainId: ChainId;
@@ -63,6 +64,7 @@ export abstract class EvmClient {
   private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
+    super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
     this.chainId = params.chainId;
@@ -120,8 +122,8 @@ export abstract class EvmClient {
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
-  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
-    const evmTokenBalances: EvmTokenBalance[] = [];
+  async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
+    const evmTokenBalances: BlockchainTokenBalance[] = [];
 
     const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, address ?? this.dfxAddress, assets);
 
