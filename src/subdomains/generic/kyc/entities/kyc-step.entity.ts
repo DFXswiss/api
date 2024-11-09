@@ -306,9 +306,9 @@ export class KycStep extends IEntity {
   }
 
   get userName(): string | undefined {
-    const result = this.getResult<IdNowResult>();
+    const result = this.resultData;
     if (!result) return undefined;
-    return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]
+    return [result.firstname, result.lastname, result.birthname]
       .filter((n) => n)
       .map((n) => n.trim())
       .join(' ');
