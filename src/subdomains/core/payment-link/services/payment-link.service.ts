@@ -10,6 +10,7 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
+import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
@@ -174,7 +175,7 @@ export class PaymentLinkService {
     uniqueId: string,
     standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
   ): Promise<PaymentLinkPayRequestDto> {
-    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
+    const pendingPayment = await this.waitForPendingPayment(uniqueId);
     if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
 
     const { standards, displayQr } = pendingPayment.link.configObj;
@@ -211,6 +212,15 @@ export class PaymentLinkService {
     };
 
     return payRequest;
+  }
+
+  private async waitForPendingPayment(uniqueId: string): Promise<PaymentLinkPayment> {
+    return Util.poll(
+      () => this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId),
+      (p) => p?.status === PaymentLinkPaymentStatus.PENDING,
+      1000, // interval 1 sec
+      10000, // timeout 10 sec
+    );
   }
 
   private async noPendingPaymentResponse(

@@ -25,13 +25,14 @@ export class LightningStrategy extends SendStrategy {
     return undefined;
   }
 
+  get forwardRequired(): boolean {
+    return false;
+  }
+
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     if (type === SendType.FORWARD) {
       // no forwarding required
-      for (const payIn of payIns) {
-        payIn.completed();
-        await this.payInRepo.save(payIn);
-      }
+      throw new Error('Lightning inputs not required to forward');
     } else {
       this.logger.verbose(`Returning ${payIns.length} Lightning input(s): ${payIns.map((p) => p.id)}`);
 
@@ -47,7 +48,7 @@ export class LightningStrategy extends SendStrategy {
           CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
 
           const { outTxId, feeAmount } = await this.lightningService.sendTransfer(payIn);
-          this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
+          await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
           await this.payInRepo.save(payIn);
         } catch (e) {
@@ -61,7 +62,7 @@ export class LightningStrategy extends SendStrategy {
 
   async checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void> {
     for (const payIn of payIns) {
-      payIn.confirm(direction);
+      payIn.confirm(direction, this.forwardRequired);
 
       await this.payInRepo.save(payIn);
     }

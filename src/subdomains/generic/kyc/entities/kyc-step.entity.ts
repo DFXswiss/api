@@ -292,13 +292,13 @@ export class KycStep extends IEntity {
           ? new Date(identResultData.data.info.idDocs[0].dob)
           : undefined,
         nationality: identResultData.data.info?.idDocs?.[0]?.country,
-        identificationDocNumber: identResultData.data.info?.idDocs?.[0]?.number,
-        identificationDocType: identResultData.data.info?.idDocs?.[0]?.idDocType
+        documentNumber: identResultData.data.info?.idDocs?.[0]?.number,
+        documentType: identResultData.data.info?.idDocs?.[0]?.idDocType
           ? identResultData.data.info.idDocs[0].idDocType === IdDocType.ID_CARD
             ? 'IDCARD'
             : 'PASSPORT'
           : undefined,
-        identificationType: identResultData.webhook.type,
+        kycType: identResultData.webhook.type,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
     } else if (this.isManual) {
@@ -309,11 +309,11 @@ export class KycStep extends IEntity {
         firstname: identResultData.firstName,
         lastname: identResultData.lastName,
         birthname: identResultData.birthName,
-        birthday: null,
-        nationality: identResultData.nationality?.name,
-        identificationDocType: identResultData.documentType,
-        identificationDocNumber: identResultData.documentNumber,
-        identificationType: IdentType.MANUAL,
+        birthday: new Date(identResultData.birthday),
+        nationality: identResultData.nationality?.symbol,
+        documentType: identResultData.documentType,
+        documentNumber: identResultData.documentNumber,
+        kycType: IdentType.MANUAL,
         success: true,
       };
     } else {
@@ -326,9 +326,9 @@ export class KycStep extends IEntity {
         birthname: identResultData.userdata?.birthname?.value,
         birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
         nationality: identResultData.userdata?.nationality?.value,
-        identificationDocType: identResultData.identificationdocument?.type?.value,
-        identificationDocNumber: identResultData.identificationdocument?.number?.value,
-        identificationType: identResultData.identificationprocess?.companyid,
+        documentType: identResultData.identificationdocument?.type?.value,
+        documentNumber: identResultData.identificationdocument?.number?.value,
+        kycType: identResultData.identificationprocess?.companyid,
         success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
       };
     }
@@ -352,9 +352,9 @@ export class KycStep extends IEntity {
   }
 
   get userName(): string | undefined {
-    const result = this.getResult<IdNowResult>();
+    const result = this.resultData;
     if (!result) return undefined;
-    return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]
+    return [result.firstname, result.lastname, result.birthname]
       .filter((n) => n)
       .map((n) => n.trim())
       .join(' ');

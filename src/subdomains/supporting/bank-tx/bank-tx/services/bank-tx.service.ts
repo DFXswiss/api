@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, Like, MoreThan } from 'typeorm';
+import { DeepPartial, FindOptionsRelations, In, IsNull, Like, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -82,6 +82,7 @@ export class BankTxService {
     private readonly revolutService: RevolutService,
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
+    private readonly sepaParser: SepaParser,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -255,6 +256,10 @@ export class BankTxService {
     ]);
   }
 
+  async getBankTx(from: Date, relations?: FindOptionsRelations<BankTx>): Promise<BankTx[]> {
+    return this.bankTxRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  }
+
   async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
     return this.bankTxRepo.findBy([
       { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
@@ -267,13 +272,15 @@ export class BankTxService {
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
-    const sepaFile = SepaParser.parseSepaFile(xmlFile);
+    const sepaFile = this.sepaParser.parseSepaFile(xmlFile);
 
     const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
 
     // parse the file
-    let batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    const txList = SepaParser.parseEntries(sepaFile, batch.iban).map((e) => this.createTx(e, multiAccountIbans));
+    let batch = this.bankTxBatchRepo.create(this.sepaParser.parseBatch(sepaFile));
+    const txList = await this.sepaParser
+      .parseEntries(sepaFile, batch.iban)
+      .then((l) => l.map((e) => this.createTx(e, multiAccountIbans)));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo

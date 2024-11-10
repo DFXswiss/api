@@ -11,7 +11,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
@@ -36,8 +36,26 @@ export class PayInService {
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
 
-    for (const { address, txId, txType, txSequence, blockHeight, amount, asset } of transactions) {
-      const payIn = CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset);
+    for (const {
+      senderAddresses,
+      receiverAddress,
+      txId,
+      txType,
+      txSequence,
+      blockHeight,
+      amount,
+      asset,
+    } of transactions) {
+      const payIn = CryptoInput.create(
+        senderAddresses,
+        receiverAddress,
+        txId,
+        txType,
+        txSequence,
+        blockHeight,
+        amount,
+        asset,
+      );
 
       const exists = await this.payInRepository.exists({
         where: {
@@ -45,8 +63,8 @@ export class PayInService {
           txSequence: txSequence,
           asset: { id: asset?.id },
           address: {
-            address: address.address,
-            blockchain: address.blockchain,
+            address: receiverAddress.address,
+            blockchain: receiverAddress.blockchain,
           },
         },
       });
@@ -94,16 +112,21 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy([
-      { status: PayInStatus.ACKNOWLEDGED, action: IsNull() },
-      { status: PayInStatus.ACKNOWLEDGED, action: PayInAction.WAITING },
-    ]);
+    return this.payInRepository.findBy({
+      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
+      isConfirmed: true,
+    });
+  }
+
+  async getPayIn(from: Date, relations?: FindOptionsRelations<CryptoInput>): Promise<CryptoInput[]> {
+    return this.payInRepository.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
+    const strategy = this.sendStrategyRegistry.getSendStrategy(payIn.asset);
 
-    payIn.acknowledge(purpose, route);
+    payIn.acknowledge(purpose, route, strategy.forwardRequired);
 
     await this.payInRepository.save(payIn);
   }
@@ -184,6 +207,7 @@ export class PayInService {
       action: PayInAction.FORWARD,
       outTxId: IsNull(),
       asset: Not(IsNull()),
+      isConfirmed: true,
     });
 
     if (payIns.length === 0) return;
@@ -247,6 +271,7 @@ export class PayInService {
       returnTxId: IsNull(),
       asset: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
+      isConfirmed: true,
     });
 
     if (payIns.length === 0) return;

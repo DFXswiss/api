@@ -20,6 +20,7 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
+import { UserDataService } from '../user-data/user-data.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -46,6 +47,7 @@ export class UserController {
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly feeService: FeeService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   // --- USER --- //
@@ -152,26 +154,28 @@ export class UserController {
   // --- API KEYS --- //
   @Post('apiKey/CT')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse({ type: ApiKeyDto })
   async createApiKey(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<ApiKeyDto> {
-    return this.userService.createApiKey(jwt.user, filter);
+    return this.userDataService.createApiKey(jwt.account, filter);
   }
 
   @Delete('apiKey/CT')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse()
   async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.deleteApiKey(jwt.user);
+    if (jwt.user) await this.userService.deleteApiKey(jwt.user);
+    return this.userDataService.deleteApiKey(jwt.account);
   }
 
   @Put('apiFilter/CT')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: String, isArray: true })
   async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    return this.userService.updateApiFilter(jwt.user, filter);
+    if (jwt.user) await this.userService.updateApiFilter(jwt.user, filter);
+    return this.userDataService.updateApiFilter(jwt.account, filter);
   }
 
   // --- ADMIN --- //

@@ -27,13 +27,14 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     return undefined;
   }
 
+  get forwardRequired(): boolean {
+    return false;
+  }
+
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     if (type === SendType.FORWARD) {
       // no forwarding required
-      for (const payIn of payIns) {
-        payIn.completed();
-        await this.payInRepo.save(payIn);
-      }
+      throw new Error('Monero inputs not required to forward');
     } else {
       this.logger.verbose(`Returning ${payIns.length} Monero input(s): ${payIns.map((p) => p.id)}`);
 
@@ -49,7 +50,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
           CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
 
           const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
-          this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
+          await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
           await this.payInRepo.save(payIn);
         } catch (e) {

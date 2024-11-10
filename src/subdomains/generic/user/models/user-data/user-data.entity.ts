@@ -7,6 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -290,6 +291,14 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   individualFees: string; // semicolon separated id's
 
+  // CT
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  apiKeyCT: string;
+
+  @Column({ length: 256, nullable: true })
+  apiFilterCT: string;
+
   // Volumes
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF
@@ -532,6 +541,10 @@ export class UserData extends IEntity {
           zip: this.zip,
           country: this.country,
         };
+  }
+
+  get paymentLinksConfigObj(): PaymentLinkConfig {
+    return JSON.parse(this.paymentLinksConfig ?? '{}');
   }
 
   // --- KYC PROCESS --- //

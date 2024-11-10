@@ -527,6 +527,7 @@ export class BuyCrypto extends IEntity {
       chargebackAllowedDateUser: null,
       chargebackAmount: null,
       chargebackAllowedBy: null,
+      chargebackOutput: null,
     };
 
     Object.assign(this, update);
@@ -551,6 +552,10 @@ export class BuyCrypto extends IEntity {
 
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
+  }
+
+  get feeAmountChf(): number {
+    return this.totalFeeAmountChf;
   }
 
   get isCryptoCryptoTransaction(): boolean {

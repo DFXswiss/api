@@ -83,7 +83,7 @@ export class SupportIssueService {
     }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
-    const supportMessage = await this.createMessageInternal(entity, { ...dto, author: CustomerAuthor });
+    const supportMessage = await this.createMessageInternal(entity, dto);
 
     const issue = SupportIssueDtoMapper.mapSupportIssue(entity);
     issue.messages.push(supportMessage);
@@ -161,6 +161,8 @@ export class SupportIssueService {
   // --- HELPER METHODS --- //
 
   private async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+    if (!dto.author) throw new BadRequestException('Author for message is missing');
+
     const entity = this.messageRepo.create({ ...dto, issue });
 
     // upload document

@@ -26,11 +26,13 @@ export class AccountMergeService {
 
   async sendMergeRequest(master: UserData, slave: UserData, reason: MergeReason, sendToSlave = true): Promise<boolean> {
     if (!slave.mail) return false;
+
     try {
       master.checkIfMergePossibleWith(slave);
     } catch {
       return false;
     }
+
     const request =
       (await this.accountMergeRepo.findOne({
         where: {
@@ -82,9 +84,13 @@ export class AccountMergeService {
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
-    await this.userDataService.mergeUserData(request.master.id, request.slave.id);
+    const [master, slave] = [request.master, request.slave].sort((a, b) => b.kycLevel - a.kycLevel);
 
-    return this.accountMergeRepo.save(request.complete());
+    await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+
+    await this.accountMergeRepo.update(...request.complete(master, slave));
+
+    return request;
   }
 
   private buildConfirmationUrl(code: string): string {

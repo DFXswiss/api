@@ -101,6 +101,9 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float', nullable: true })
   forwardFeeAmount: number;
 
+  @Column({ type: 'float', nullable: true })
+  forwardFeeAmountChf: number;
+
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   asset: Asset;
 
@@ -129,10 +132,14 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
   paymentQuote: PaymentQuote;
 
+  @Column({ length: 'MAX', nullable: true })
+  senderAddresses: string;
+
   //*** FACTORY METHODS ***//
 
   static create(
-    address: BlockchainAddress,
+    senderAddresses: string,
+    receiverAddress: BlockchainAddress,
     txId: string,
     txType: PayInType,
     txSequence: number | null,
@@ -142,7 +149,8 @@ export class CryptoInput extends IEntity {
   ): CryptoInput {
     const payIn = new CryptoInput();
 
-    payIn.address = address;
+    payIn.senderAddresses = senderAddresses;
+    payIn.address = receiverAddress;
     payIn.inTxId = txId;
     payIn.txType = txType;
     payIn.txSequence = txSequence;
@@ -173,10 +181,10 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRouteType): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRouteType, isForwardRequired: boolean): this {
     this.purpose = purpose;
     this.route = route;
-    this.status = this.isPayment ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
+    this.status = this.isPayment || !isForwardRequired ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
 
     return this;
   }
@@ -205,9 +213,10 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  preparing(prepareTxId: string | null, forwardFeeAmount: number): this {
+  preparing(prepareTxId: string | null, forwardFeeAmount: number, feeAmountChf: number): this {
     this.prepareTxId = prepareTxId;
     this.forwardFeeAmount = forwardFeeAmount;
+    this.forwardFeeAmountChf = feeAmountChf;
     this.status = PayInStatus.PREPARING;
 
     return this;
@@ -219,11 +228,12 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  forward(outTxId: string, forwardFeeAmount?: number): this {
+  forward(outTxId: string, forwardFeeAmount?: number, feeAmountChf?: number): this {
     this.outTxId = outTxId;
 
     if (forwardFeeAmount != null) {
       this.forwardFeeAmount = forwardFeeAmount;
+      this.forwardFeeAmountChf = feeAmountChf;
     }
 
     this.status = PayInStatus.FORWARDED;
@@ -231,16 +241,11 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  completed() {
-    this.status = PayInStatus.COMPLETED;
-
-    return this;
-  }
-
-  confirm(direction: PayInConfirmationType): this {
+  confirm(direction: PayInConfirmationType, forwardRequired: boolean): this {
     switch (direction) {
       case 'Input':
         this.isConfirmed = true;
+        this.status = !forwardRequired ? PayInStatus.COMPLETED : undefined;
         break;
 
       case 'Output':
@@ -301,5 +306,9 @@ export class CryptoInput extends IEntity {
 
   get isPayment(): boolean {
     return this.txType === PayInType.PAYMENT;
+  }
+
+  get feeAmountChf(): number {
+    return this.forwardFeeAmountChf;
   }
 }

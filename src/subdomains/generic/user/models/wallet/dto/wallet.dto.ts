@@ -17,6 +17,10 @@ export class WalletDto {
 
   @IsOptional()
   @IsString()
+  displayName: string;
+
+  @IsOptional()
+  @IsString()
   masterKey: string;
 
   @IsOptional()

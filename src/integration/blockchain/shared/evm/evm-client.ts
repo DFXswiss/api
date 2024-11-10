@@ -1,6 +1,7 @@
 import { ChainId, Currency, CurrencyAmount, Ether, NativeCurrency, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/main/util/methodParameters';
+import { UniversalRouterVersion } from '@uniswap/universal-router-sdk';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
@@ -30,8 +31,6 @@ export interface EvmClientParams {
   chainId: ChainId;
   swapContractAddress: string;
   quoteContractAddress: string;
-  scanApiUrl?: string;
-  scanApiKey?: string;
 }
 
 interface UniswapPosition {
@@ -137,8 +136,8 @@ export abstract class EvmClient {
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
-    // 10% cap
-    return this.provider.getGasPrice().then((p) => p.mul(11).div(10));
+    // 20% cap
+    return this.provider.getGasPrice().then((p) => p.mul(12).div(10));
   }
 
   async getCurrentBlock(): Promise<number> {
@@ -589,7 +588,8 @@ export abstract class EvmClient {
       recipient: this.dfxAddress,
       slippageTolerance: new Percent(maxSlippage * 100000, 100000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
-      type: SwapType.SWAP_ROUTER_02,
+      type: SwapType.UNIVERSAL_ROUTER,
+      version: UniversalRouterVersion.V2_0,
     };
   }
 
