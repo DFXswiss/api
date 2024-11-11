@@ -5,7 +5,6 @@ import { EvmBridgeApproval, EvmContractApproval } from 'src/integration/blockcha
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
 import { EvmRawInputDataDto } from 'src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
-import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -24,8 +23,7 @@ export class GsEvmService {
     request,
     blockchain,
   }: EvmRawTransactionDto): Promise<ethers.providers.TransactionResponse> {
-    const client = this.blockchainRegistryService.getClient(blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(request.from, blockchain));
 
@@ -44,8 +42,7 @@ export class GsEvmService {
     signer,
     callData,
   }: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
-    const client = this.blockchainRegistryService.getClient(blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const privateKey = Config.evmWallets.get(signer);
     if (!privateKey) throw new Error(`No private key found for address ${signer}`);
@@ -71,8 +68,7 @@ export class GsEvmService {
 
     if (!token) throw new BadRequestException(`Asset ${assetId} not found`);
 
-    const client = this.blockchainRegistryService.getClient(blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
 
@@ -93,8 +89,7 @@ export class GsEvmService {
 
   async sendCoinTransaction(dto: EvmCoinTransactionDto): Promise<string> {
     const { fromAddress, toAddress, amount, feeLimit, blockchain } = dto;
-    const client = this.blockchainRegistryService.getClient(blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
 
@@ -126,8 +121,7 @@ export class GsEvmService {
     const token = await this.assetService.getAssetById(assetId);
     if (!token) throw new NotFoundException('Token not found');
 
-    const client = this.blockchainRegistryService.getClient(token.blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(token.blockchain);
 
     return client.approveContract(token, contractAddress);
   }

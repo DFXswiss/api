@@ -1,6 +1,5 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -131,8 +130,7 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
-    const client = this.blockchainRegistryService.getClient(order.assetIn.blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('Client can not purchase liquidity');
+    const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
 
     order.txId = await client.swapPool(
       order.assetIn,
@@ -167,8 +165,7 @@ export class TradingOrderService implements OnModuleInit {
   private async handleOrderCompletion(order: TradingOrder): Promise<void> {
     await this.closeReservation(order);
 
-    const client = this.blockchainRegistryService.getClient(order.assetIn.blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
 
     const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
     const txFee = await client.getTxActualFee(order.txId);

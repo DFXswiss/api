@@ -6,7 +6,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { Blockchain } from '../enums/blockchain.enum';
 import { BlockchainRegistryService } from '../services/blockchain-registry.service';
-import { EvmClient } from './evm-client';
 
 interface EvmGasPriceCacheData {
   timestamp: Date;
@@ -50,10 +49,10 @@ export class EvmGasPriceService implements OnModuleInit {
   private async updateGasPrice() {
     for (const blockchain of EvmGasPriceService.GAS_PRICE_BLOCKCHAINS) {
       try {
-        const client = this.blockchainRegistryService.getClient(blockchain);
+        const client = this.blockchainRegistryService.getEvmClient(blockchain);
         this.gasPriceCache.set(blockchain, {
           timestamp: new Date(),
-          gasPrice: client instanceof EvmClient ? +(await client.getRecommendedGasPrice()) : undefined,
+          gasPrice: +(await client.getRecommendedGasPrice()),
         });
       } catch (e) {
         this.gasPriceCache.delete(blockchain);

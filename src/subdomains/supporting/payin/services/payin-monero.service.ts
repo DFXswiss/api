@@ -6,6 +6,7 @@ import {
 } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
+import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 
@@ -16,6 +17,10 @@ export class PayInMoneroService extends PayInBitcoinBasedService {
   constructor(private moneroService: MoneroService) {
     super();
     this.client = moneroService.getDefaultClient();
+  }
+
+  public getDefaultClient(): BlockchainClient {
+    return this.client;
   }
 
   async checkHealthOrThrow(): Promise<void> {

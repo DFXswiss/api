@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -67,7 +66,6 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
-    const transaction = await this.moneroService.getTransaction(payIn.confirmationTxId(direction));
-    return MoneroHelper.isTransactionComplete(transaction);
+    return this.moneroService.getDefaultClient().isTxComplete(payIn.confirmationTxId(direction));
   }
 }

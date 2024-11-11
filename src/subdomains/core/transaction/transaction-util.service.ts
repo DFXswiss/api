@@ -80,8 +80,7 @@ export class TransactionUtilService {
   async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {
     const asset = await this.assetService.getAssetById(request.sourceId);
 
-    const client = this.blockchainRegistry.getClient(asset.blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
     if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
       throw new BadRequestException('Invalid executor address');

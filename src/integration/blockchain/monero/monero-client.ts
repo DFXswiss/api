@@ -5,8 +5,9 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
-import { BlockchainClient } from '../shared/blockchain-client';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { BlockchainClient } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
   GetAddressResultDto,
@@ -77,11 +78,16 @@ export class MoneroClient extends BlockchainClient {
     throw new Error('Monero has no token');
   }
 
-  async isTxComplete(_: string, __?: number): Promise<boolean> {
-    throw new Error('Monero method not implemented.');
+  async sendSignedTransaction(_: string): Promise<SignedTransactionResponse> {
+    throw new Error('Method not implemented');
   }
 
   // --- PRIVATE HELPER METHODS --- //
+
+  async isTxComplete(txId: string, confirmations?: number): Promise<boolean> {
+    const transaction = await this.getTransaction(txId);
+    return MoneroHelper.isTransactionComplete({ ...transaction, confirmations });
+  }
 
   private convertFeeEstimateAuToXmr(feeEstimateResult: GetFeeEstimateResultDto): GetFeeEstimateResultDto {
     feeEstimateResult.fee = MoneroHelper.auToXmr(feeEstimateResult.fee) ?? 0;

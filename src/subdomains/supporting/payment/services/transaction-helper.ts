@@ -309,9 +309,9 @@ export class TransactionHelper implements OnModuleInit {
       return 0;
 
     try {
-      const evmClient = this.blockchainRegistryService.getClient(to.blockchain);
+      const client = this.blockchainRegistryService.getClient(to.blockchain);
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
-        evmClient.getNativeCoinBalanceForAddress(user.address),
+        client.getNativeCoinBalanceForAddress(user.address),
       );
 
       return userBalance < Config.networkStartBalanceLimit ? Config.networkStartFee : 0;

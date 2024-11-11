@@ -4,6 +4,7 @@ import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/ain/node/dto/btc-transaction.dto';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
+import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 
@@ -14,6 +15,10 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
   constructor(private readonly feeService: BtcFeeService, nodeService: NodeService) {
     super();
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.client = client));
+  }
+
+  public getDefaultClient(): BlockchainClient {
+    throw new Error('Method not implemented.');
   }
 
   async checkHealthOrThrow(): Promise<void> {

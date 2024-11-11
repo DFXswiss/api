@@ -28,6 +28,12 @@ export class BlockchainRegistryService {
     return this.getService(blockchain).getDefaultClient();
   }
 
+  getEvmClient(blockchain: Blockchain): EvmClient {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof EvmService)) throw new Error(`No evm client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient();
+  }
+
   getService(blockchain: Blockchain): EvmService | MoneroService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:

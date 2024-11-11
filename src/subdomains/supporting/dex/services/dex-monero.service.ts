@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MoneroTransactionType, MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
@@ -21,9 +20,7 @@ export class DexMoneroService {
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
-    const transaction = await this.client.getTransaction(transferTxId);
-
-    return MoneroHelper.isTransactionComplete(transaction);
+    return this.client.isTxComplete(transferTxId);
   }
 
   async getRecentHistory(blockCount: number): Promise<MoneroTransferDto[]> {

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BaseFeePriority } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
@@ -35,10 +34,8 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {
-    const transaction = await this.client.getTransaction(payoutTxId);
-
-    const isComplete = MoneroHelper.isTransactionComplete(transaction);
-    const payoutFee = isComplete ? transaction.txnFee ?? 0 : 0;
+    const isComplete = await this.client.isTxComplete(payoutTxId);
+    const payoutFee = isComplete ? (await this.client.getTransaction(payoutTxId).then((tx) => tx.txnFee)) ?? 0 : 0;
 
     return [isComplete, payoutFee];
   }

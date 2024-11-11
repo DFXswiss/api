@@ -34,7 +34,7 @@ export class EvmDecimalsService {
 
     for (const asset of assets) {
       try {
-        const client = this.blockchainRegistry.getClient(asset.blockchain);
+        const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
         const currency = await client.getToken(asset);
         await this.repoFactory.asset.update(asset.id, { decimals: currency.decimals });
       } catch (e) {

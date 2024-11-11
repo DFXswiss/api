@@ -90,8 +90,7 @@ export class TradingService {
     tradingRule: TradingRule,
     tradingInfo: TradingInfo,
   ): Promise<TradingInfo> {
-    const client = this.blockchainRegistryService.getClient(tradingInfo.assetIn.blockchain);
-    if (!(client instanceof EvmClient)) throw new Error('EvmClient needed');
+    const client = this.blockchainRegistryService.getEvmClient(tradingInfo.assetIn.blockchain);
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
     const tokenOut = await client.getToken(tradingInfo.assetOut);
