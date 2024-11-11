@@ -178,10 +178,11 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  fail(result?: KycStepResult): UpdateResult<KycStep> {
+  fail(result?: KycStepResult, comment?: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.FAILED,
       result: this.setResult(result),
+      comment,
     };
 
     Object.assign(this, update);

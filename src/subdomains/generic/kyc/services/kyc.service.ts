@@ -164,16 +164,8 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
-        if (entity.isCompleted) {
-          entity.userData = await this.completeIdent(result, entity.userData, nationality);
 
-          if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-            await this.bankDataService.createBankData(entity.userData, {
-              name: entity.userName,
-              iban: `Ident${entity.identDocumentId}`,
-              type: BankDataType.IDENT,
-            });
-        }
+        if (entity.isCompleted) await this.completeIdent(entity, nationality);
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
@@ -672,8 +664,12 @@ export class KycService {
       return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
   }
 
-  async completeIdent(data: IdentResultData, userData: UserData, nationality?: Country): Promise<UserData> {
+  async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
+    const data = kycStep.resultData;
+    const userData = kycStep.userData;
     const identificationType = getIdentificationType(data.type, data.kycType);
+    nationality ??= data.nationality ? await this.countryService.getCountryWithSymbol(data.nationality) : null;
+
     if (
       data.birthday &&
       data.nationality &&
@@ -686,11 +682,24 @@ export class KycService {
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
 
       if (existing) {
-        await this.accountMergeService.sendMergeRequest(existing, userData, MergeReason.IDENT_DOCUMENT);
+        const mergeRequest = await this.accountMergeService.sendMergeRequest(
+          existing,
+          userData,
+          MergeReason.IDENT_DOCUMENT,
+        );
 
-        return userData;
+        await this.kycStepRepo.update(
+          ...kycStep.fail(
+            KycStepStatus.FAILED,
+            `${kycStep.comment};${
+              mergeRequest ? IdentCheckError.USER_DATA_MERGE_REQUESTED : IdentCheckError.USER_DATA_EXISTING
+            }`,
+          ),
+        );
+
+        return;
       } else if (nationality) {
-        return this.userDataService.updateUserDataInternal(userData, {
+        await this.userDataService.updateUserDataInternal(userData, {
           kycLevel: KycLevel.LEVEL_30,
           birthday: data.birthday,
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
@@ -701,12 +710,19 @@ export class KycService {
           identDocumentId,
           nationality,
         });
+
+        if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+          await this.bankDataService.createBankData(kycStep.userData, {
+            name: kycStep.userName,
+            iban: `Ident${kycStep.identDocumentId}`,
+            type: BankDataType.IDENT,
+          });
+
+        return;
       }
     }
 
     this.logger.error(`Missing ident data for userData ${userData.id}`);
-
-    return userData;
   }
 
   private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): IdentCheckError[] {

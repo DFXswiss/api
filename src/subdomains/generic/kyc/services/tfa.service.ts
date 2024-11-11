@@ -64,10 +64,8 @@ export class TfaService {
   }
 
   async setup(kycHash: string, level: TfaLevel): Promise<Setup2faDto> {
-    const mail2faActive = await this.settingService.get('mail2fa').then((s) => s === 'on'); // TODO: remove
-
     const user = await this.getUser(kycHash);
-    if (mail2faActive && user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
+    if (user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
       // mail 2FA
       const type = TfaType.MAIL;
       const secret = Util.randomId().toString().slice(0, 6);
