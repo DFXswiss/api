@@ -618,19 +618,23 @@ export class UserDataService {
 
     // Adapt slave kyc step sequenceNumber
     const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
-    slave.kycSteps.forEach((k) => {
-      k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset;
-      if (
-        [
-          KycStepStatus.IN_PROGRESS,
-          KycStepStatus.MANUAL_REVIEW,
-          KycStepStatus.INTERNAL_REVIEW,
-          KycStepStatus.EXTERNAL_REVIEW,
-          KycStepStatus.FINISHED,
-        ].includes(k.status)
-      )
-        k.status = KycStepStatus.CANCELED;
-    });
+    for (const kycStep of slave.kycSteps) {
+      await this.kycAdminService.updateKycStepInternal(
+        kycStep.update(
+          [
+            KycStepStatus.IN_PROGRESS,
+            KycStepStatus.MANUAL_REVIEW,
+            KycStepStatus.INTERNAL_REVIEW,
+            KycStepStatus.EXTERNAL_REVIEW,
+            KycStepStatus.FINISHED,
+          ].includes(kycStep.status)
+            ? KycStepStatus.CANCELED
+            : undefined,
+          undefined,
+          kycStep.sequenceNumber + sequenceNumberOffset,
+        ),
+      );
+    }
 
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
