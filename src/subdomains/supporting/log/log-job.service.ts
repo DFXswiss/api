@@ -93,8 +93,7 @@ export class LogJobService {
     const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
 
     // changes
-    //TODO reactivate
-    //const changeLog = await this.getChangeLog();
+    const changeLog = await this.getChangeLog();
 
     const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
     const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
@@ -116,6 +115,16 @@ export class LogJobService {
         //changes: changeLog,
       }),
     });
+
+    if (changeLog)
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'FinancialDataLogChanges',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({
+          changes: changeLog,
+        }),
+      });
   }
 
   // --- LOG METHODS --- //
@@ -478,13 +487,18 @@ export class LogJobService {
   }
 
   private async getChangeLog(): Promise<ChangeLog> {
+    if (DisabledProcess(Process.TRADING_LOG_CHANGES)) return undefined;
     const firstDayOfMonth = Util.firstDayOfMonth();
 
     // plus amounts
-    const buyFiats = await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
-      cryptoInput: { paymentLinkPayment: true },
-    });
-    const tradingOrders = await this.tradingOrderService.getTradingOrder(firstDayOfMonth);
+    const buyFiats = DisabledProcess(Process.TRADING_LOG_CHANGES_BUY_FIAT)
+      ? []
+      : await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
+          cryptoInput: { paymentLinkPayment: true },
+        });
+    const tradingOrders = DisabledProcess(Process.TRADING_LOG_CHANGES_BUY_FIAT)
+      ? []
+      : await this.tradingOrderService.getTradingOrder(firstDayOfMonth);
 
     const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
     const paymentLinkFee = this.getFeeAmount(buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment));
@@ -492,10 +506,16 @@ export class LogJobService {
     const tradingOrderProfits = Util.sumObjValue(tradingOrders, 'profitChf');
 
     // minus amounts
-    const exchangeTx = await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
-    const payoutOrders = await this.payoutService.getPayoutOrders(firstDayOfMonth);
+    const exchangeTx = DisabledProcess(Process.TRADING_LOG_CHANGES_EXCHANGE_TX)
+      ? []
+      : await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
+    const payoutOrders = DisabledProcess(Process.TRADING_LOG_CHANGES_PAYOUT_ORDER)
+      ? []
+      : await this.payoutService.getPayoutOrders(firstDayOfMonth);
 
-    const bankTxFee = await this.bankTxService.getBankTx(firstDayOfMonth).then((b) => this.getFeeAmount(b));
+    const bankTxFee = DisabledProcess(Process.TRADING_LOG_CHANGES_BANK_TX)
+      ? 0
+      : await this.bankTxService.getBankTx(firstDayOfMonth).then((b) => this.getFeeAmount(b));
     const krakenTxWithdrawFee = this.getFeeAmount(
       exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.WITHDRAWAL),
     );
@@ -508,9 +528,13 @@ export class LogJobService {
     const binanceTxTradingFee = this.getFeeAmount(
       exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
     );
-    const cryptoInputFee = await this.payInService.getPayIn(firstDayOfMonth).then((c) => this.getFeeAmount(c));
+    const cryptoInputFee = DisabledProcess(Process.TRADING_LOG_CHANGES_CRYPTO_INPUT)
+      ? 0
+      : await this.payInService.getPayIn(firstDayOfMonth).then((c) => this.getFeeAmount(c));
     const tradingOrderFee = this.getFeeAmount(tradingOrders);
-    const refRewards = await this.refRewardService.getRefReward(firstDayOfMonth).then((r) => this.getFeeAmount(r));
+    const refRewards = DisabledProcess(Process.TRADING_LOG_CHANGES_REF_REWARD)
+      ? 0
+      : await this.refRewardService.getRefReward(firstDayOfMonth).then((r) => this.getFeeAmount(r));
     const payoutOrderRefFee = this.getFeeAmount(
       payoutOrders.filter((p) => p.context === PayoutOrderContext.REF_PAYOUT),
     );
