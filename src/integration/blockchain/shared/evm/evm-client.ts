@@ -1,7 +1,6 @@
 import { ChainId, Currency, CurrencyAmount, Ether, NativeCurrency, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import { AlphaRouter, SwapOptions, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/main/util/methodParameters';
-import { UniversalRouterVersion } from '@uniswap/universal-router-sdk';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
@@ -585,14 +584,15 @@ export abstract class EvmClient extends BlockchainClient {
     return this.wallet.address;
   }
 
-  swapConfig(maxSlippage: number) {
-    return {
+  swapConfig(maxSlippage: number): SwapOptions {
+    const config: SwapOptions = {
       recipient: this.dfxAddress,
       slippageTolerance: new Percent(maxSlippage * 100000, 100000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
-      type: SwapType.UNIVERSAL_ROUTER,
-      version: UniversalRouterVersion.V2_0,
+      type: SwapType.SWAP_ROUTER_02,
     };
+
+    return config;
   }
 
   // --- PUBLIC HELPER METHODS --- //
