@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { BlockchainService } from '../../shared/util/blockchain.service';
 import { MoneroClient } from '../monero-client';
 
 @Injectable()
-export class MoneroService {
-  private readonly logger = new DfxLogger(MoneroService);
-
+export class MoneroService extends BlockchainService {
   private readonly client: MoneroClient;
 
   constructor(private readonly http: HttpService) {
+    super();
     this.client = new MoneroClient(http);
   }
 

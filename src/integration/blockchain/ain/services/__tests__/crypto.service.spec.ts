@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -16,14 +16,14 @@ describe('CryptoService', () => {
   let moneroService: MoneroService;
   let arweaveService: ArweaveService;
   let nodeService: NodeService;
-  let evmRegistryService: EvmRegistryService;
+  let blockchainRegistryService: BlockchainRegistryService;
 
   beforeEach(async () => {
     lightningService = createMock<LightningService>();
     moneroService = createMock<MoneroService>();
     arweaveService = createMock<ArweaveService>();
     nodeService = createMock<NodeService>();
-    evmRegistryService = createMock<EvmRegistryService>();
+    blockchainRegistryService = createMock<BlockchainRegistryService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -32,7 +32,7 @@ describe('CryptoService', () => {
         { provide: MoneroService, useValue: moneroService },
         { provide: ArweaveService, useValue: arweaveService },
         { provide: NodeService, useValue: nodeService },
-        { provide: EvmRegistryService, useValue: evmRegistryService },
+        { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
         TestUtil.provideConfig(),
       ],
     }).compile();
