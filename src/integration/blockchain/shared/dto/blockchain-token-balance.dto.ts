@@ -1,4 +1,4 @@
-export interface EvmTokenBalance {
+export interface BlockchainTokenBalance {
   contractAddress: string;
   balance: number;
 }

@@ -1,9 +1,11 @@
+import { BlockchainService } from '../util/blockchain.service';
 import { EvmClient, EvmClientParams } from './evm-client';
 
-export abstract class EvmService {
+export abstract class EvmService extends BlockchainService {
   private readonly client: EvmClient;
 
   constructor(client: new (params) => EvmClient, params: EvmClientParams) {
+    super();
     this.client = new client(params);
   }
 

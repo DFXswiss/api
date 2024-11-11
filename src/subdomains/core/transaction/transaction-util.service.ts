@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -28,7 +28,7 @@ export type RefundValidation = {
 export class TransactionUtilService {
   constructor(
     private readonly assetService: AssetService,
-    private readonly evmRegistry: EvmRegistryService,
+    private readonly blockchainRegistry: BlockchainRegistryService,
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
   ) {}
@@ -79,7 +79,7 @@ export class TransactionUtilService {
   async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {
     const asset = await this.assetService.getAssetById(request.sourceId);
 
-    const client = this.evmRegistry.getClient(asset.blockchain);
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
     if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
       throw new BadRequestException('Invalid executor address');
