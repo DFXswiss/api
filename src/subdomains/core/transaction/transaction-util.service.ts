@@ -1,7 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
-import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';

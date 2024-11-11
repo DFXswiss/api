@@ -66,6 +66,6 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
-    return this.moneroService.getDefaultClient().isTxComplete(payIn.confirmationTxId(direction));
+    return this.moneroService.checkTransactionCompletion(payIn.confirmationTxId(direction));
   }
 }
