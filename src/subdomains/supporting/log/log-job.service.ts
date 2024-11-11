@@ -114,8 +114,8 @@ export class LogJobService {
         //TODO reactivate
         //changes: changeLog,
       }),
-      valid: true,
-      category: '',
+      valid: null,
+      category: null,
     });
   }
 
