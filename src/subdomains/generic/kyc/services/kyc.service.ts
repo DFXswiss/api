@@ -699,7 +699,7 @@ export class KycService {
 
         return;
       } else if (nationality) {
-        this.userDataService.updateUserDataInternal(userData, {
+        await this.userDataService.updateUserDataInternal(userData, {
           kycLevel: KycLevel.LEVEL_30,
           birthday: data.birthday,
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
