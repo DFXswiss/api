@@ -1,9 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { IsNull, Not, Repository } from 'typeorm';
@@ -20,6 +23,7 @@ export class BuyService {
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
+    private readonly bankDataService: BankDataService,
     private readonly routeService: RouteService,
   ) {}
 
@@ -28,6 +32,26 @@ export class BuyService {
   @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
+  async checkCryptoPayIn() {
+    if (DisabledProcess(Process.BUY_BANK_ACCOUNT_SYNC)) return;
+
+    const entities = await this.buyRepo.find({
+      where: { bankAccount: { id: Not(IsNull()) }, bankData: { id: IsNull() } },
+      relations: { bankAccount: { userData: true }, bankData: true },
+    });
+
+    for (const entity of entities) {
+      const bankData = await this.bankDataService
+        .getAllBankDatasForUser(entity.bankAccount.userData.id)
+        .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
+      if (!bankData) continue;
+
+      await this.buyRepo.update(entity.id, { bankData });
+    }
   }
 
   async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
@@ -107,11 +131,19 @@ export class BuyService {
       return existing;
     }
 
+    const user = await this.userService.getUser(userId, { userData: true });
+
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = await this.userService.getUser(userId, { userData: true });
+    buy.user = user;
     buy.route = await this.routeService.createRoute({ buy });
-    if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+    if (dto.iban)
+      buy.bankData = await this.bankDataService.createIbanForUser(
+        user.userData.id,
+        { iban: dto.iban },
+        true,
+        BankDataType.USER,
+      );
 
     // create hash
     const hash = Util.createHash(userAddress + buy.asset.id + (buy.iban ?? '')).toUpperCase();
