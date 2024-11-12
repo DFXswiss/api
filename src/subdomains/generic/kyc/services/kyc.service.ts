@@ -242,7 +242,7 @@ export class KycService {
 
     await this.kycLogService.createFileAccessLog(kycFile.name, kycFile.userData);
 
-    return KycFileMapper.mapKycFile(kycFile, blob.data);
+    return KycFileMapper.mapKycFile(kycFile, blob);
   }
 
   async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {

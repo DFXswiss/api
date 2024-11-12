@@ -46,19 +46,16 @@ export class CreateKycFileDto {
   kycStep?: KycStep;
 }
 
-export class UpdateKycFileDto {
-  name?: string;
-}
-
 export class KycFileDto extends CreateKycFileDto {
   uid: string;
 }
 
 export class KycFileDataDto {
-  uid: string;
   name: string;
   type: FileType;
-  data: Buffer;
+  uid: string;
+  contentType: string;
+  content: Buffer;
 }
 
 export class KycReportDto {
