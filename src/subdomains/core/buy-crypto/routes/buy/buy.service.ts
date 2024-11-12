@@ -36,7 +36,7 @@ export class BuyService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
-  async checkCryptoPayIn() {
+  async syncBuyBankData() {
     if (DisabledProcess(Process.BUY_BANK_ACCOUNT_SYNC)) return;
 
     const entities = await this.buyRepo.find({

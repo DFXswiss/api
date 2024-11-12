@@ -56,7 +56,7 @@ export class SellService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
-  async checkCryptoPayIn() {
+  async syncSellBankData() {
     if (DisabledProcess(Process.SELL_BANK_ACCOUNT_SYNC)) return;
 
     const entities = await this.sellRepo.find({

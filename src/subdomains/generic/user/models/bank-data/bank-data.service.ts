@@ -246,7 +246,7 @@ export class BankDataService {
     if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
     if (!(await this.isValidIbanCountry(dto.iban)))
-      throw new BadRequestException('Iban country is currently not supported');
+      throw new BadRequestException('IBAN country is currently not supported');
 
     const existing = await this.bankDataRepo.findOne({
       where: [
