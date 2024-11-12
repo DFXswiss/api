@@ -485,7 +485,7 @@ export class LogJobService {
     const buyCryptos = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth, {
       cryptoInput: { paymentLinkPayment: true },
     });
-    const { fee: tradingOrderFee, profit: tradingOrderProfit } = await this.tradingOrderService.getTradingOrderFees(
+    const { fee: tradingOrderFee, profit: tradingOrderProfit } = await this.tradingOrderService.getTradingOrderYield(
       firstDayOfMonth,
     );
 
@@ -514,7 +514,7 @@ export class LogJobService {
       exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
     );
     const cryptoInputFee = await this.payInService.getPayInFee(firstDayOfMonth);
-    const refRewards = await this.refRewardService.getRefRewardAmount(firstDayOfMonth);
+    const refRewards = await this.refRewardService.getRefRewardVolume(firstDayOfMonth);
     const payoutOrderRefFee = this.getFeeAmount(
       payoutOrders.filter((p) => p.context === PayoutOrderContext.REF_PAYOUT),
     );

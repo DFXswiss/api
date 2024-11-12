@@ -133,14 +133,14 @@ export class RefRewardService {
     return Object.assign(reward, { outputAssetEntity });
   }
 
-  async getRefRewardAmount(from: Date): Promise<number> {
-    const { fee } = await this.rewardRepo
+  async getRefRewardVolume(from: Date): Promise<number> {
+    const { volume } = await this.rewardRepo
       .createQueryBuilder('refReward')
-      .select('SUM(amountInChf)', 'fee')
+      .select('SUM(amountInChf)', 'volume')
       .where('created >= :from', { from })
-      .getRawOne<{ fee: number }>();
+      .getRawOne<{ volume: number }>();
 
-    return fee ?? 0;
+    return volume ?? 0;
   }
 
   // --- HELPER METHODS --- //

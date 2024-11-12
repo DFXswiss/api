@@ -52,7 +52,7 @@ export class TradingOrderService implements OnModuleInit {
     await this.checkRunningOrders();
   }
 
-  async getTradingOrderFees(from: Date): Promise<{ profit: number; fee: number }> {
+  async getTradingOrderYield(from: Date): Promise<{ profit: number; fee: number }> {
     const { profit, fee } = await this.orderRepo
       .createQueryBuilder('tradingOrder')
       .select('SUM(profitChf)', 'profit')
