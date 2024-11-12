@@ -25,7 +25,6 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
-import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -42,7 +41,6 @@ export class SellService {
     private readonly depositService: DepositService,
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
-    private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
@@ -65,12 +63,16 @@ export class SellService {
     });
 
     for (const entity of entities) {
-      const bankData = await this.bankDataService
-        .getAllBankDatasForUser(entity.bankAccount.userData.id)
-        .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
-      if (!bankData) continue;
+      try {
+        const bankData = await this.bankDataService
+          .getAllBankDatasForUser(entity.bankAccount.userData.id)
+          .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
+        if (!bankData) continue;
 
-      await this.sellRepo.update(entity.id, { bankData });
+        await this.sellRepo.update(entity.id, { bankData });
+      } catch (e) {
+        this.logger.error(`Error in sell bankAccount/bankData sync ${entity.id}`, e);
+      }
     }
   }
 

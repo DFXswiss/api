@@ -18,6 +18,7 @@ import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -40,6 +41,7 @@ export class BankDataService {
     private readonly nameCheckService: NameCheckService,
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -277,6 +279,8 @@ export class BankDataService {
       dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
+
+    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },

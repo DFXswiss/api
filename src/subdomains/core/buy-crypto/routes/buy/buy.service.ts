@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -8,7 +9,6 @@ import { RouteService } from 'src/subdomains/core/route/route.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
@@ -17,12 +17,12 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
+  private readonly logger = new DfxLogger(BuyService);
   private cache: { id: number; bankUsage: string }[] = undefined;
 
   constructor(
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
-    private readonly bankAccountService: BankAccountService,
     private readonly bankDataService: BankDataService,
     private readonly routeService: RouteService,
   ) {}
@@ -45,12 +45,16 @@ export class BuyService {
     });
 
     for (const entity of entities) {
-      const bankData = await this.bankDataService
-        .getAllBankDatasForUser(entity.bankAccount.userData.id)
-        .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
-      if (!bankData) continue;
+      try {
+        const bankData = await this.bankDataService
+          .getAllBankDatasForUser(entity.bankAccount.userData.id)
+          .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
+        if (!bankData) continue;
 
-      await this.buyRepo.update(entity.id, { bankData });
+        await this.buyRepo.update(entity.id, { bankData });
+      } catch (e) {
+        this.logger.error(`Error in buy bankAccount/bankData sync ${entity.id}`, e);
+      }
     }
   }
 
