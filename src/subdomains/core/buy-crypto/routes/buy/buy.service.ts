@@ -117,7 +117,7 @@ export class BuyService {
         deposit: IsNull(),
         user: { id: userId },
       },
-      relations: { deposit: true, bankAccount: true, user: { userData: true } },
+      relations: { deposit: true, bankAccount: true, bankData: true, user: { userData: true } },
     });
 
     if (existing) {
@@ -131,6 +131,7 @@ export class BuyService {
 
       // remove bank account info, if no IBAN was provided
       if (existing.bankAccount && !dto.iban) delete existing.bankAccount;
+      if (existing.bankData && !dto.iban) delete existing.bankData;
 
       return existing;
     }
