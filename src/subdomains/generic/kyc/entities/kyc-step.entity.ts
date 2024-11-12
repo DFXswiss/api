@@ -349,8 +349,8 @@ export class KycStep extends IEntity {
   }
 
   get identDocumentId(): string | undefined {
-    const result = this.getResult<IdNowResult>();
-    return result?.identificationdocument?.number?.value;
+    const result = this.resultData;
+    return result.documentNumber;
   }
 
   get userName(): string | undefined {
