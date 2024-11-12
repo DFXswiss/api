@@ -18,7 +18,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, FindOptionsRelations, In, IsNull, Like, MoreThan } from 'typeorm';
+import { DeepPartial, In, IsNull, Like, MoreThan } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -256,8 +256,14 @@ export class BankTxService {
     ]);
   }
 
-  async getBankTx(from: Date, relations?: FindOptionsRelations<BankTx>): Promise<BankTx[]> {
-    return this.bankTxRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  async getBankTxFee(from: Date): Promise<number> {
+    const { fee } = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('SUM(chargeAmountChf)', 'fee')
+      .where('created >= :from', { from })
+      .getRawOne<{ fee: number }>();
+
+    return fee ?? 0;
   }
 
   async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {

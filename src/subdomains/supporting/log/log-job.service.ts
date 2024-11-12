@@ -111,20 +111,9 @@ export class LogJobService {
           minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
           totalBalanceChf: plusBalanceChf - minusBalanceChf,
         },
-        //TODO reactivate
-        //changes: changeLog,
+        changes: changeLog,
       }),
     });
-
-    if (changeLog)
-      await this.logService.create({
-        system: 'LogService',
-        subsystem: 'FinancialDataLogChanges',
-        severity: LogSeverity.INFO,
-        message: JSON.stringify({
-          changes: changeLog,
-        }),
-      });
   }
 
   // --- LOG METHODS --- //
@@ -487,35 +476,31 @@ export class LogJobService {
   }
 
   private async getChangeLog(): Promise<ChangeLog> {
-    if (DisabledProcess(Process.TRADING_LOG_CHANGES)) return undefined;
     const firstDayOfMonth = Util.firstDayOfMonth();
 
     // plus amounts
-    const buyFiats = DisabledProcess(Process.TRADING_LOG_CHANGES_BUY_FIAT)
-      ? []
-      : await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
-          cryptoInput: { paymentLinkPayment: true },
-        });
-    const tradingOrders = DisabledProcess(Process.TRADING_LOG_CHANGES_BUY_FIAT)
-      ? []
-      : await this.tradingOrderService.getTradingOrder(firstDayOfMonth);
+    const buyFiats = await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
+      cryptoInput: { paymentLinkPayment: true },
+    });
+    const buyCryptos = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth, {
+      cryptoInput: { paymentLinkPayment: true },
+    });
+    const { fee: tradingOrderFee, profit: tradingOrderProfit } = await this.tradingOrderService.getTradingOrderFees(
+      firstDayOfMonth,
+    );
 
     const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
-    const paymentLinkFee = this.getFeeAmount(buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment));
-    const buyCryptoFee = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth).then((b) => this.getFeeAmount(b));
-    const tradingOrderProfits = Util.sumObjValue(tradingOrders, 'profitChf');
+    const paymentLinkFee = this.getFeeAmount([
+      ...buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment),
+      ...buyCryptos.filter((p) => p.cryptoInput.paymentLinkPayment),
+    ]);
+    const buyCryptoFee = this.getFeeAmount(buyCryptos.filter((b) => !b.cryptoInput.paymentLinkPayment));
 
     // minus amounts
-    const exchangeTx = DisabledProcess(Process.TRADING_LOG_CHANGES_EXCHANGE_TX)
-      ? []
-      : await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
-    const payoutOrders = DisabledProcess(Process.TRADING_LOG_CHANGES_PAYOUT_ORDER)
-      ? []
-      : await this.payoutService.getPayoutOrders(firstDayOfMonth);
+    const exchangeTx = await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
+    const payoutOrders = await this.payoutService.getPayoutOrders(firstDayOfMonth);
 
-    const bankTxFee = DisabledProcess(Process.TRADING_LOG_CHANGES_BANK_TX)
-      ? 0
-      : await this.bankTxService.getBankTx(firstDayOfMonth).then((b) => this.getFeeAmount(b));
+    const bankTxFee = await this.bankTxService.getBankTxFee(firstDayOfMonth);
     const krakenTxWithdrawFee = this.getFeeAmount(
       exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.WITHDRAWAL),
     );
@@ -528,13 +513,8 @@ export class LogJobService {
     const binanceTxTradingFee = this.getFeeAmount(
       exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
     );
-    const cryptoInputFee = DisabledProcess(Process.TRADING_LOG_CHANGES_CRYPTO_INPUT)
-      ? 0
-      : await this.payInService.getPayIn(firstDayOfMonth).then((c) => this.getFeeAmount(c));
-    const tradingOrderFee = this.getFeeAmount(tradingOrders);
-    const refRewards = DisabledProcess(Process.TRADING_LOG_CHANGES_REF_REWARD)
-      ? 0
-      : await this.refRewardService.getRefReward(firstDayOfMonth).then((r) => this.getFeeAmount(r));
+    const cryptoInputFee = await this.payInService.getPayInFee(firstDayOfMonth);
+    const refRewards = await this.refRewardService.getRefRewardAmount(firstDayOfMonth);
     const payoutOrderRefFee = this.getFeeAmount(
       payoutOrders.filter((p) => p.context === PayoutOrderContext.REF_PAYOUT),
     );
@@ -548,7 +528,7 @@ export class LogJobService {
     const totalBlockchainFee = totalTxFee + tradingOrderFee;
 
     // total amounts
-    const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfits;
+    const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfit;
     const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward;
 
     return {
@@ -557,7 +537,7 @@ export class LogJobService {
         buyCrypto: buyCryptoFee || undefined,
         buyFiat: buyFiatFee || undefined,
         paymentLink: paymentLinkFee || undefined,
-        trading: tradingOrderProfits || undefined,
+        trading: tradingOrderProfit || undefined,
       },
       minus: {
         total: totalMinus,

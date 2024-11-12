@@ -14,7 +14,6 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOptionsRelations, MoreThan } from 'typeorm';
 import { LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
 import { LiquidityManagementService } from '../../liquidity-management/services/liquidity-management.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -53,8 +52,15 @@ export class TradingOrderService implements OnModuleInit {
     await this.checkRunningOrders();
   }
 
-  async getTradingOrder(from: Date, relations?: FindOptionsRelations<TradingOrder>): Promise<TradingOrder[]> {
-    return this.orderRepo.find({ where: { created: MoreThan(from) }, relations });
+  async getTradingOrderFees(from: Date): Promise<{ profit: number; fee: number }> {
+    const { profit, fee } = await this.orderRepo
+      .createQueryBuilder('tradingOrder')
+      .select('SUM(profitChf)', 'profit')
+      .addSelect('SUM(txFeeAmountChf)', 'fee')
+      .where('created >= :from', { from })
+      .getRawOne<{ profit: number; fee: number }>();
+
+    return { profit: profit ?? 0, fee: fee ?? 0 };
   }
 
   // --- HELPER METHODS --- //
