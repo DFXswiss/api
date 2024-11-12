@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Blob } from 'src/integration/infrastructure/azure-storage.service';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
+import { KycStep } from '../entities/kyc-step.entity';
 
 export enum FileType {
   NAME_CHECK = 'NameCheck',
@@ -34,6 +36,29 @@ export enum KycReportType {
 export interface KycFile extends Blob {
   type: FileType;
   contentType: ContentType;
+}
+
+export class CreateKycFileDto {
+  name: string;
+  type: FileType;
+  protected: boolean;
+  userData: UserData;
+  kycStep?: KycStep;
+}
+
+export class UpdateKycFileDto {
+  name?: string;
+}
+
+export class KycFileDto extends CreateKycFileDto {
+  uid: string;
+}
+
+export class KycFileDataDto {
+  uid: string;
+  name: string;
+  type: FileType;
+  data: Buffer;
 }
 
 export class KycReportDto {

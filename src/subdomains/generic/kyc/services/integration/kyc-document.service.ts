@@ -63,6 +63,10 @@ export class KycDocumentService {
     return this.storageService.getBlob(this.toFileId(userDataId, type, name));
   }
 
+  async downloadFileByKey(id: string): Promise<BlobContent> {
+    return this.storageService.getBlob(id);
+  }
+
   async downloadFileByUrl(url: string): Promise<BlobContent> {
     const fileId = this.storageService.blobName(url);
     return this.storageService.getBlob(fileId);

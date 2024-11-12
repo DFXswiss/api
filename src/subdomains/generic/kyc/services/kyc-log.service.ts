@@ -55,4 +55,13 @@ export class KycLogService {
 
     await this.kycLogRepo.save(entity);
   }
+
+  async createFileAccessLog(fileName: string, user?: UserData) {
+    const entity = this.kycLogRepo.create({
+      result: `File access: ${fileName}`,
+      userData: user,
+    });
+
+    await this.kycLogRepo.save(entity);
+  }
 }
