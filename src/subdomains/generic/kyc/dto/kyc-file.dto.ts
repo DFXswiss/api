@@ -46,10 +46,6 @@ export class CreateKycFileDto {
   kycStep?: KycStep;
 }
 
-export class KycFileDto extends CreateKycFileDto {
-  uid: string;
-}
-
 export class KycFileDataDto {
   name: string;
   type: FileType;

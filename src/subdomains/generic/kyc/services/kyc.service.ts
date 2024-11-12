@@ -129,33 +129,37 @@ export class KycService {
   }
 
   // TODO: Remove temporary cron job
-  // @Cron(CronExpression.EVERY_MINUTE)
-  // async storeExistingKycFiles(): Promise<void> {
-  //   try {
-  //     // this.logger.info('Starting Cron Job to store existing KYC files');
+  @Cron(CronExpression.EVERY_MINUTE)
+  async storeExistingKycFiles(): Promise<void> {
+    try {
+      this.logger.info('Starting Cron Job to store existing KYC files');
 
-  //     const allUserData = await this.userDataService.getAllUserData();
+      const allUserData = await this.userDataService.getAllUserData();
 
-  //     for (const userData of allUserData) {
-  //       const existingFiles = await this.documentService.listUserFiles(userData.id);
+      for (const userData of allUserData) {
+        const existingFiles = await this.documentService.listUserFiles(userData.id);
 
-  //       for (const existingFile of existingFiles) {
-  //         const exampleKycFile = {
-  //           name: existingFile.name,
-  //           type: existingFile.type,
-  //           protected: false,
-  //           userData: userData,
-  //         };
+        for (const existingFile of existingFiles) {
+          try {
+            const exampleKycFile = {
+              name: existingFile.name,
+              type: existingFile.type,
+              protected: false,
+              userData: userData,
+            };
 
-  //         this.kycFileService.createKycFile(exampleKycFile);
-  //       }
-  //     }
+            await this.kycFileService.createKycFile(exampleKycFile);
+          } catch {
+            this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}`);
+          }
+        }
+      }
 
-  //     // this.logger.info('Successfully stored existing KYC files in the database');
-  //   } catch (error) {
-  //     this.logger.error('Failed to store existing KYC files:', error);
-  //   }
-  // }
+      this.logger.info('Successfully stored existing KYC files in the database');
+    } catch (error) {
+      this.logger.error('Failed to store existing KYC files:', error);
+    }
+  }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async reviewIdentSteps(): Promise<void> {
@@ -235,7 +239,7 @@ export class KycService {
     const kycFile = await this.kycFileService.getKycFile(uid);
 
     if (kycFile.protected && (!userDataId || !this.userDataService.hasRole(userDataId, UserRole.ADMIN))) {
-      throw new BadRequestException('File is protected');
+      throw new BadRequestException('Requires admin role');
     }
 
     const blob = await this.documentService.downloadFile(kycFile.userData.id, kycFile.type, kycFile.name);

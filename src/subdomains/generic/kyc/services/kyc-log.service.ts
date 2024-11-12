@@ -58,7 +58,7 @@ export class KycLogService {
 
   async createFileAccessLog(fileName: string, user?: UserData) {
     const entity = this.kycLogRepo.create({
-      result: `File access: ${fileName}`,
+      result: `KYC file access: ${fileName}`,
       userData: user,
     });
 
