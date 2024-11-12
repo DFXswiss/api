@@ -113,6 +113,8 @@ export class LogJobService {
         },
         changes: changeLog,
       }),
+      valid: null,
+      category: null,
     });
   }
 
