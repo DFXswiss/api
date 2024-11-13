@@ -690,7 +690,7 @@ export class KycService {
 
         await this.kycStepRepo.update(
           ...kycStep.fail(
-            KycStepStatus.FAILED,
+            undefined,
             [
               kycStep.comment,
               mergeRequest ? IdentCheckError.USER_DATA_MERGE_REQUESTED : IdentCheckError.USER_DATA_EXISTING,
