@@ -6,6 +6,7 @@ export type BankExchangeType = ExchangeTxType | BankTxType;
 export interface ChangeLog {
   plus: ChangePlusBalance;
   minus: ChangeMinusBalance;
+  total: number;
 }
 
 export interface BalancesByFinancialType {

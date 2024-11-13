@@ -534,6 +534,7 @@ export class LogJobService {
     const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward;
 
     return {
+      total: totalPlus - totalMinus,
       plus: {
         total: totalPlus,
         buyCrypto: buyCryptoFee || undefined,
