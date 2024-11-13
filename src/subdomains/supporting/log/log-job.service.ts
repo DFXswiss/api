@@ -494,9 +494,11 @@ export class LogJobService {
     const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
     const paymentLinkFee = this.getFeeAmount([
       ...buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment),
-      ...buyCryptos.filter((p) => p.cryptoInput.paymentLinkPayment),
+      ...buyCryptos.filter((p) => p.cryptoInput?.paymentLinkPayment),
     ]);
-    const buyCryptoFee = this.getFeeAmount(buyCryptos.filter((b) => !b.cryptoInput.paymentLinkPayment));
+    const buyCryptoFee = this.getFeeAmount(
+      buyCryptos.filter((b) => !b.cryptoInput || !b.cryptoInput?.paymentLinkPayment),
+    );
 
     // minus amounts
     const exchangeTx = await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
