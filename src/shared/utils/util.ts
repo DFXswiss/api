@@ -500,7 +500,7 @@ export class Util {
   }
 
   static trimAll({ value }: TransformFnParams): string | undefined {
-    return value?.split(' ').join('');
+    return value?.replace(/ /g, '');
   }
 
   static trim({ value }: TransformFnParams): string | undefined {

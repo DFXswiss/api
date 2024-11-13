@@ -124,8 +124,6 @@ export class FiatOutputService {
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
     if (!entity.remittanceInfo) return undefined;
-    if (entity.remittanceInfo.includes('Chargeback') || entity.type === 'BuyCryptoFail')
-      return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo.split('Zahlung')[0], true);
 
     return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
   }
