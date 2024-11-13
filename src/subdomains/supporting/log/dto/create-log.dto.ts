@@ -26,3 +26,17 @@ export class CreateLogDto {
   @IsBoolean()
   valid: boolean;
 }
+
+export class UpdateLogDto {
+  @IsOptional()
+  @IsString()
+  message: string;
+
+  @IsOptional()
+  @IsString()
+  category: string;
+
+  @IsOptional()
+  @IsBoolean()
+  valid: boolean;
+}

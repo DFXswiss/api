@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Equal } from 'typeorm';
-import { CreateLogDto } from './dto/create-log.dto';
+import { CreateLogDto, UpdateLogDto } from './dto/create-log.dto';
 import { Log } from './log.entity';
 import { LogRepository } from './log.repository';
 
@@ -15,6 +15,13 @@ export class LogService {
 
     const newEntity = this.logRepo.create(dto);
     return this.logRepo.save(newEntity);
+  }
+
+  async update(id: number, dto: UpdateLogDto): Promise<Log> {
+    const log = await this.logRepo.findOneBy({ id });
+    if (!log) throw new NotFoundException('Log not found');
+
+    return this.logRepo.save({ ...log, ...dto });
   }
 
   async maxEntity(system: string, subsystem: string, severity: string): Promise<Log | undefined> {
