@@ -245,7 +245,7 @@ export class BankTxService {
       .createQueryBuilder('bankTx')
       .select('bankTx', 'bankTx')
       .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
-        remittanceInfo: remittanceInfo.split(' ').join(''),
+        remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
       .getOne();
   }
