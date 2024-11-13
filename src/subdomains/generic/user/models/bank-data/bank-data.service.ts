@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -15,8 +16,9 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -38,6 +40,8 @@ export class BankDataService {
     private readonly accountMergeService: AccountMergeService,
     private readonly nameCheckService: NameCheckService,
     private readonly fiatService: FiatService,
+    private readonly countryService: CountryService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -243,6 +247,9 @@ export class BankDataService {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
+    if (!(await this.isValidIbanCountry(dto.iban)))
+      throw new BadRequestException('IBAN country is currently not supported');
+
     const existing = await this.bankDataRepo.findOne({
       where: [
         { iban: dto.iban, approved: true, type },
@@ -273,6 +280,8 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
+    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
+
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },
       iban: dto.iban,
@@ -283,5 +292,11 @@ export class BankDataService {
     });
 
     return this.bankDataRepo.save(bankData);
+  }
+
+  private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
+    const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
+
+    return ibanCountry.isEnabled(kycType);
   }
 }

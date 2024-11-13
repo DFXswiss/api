@@ -86,7 +86,7 @@ export class MoneroClient extends BlockchainClient {
 
   async isTxComplete(txId: string, confirmations?: number): Promise<boolean> {
     const transaction = await this.getTransaction(txId);
-    return MoneroHelper.isTransactionComplete({ ...transaction, confirmations });
+    return MoneroHelper.isTransactionComplete(transaction, confirmations);
   }
 
   private convertFeeEstimateAuToXmr(feeEstimateResult: GetFeeEstimateResultDto): GetFeeEstimateResultDto {

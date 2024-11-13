@@ -10,11 +10,14 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-sell.dto';
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -22,7 +25,6 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
-import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -39,7 +41,6 @@ export class SellService {
     private readonly depositService: DepositService,
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
-    private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
@@ -48,7 +49,32 @@ export class SellService {
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
+    private readonly bankDataService: BankDataService,
   ) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
+  async syncSellBankData() {
+    if (DisabledProcess(Process.SELL_BANK_ACCOUNT_SYNC)) return;
+
+    const entities = await this.sellRepo.find({
+      where: { bankAccount: { id: Not(IsNull()) }, bankData: { id: IsNull() } },
+      relations: { bankAccount: { userData: true }, bankData: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        const bankData = await this.bankDataService
+          .getAllBankDatasForUser(entity.bankAccount.userData.id)
+          .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
+        if (!bankData) continue;
+
+        await this.sellRepo.update(entity.id, { bankData });
+      } catch (e) {
+        this.logger.error(`Error in sell bankAccount/bankData sync ${entity.id}`, e);
+      }
+    }
+  }
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
@@ -142,7 +168,12 @@ export class SellService {
     sell.route = await this.routeService.createRoute({ sell });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
-    sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+    sell.bankData = await this.bankDataService.createIbanForUser(
+      userData.id,
+      { iban: dto.iban },
+      true,
+      BankDataType.USER,
+    );
 
     return this.sellRepo.save(sell);
   }

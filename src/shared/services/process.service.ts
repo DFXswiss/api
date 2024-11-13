@@ -45,13 +45,6 @@ export enum Process {
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
   NETWORK_START_FEE = 'NetworkStartFee',
   TRADING_LOG = 'TradingLog',
-  TRADING_LOG_CHANGES = 'TradingLogChanges',
-  TRADING_LOG_CHANGES_BUY_FIAT = 'TradingLogChangesBuyFiat',
-  TRADING_LOG_CHANGES_EXCHANGE_TX = 'TradingLogChangesExchangeTx',
-  TRADING_LOG_CHANGES_PAYOUT_ORDER = 'TradingLogChangesPayoutOrder',
-  TRADING_LOG_CHANGES_BANK_TX = 'TradingLogChangesBankTx',
-  TRADING_LOG_CHANGES_CRYPTO_INPUT = 'TradingLogChangesCryptoInput',
-  TRADING_LOG_CHANGES_REF_REWARD = 'TradingLogChangesRefReward',
   ASSET_DECIMALS = 'AssetDecimals',
   UPDATE_GAS_PRICE = 'UpdateGasPrice',
   SANCTION_SYNC = 'SanctionSync',
@@ -60,6 +53,8 @@ export enum Process {
   BANK_DATA_SYNC = 'BankDataSync',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
+  BUY_BANK_ACCOUNT_SYNC = 'BuyBankAccountSync',
+  SELL_BANK_ACCOUNT_SYNC = 'SellBankAccountSync',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

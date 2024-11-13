@@ -16,7 +16,7 @@ export class MoneroHelper {
   }
 
   // --- UTILS --- /
-  static isTransactionComplete(transaction: MoneroTransactionDto): boolean {
-    return transaction.block_height && transaction.confirmations > 0;
+  static isTransactionComplete(transaction: MoneroTransactionDto, confirmations = 0): boolean {
+    return transaction.block_height && transaction.confirmations > confirmations;
   }
 }

@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { LogSeverity } from '../log.entity';
 
 export class CreateLogDto {
@@ -17,4 +17,12 @@ export class CreateLogDto {
   @IsNotEmpty()
   @IsString()
   message: string;
+
+  @IsOptional()
+  @IsString()
+  category: string;
+
+  @IsOptional()
+  @IsBoolean()
+  valid: boolean;
 }

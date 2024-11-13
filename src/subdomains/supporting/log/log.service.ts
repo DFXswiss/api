@@ -10,7 +10,8 @@ export class LogService {
 
   async create(dto: CreateLogDto): Promise<Log> {
     const maxEntity = await this.maxEntity(dto.system, dto.subsystem, dto.severity);
-    if (dto.message === maxEntity?.message) return maxEntity;
+    if (dto.message === maxEntity?.message && dto.valid === maxEntity?.valid && dto.category === maxEntity?.category)
+      return maxEntity;
 
     const newEntity = this.logRepo.create(dto);
     return this.logRepo.save(newEntity);
