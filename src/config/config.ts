@@ -190,6 +190,7 @@ export class Configuration {
     appToken: process.env.KYC_APP_TOKEN,
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
+    residencePermitCountries: ['RU'],
   };
 
   support = {
