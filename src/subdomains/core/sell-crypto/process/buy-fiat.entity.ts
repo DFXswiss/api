@@ -312,10 +312,7 @@ export class BuyFiat extends IEntity {
     inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
     paymentLinkFee: number,
-    priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
-    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
-
     const update: Partial<BuyFiat> =
       inputReferenceAmountMinusFee < 0
         ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
@@ -338,7 +335,6 @@ export class BuyFiat extends IEntity {
             usedFees: null,
             outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            priceSteps: this.priceSteps,
           };
 
     Object.assign(this, update);
@@ -346,13 +342,10 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
-    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
-
+  setOutput(outputAmount: number): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      priceSteps: this.priceSteps,
     };
 
     Object.assign(this, update);
@@ -369,6 +362,7 @@ export class BuyFiat extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
@@ -382,6 +376,12 @@ export class BuyFiat extends IEntity {
       bankData,
       blacklist,
     );
+
+    if (update.amlCheck === CheckStatus.PASS) {
+      this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
+      update.priceSteps = this.priceSteps;
+    }
 
     Object.assign(this, update);
 

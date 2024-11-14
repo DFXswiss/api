@@ -239,18 +239,6 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
-    const inputPriceStep =
-      this.inputAsset !== this.inputReferenceAsset
-        ? [
-            PriceStep.create(
-              'Bank',
-              this.inputAsset,
-              this.inputReferenceAsset,
-              this.inputAmount / this.inputReferenceAmount,
-            ),
-          ]
-        : [];
-    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...price.steps];
     return this;
   }
 
@@ -474,6 +462,7 @@ export class BuyCrypto extends IEntity {
     blacklist: SpecialExternalAccount[],
     banks: Bank[],
     ibanCountry: Country,
+    priceSteps: PriceStep[],
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
@@ -489,6 +478,12 @@ export class BuyCrypto extends IEntity {
       banks,
       ibanCountry,
     );
+
+    if (update.amlCheck === CheckStatus.PASS) {
+      this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
+      update.priceSteps = this.priceSteps;
+    }
 
     Object.assign(this, update);
 

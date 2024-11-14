@@ -18,11 +18,12 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
@@ -169,6 +170,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
             blacklist,
             banks,
             ibanCountry,
+            await this.getPriceSteps(entity),
           ),
         );
 
@@ -281,5 +283,42 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
 
     return referenceOutputPrice.convert(fee);
+  }
+
+  private async getPriceSteps(entity: BuyCrypto): Promise<PriceStep[]> {
+    if (entity.cryptoInput.isPayment) {
+      const feeRate = Config.payment.fee(
+        entity.cryptoInput.paymentQuote.standard,
+        entity.outputAsset,
+        entity.cryptoInput.asset,
+      );
+      const totalFee = entity.inputReferenceAmount * feeRate;
+      const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
+
+      const price = Price.create(
+        entity.cryptoInput.asset.name,
+        entity.outputAsset.name,
+        inputReferenceAmountMinusFee / entity.cryptoInput.paymentLinkPayment.amount,
+      );
+
+      return [PriceStep.create('Payment', price.source, price.target, price.price)];
+    }
+
+    const inputPriceStep =
+      entity.inputAsset !== entity.inputReferenceAsset
+        ? [
+            PriceStep.create(
+              'Bank',
+              entity.inputAsset,
+              entity.inputReferenceAsset,
+              entity.inputAmount / entity.inputReferenceAmount,
+            ),
+          ]
+        : [];
+
+    return [
+      ...inputPriceStep,
+      ...(await this.pricingService.getPrice(entity.cryptoInput.asset, entity.outputAsset, false).then((p) => p.steps)),
+    ];
   }
 }

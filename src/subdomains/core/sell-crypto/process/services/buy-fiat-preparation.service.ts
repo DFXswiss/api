@@ -18,6 +18,7 @@ import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entit
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
 
@@ -135,6 +136,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
             last365dVolume,
             bankData,
             blacklist,
+            await this.getPriceSteps(entity),
           ),
         );
 
@@ -249,18 +251,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
         const chfPrice = await this.pricingService.getPrice(inputCurrency, this.chf, false);
 
-        const conversionPrice = Price.create(
-          inputCurrency.name,
-          outputCurrency.name,
-          inputReferenceAmountMinusFee / outputReferenceAmount,
-        );
-        const priceStep = PriceStep.create(
-          'Payment',
-          conversionPrice.source,
-          conversionPrice.target,
-          conversionPrice.price,
-        );
-
         await this.buyFiatRepo.update(
           ...entity.setPaymentLinkPayment(
             eurPrice.convert(entity.inputAmount, 2),
@@ -271,7 +261,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
             inputReferenceAmountMinusFee,
             outputReferenceAmount,
             paymentLinkFee,
-            [priceStep],
           ),
         );
 
@@ -303,12 +292,32 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const currency = entity.outputAsset;
         const price = await this.pricingService.getPrice(asset, currency, false);
 
-        await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), price.steps),
-        );
+        await this.buyFiatRepo.update(...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee)));
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
       }
     }
+  }
+
+  private async getPriceSteps(entity: BuyFiat): Promise<PriceStep[]> {
+    if (entity.cryptoInput.isPayment) {
+      const feeRate = Config.payment.fee(
+        entity.cryptoInput.paymentQuote.standard,
+        entity.outputAsset,
+        entity.cryptoInput.asset,
+      );
+      const totalFee = entity.inputReferenceAmount * feeRate;
+      const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
+
+      const price = Price.create(
+        entity.cryptoInput.asset.name,
+        entity.outputAsset.name,
+        inputReferenceAmountMinusFee / entity.paymentLinkPayment.amount,
+      );
+
+      return [PriceStep.create('Payment', price.source, price.target, price.price)];
+    }
+
+    return this.pricingService.getPrice(entity.cryptoInput.asset, entity.outputAsset, false).then((p) => p.steps);
   }
 }
