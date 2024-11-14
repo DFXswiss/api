@@ -24,6 +24,7 @@ export class BitpandaService extends ExchangeService {
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
+    Railgun: undefined,
   };
 
   constructor() {
