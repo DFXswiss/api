@@ -42,6 +42,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
+    userData.nationality?.symbol === 'RU' ? KycStepName.RESIDENCE_PERMIT : null,
     KycStepName.DFX_APPROVAL,
   ].filter(Boolean) as KycStepName[];
 }
