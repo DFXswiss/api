@@ -10,6 +10,7 @@ import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-f
 import { IsNull, Not } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { PayInStatus } from '../payin/entities/crypto-input.entity';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
 import { FiatOutput } from './fiat-output.entity';
@@ -64,6 +65,11 @@ export class FiatOutputService {
     if (dto.buyFiatId) {
       entity.buyFiats = [await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId })];
       if (!entity.buyFiats[0]) throw new NotFoundException('BuyFiat not found');
+      if (
+        dto.type === 'BuyFiat' &&
+        [PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED].includes(entity.buyFiats[0].cryptoInput.status)
+      )
+        throw new BadRequestException('CryptoInput not confirmed');
     }
 
     if (dto.buyCryptoId) {
