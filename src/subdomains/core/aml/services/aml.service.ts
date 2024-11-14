@@ -41,7 +41,7 @@ export class AmlService {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
       // merge & bank transaction verification
-      if (bankData.active) {
+      if (bankData.approved) {
         if (
           bankData.userData.id !== entity.userData.id &&
           entity instanceof BuyCrypto &&
@@ -59,7 +59,7 @@ export class AmlService {
                 ? [entity.userData.id, bankData.userData.id]
                 : [bankData.userData.id, entity.userData.id];
 
-            await this.userDataService.mergeUserData(masterId, slaveId, true);
+            await this.userDataService.mergeUserData(masterId, slaveId, entity.userData.mail, true);
 
             entity.userData = await this.userDataService.getUserData(masterId, { users: true });
             if (masterId !== bankData.userData.id) bankData = await this.getBankData(entity);
@@ -141,7 +141,9 @@ export class AmlService {
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
     if (entity instanceof BuyFiat) return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban);
     if (entity.cryptoInput) {
-      const bankDatas = await this.bankDataService.getBankDatasForUser(entity.userData.id);
+      const bankDatas = await this.bankDataService
+        .getBankDatasForUser(entity.userData.id)
+        .then((b) => b.filter((b) => b.type !== BankDataType.USER));
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 

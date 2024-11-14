@@ -1,4 +1,5 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
@@ -23,8 +24,11 @@ export class Sell extends DepositRoute {
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   user: User;
 
-  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.sells)
+  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.sells, { nullable: true })
   bankAccount: BankAccount;
+
+  @ManyToOne(() => BankData, (bankData) => bankData.sells, { nullable: true })
+  bankData: BankData;
 
   @OneToOne(() => Route, { eager: true, nullable: true })
   @JoinColumn()

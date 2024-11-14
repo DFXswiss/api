@@ -70,7 +70,10 @@ export class GsService {
     const additionalSelect = Array.from(
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
-        ...(query.select?.filter((s) => s.includes('[')).map((s) => `${s.split('[')[0]}${s.split(']')[1]}`) || []),
+        ...(query.select
+          ?.filter((s) => s.includes('['))
+          .map((s) => [`${s.split('[')[0]}.id`, `${s.split('[')[0]}${s.split(']')[1]}`])
+          .flat() || []),
       ]),
     );
 
@@ -162,6 +165,8 @@ export class GsService {
       const selectedData = arraySelects.reduce((prev, curr) => {
         const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(curr);
         const searchIndex = index === 'max' ? entities.length - 1 : +index;
+
+        entities.sort((e1, e2) => e1[`${field}_id`] - e2[`${field}_id`]);
 
         return {
           ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => !key.startsWith(`${field}_`))),
@@ -287,7 +292,7 @@ export class GsService {
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
-          .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
+          .then((fiatOutput) => fiatOutput?.buyFiats[0].sell.user.userData);
       case SupportTable.TRANSACTION:
         return this.transactionService
           .getTransactionByKey(query.key, query.value)

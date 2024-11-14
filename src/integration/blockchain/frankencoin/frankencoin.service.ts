@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, GetConfig } from 'src/config/config';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
@@ -36,6 +37,9 @@ export class FrankencoinService implements OnModuleInit {
 
   private pricingService: PricingService;
 
+  private usd: Fiat;
+  private chf: Fiat;
+
   constructor(
     http: HttpService,
     private readonly moduleRef: ModuleRef,
@@ -49,6 +53,9 @@ export class FrankencoinService implements OnModuleInit {
 
   async onModuleInit() {
     this.pricingService = this.moduleRef.get(PricingService, { strict: false });
+
+    this.usd = await this.fiatService.getFiatByName('USD');
+    this.chf = await this.fiatService.getFiatByName('CHF');
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -69,6 +76,8 @@ export class FrankencoinService implements OnModuleInit {
       subsystem: FrankencoinService.LOG_SUBSYSTEM,
       severity: LogSeverity.INFO,
       message: JSON.stringify(logMessage),
+      valid: null,
+      category: null,
     };
 
     await this.logService.create(log);
@@ -226,10 +235,7 @@ export class FrankencoinService implements OnModuleInit {
 
     const frankencoinLog = <FrankencoinLogDto>JSON.parse(maxFrankencoinLogEntity.message);
 
-    const fiatUsd = await this.fiatService.getFiatByName('USD');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
-    const priceUsdToChf = await this.pricingService.getPrice(fiatUsd, fiatChf, true);
+    const priceUsdToChf = await this.pricingService.getPrice(this.usd, this.chf, true);
 
     return {
       totalSupplyZchf: frankencoinLog.totalSupply,

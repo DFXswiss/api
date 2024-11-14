@@ -6,9 +6,11 @@ export enum SpecialExternalAccountType {
   BANNED_IBAN = 'BannedIban',
   BANNED_IBAN_BUY = 'BannedIbanBuy',
   BANNED_IBAN_SELL = 'BannedIbanSell',
+  BANNED_IBAN_AML = 'BannedIbanAml',
   BANNED_BIC = 'BannedBic',
   BANNED_BIC_BUY = 'BannedBicBuy',
   BANNED_BIC_SELL = 'BannedBicSell',
+  BANNED_BIC_AML = 'BannedBicAml',
   BANNED_MAIL = 'BannedMail',
   BANNED_ACCOUNT_IBAN = 'BannedAccountIban',
 }

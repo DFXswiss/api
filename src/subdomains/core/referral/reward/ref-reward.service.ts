@@ -134,6 +134,16 @@ export class RefRewardService {
     return Object.assign(reward, { outputAssetEntity });
   }
 
+  async getRefRewardVolume(from: Date): Promise<number> {
+    const { volume } = await this.rewardRepo
+      .createQueryBuilder('refReward')
+      .select('SUM(amountInChf)', 'volume')
+      .where('created >= :from', { from })
+      .getRawOne<{ volume: number }>();
+
+    return volume ?? 0;
+  }
+
   // --- HELPER METHODS --- //
   private async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null

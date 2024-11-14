@@ -39,6 +39,7 @@ import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -306,6 +307,14 @@ export class AuthService {
     return {
       defaultMessage: Config.auth.signMessageGeneral + address,
       fallbackMessage: Config.auth.signMessage + address,
+    };
+  }
+
+  // --- VERIFY SIGN MESSAGES --- //
+
+  async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
+    return {
+      isValid: await this.cryptoService.verifySignature(message, address, signature),
     };
   }
 

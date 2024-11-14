@@ -125,4 +125,10 @@ export class UserV2Dto {
 
   @ApiProperty({ type: UserPaymentLinkDto })
   paymentLink: UserPaymentLinkDto;
+
+  @ApiPropertyOptional()
+  apiKeyCT?: string;
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  apiFilterCT?: HistoryFilterKey[];
 }

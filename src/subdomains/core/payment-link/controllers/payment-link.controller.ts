@@ -16,8 +16,9 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
-import { PaymentLinkDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
+import { PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -47,14 +48,25 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkDto | PaymentLinkDto[]> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     if (linkId || externalLinkId || externalPaymentId)
       return this.paymentLinkService
         .getOrThrow(+jwt.user, +linkId, externalLinkId, externalPaymentId)
         .then(PaymentLinkDtoMapper.toLinkDto);
 
     return this.paymentLinkService.getAll(+jwt.user).then(PaymentLinkDtoMapper.toLinkDtoList);
+  }
+
+  @Get('history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
+  async getPaymentHistory(
+    @GetJwt() jwt: JwtPayload,
+    @Query() dto: GetPaymentLinkHistoryDto,
+  ): Promise<PaymentLinkHistoryDto[]> {
+    return this.paymentLinkService
+      .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
+      .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 
   @Post()
@@ -126,8 +138,6 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .createPayment(+jwt.user, dto, +linkId, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkDto);
@@ -146,10 +156,26 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .waitForPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
+  @Put('payment/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: PaymentLinkDto })
+  @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  async confirmPayment(
+    @GetJwt() jwt: JwtPayload,
+    @Query('linkId') linkId: string,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('externalPaymentId') externalPaymentId: string,
+  ): Promise<PaymentLinkDto> {
+    return this.paymentLinkService
+      .confirmPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -166,8 +192,6 @@ export class PaymentLinkController {
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);

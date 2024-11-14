@@ -145,3 +145,13 @@ export interface GetTransfersResultDto {
   pending?: MoneroTransferDto[];
   pool?: MoneroTransferDto[];
 }
+
+export interface GetRelayTransactionResultDto {
+  result?: {
+    tx_hash: string;
+  };
+  error?: {
+    code: number;
+    message: string;
+  };
+}

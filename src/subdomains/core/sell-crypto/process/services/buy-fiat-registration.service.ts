@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
@@ -28,13 +28,16 @@ export class BuyFiatRegistrationService {
 
   async syncReturnTxId(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
-      where: { cryptoInput: { returnTxId: Not(IsNull()) }, chargebackTxId: IsNull() },
+      where: {
+        cryptoInput: { returnTxId: Not(IsNull()), status: PayInStatus.RETURN_CONFIRMED },
+        chargebackTxId: IsNull(),
+      },
       relations: { cryptoInput: true },
     });
 
     for (const entity of entities) {
       try {
-        await this.buyFiatRepo.update(entity.id, { chargebackTxId: entity.cryptoInput.returnTxId });
+        await this.buyFiatRepo.update(entity.id, { chargebackTxId: entity.cryptoInput.returnTxId, isComplete: true });
       } catch (e) {
         this.logger.error(`Error during buyFiat payIn returnTxId sync (${entity.id}):`, e);
       }

@@ -1,12 +1,13 @@
 import { ChainId, Currency, CurrencyAmount, Ether, NativeCurrency, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import { AlphaRouter, SwapOptions, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/main/util/methodParameters';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
-import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
+import { AssetTransfersCategory, AssetTransfersWithMetadataResult, BigNumberish } from 'alchemy-sdk';
+import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
@@ -14,9 +15,10 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
+import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
+import { BlockchainClient } from '../util/blockchain-client';
 import { WalletAccount } from './domain/wallet-account';
-import { EvmSignedTransactionResponse } from './dto/evm-signed-transaction-reponse.dto';
-import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
@@ -29,15 +31,6 @@ export interface EvmClientParams {
   chainId: ChainId;
   swapContractAddress: string;
   quoteContractAddress: string;
-  scanApiUrl?: string;
-  scanApiKey?: string;
-}
-
-interface AssetTransfersParams {
-  fromAddress?: string;
-  toAddress?: string;
-  fromBlock: number;
-  categories: AssetTransfersCategory[];
 }
 
 interface UniswapPosition {
@@ -49,21 +42,28 @@ interface UniswapPosition {
   liquidity: EthersNumber;
 }
 
-export abstract class EvmClient {
+export enum Direction {
+  BOTH = 'both',
+  OUTGOING = 'outgoing',
+  INCOMING = 'incoming',
+}
+
+export abstract class EvmClient extends BlockchainClient {
   protected http: HttpService;
-  private alchemyService: AlchemyService;
-  private chainId: ChainId;
+  private readonly alchemyService: AlchemyService;
+  private readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
-  private nonce = new Map<string, number>();
-  private tokens = new AsyncCache<Token>();
-  private router: AlphaRouter;
-  private swapContractAddress: string;
-  private quoteContractAddress: string;
+  private readonly nonce = new Map<string, number>();
+  private readonly tokens = new AsyncCache<Token>();
+  private readonly router: AlphaRouter;
+  private readonly swapContractAddress: string;
+  private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
+    super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
     this.chainId = params.chainId;
@@ -83,16 +83,26 @@ export abstract class EvmClient {
 
   // --- PUBLIC API - GETTERS --- //
 
-  async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
+  async getNativeCoinTransactions(
+    walletAddress: string,
+    fromBlock: number,
+    toBlock?: number,
+    direction = Direction.BOTH,
+  ): Promise<EvmCoinHistoryEntry[]> {
     const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, categories);
+    return this.getHistory(direction, walletAddress, categories, fromBlock, toBlock);
   }
 
-  async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
+  async getERC20Transactions(
+    walletAddress: string,
+    fromBlock: number,
+    toBlock?: number,
+    direction = Direction.BOTH,
+  ): Promise<EvmTokenHistoryEntry[]> {
     const categories = this.alchemyService.getERC20Categories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, categories);
+    return this.getHistory(direction, walletAddress, categories, fromBlock, toBlock);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -111,8 +121,8 @@ export abstract class EvmClient {
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
-  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
-    const evmTokenBalances: EvmTokenBalance[] = [];
+  async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
+    const evmTokenBalances: BlockchainTokenBalance[] = [];
 
     const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, address ?? this.dfxAddress, assets);
 
@@ -127,8 +137,8 @@ export abstract class EvmClient {
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
-    // 10% cap
-    return this.provider.getGasPrice().then((p) => p.mul(11).div(10));
+    // 20% cap
+    return this.provider.getGasPrice().then((p) => p.mul(12).div(10));
   }
 
   async getCurrentBlock(): Promise<number> {
@@ -160,6 +170,15 @@ export abstract class EvmClient {
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
     return this.sendRawTransaction(this.wallet, request);
+  }
+
+  async sendRawTransactionFrom(
+    privateKey: string,
+    request: ethers.providers.TransactionRequest,
+  ): Promise<ethers.providers.TransactionResponse> {
+    const wallet = new ethers.Wallet(privateKey, this.provider);
+
+    return this.sendRawTransaction(wallet, request);
   }
 
   async sendRawTransaction(
@@ -262,9 +281,11 @@ export abstract class EvmClient {
     return result.hash;
   }
 
-  async sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse> {
+  async sendSignedTransaction(tx: string): Promise<SignedTransactionResponse> {
+    const txToUse = tx.toLowerCase().startsWith('0x') ? tx : '0x' + tx;
+
     return this.alchemyService
-      .sendTransaction(this.chainId, tx)
+      .sendTransaction(this.chainId, txToUse)
       .then((r) => ({
         response: r,
       }))
@@ -563,13 +584,15 @@ export abstract class EvmClient {
     return this.wallet.address;
   }
 
-  swapConfig(maxSlippage: number) {
-    return {
+  swapConfig(maxSlippage: number): SwapOptions {
+    const config: SwapOptions = {
       recipient: this.dfxAddress,
       slippageTolerance: new Percent(maxSlippage * 100000, 100000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
       type: SwapType.SWAP_ROUTER_02,
     };
+
+    return config;
   }
 
   // --- PUBLIC HELPER METHODS --- //
@@ -709,23 +732,33 @@ export abstract class EvmClient {
   }
 
   private async getHistory<T>(
+    direction: Direction,
     walletAddress: string,
-    fromBlock: number,
     categories: AssetTransfersCategory[],
+    fromBlock: number,
+    toBlock?: number,
   ): Promise<T[]> {
     const params: AssetTransfersParams = {
-      fromAddress: walletAddress,
-      toAddress: undefined,
       fromBlock: fromBlock,
+      toBlock: toBlock,
       categories: categories,
     };
 
-    const assetTransferResult = await this.alchemyService.getAssetTransfers(this.chainId, params);
+    const assetTransferResult: AssetTransfersWithMetadataResult[] = [];
 
-    params.fromAddress = undefined;
-    params.toAddress = walletAddress;
+    if ([Direction.OUTGOING, Direction.BOTH].includes(direction)) {
+      params.fromAddress = walletAddress;
+      params.toAddress = undefined;
 
-    assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+      assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+    }
+
+    if ([Direction.INCOMING, Direction.BOTH].includes(direction)) {
+      params.fromAddress = undefined;
+      params.toAddress = walletAddress;
+
+      assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+    }
 
     assetTransferResult.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
 
@@ -735,7 +768,7 @@ export abstract class EvmClient {
       hash: atr.hash,
       from: atr.from,
       to: atr.to,
-      value: Number(atr.rawContract.value).toString(),
+      value: new BigNumber(atr.rawContract.value).toString(),
       contractAddress: atr.rawContract.address ?? '',
       tokenName: atr.asset,
       tokenDecimal: Number(atr.rawContract.decimal).toString(),

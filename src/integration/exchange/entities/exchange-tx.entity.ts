@@ -1,4 +1,7 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Column, Entity, Index } from 'typeorm';
 import { ExchangeName } from '../enums/exchange.enum';
 
@@ -7,8 +10,6 @@ export enum ExchangeTxType {
   DEPOSIT = 'Deposit',
   TRADE = 'Trade',
 }
-
-export type ExchangeTxDto = Omit<ExchangeTx, keyof IEntity>;
 
 @Entity()
 @Index((exchangeTx: ExchangeTx) => [exchangeTx.exchange, exchangeTx.type, exchangeTx.externalId], {
@@ -25,22 +26,25 @@ export class ExchangeTx extends IEntity {
   externalId: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  externalCreated: Date;
+  externalCreated?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  externalUpdated: Date;
+  externalUpdated?: Date;
 
   @Column({ length: 256, nullable: true })
-  status: string;
+  status?: string;
 
   @Column({ type: 'float', nullable: true })
-  amount: number;
+  amount?: number;
 
   @Column({ type: 'float', nullable: true })
-  feeAmount: number;
+  feeAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  feeCurrency: string;
+  feeCurrency?: string;
+
+  @Column({ type: 'float', nullable: true })
+  feeAmountChf?: number;
 
   // Withdrawal/Deposit
 
@@ -92,6 +96,28 @@ export class ExchangeTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   side?: string;
+
+  //*** ENTITY METHODS ***//
+
+  pendingBankAmount(asset: Asset, type: BankExchangeType, from?: string, to?: string): number {
+    if (
+      this.currency !== asset.dexName ||
+      this.type !== type ||
+      ((from || to) && !BankService.isBankMatching(asset, from ?? to))
+    )
+      return 0;
+
+    switch (this.type) {
+      case ExchangeTxType.WITHDRAWAL:
+        return this.amount;
+
+      case ExchangeTxType.DEPOSIT:
+        return -this.amount;
+
+      default:
+        return 0;
+    }
+  }
 }
 
 export interface ExchangeSync {

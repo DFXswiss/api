@@ -62,7 +62,7 @@ export class Configuration {
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 
-  apiKeyVersionCT = '0'; // single digit hex number
+  apiKeyVersionCT = '1'; // single digit hex number
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
@@ -146,7 +146,7 @@ export class Configuration {
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
-    requestTimeout: 30000,
+    requestTimeout: 60000,
   };
 
   i18n: I18nOptions = {
@@ -264,6 +264,11 @@ export class Configuration {
     apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
+  financialLog = {
+    customAssets: process.env.CUSTOM_BALANCE_ASSETS?.split(';') ?? [], // asset uniqueName
+    customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
+  };
+
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
@@ -277,6 +282,9 @@ export class Configuration {
     addressForexFee: 0.02,
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
+
+    webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
+    webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
 
     fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
@@ -382,11 +390,10 @@ export class Configuration {
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
-      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
-      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
@@ -586,6 +593,10 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
+  }
+
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
   // --- HELPERS --- //

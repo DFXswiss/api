@@ -69,5 +69,18 @@
   "files.exclude": {
     "node_modules": true
   },
-  "thunder-client.saveToWorkspace": true
+  "rest-client.environmentVariables": {
+    "loc": {
+      "url": "http://localhost:3000",
+      "address": "..."
+    },
+    "dev": {
+      "url": "https://dev.api.dfx.swiss",
+      "address": "..."
+    },
+    "prd": {
+      "url": "https://api.dfx.swiss",
+      "address": "..."
+    }
+  }
 }

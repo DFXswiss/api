@@ -106,19 +106,24 @@ export class KycNotificationService {
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
-                params: { reason },
+                params: {
+                  reason,
+                },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.KYC}.retry`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
+                params: {
+                  url: userData.kycUrl,
+                  urlText: userData.kycUrl,
+                },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.button`,
-                params: { url: userData.kycUrl },
+                params: {
+                  url: userData.kycUrl,
+                },
               },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              { key: `${MailTranslationKey.GENERAL}.support` },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],
           },
@@ -149,8 +154,6 @@ export class KycNotificationService {
               suffix: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
-                { key: MailKey.SPACE, params: { value: '4' } },
-                { key: `${MailTranslationKey.GENERAL}.happy_trading` },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
             },

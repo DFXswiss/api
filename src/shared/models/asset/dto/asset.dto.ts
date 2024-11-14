@@ -22,6 +22,9 @@ export class AssetDto {
   chainId?: string;
 
   @ApiPropertyOptional()
+  decimals?: number;
+
+  @ApiPropertyOptional()
   explorerUrl?: string;
 
   @ApiProperty()

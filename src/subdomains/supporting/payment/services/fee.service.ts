@@ -15,6 +15,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -86,6 +87,8 @@ export class FeeService implements OnModuleInit {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(1800)
   async updateBlockchainFees() {
+    if (DisabledProcess(Process.BLOCKCHAIN_FEE_UPDATE)) return;
+
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
 
     for (const blockchainFee of blockchainFees) {

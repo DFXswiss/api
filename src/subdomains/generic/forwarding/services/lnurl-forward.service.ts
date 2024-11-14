@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmPaymentDto,
   PaymentLinkHexResultDto,
+  PaymentLinkPaymentDto,
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
@@ -15,6 +17,7 @@ import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integrati
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
 import { LightningHelper } from '../../../../integration/lightning/lightning-helper';
 import { LightningService } from '../../../../integration/lightning/services/lightning.service';
+import { PaymentDto } from '../dto/payment.dto';
 
 @Injectable()
 export class LnUrlForwardService {
@@ -88,6 +91,28 @@ export class LnUrlForwardService {
       quoteUniqueId: params.quote,
       hex: params.hex,
     };
+  }
+
+  // wait
+  async waitForPayment(id: string): Promise<PaymentDto> {
+    const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
+    if (!payment) throw new NotFoundException('No pending payment found');
+
+    const updatedPayment = await this.paymentLinkPaymentService.waitForPayment(payment);
+
+    return {
+      status: updatedPayment.status,
+    };
+  }
+
+  // cancel
+  async cancelPayment(id: string): Promise<PaymentLinkPaymentDto> {
+    const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
+    if (!payment) throw new NotFoundException('No pending payment found');
+
+    await this.paymentLinkPaymentService.cancelByPayment(payment);
+
+    return PaymentLinkDtoMapper.toPaymentDto(payment);
   }
 
   // --- LNURLw --- //

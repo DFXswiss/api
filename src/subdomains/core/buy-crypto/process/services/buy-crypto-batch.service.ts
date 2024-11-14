@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -9,6 +8,7 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -32,7 +32,6 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly pricingService: PricingService,
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
-    private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
@@ -42,35 +41,36 @@ export class BuyCryptoBatchService {
 
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
+      const search = {
+        outputReferenceAsset: Not(IsNull()),
+        outputAsset: { type: Not(AssetType.CUSTOM) },
+        outputReferenceAmount: IsNull(),
+        outputAmount: IsNull(),
+        priceDefinitionAllowedDate: Not(IsNull()),
+        batch: IsNull(),
+        inputReferenceAmountMinusFee: Not(IsNull()),
+        status: In([
+          BuyCryptoStatus.CREATED,
+          BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+          BuyCryptoStatus.PRICE_INVALID,
+          BuyCryptoStatus.MISSING_LIQUIDITY,
+        ]),
+      };
       const txWithAssets = await this.buyCryptoRepo.find({
-        where: {
-          outputReferenceAsset: Not(IsNull()),
-          outputAsset: { type: Not(AssetType.CUSTOM) },
-          outputReferenceAmount: IsNull(),
-          outputAmount: IsNull(),
-          priceDefinitionAllowedDate: Not(IsNull()),
-          batch: IsNull(),
-          inputReferenceAmountMinusFee: Not(IsNull()),
-          status: In([
-            BuyCryptoStatus.CREATED,
-            BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
-            BuyCryptoStatus.PRICE_INVALID,
-            BuyCryptoStatus.MISSING_LIQUIDITY,
-          ]),
-        },
-        relations: [
-          'bankTx',
-          'checkoutTx',
-          'buy',
-          'buy.user',
-          'buy.asset',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.asset',
-          'cryptoInput',
-          'fee',
+        where: [
+          {
+            ...search,
+            cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+          },
+          { ...search, cryptoInput: IsNull() },
         ],
+        relations: {
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          buy: { user: true },
+          cryptoRoute: { user: true },
+        },
       });
 
       if (txWithAssets.length === 0) return;
@@ -325,7 +325,7 @@ export class BuyCryptoBatchService {
 
       // order liquidity
       try {
-        const asset = oa.dexName === 'DFI' ? await this.assetService.getDfiToken() : oa;
+        const asset = oa;
         const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${orderId}`);
       } catch (e) {

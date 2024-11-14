@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 
 export enum LogSeverity {
   INFO = 'Info',
@@ -20,4 +20,10 @@ export class Log extends IEntity {
 
   @Column({ length: 'MAX' })
   message: string;
+
+  @Column({ length: 256, nullable: true })
+  category: string;
+
+  @Column({ nullable: true })
+  valid: boolean;
 }

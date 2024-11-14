@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
+import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -42,11 +43,12 @@ export class PaymentQuoteService {
 
   constructor(
     private readonly paymentQuoteRepo: PaymentQuoteRepository,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
     private readonly payoutMoneroService: PayoutMoneroService,
+    private readonly moneroService: MoneroService,
   ) {}
 
   // --- JOBS --- //
@@ -307,12 +309,20 @@ export class PaymentQuoteService {
     quote.txReceived(transferInfo.method, transferInfo.hex);
 
     try {
-      const evmClient = this.evmRegistryService.getClient(transferInfo.method);
-      const transactionResponse = await evmClient.sendSignedTransaction(transferInfo.hex);
-
-      transactionResponse.error
-        ? quote.txFailed(transactionResponse.error.message)
-        : quote.txMempool(transactionResponse.response.hash);
+      switch (transferInfo.method) {
+        case Blockchain.ETHEREUM:
+        case Blockchain.ARBITRUM:
+        case Blockchain.OPTIMISM:
+        case Blockchain.BASE:
+        case Blockchain.POLYGON:
+          await this.doEvmHexPayment(transferInfo, quote);
+          break;
+        case Blockchain.MONERO:
+          await this.doMoneroHexPayment(transferInfo, quote);
+          break;
+        default:
+          throw new BadRequestException(`Unknown method ${transferInfo.method} for hex payment`);
+      }
     } catch (e) {
       this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
 
@@ -320,6 +330,24 @@ export class PaymentQuoteService {
     }
 
     return this.paymentQuoteRepo.save(quote);
+  }
+
+  private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    const client = this.blockchainRegistryService.getClient(transferInfo.method);
+    const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+
+    transactionResponse.error
+      ? quote.txFailed(transactionResponse.error.message)
+      : quote.txMempool(transactionResponse.response.hash);
+  }
+
+  private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    const moneroClient = this.moneroService.getDefaultClient();
+    const transactionResponse = await moneroClient.relayTransaction(transferInfo.hex);
+
+    transactionResponse.error
+      ? quote.txFailed(transactionResponse.error.message)
+      : quote.txMempool(transactionResponse.result.tx_hash);
   }
 
   private async getAndCheckQuote(transferInfo: TransferInfo): Promise<PaymentQuote> {

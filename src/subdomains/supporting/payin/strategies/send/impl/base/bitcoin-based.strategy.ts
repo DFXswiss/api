@@ -50,7 +50,7 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
         CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
 
         const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn);
-        this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
+        await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
         await this.payInRepo.save(payIn);
       } catch (e) {
@@ -70,7 +70,7 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
 
         const isConfirmed = await this.isConfirmed(payIn, direction);
         if (isConfirmed) {
-          payIn.confirm(direction);
+          payIn.confirm(direction, this.forwardRequired);
 
           await this.payInRepo.save(payIn);
         }

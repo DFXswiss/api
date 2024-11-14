@@ -5,15 +5,15 @@ import {
   SignatoryPower,
   UserData,
 } from '../../user/models/user-data/user-data.entity';
-import { IdentResultType } from '../dto/ident-result-data.dto';
-import { WebhookType } from '../dto/sum-sub.dto';
+import { IdentType } from '../dto/ident-result-data.dto';
+import { SumSubWebhookType } from '../dto/sum-sub.dto';
 
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
+  NATIONALITY_DATA = 'NationalityData',
   LEGAL_ENTITY = 'LegalEntity',
   STOCK_REGISTER = 'StockRegister',
-  NATIONALITY_DATA = 'NationalityData',
   COMMERCIAL_REGISTER = 'CommercialRegister',
   SIGNATORY_POWER = 'SignatoryPower',
   AUTHORITY = 'Authority',
@@ -32,9 +32,9 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
   return [
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
+    KycStepName.NATIONALITY_DATA,
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
     userData.legalEntity === LegalEntity.PUBLIC_LIMITED_COMPANY ? KycStepName.STOCK_REGISTER : null,
-    KycStepName.NATIONALITY_DATA,
     [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
       ? KycStepName.COMMERCIAL_REGISTER
       : null,
@@ -42,6 +42,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
+    userData.nationality?.symbol === 'RU' ? KycStepName.RESIDENCE_PERMIT : null,
     KycStepName.DFX_APPROVAL,
   ].filter(Boolean) as KycStepName[];
 }
@@ -66,12 +67,14 @@ export function getKycTypeIndex(stepType?: KycStepType): number {
   return Object.values(KycStepType).indexOf(stepType);
 }
 
-export function getIdentificationType(type: IdentResultType, companyId: string): KycIdentificationType | undefined {
+export function getIdentificationType(type: IdentType, companyId: string): KycIdentificationType | undefined {
   if (!companyId) return undefined;
-  if (type === IdentResultType.SUMSUB)
-    return companyId === WebhookType.VIDEO_IDENT_STATUS_CHANGED
+  if (type === IdentType.SUM_SUB)
+    return companyId === SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED
       ? KycIdentificationType.VIDEO_ID
       : KycIdentificationType.ONLINE_ID;
+
+  if (type === IdentType.MANUAL) return KycIdentificationType.MANUAL;
 
   switch (companyId) {
     case 'dfxautonew':

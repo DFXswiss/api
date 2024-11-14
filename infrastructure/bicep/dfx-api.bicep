@@ -114,9 +114,6 @@ param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscQuoteContractAddress string
 param bscChainId string
-param bscScanApiUrl string
-@secure()
-param bscScanApiKey string
 
 @secure()
 param lightningApiCertificate string
@@ -259,6 +256,9 @@ param delisenseKey string
 param alchemyApiKey string
 @secure()
 param alchemyAuthToken string
+
+param customBalanceAssets string
+param customBalanceAddresses string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -825,14 +825,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscQuoteContractAddress
         }
         {
-          name: 'BSC_SCAN_API_URL'
-          value: bscScanApiUrl
-        }
-        {
-          name: 'BSC_SCAN_API_KEY'
-          value: bscScanApiKey
-        }
-        {
           name: 'BSC_CHAIN_ID'
           value: bscChainId
         }
@@ -1163,6 +1155,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ALCHEMY_AUTH_TOKEN'
           value: alchemyAuthToken
+        }
+        {
+          name: 'CUSTOM_BALANCE_ASSETS'
+          value: customBalanceAssets
+        }
+        {
+          name: 'CUSTOM_BALANCE_ADDRESSES'
+          value: customBalanceAddresses
         }
       ]
     }

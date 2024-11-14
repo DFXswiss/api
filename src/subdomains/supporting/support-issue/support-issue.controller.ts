@@ -7,12 +7,13 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
+import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
 import { SupportIssueDto, SupportMessageDto } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
+import { CustomerAuthor } from './entities/support-message.entity';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -24,7 +25,25 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
-    return this.supportIssueService.createIssue(jwt.account, dto);
+    return this.supportIssueService.createIssue(jwt.account, { ...dto, author: CustomerAuthor });
+  }
+
+  @Post('support')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  async createIssueBySupport(
+    @Query('userDataId') userDataId: string,
+    @Body() dto: CreateSupportIssueSupportDto,
+  ): Promise<SupportIssueDto> {
+    return this.supportIssueService.createIssue(+userDataId, dto);
+  }
+
+  @Get()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  async getIssues(@GetJwt() jwt: JwtPayload): Promise<SupportIssueDto[]> {
+    return this.supportIssueService.getIssues(jwt?.account);
   }
 
   @Get(':id')

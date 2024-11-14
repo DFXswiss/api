@@ -1,16 +1,17 @@
-export enum IdentResultType {
-  SUMSUB = 'Sumsub',
+export enum IdentType {
+  SUM_SUB = 'Sumsub',
   ID_NOW = 'IdNow',
+  MANUAL = 'Manual',
 }
 
 export interface IdentResultData {
-  type: IdentResultType;
+  type: IdentType;
   firstname: string;
-  birthname: string;
   lastname: string;
-  identificationDocType: string;
-  identificationDocNumber: string;
-  identificationType: string;
+  birthname: string;
+  documentType: string;
+  documentNumber: string;
+  kycType: string;
   birthday: Date;
   nationality: string;
   success: boolean;

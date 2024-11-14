@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
 import { ContentType } from '../../dto/kyc-file.dto';
-import { ApplicantType, DataResult, SumsubResult } from '../../dto/sum-sub.dto';
+import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 
 @Injectable()
@@ -17,11 +17,11 @@ export class SumsubService {
 
   private readonly baseUrl = `https://api.sumsub.com`;
   private readonly kycLevel = 'CH-Standard';
-  // private static readonly algoMap: { [key: string]: string } = {
-  //   HMAC_SHA1_HEX: 'sha1',
-  //   HMAC_SHA256_HEX: 'sha256',
-  //   HMAC_SHA512_HEX: 'sha512',
-  // };
+  private static readonly algoMap: { [key: string]: string } = {
+    HMAC_SHA1_HEX: 'sha1',
+    HMAC_SHA256_HEX: 'sha256',
+    HMAC_SHA512_HEX: 'sha512',
+  };
 
   constructor(private readonly http: HttpService) {}
 
@@ -47,8 +47,8 @@ export class SumsubService {
     return [{ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF }];
   }
 
-  async getApplicantData(applicantId: string): Promise<DataResult> {
-    return this.callApi<DataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
+  async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
+    return this.callApi<SumSubDataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -58,18 +58,14 @@ export class SumsubService {
     }-${Util.randomId()}`.toLowerCase();
   }
 
-  static checkWebhook(_req: Request, _data: any): boolean {
-    return true; // TODO: implement check
+  static checkWebhook(req: Request, rawBody: any): boolean {
+    const algoHeader = req.headers['x-payload-digest-alg'];
+    const algo = SumsubService.algoMap[algoHeader as string];
+    if (!algo) return false;
 
-    // const algoHeader = req.headers['x-payload-digest-alg'];
-    // const algo = SumsubService.algoMap[algoHeader as string];
-    // if (!algo) return false;
+    const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(rawBody).digest('hex');
 
-    // const buffer = Buffer.from(data.toString());
-
-    // const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(buffer).digest('hex');
-
-    // return calculatedDigest === req.headers['x-payload-digest'];
+    return calculatedDigest === req.headers['x-payload-digest'];
   }
 
   static identUrl(kycStep: KycStep): string {

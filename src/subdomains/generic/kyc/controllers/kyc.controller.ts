@@ -19,6 +19,7 @@ import {
   ApiExcludeEndpoint,
   ApiForbiddenResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -29,17 +30,19 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdNowResult } from '../dto/input/ident-result.dto';
 import {
   KycContactData,
   KycFileData,
   KycLegalEntityData,
+  KycManualIdentData,
   KycNationalityData,
   KycPersonalData,
   KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
+import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { FileType } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -47,7 +50,7 @@ import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
-import { WebhookResult } from '../dto/sum-sub.dto';
+import { SumSubWebhookResult } from '../dto/sum-sub.dto';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -89,6 +92,7 @@ export class KycController {
   @Get('countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiUnauthorizedResponse(MergedResponse)
+  @ApiOperation({ deprecated: true })
   async getKycCountries(@Headers(CodeHeaderName) code: string): Promise<CountryDto[]> {
     return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
@@ -263,18 +267,29 @@ export class KycController {
 
   @Post('ident/sumsub')
   @ApiExcludeEndpoint()
-  async sumsubWebhook(@Req() req: Request, @Body() data: WebhookResult) {
-    if (!SumsubService.checkWebhook(req, data)) {
-      this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
+  async sumsubWebhook(@Req() req: Request, @Body() data: any) {
+    if (!SumsubService.checkWebhook(req, req.body)) {
+      this.logger.error(`Received invalid sumsub webhook: ${data}`);
       throw new ForbiddenException('Invalid key');
     }
 
     try {
-      await this.kycService.updateSumsubIdent(data);
+      await this.kycService.updateSumsubIdent(JSON.parse(data) as SumSubWebhookResult);
     } catch (e) {
       this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${data.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);
     }
+  }
+
+  @Put('ident/manual/:id')
+  @ApiOkResponse({ type: KycResultDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateIdentData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycManualIdentData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateIdentManual(code, +id, data);
   }
 
   @Post('ident/:type')
@@ -306,15 +321,15 @@ export class KycController {
   @Post('2fa')
   @ApiCreatedResponse({ type: Setup2faDto })
   @ApiUnauthorizedResponse(MergedResponse)
-  async createSecret(@Headers(CodeHeaderName) code: string): Promise<Setup2faDto> {
-    return this.tfaService.setup(code);
+  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
+    return this.tfaService.setup(code, level);
   }
 
   @Post('2fa/verify')
   @ApiCreatedResponse({ description: '2FA successful' })
   @ApiUnauthorizedResponse(MergedResponse)
   @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
-  async verifyToken(
+  async verify2fa(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
     @Body() dto: Verify2faDto,

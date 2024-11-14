@@ -1,13 +1,26 @@
 #!/bin/bash
 
 timestamp=`date +%Y%m%d%H%M%S`
+backup_dir=./backup/${timestamp}
 
-/usr/bin/cp ./startBTC.sh ./backup/${timestamp}-startBTC.sh
-/usr/bin/cp ./startLND.sh ./backup/${timestamp}-startLND.sh
-/usr/bin/cp ./startLNbits.sh ./backup/${timestamp}-startLNbits.sh
-/usr/bin/cp ./startThunderHub.sh ./backup/${timestamp}-startThunderHub.sh
+echo "Backup to ${backup_dir} ..."
 
-/usr/bin/zip -r ./backup/${timestamp}-bitcoin.zip ./.bitcoin/bitcoin.conf ./.bitcoin/dfx-api
-/usr/bin/zip -r ./backup/${timestamp}-lightning.zip ./.lnd
-/usr/bin/zip -r ./backup/${timestamp}-lnbits.zip ./lnbits ./lnbits-extensions
-/usr/bin/zip -r ./backup/${timestamp}-thunderhub.zip ./thunderhub
+/usr/bin/mkdir ${backup_dir}
+
+/usr/bin/cp ./runBackup.sh ${backup_dir}
+/usr/bin/cp ./runBackup-exclude-file.txt ${backup_dir}
+
+/usr/bin/cp ./docker-compose.sh ${backup_dir}
+/usr/bin/cp ./docker-compose-bitcoin.yml ${backup_dir}
+/usr/bin/cp ./docker-compose-monero.yml ${backup_dir}
+/usr/bin/cp ./docker-compose-frankencoin.yml ${backup_dir}
+
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/bitcoin.tgz ./volumes/bitcoin
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/bitmonero.tgz ./volumes/bitmonero
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/lightning.tgz ./volumes/lightning
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/lnbits.tgz ./volumes/lnbits
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/thunderhub.tgz ./volumes/thunderhub
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/nginx.tgz ./volumes/nginx
+/usr/bin/tar --exclude-from="runBackup-exclude-file.txt" -cpzvf ${backup_dir}/frankencoin.tgz ./volumes/frankencoin
+
+echo "... done"

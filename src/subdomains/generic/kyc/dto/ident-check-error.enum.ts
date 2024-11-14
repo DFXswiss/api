@@ -1,5 +1,7 @@
 export enum IdentCheckError {
   USER_DATA_MERGED = 'UserDataMerged',
+  USER_DATA_MERGE_REQUESTED = 'UserDataMergeRequested',
+  USER_DATA_EXISTING = 'UserDataExisting',
   USER_DATA_BLOCKED = 'UserDataBlocked',
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
@@ -16,6 +18,8 @@ export enum IdentCheckError {
 
 export const IdentCheckErrorMap: Record<IdentCheckError, string> = {
   [IdentCheckError.USER_DATA_MERGED]: 'Your account is merged',
+  [IdentCheckError.USER_DATA_MERGE_REQUESTED]: 'Merge request mail sent to your existing account',
+  [IdentCheckError.USER_DATA_EXISTING]: 'You already completed KYC with another account',
   [IdentCheckError.USER_DATA_BLOCKED]: 'Unknown error',
   [IdentCheckError.FIRST_NAME_NOT_MATCHING]: 'Your first name is not matching',
   [IdentCheckError.LAST_NAME_NOT_MATCHING]: 'Your last name is not matching',

@@ -125,7 +125,7 @@ export class LiquidityManagementRuleService {
 
         const mailRequest = this.generateRuleRetriedMessage(rule);
 
-        await this.notificationService.sendMail(mailRequest);
+        if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
 
         this.logger.info(`Reactivated liquidity management rule ${rule.id}`);
       }

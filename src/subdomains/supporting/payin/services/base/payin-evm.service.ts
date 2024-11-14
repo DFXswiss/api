@@ -1,5 +1,5 @@
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
-import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
+import { Direction, EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -33,9 +33,24 @@ export abstract class PayInEvmService {
     return this.#client.isTxComplete(txHash);
   }
 
-  async getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
-    const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, fromBlock);
-    const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock);
+  async getHistory(
+    address: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
+    const allCoinTransactions = await this.#client.getNativeCoinTransactions(
+      address,
+      fromBlock,
+      toBlock,
+      Direction.INCOMING,
+    );
+
+    const allTokenTransactions = await this.#client.getERC20Transactions(
+      address,
+      fromBlock,
+      toBlock,
+      Direction.INCOMING,
+    );
 
     return [allCoinTransactions, allTokenTransactions];
   }

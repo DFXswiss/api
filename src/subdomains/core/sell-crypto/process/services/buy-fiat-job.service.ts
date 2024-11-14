@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { IsNull } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
+import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -23,16 +26,38 @@ export class BuyFiatJobService {
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
     if (DisabledProcess(Process.BUY_FIAT)) return;
+
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: ['fiatOutput'],
-      where: { amlCheck: CheckStatus.PASS, fiatOutput: IsNull() },
+      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } }, cryptoInput: true },
+      where: {
+        amlCheck: CheckStatus.PASS,
+        fiatOutput: IsNull(),
+        cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+      },
     });
 
-    for (const buyFiat of buyFiatsWithoutOutput) {
-      await this.fiatOutputService.create({
-        buyFiatId: buyFiat.id,
-        type: 'BuyFiat',
-      });
+    // immediate payouts
+    const immediateOutputs = buyFiatsWithoutOutput.filter(
+      (bf) =>
+        !bf.userData.paymentLinksConfigObj.payoutFrequency ||
+        bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.IMMEDIATE,
+    );
+
+    for (const buyFiat of immediateOutputs) {
+      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats: [buyFiat] });
+    }
+
+    // daily payouts
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const dailyOutputs = buyFiatsWithoutOutput.filter(
+      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
+    );
+    const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
+
+    for (const buyFiats of sellGroups.values()) {
+      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats });
     }
   }
 

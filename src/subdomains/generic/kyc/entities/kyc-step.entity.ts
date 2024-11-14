@@ -2,9 +2,9 @@ import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
-import { IdentCheckError, IdentCheckErrorMap } from '../dto/ident-check-error.enum';
-import { IdentResultData, IdentResultType } from '../dto/ident-result-data.dto';
-import { IdNowResult } from '../dto/input/ident-result.dto';
+import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdNowResult } from '../dto/ident-result.dto';
+import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -61,14 +61,14 @@ export class KycStep extends IEntity {
       case KycStepName.PERSONAL_DATA:
         return { url: `${apiUrl}/data/personal/${this.id}`, type: UrlType.API };
 
+      case KycStepName.NATIONALITY_DATA:
+        return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
+
       case KycStepName.LEGAL_ENTITY:
         return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
 
       case KycStepName.STOCK_REGISTER:
         return { url: `${apiUrl}/data/stock/${this.id}`, type: UrlType.API };
-
-      case KycStepName.NATIONALITY_DATA:
-        return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
 
       case KycStepName.COMMERCIAL_REGISTER:
         return { url: `${apiUrl}/data/commercial/${this.id}`, type: UrlType.API };
@@ -80,8 +80,13 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
 
       case KycStepName.IDENT: {
-        const [service, type] = this.isSumsub ? [SumsubService, UrlType.TOKEN] : [IdentService, UrlType.BROWSER];
-        return { url: service.identUrl(this), type };
+        if (this.isSumsub) {
+          return { url: SumsubService.identUrl(this), type: UrlType.TOKEN };
+        } else if (this.isManual) {
+          return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
+        } else {
+          return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
+        }
       }
 
       case KycStepName.FINANCIAL_DATA:
@@ -150,65 +155,113 @@ export class KycStep extends IEntity {
     return this.isInReview || this.isCompleted;
   }
 
-  update(status: KycStepStatus, result?: KycStepResult): this {
-    this.status = status;
+  update(status: KycStepStatus, result?: KycStepResult, sequenceNumber?: number): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status,
+      result: this.setResult(result),
+      sequenceNumber,
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  complete(result?: KycStepResult): this {
-    this.status = KycStepStatus.COMPLETED;
+  complete(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.COMPLETED,
+      result: this.setResult(result),
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  fail(result?: KycStepResult): this {
-    this.status = KycStepStatus.FAILED;
+  fail(result?: KycStepResult, comment?: string): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.FAILED,
+      result: this.setResult(result),
+      comment,
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  pause(result?: KycStepResult): this {
-    this.status = KycStepStatus.IN_PROGRESS;
-    this.reminderSentDate = null;
+  pause(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.IN_PROGRESS,
+      result: this.setResult(result),
+      reminderSentDate: null,
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  cancel(): this {
-    this.status = KycStepStatus.CANCELED;
+  cancel(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.CANCELED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  ignored(): this {
-    this.status = KycStepStatus.IGNORED;
+  ignored(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.IGNORED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  finish(): this {
-    if (this.isInProgress) this.status = KycStepStatus.FINISHED;
+  finish(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.FINISHED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  externalReview(result?: KycStepResult): this {
-    this.status = KycStepStatus.EXTERNAL_REVIEW;
+  externalReview(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.EXTERNAL_REVIEW,
+      result: this.setResult(result),
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  internalReview(result?: KycStepResult): this {
-    this.status = KycStepStatus.INTERNAL_REVIEW;
+  internalReview(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.INTERNAL_REVIEW,
+      result: this.setResult(result),
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  manualReview(): this {
-    this.status = KycStepStatus.MANUAL_REVIEW;
+  manualReview(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.MANUAL_REVIEW,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   getResult<T extends KycStepResult>(): T | undefined {
@@ -220,10 +273,10 @@ export class KycStep extends IEntity {
     return this.result as T;
   }
 
-  setResult(result?: KycStepResult): this {
+  setResult(result?: KycStepResult): string {
     if (result !== undefined) this.result = typeof result === 'string' ? result : JSON.stringify(result);
 
-    return this;
+    return this.result;
   }
 
   get resultData(): IdentResultData {
@@ -233,7 +286,7 @@ export class KycStep extends IEntity {
       const identResultData = this.getResult<SumsubResult>();
 
       return {
-        type: IdentResultType.SUMSUB,
+        type: IdentType.SUM_SUB,
         firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
         lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
         birthname: null,
@@ -241,28 +294,43 @@ export class KycStep extends IEntity {
           ? new Date(identResultData.data.info.idDocs[0].dob)
           : undefined,
         nationality: identResultData.data.info?.idDocs?.[0]?.country,
-        identificationDocNumber: identResultData.data.info?.idDocs?.[0]?.number,
-        identificationDocType: identResultData.data.info?.idDocs?.[0]?.idDocType
+        documentNumber: identResultData.data.info?.idDocs?.[0]?.number,
+        documentType: identResultData.data.info?.idDocs?.[0]?.idDocType
           ? identResultData.data.info.idDocs[0].idDocType === IdDocType.ID_CARD
             ? 'IDCARD'
             : 'PASSPORT'
           : undefined,
-        identificationType: identResultData.webhook.type,
+        kycType: identResultData.webhook.type,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
+      };
+    } else if (this.isManual) {
+      const identResultData = this.getResult<ManualIdentResult>();
+
+      return {
+        type: IdentType.MANUAL,
+        firstname: identResultData.firstName,
+        lastname: identResultData.lastName,
+        birthname: identResultData.birthName,
+        birthday: new Date(identResultData.birthday),
+        nationality: identResultData.nationality?.symbol,
+        documentType: identResultData.documentType,
+        documentNumber: identResultData.documentNumber,
+        kycType: IdentType.MANUAL,
+        success: true,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
 
       return {
-        type: IdentResultType.ID_NOW,
+        type: IdentType.ID_NOW,
         firstname: identResultData.userdata?.firstname?.value,
         lastname: identResultData.userdata?.lastname?.value,
         birthname: identResultData.userdata?.birthname?.value,
         birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
         nationality: identResultData.userdata?.nationality?.value,
-        identificationDocType: identResultData.identificationdocument?.type?.value,
-        identificationDocNumber: identResultData.identificationdocument?.number?.value,
-        identificationType: identResultData.identificationprocess?.companyid,
+        documentType: identResultData.identificationdocument?.type?.value,
+        documentNumber: identResultData.identificationdocument?.number?.value,
+        kycType: identResultData.identificationprocess?.companyid,
         success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
       };
     }
@@ -281,27 +349,24 @@ export class KycStep extends IEntity {
   }
 
   get identDocumentId(): string | undefined {
-    const result = this.getResult<IdNowResult>();
-    return result?.identificationdocument?.number?.value;
+    const result = this.resultData;
+    return result.documentNumber;
   }
 
   get userName(): string | undefined {
-    const result = this.getResult<IdNowResult>();
+    const result = this.resultData;
     if (!result) return undefined;
-    return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]
+    return [result.firstname, result.lastname, result.birthname]
       .filter((n) => n)
       .map((n) => n.trim())
       .join(' ');
   }
 
-  get identErrorsMailString(): string {
-    return `<ul>${this.comment
-      .split(';')
-      .map((c) => `<li>${IdentCheckErrorMap[c as IdentCheckError]}</li>`)
-      .join('')}</ul>`;
-  }
-
   get isSumsub(): boolean {
     return this.type === KycStepType.SUMSUB_AUTO;
+  }
+
+  get isManual(): boolean {
+    return this.type === KycStepType.MANUAL;
   }
 }

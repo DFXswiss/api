@@ -8,10 +8,7 @@ import {
 import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -35,11 +32,10 @@ import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payme
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
-  private readonly logger = new DfxLogger(PaymentLinkPaymentService);
-
   static readonly PREFIX_UNIQUE_ID = 'plp';
 
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
@@ -50,8 +46,7 @@ export class PaymentLinkPaymentService {
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
-    private readonly fiatService: FiatService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
   ) {}
 
   getDeviceActivationObservable(): Observable<PaymentDevice> {
@@ -84,7 +79,7 @@ export class PaymentLinkPaymentService {
       const blockchain = quote.txBlockchain;
 
       if (blockchain) {
-        const client = this.evmRegistryService.getClient(blockchain);
+        const client = this.blockchainRegistryService.getClient(blockchain);
         const isTxComplete = await client.isTxComplete(quote.txId, Config.payment.minConfirmations(blockchain));
 
         if (isTxComplete) {
@@ -142,11 +137,8 @@ export class PaymentLinkPaymentService {
     });
   }
 
-  async waitForPayment(paymentLink: PaymentLink): Promise<void> {
-    const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
-    if (!pendingPayment) throw new NotFoundException('No pending payment found');
-
-    await this.paymentWaitMap.wait(pendingPayment.id, 0);
+  async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
+    return this.paymentWaitMap.wait(payment.id, 0);
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
@@ -164,15 +156,15 @@ export class PaymentLinkPaymentService {
       if (exists) throw new ConflictException('Payment already exists');
     }
 
-    const currency = dto.currency ? await this.fiatService.getFiatByName(dto.currency) : paymentLink.route.fiat;
-    if (!currency) throw new NotFoundException('Currency not found');
+    if (dto.currency && dto.currency !== paymentLink.route.fiat.name)
+      throw new BadRequestException('Payment currency mismatch');
 
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(Config.payment.defaultPaymentTimeout),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
-      currency,
+      currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
@@ -181,17 +173,27 @@ export class PaymentLinkPaymentService {
     return this.doSave(payment, false);
   }
 
-  async cancelPayment(paymentLink: PaymentLink): Promise<PaymentLink> {
+  async confirmPayment(payment: PaymentLinkPayment): Promise<void> {
+    if (payment.status !== PaymentLinkPaymentStatus.COMPLETED)
+      throw new BadRequestException('Payment is not completed');
+
+    await this.paymentLinkPaymentRepo.update(payment.id, { isConfirmed: true });
+  }
+
+  async cancelByLink(paymentLink: PaymentLink): Promise<PaymentLink> {
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
     pendingPayment.link = paymentLink;
 
-    await this.doSave(pendingPayment.cancel(), true);
-
-    await this.cancelQuotesForPayment(pendingPayment);
+    await this.cancelByPayment(pendingPayment);
 
     return paymentLink;
+  }
+
+  async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.doSave(payment.cancel(), true);
+    await this.cancelQuotesForPayment(payment);
   }
 
   private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {

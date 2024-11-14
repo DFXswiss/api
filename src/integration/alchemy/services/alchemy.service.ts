@@ -31,9 +31,9 @@ export interface AssetTransfersParams {
 
 @Injectable()
 export class AlchemyService {
-  private alchemyMap = new Map<AlchemyNetwork, Alchemy>();
+  private readonly alchemyMap = new Map<AlchemyNetwork, Alchemy>();
 
-  private assetTransfersSubject: Subject<AlchemyAssetTransfersDto>;
+  private readonly assetTransfersSubject: Subject<AlchemyAssetTransfersDto>;
 
   constructor() {
     this.assetTransfersSubject = new Subject<AlchemyAssetTransfersDto>();
@@ -49,7 +49,7 @@ export class AlchemyService {
   getNativeCoinCategories(chainId: ChainId): AssetTransfersCategory[] {
     const alchemy = this.getAlchemy(chainId);
 
-    return [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI, AlchemyNetwork.MATIC_MAINNET].includes(
+    return [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI, AlchemyNetwork.ETH_SEPOLIA].includes(
       alchemy.config.network,
     )
       ? [AssetTransfersCategory.EXTERNAL, AssetTransfersCategory.INTERNAL]
@@ -76,7 +76,16 @@ export class AlchemyService {
     return tokenBalancesResponse.tokenBalances;
   }
 
+  async getBlockNumber(blockchain: Blockchain): Promise<number> {
+    const chainId = EvmUtil.getChainId(blockchain);
+    const alchemy = this.getAlchemy(chainId);
+
+    return alchemy.core.getBlockNumber();
+  }
+
   async getAssetTransfers(chainId: ChainId, params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
+    if (params.toBlock && params.toBlock < params.fromBlock) return [];
+
     const alchemy = this.getAlchemy(chainId);
 
     let assetTransfersResponse = await this.alchemyGetAssetTransfers(alchemy, params);
