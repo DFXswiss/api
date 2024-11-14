@@ -4,7 +4,8 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { IsNull } from 'typeorm';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -27,10 +28,11 @@ export class BuyFiatJobService {
     if (DisabledProcess(Process.BUY_FIAT)) return;
 
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } } },
+      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } }, cryptoInput: true },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
+        cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
       },
     });
 
