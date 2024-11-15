@@ -1,10 +1,15 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { ContentType, FileType, KycFile } from '../../dto/kyc-file.dto';
+import { KycStep } from '../../entities/kyc-step.entity';
+import { KycFileService } from '../kyc-file.service';
 
 @Injectable()
 export class KycDocumentService {
   private readonly storageService: AzureStorageService;
+  private readonly userDataService: UserDataService;
+  private readonly kycFileService: KycFileService;
 
   constructor() {
     this.storageService = new AzureStorageService('kyc');
@@ -40,12 +45,14 @@ export class KycDocumentService {
     name: string,
     data: Buffer,
     contentType: ContentType,
+    isProtected: boolean,
+    kycStep?: KycStep,
     metadata?: Record<string, string>,
   ): Promise<string> {
     if (!this.isPermittedFileType(contentType))
       throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
 
-    return this.uploadFile(userDataId, type, name, data, contentType, metadata);
+    return this.uploadFile(userDataId, type, name, data, contentType, isProtected, kycStep, metadata);
   }
 
   async uploadFile(
@@ -54,8 +61,18 @@ export class KycDocumentService {
     name: string,
     data: Buffer,
     contentType: ContentType,
+    isProtected: boolean,
+    kycStep?: KycStep,
     metadata?: Record<string, string>,
   ): Promise<string> {
+    await this.kycFileService.createKycFile({
+      name: name,
+      type: type,
+      protected: isProtected,
+      userData: await this.userDataService.getUserData(userDataId),
+      kycStep,
+    });
+
     return this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
   }
 

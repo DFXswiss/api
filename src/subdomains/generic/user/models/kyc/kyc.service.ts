@@ -105,6 +105,7 @@ export class KycService {
       `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
       document.buffer,
       document.mimetype as ContentType,
+      false,
     );
     return upload != '';
   }

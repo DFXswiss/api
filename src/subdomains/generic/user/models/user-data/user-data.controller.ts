@@ -116,6 +116,8 @@ export class UserDataController {
       dto.originalName,
       Buffer.from(dto.data, 'base64'),
       dto.contentType,
+      true,
+      undefined,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),

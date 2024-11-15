@@ -141,14 +141,14 @@ export class KycService {
 
         for (const existingFile of existingFiles) {
           try {
-            const exampleKycFile = {
+            const kycFile = {
               name: existingFile.name,
               type: existingFile.type,
               protected: false,
               userData: userData,
             };
 
-            await this.kycFileService.createKycFile(exampleKycFile);
+            await this.kycFileService.createKycFile(kycFile);
           } catch {
             this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}`);
           }
@@ -371,6 +371,8 @@ export class KycService {
       data.fileName,
       buffer,
       contentType as ContentType,
+      false,
+      kycStep,
     );
 
     await this.kycStepRepo.update(...kycStep.internalReview(url));
@@ -515,6 +517,8 @@ export class KycService {
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
       buffer,
       contentType as ContentType,
+      false,
+      kycStep,
     );
 
     await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
@@ -872,6 +876,8 @@ export class KycService {
         `${namePrefix}${name}`,
         content,
         contentType,
+        false,
+        kycStep,
       );
     }
   }
