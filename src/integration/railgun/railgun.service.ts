@@ -8,6 +8,6 @@ export class RailgunService {
     const messageBytes = toUtf8Bytes(message);
     const { viewingPublicKey } = RailgunEngine.decodeAddress(address);
     const signatureBytes = new Uint8Array(Buffer.from(signature, 'hex'));
-    return verifyED25519(messageBytes, viewingPublicKey, signatureBytes);
+    return verifyED25519(messageBytes, signatureBytes, viewingPublicKey);
   }
 }
