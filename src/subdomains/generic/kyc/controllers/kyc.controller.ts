@@ -116,7 +116,7 @@ export class KycController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
-    return this.kycService.getFileByUid(id, jwt?.account);
+    return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
   }
 
   @Post('transfer')

@@ -400,10 +400,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
-  }
-
   private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
     const userWithCustomMethod = await this.userRepo.findOne({
       where: {
@@ -414,6 +410,10 @@ export class UserDataService {
     });
 
     return userWithCustomMethod?.wallet.identMethod;
+  }
+
+  private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
+    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
   }
 
   private async loadRelationsAndVerify(

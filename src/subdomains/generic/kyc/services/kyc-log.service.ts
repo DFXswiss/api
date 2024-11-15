@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
+import { KycFileLogRepository } from '../repositories/kyc-file-log.repository';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { MailChangeLogRepository } from '../repositories/mail-change-log.repository';
 import { MergeLogRepository } from '../repositories/merge-log.repository';
@@ -11,6 +12,7 @@ export class KycLogService {
   constructor(
     private readonly kycLogRepo: KycLogRepository,
     private readonly mergeLogRepo: MergeLogRepository,
+    private readonly kycFileLogRepo: KycFileLogRepository,
     private readonly mailChangeLogRepo: MailChangeLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
@@ -56,9 +58,9 @@ export class KycLogService {
     await this.kycLogRepo.save(entity);
   }
 
-  async createFileAccessLog(fileName: string, user?: UserData) {
-    const entity = this.kycLogRepo.create({
-      result: `KYC file access: ${fileName}`,
+  async createKycFileLog(log: string, user?: UserData) {
+    const entity = this.kycFileLogRepo.create({
+      result: log,
       userData: user,
     });
 

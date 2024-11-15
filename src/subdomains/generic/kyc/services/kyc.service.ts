@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -237,16 +238,17 @@ export class KycService {
     return this.toDto(user, false);
   }
 
-  async getFileByUid(uid: string, userDataId?: number): Promise<KycFileDataDto> {
+  async getFileByUid(uid: string, userDataId?: number, role?: UserRole): Promise<KycFileDataDto> {
     const kycFile = await this.kycFileService.getKycFile(uid);
 
-    if (kycFile.protected && (!userDataId || !this.userDataService.hasRole(userDataId, UserRole.ADMIN))) {
-      throw new BadRequestException('Requires admin role');
+    if (kycFile.protected && role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Requires admin role');
     }
 
     const blob = await this.documentService.downloadFile(kycFile.userData.id, kycFile.type, kycFile.name);
 
-    await this.kycLogService.createFileAccessLog(kycFile.name, kycFile.userData);
+    const log = `User ${userDataId} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
+    await this.kycLogService.createKycFileLog(log, kycFile.userData);
 
     return KycFileMapper.mapKycFile(kycFile, blob);
   }
