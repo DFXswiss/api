@@ -137,6 +137,8 @@ export class KycService {
       const allUserData = await this.userDataService.getAllUserData();
 
       for (const userData of allUserData) {
+        if (this.kycFileService.userIsSynced(userData.id)) continue;
+
         const existingFiles = await this.documentService.listUserFiles(userData.id);
 
         for (const existingFile of existingFiles) {

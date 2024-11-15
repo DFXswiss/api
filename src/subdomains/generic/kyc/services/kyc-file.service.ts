@@ -24,4 +24,11 @@ export class KycFileService {
       relations,
     });
   }
+
+  // TODO: Remove temporary function
+  async userIsSynced(userDataId: number): Promise<boolean> {
+    return this.kycFileRepository.exists({
+      where: { userData: { id: userDataId } },
+    });
+  }
 }
