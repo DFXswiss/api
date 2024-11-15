@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import {
   KycIdentificationType,
@@ -42,6 +43,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
+    Config.kyc.residencePermitCountries.includes(userData.nationality?.symbol) ? KycStepName.RESIDENCE_PERMIT : null,
     KycStepName.DFX_APPROVAL,
   ].filter(Boolean) as KycStepName[];
 }
