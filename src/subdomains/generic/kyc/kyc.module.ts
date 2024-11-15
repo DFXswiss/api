@@ -17,6 +17,7 @@ import { MailChangeLog } from './entities/mail-change-log.entity';
 import { MergeLog } from './entities/merge-log.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
 import { StepLog } from './entities/step-log.entity';
+import { KycFileLogRepository } from './repositories/kyc-file-log.repository';
 import { KycFileRepository } from './repositories/kyc-file.repository';
 import { KycLogRepository } from './repositories/kyc-log.repository';
 import { KycStepRepository } from './repositories/kyc-step.repository';
@@ -63,6 +64,7 @@ import { TfaService } from './services/tfa.service';
     TfaLogRepository,
     MergeLogRepository,
     MailChangeLogRepository,
+    KycFileLogRepository,
     DilisenseService,
     IdentService,
     FinancialService,
