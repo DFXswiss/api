@@ -650,7 +650,8 @@ export class KycService {
         break;
 
       case KycStepName.DFX_APPROVAL:
-        kycStep.internalReview();
+        const missingSteps = requiredKycSteps(user).filter((rs) => !user.hasDoneStep(rs));
+        user.kycLevel < KycLevel.LEVEL_50 || missingSteps.length > 1 ? kycStep.internalReview() : kycStep.complete();
         break;
     }
 
