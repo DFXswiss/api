@@ -90,10 +90,21 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
+  @ApiOperation({ deprecated: true, description: 'This endpoint is deprecated, use "specialCodes" instead.' })
   async addDiscountCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
     const user = await this.userService.getUser(jwt.user, { userData: true, wallet: true });
 
-    return this.feeService.addDiscountCodeUser(user, code);
+    return this.feeService.addSpecialCodeUser(user, code);
+  }
+
+  @Put('specialCodes')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async addSpecialCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
+    const user = await this.userService.getUser(jwt.user, { userData: true, wallet: true });
+
+    return this.feeService.addSpecialCodeUser(user, code);
   }
 
   @Post('change')
