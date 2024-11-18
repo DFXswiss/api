@@ -77,15 +77,8 @@ export class UserController {
   @ApiOkResponse({ type: UserDetailDto })
   @ApiAcceptedResponse(AccountExistsResponse)
   @ApiOperation({ deprecated: true })
-  async updateUserV1(
-    @GetJwt() jwt: JwtPayload,
-    @Body() newUser: UpdateUserDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser);
-    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
-
-    return user;
+  async updateUserV1(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserDetailDto> {
+    return this.userService.updateUserV1(jwt.user, newUser);
   }
 
   @Put('discountCodes')
@@ -226,15 +219,8 @@ export class UserV2Controller {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: UserV2Dto })
   @ApiAcceptedResponse(AccountExistsResponse)
-  async updateUser(
-    @GetJwt() jwt: JwtPayload,
-    @Body() newUser: UpdateUserDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<UserV2Dto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, jwt.user);
-    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
-
-    return user;
+  async updateUser(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserV2Dto> {
+    return this.userService.updateUser(jwt.account, newUser, jwt.user);
   }
 
   @Put('mail')

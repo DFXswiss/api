@@ -346,11 +346,7 @@ export class UserDataService {
     return this.updateUserMailInternal(userData, { mail: cacheEntry.mail });
   }
 
-  async updateUserSettings(
-    userData: UserData,
-    dto: UpdateUserDto,
-    forceUpdate?: boolean,
-  ): Promise<{ user: UserData; isKnownUser: boolean }> {
+  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check phone KYC is already started
     if (userData.kycLevel != KycLevel.LEVEL_0 && (dto.phone === null || dto.phone === ''))
       throw new BadRequestException('KYC already started, user data deletion not allowed');
@@ -380,10 +376,7 @@ export class UserDataService {
       }
     }
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
-
-    const isKnownUser = forceUpdate && (await this.isKnownKycUser(userData));
-    return { user: userData, isKnownUser };
+    return this.userDataRepo.save(Object.assign(userData, dto));
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {

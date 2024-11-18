@@ -183,31 +183,26 @@ export class UserService {
     return user;
   }
 
-  async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     // update
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
-    user.userData = update;
+    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
 
-    return { user: await this.toDto(user, true), isKnownUser };
+    return this.toDto(user, true);
   }
 
-  async updateUser(
-    userDataId: number,
-    dto: UpdateUserDto,
-    userId?: number,
-  ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
+  async updateUser(userDataId: number, dto: UpdateUserDto, userId?: number): Promise<UserV2Dto> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
+    const update = await this.userDataService.updateUserSettings(userData, dto);
 
-    return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
+    return UserDtoMapper.mapUser(update, userId);
   }
 
   async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
