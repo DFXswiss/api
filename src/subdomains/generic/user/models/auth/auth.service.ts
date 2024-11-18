@@ -315,9 +315,9 @@ export class AuthService {
   async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
     const keyWallet = await this.walletService.getWithMasterKey(signature);
 
-    const isValid = keyWallet ? true : await this.cryptoService.verifySignature(message, address, signature)
+    const isValid = keyWallet ? true : await this.cryptoService.verifySignature(message, address, signature);
 
-    return { isValid, };
+    return { isValid };
   }
 
   // --- HELPER METHODS --- //
