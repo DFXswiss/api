@@ -8,7 +8,6 @@ import {
 import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
@@ -33,6 +32,7 @@ import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payme
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -46,7 +46,7 @@ export class PaymentLinkPaymentService {
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
   ) {}
 
   getDeviceActivationObservable(): Observable<PaymentDevice> {
@@ -79,7 +79,7 @@ export class PaymentLinkPaymentService {
       const blockchain = quote.txBlockchain;
 
       if (blockchain) {
-        const client = this.evmRegistryService.getClient(blockchain);
+        const client = this.blockchainRegistryService.getClient(blockchain);
         const isTxComplete = await client.isTxComplete(quote.txId, Config.payment.minConfirmations(blockchain));
 
         if (isTxComplete) {

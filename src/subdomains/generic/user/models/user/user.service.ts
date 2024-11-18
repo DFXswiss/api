@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -125,7 +131,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
@@ -134,6 +140,7 @@ export class UserService {
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
     return UserDtoMapper.mapUser(userData, userId);
   }
@@ -231,7 +238,7 @@ export class UserService {
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
     await this.userDataService.updateUserName(user.userData, dto);
@@ -528,8 +535,8 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
-      apiKeyCT: user.apiKeyCT,
-      apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
+      apiKeyCT: user.userData?.apiKeyCT ?? user.apiKeyCT,
+      apiFilterCT: ApiKeyService.getFilterArray(user.userData?.apiFilterCT ?? user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };

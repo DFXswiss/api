@@ -21,7 +21,7 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async getUnlockedBalance(): Promise<number> {
-    return this.client.getBalance().then((b) => b.unlocked_balance);
+    return this.client.getUnlockedBalance();
   }
 
   async sendToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {

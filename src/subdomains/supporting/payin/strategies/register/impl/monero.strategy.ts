@@ -83,7 +83,8 @@ export class MoneroStrategy extends RegisterStrategy {
     const asset = await this.assetService.getMoneroCoin();
 
     return [...transferInResults].reverse().map((p) => ({
-      address: BlockchainAddress.create(p.address, this.blockchain),
+      senderAddresses: null,
+      receiverAddress: BlockchainAddress.create(p.address, this.blockchain),
       txId: p.txid,
       txType: this.getTxType(p),
       blockHeight: p.height,

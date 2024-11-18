@@ -1,7 +1,7 @@
 import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -45,7 +45,7 @@ export class TransactionHelper implements OnModuleInit {
     @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
   ) {}
 
   onModuleInit() {
@@ -309,9 +309,9 @@ export class TransactionHelper implements OnModuleInit {
       return 0;
 
     try {
-      const evmClient = this.evmRegistryService.getClient(to.blockchain);
+      const client = this.blockchainRegistryService.getClient(to.blockchain);
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
-        evmClient.getNativeCoinBalanceForAddress(user.address),
+        client.getNativeCoinBalanceForAddress(user.address),
       );
 
       return userBalance < Config.networkStartBalanceLimit ? Config.networkStartFee : 0;

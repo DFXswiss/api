@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -33,7 +32,6 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly pricingService: PricingService,
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
-    private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,

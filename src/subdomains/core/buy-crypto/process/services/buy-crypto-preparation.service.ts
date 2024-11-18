@@ -149,6 +149,13 @@ export class BuyCryptoPreparationService implements OnModuleInit {
               )
             : undefined;
 
+        // check if amlCheck changed (e.g. reset or refund)
+        if (
+          entity.amlCheck === CheckStatus.PENDING &&
+          (await this.buyCryptoRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
+        )
+          continue;
+
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
             inputCurrency,

@@ -21,6 +21,7 @@ import {
   ApiExcludeEndpoint,
   ApiForbiddenResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -125,6 +126,7 @@ export class KycController {
   @Get('countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiUnauthorizedResponse(MergedResponse)
+  @ApiOperation({ deprecated: true })
   async getKycCountries(@Headers(CodeHeaderName) code: string): Promise<CountryDto[]> {
     return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
   }

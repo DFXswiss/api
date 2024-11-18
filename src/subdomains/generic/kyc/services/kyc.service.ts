@@ -111,11 +111,10 @@ export class KycService {
     });
 
     for (const identStep of expiredIdentSteps) {
-      let user = identStep.userData;
+      const user = identStep.userData;
       const step = user.getPendingStepOrThrow(identStep.id);
 
-      user = user.failStep(step);
-      await this.userDataService.save(user);
+      await this.kycStepRepo.update(...step.fail());
 
       await this.createStepLog(user, step);
 
@@ -165,16 +164,8 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
-        if (entity.isCompleted) {
-          entity.userData = await this.completeIdent(result, entity.userData, nationality);
 
-          if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-            await this.bankDataService.createBankData(entity.userData, {
-              name: entity.userName,
-              iban: `Ident${entity.identDocumentId}`,
-              type: BankDataType.IDENT,
-            });
-        }
+        if (entity.isCompleted) await this.completeIdent(entity, nationality);
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
@@ -256,14 +247,14 @@ export class KycService {
 
   // --- UPDATE METHODS --- //
   async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserMailInternal(user, data);
-    user = isKnownUser ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
+    isKnownUser ? kycStep.fail(data) : kycStep.complete(data);
 
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
+    await this.createStepLog(updatedUser, kycStep);
+    await this.updateProgress(updatedUser, false);
 
     return KycStepMapper.toKycResult(kycStep);
   }
@@ -275,7 +266,7 @@ export class KycService {
     user = await this.userDataService.updateKycData(user, KycDataMapper.toUserData(data));
 
     if (user.isDataComplete) {
-      user = user.completeStep(kycStep, data);
+      await this.kycStepRepo.update(...kycStep.complete(data));
       await this.createStepLog(user, kycStep);
     }
 
@@ -300,7 +291,7 @@ export class KycService {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
 
-    user = requiresInternalReview ? user.internalReviewStep(kycStep, data) : user.completeStep(kycStep, data);
+    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -308,7 +299,7 @@ export class KycService {
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     // upload file
@@ -321,7 +312,7 @@ export class KycService {
       contentType as ContentType,
     );
 
-    user = user.internalReviewStep(kycStep, url);
+    await this.kycStepRepo.update(...kycStep.internalReview(url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -352,11 +343,11 @@ export class KycService {
 
     await this.verify2fa(user, ip);
 
-    kycStep.setResult(data.responses);
+    await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
     const complete = this.financialService.isComplete(data.responses);
     if (complete) {
-      user.internalReviewStep(kycStep);
+      await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);
     }
 
@@ -413,30 +404,30 @@ export class KycService {
 
     const transaction = await this.getUserByTransactionOrThrow(transactionId, dto);
 
-    let user = transaction.user;
+    const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
 
     switch (result) {
       case IdentShortResult.CANCEL:
-        user = user.pauseStep(kycStep, dto);
+        await this.kycStepRepo.update(...kycStep.pause(dto));
         await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
         break;
 
       case IdentShortResult.ABORT:
-        user = user.pauseStep(kycStep, dto);
+        await this.kycStepRepo.update(...kycStep.pause(dto));
         break;
 
       case IdentShortResult.REVIEW:
-        user = user.externalReviewStep(kycStep, dto);
+        await this.kycStepRepo.update(...kycStep.externalReview(dto));
         break;
 
       case IdentShortResult.SUCCESS:
-        user = user.internalReviewStep(kycStep, dto);
+        await this.kycStepRepo.update(...kycStep.internalReview(dto));
         await this.downloadIdentDocuments(user, kycStep);
         break;
 
       case IdentShortResult.FAIL:
-        user = user.failStep(kycStep, dto);
+        await this.kycStepRepo.update(...kycStep.fail(dto));
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
         await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
         break;
@@ -450,7 +441,7 @@ export class KycService {
   }
 
   async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycResultDto> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
@@ -465,7 +456,7 @@ export class KycService {
       contentType as ContentType,
     );
 
-    user = user.internalReviewStep(kycStep, { ...dto, fileUrl: newUrl, document: undefined });
+    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -482,11 +473,11 @@ export class KycService {
   async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
     const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
 
-    let user = transaction.user;
+    const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
 
     if (status === IdentStatus.SUCCESS && !kycStep.result) {
-      user = user.finishStep(kycStep);
+      await this.kycStepRepo.update(...kycStep.finish());
 
       await this.updateProgress(user, false);
     }
@@ -513,9 +504,7 @@ export class KycService {
             .find((s) => s.isInProgress || s.isInReview || (!restartCompletedSteps && s.isCompleted));
     if (!step) {
       step = await this.initiateStep(user, name, type, true);
-      user.nextStep(step);
-
-      await this.userDataService.save(user);
+      user.kycSteps.push(step);
     }
 
     return { user, step };
@@ -544,21 +533,21 @@ export class KycService {
       const { nextStep, nextLevel } = await this.getNext(user);
 
       if (nextLevel && nextLevel > user.kycLevel) {
-        user.setKycLevel(nextLevel);
+        await this.userDataService.updateUserDataInternal(user, { kycLevel: nextLevel });
         await this.kycNotificationService.kycChanged(user, nextLevel);
       }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
         // continue with next step
         const step = await this.initiateStep(user, nextStep.name, nextStep.type, nextStep.preventDirectEvaluation);
-        user.nextStep(step);
+        user.kycSteps.push(step);
 
         // update again if step is complete
         if (step.isCompleted) return this.updateProgress(user, shouldContinue, autoStep, depth + 1);
       }
     }
 
-    return this.saveUser(user);
+    return user;
   }
 
   private async getNext(user: UserData): Promise<{
@@ -631,7 +620,7 @@ export class KycService {
 
     // cancel a pending step with same type
     const pendingStep = user.getPendingStepWith(stepName);
-    if (pendingStep) user.cancelStep(pendingStep);
+    if (pendingStep) await this.kycStepRepo.update(...pendingStep.cancel());
 
     switch (stepName) {
       case KycStepName.CONTACT_DATA:
@@ -661,11 +650,12 @@ export class KycService {
         break;
 
       case KycStepName.DFX_APPROVAL:
-        kycStep.internalReview();
+        const missingSteps = requiredKycSteps(user).filter((rs) => !user.hasDoneStep(rs));
+        user.kycLevel < KycLevel.LEVEL_50 || missingSteps.length > 1 ? kycStep.internalReview() : kycStep.complete();
         break;
     }
 
-    return kycStep;
+    return this.kycStepRepo.save(kycStep);
   }
 
   // --- HELPER METHODS --- //
@@ -675,41 +665,68 @@ export class KycService {
       return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
   }
 
-  async completeIdent(data: IdentResultData, userData: UserData, nationality?: Country): Promise<UserData> {
-    const identificationType = getIdentificationType(data.type, data.identificationType);
+  async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
+    const data = kycStep.resultData;
+    const userData = kycStep.userData;
+    const identificationType = getIdentificationType(data.type, data.kycType);
+    nationality ??= data.nationality ? await this.countryService.getCountryWithSymbol(data.nationality) : null;
+
     if (
       data.birthday &&
       data.nationality &&
       identificationType &&
-      data.identificationDocType &&
-      data.identificationDocNumber &&
+      data.documentType &&
+      data.documentNumber &&
       nationality
     ) {
-      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.identificationDocNumber}`;
+      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}`;
       const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
 
       if (existing) {
-        await this.accountMergeService.sendMergeRequest(existing, userData, MergeReason.IDENT_DOCUMENT);
+        const mergeRequest = await this.accountMergeService.sendMergeRequest(
+          existing,
+          userData,
+          MergeReason.IDENT_DOCUMENT,
+        );
 
-        return userData;
+        await this.kycStepRepo.update(
+          ...kycStep.fail(
+            undefined,
+            [
+              kycStep.comment,
+              mergeRequest ? IdentCheckError.USER_DATA_MERGE_REQUESTED : IdentCheckError.USER_DATA_EXISTING,
+            ]
+              .filter((c) => c)
+              .join(';'),
+          ),
+        );
+
+        return;
       } else if (nationality) {
-        return this.userDataService.updateUserDataInternal(userData, {
+        await this.userDataService.updateUserDataInternal(userData, {
           kycLevel: KycLevel.LEVEL_30,
           birthday: data.birthday,
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
-          identDocumentType: data.identificationDocType,
+          identDocumentType: data.documentType,
           identDocumentId,
           nationality,
         });
+
+        if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+          await this.bankDataService.createBankData(kycStep.userData, {
+            name: kycStep.userName,
+            iban: `Ident${kycStep.identDocumentId}`,
+            type: BankDataType.IDENT,
+          });
+
+        return;
       }
     }
 
     this.logger.error(`Missing ident data for userData ${userData.id}`);
-
-    return userData;
   }
 
   private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): IdentCheckError[] {
@@ -736,10 +753,9 @@ export class KycService {
       errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
     }
 
-    if (!['IDCARD', 'PASSPORT'].includes(data.identificationDocType))
-      errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
+    if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
 
-    if (!data.identificationDocNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+    if (!data.documentNumber) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
 
     if (!data.success) errors.push(IdentCheckError.INVALID_RESULT);
 
@@ -798,22 +814,6 @@ export class KycService {
     }
 
     return { user: await this.getUser(kycStep.userData.kycHash), stepId: kycStep.id };
-  }
-
-  private async saveUser(user: UserData): Promise<UserData> {
-    try {
-      return await this.userDataService.save(user);
-    } catch (e) {
-      if (['value NULL', 'userDataId', 'kyc_step'].every((i) => e.message?.includes(i))) {
-        // reload the KYC steps
-        const steps = await this.kycStepRepo.findBy({ userData: { id: user.id } });
-        user.kycSteps.push(...steps.filter((s1) => !user.kycSteps.find((s2) => s1.id === s2.id)));
-
-        return this.userDataService.save(user);
-      }
-
-      throw e;
-    }
   }
 
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
