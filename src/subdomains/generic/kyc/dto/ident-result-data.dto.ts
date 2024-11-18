@@ -9,9 +9,9 @@ export interface IdentResultData {
   firstname: string;
   lastname: string;
   birthname: string;
-  identificationDocType: string;
-  identificationDocNumber: string;
-  identificationType: string;
+  documentType: string;
+  documentNumber: string;
+  kycType: string;
   birthday: Date;
   nationality: string;
   success: boolean;

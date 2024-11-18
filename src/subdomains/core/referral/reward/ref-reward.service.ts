@@ -12,7 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, FindOptionsRelations, In, MoreThan, Not } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { RefRewardDexService } from './ref-reward-dex.service';
@@ -133,8 +133,14 @@ export class RefRewardService {
     return Object.assign(reward, { outputAssetEntity });
   }
 
-  async getRefReward(from: Date, relations?: FindOptionsRelations<RefReward>): Promise<RefReward[]> {
-    return this.rewardRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  async getRefRewardVolume(from: Date): Promise<number> {
+    const { volume } = await this.rewardRepo
+      .createQueryBuilder('refReward')
+      .select('SUM(amountInChf)', 'volume')
+      .where('created >= :from', { from })
+      .getRawOne<{ volume: number }>();
+
+    return volume ?? 0;
   }
 
   // --- HELPER METHODS --- //

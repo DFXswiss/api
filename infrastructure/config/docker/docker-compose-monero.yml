@@ -47,7 +47,7 @@ services:
         condition: service_healthy
     command:
       - '--wallet-file=/home/monero/.bitmonero/wallet/dfxwallet'
-      - '--password=a5^FL@CVj7J5kaLwha%S'
+      - '--password=[PASSWORD]'
       - '--rpc-bind-port=18082'
       - '--daemon-address=monerod:18081'
       - '--trusted-daemon'

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { RouteService } from 'src/subdomains/core/route/route.service';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from '../buy.repository';
@@ -16,6 +17,7 @@ describe('BuyService', () => {
   let userService: UserService;
   let bankAccountService: BankAccountService;
   let routeService: RouteService;
+  let bankDataService: BankDataService;
 
   beforeEach(async () => {
     buyRepo = createMock<BuyRepository>();
@@ -23,6 +25,7 @@ describe('BuyService', () => {
     userService = createMock<UserService>();
     bankAccountService = createMock<BankAccountService>();
     routeService = createMock<RouteService>();
+    bankDataService = createMock<BankDataService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -33,6 +36,7 @@ describe('BuyService', () => {
         { provide: UserService, useValue: userService },
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: RouteService, useValue: routeService },
+        { provide: BankDataService, useValue: bankDataService },
       ],
     }).compile();
 

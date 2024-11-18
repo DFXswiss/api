@@ -316,7 +316,7 @@ export class PaymentLinkService {
     const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
 
-    return userData.configObj;
+    return userData.paymentLinksConfigObj;
   }
 
   async updateUserPaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinksConfigDto): Promise<void> {

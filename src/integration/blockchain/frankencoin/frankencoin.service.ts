@@ -76,6 +76,8 @@ export class FrankencoinService implements OnModuleInit {
       subsystem: FrankencoinService.LOG_SUBSYSTEM,
       severity: LogSeverity.INFO,
       message: JSON.stringify(logMessage),
+      valid: null,
+      category: null,
     };
 
     await this.logService.create(log);

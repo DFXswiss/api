@@ -142,7 +142,7 @@ export class AmlService {
     if (entity instanceof BuyFiat) return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban);
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService
-        .getBankDatasForUser(entity.userData.id)
+        .getValidBankDatasForUser(entity.userData.id)
         .then((b) => b.filter((b) => b.type !== BankDataType.USER));
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }

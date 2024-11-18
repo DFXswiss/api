@@ -1,10 +1,7 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
-import { CountryService } from 'src/shared/models/country/country.service';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
-import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
@@ -22,9 +19,7 @@ export class KycAdminService {
   constructor(
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
-    @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly kycService: KycService,
-    private readonly countryService: CountryService,
     private readonly kycNotificationService: KycNotificationService,
     private readonly mailFactory: MailFactory,
   ) {}
@@ -40,7 +35,7 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
-    kycStep.update(dto.status, dto.result);
+    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
 
     switch (kycStep.name) {
       case KycStepName.COMMERCIAL_REGISTER:
@@ -48,21 +43,7 @@ export class KycAdminService {
         break;
 
       case KycStepName.IDENT:
-        if (kycStep.isCompleted) {
-          const result = kycStep.resultData;
-          const nationality = result.nationality
-            ? await this.countryService.getCountryWithSymbol(result.nationality)
-            : null;
-
-          kycStep.userData = await this.kycService.completeIdent(result, kycStep.userData, nationality);
-
-          if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-            await this.bankDataService.createBankData(kycStep.userData, {
-              name: kycStep.userName,
-              iban: `Ident${kycStep.identDocumentId}`,
-              type: BankDataType.IDENT,
-            });
-        }
+        if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
         if (kycStep.isFailed) {
           const reasons = `<ul>${kycStep.comment
             ?.split(';')
@@ -79,8 +60,10 @@ export class KycAdminService {
 
         break;
     }
+  }
 
-    await this.kycStepRepo.save(kycStep);
+  async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
+    await this.kycStepRepo.update(...dto);
   }
 
   async syncIdentStep(stepId: number): Promise<void> {

@@ -34,6 +34,9 @@ export class Country extends IEntity {
   @Column({ default: true })
   nationalityEnable: boolean;
 
+  @Column({ default: true })
+  nationalityStepEnable: boolean;
+
   @Column({ default: false })
   bankTransactionVerificationEnable: boolean;
 

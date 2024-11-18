@@ -11,7 +11,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
@@ -36,8 +36,26 @@ export class PayInService {
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
 
-    for (const { address, txId, txType, txSequence, blockHeight, amount, asset } of transactions) {
-      const payIn = CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset);
+    for (const {
+      senderAddresses,
+      receiverAddress,
+      txId,
+      txType,
+      txSequence,
+      blockHeight,
+      amount,
+      asset,
+    } of transactions) {
+      const payIn = CryptoInput.create(
+        senderAddresses,
+        receiverAddress,
+        txId,
+        txType,
+        txSequence,
+        blockHeight,
+        amount,
+        asset,
+      );
 
       const exists = await this.payInRepository.exists({
         where: {
@@ -45,8 +63,8 @@ export class PayInService {
           txSequence: txSequence,
           asset: { id: asset?.id },
           address: {
-            address: address.address,
-            blockchain: address.blockchain,
+            address: receiverAddress.address,
+            blockchain: receiverAddress.blockchain,
           },
         },
       });
@@ -100,8 +118,14 @@ export class PayInService {
     });
   }
 
-  async getPayIn(from: Date, relations?: FindOptionsRelations<CryptoInput>): Promise<CryptoInput[]> {
-    return this.payInRepository.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  async getPayInFee(from: Date): Promise<number> {
+    const { fee } = await this.payInRepository
+      .createQueryBuilder('cryptoInput')
+      .select('SUM(forwardFeeAmountChf)', 'fee')
+      .where('created >= :from', { from })
+      .getRawOne<{ fee: number }>();
+
+    return fee ?? 0;
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
