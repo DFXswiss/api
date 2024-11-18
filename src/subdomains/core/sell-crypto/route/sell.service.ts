@@ -10,7 +10,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
@@ -51,38 +50,6 @@ export class SellService {
     private readonly routeService: RouteService,
     private readonly bankDataService: BankDataService,
   ) {}
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async syncSellBankData() {
-    if (DisabledProcess(Process.SELL_BANK_ACCOUNT_SYNC)) return;
-
-    const entities = await this.sellRepo.find({
-      where: { bankAccount: { id: Not(IsNull()) }, bankData: { id: IsNull() } },
-      relations: { bankAccount: { userData: true }, bankData: true },
-    });
-
-    for (const entity of entities) {
-      try {
-        const bankData =
-          (await this.bankDataService
-            .getAllBankDatasForUser(entity.bankAccount.userData.id)
-            .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban))) ??
-          (!(await this.bankDataService.existsUserBankDataWithIban(entity.iban)) &&
-            (await this.bankDataService.createIbanForUser(
-              entity.bankAccount.userData.id,
-              { iban: entity.bankAccount.iban },
-              false,
-              BankDataType.USER,
-            )));
-        if (!bankData) continue;
-
-        await this.sellRepo.update(entity.id, { bankData });
-      } catch (e) {
-        this.logger.error(`Error in sell bankAccount/bankData sync ${entity.id}`, e);
-      }
-    }
-  }
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
@@ -164,6 +131,12 @@ export class SellService {
       if (!existing.active && userData.isDataComplete) {
         // reactivate deleted route
         existing.active = true;
+        existing.bankData = await this.bankDataService.createIbanForUser(
+          userData.id,
+          { iban: dto.iban },
+          true,
+          BankDataType.USER,
+        );
         await this.sellRepo.save(existing);
       }
 

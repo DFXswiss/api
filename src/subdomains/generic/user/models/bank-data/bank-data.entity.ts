@@ -1,6 +1,5 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
@@ -55,9 +54,6 @@ export class BankData extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
-
-  @OneToMany(() => Buy, (buy) => buy.bankData)
-  buys: Buy[];
 
   @OneToMany(() => Sell, (sell) => sell.bankData)
   sells: Sell[];
