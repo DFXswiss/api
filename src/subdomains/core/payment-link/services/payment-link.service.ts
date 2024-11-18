@@ -1,13 +1,22 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/utils/util';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UpdatePaymentLinksConfigDto } from 'src/subdomains/generic/user/models/user/dto/update-user.dto';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { PaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -25,6 +34,7 @@ export class PaymentLinkService {
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
+    private readonly userDataService: UserDataService,
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
   ) {}
@@ -144,9 +154,6 @@ export class PaymentLinkService {
     const country = dto.config?.recipient?.address?.country
       ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
       : undefined;
-
-    console.log('createForRoute dto.config', dto.config);
-    console.log('createForRoute dto.config?.recipient', dto.config?.recipient);
 
     const paymentLink = this.paymentLinkRepo.create({
       route,
@@ -303,6 +310,20 @@ export class PaymentLinkService {
     }
 
     return this.updatePaymentLinkInternal(entity, dto);
+  }
+
+  async getUserPaymentLinksConfig(userDataId: number): Promise<PaymentLinkConfigDto> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
+    if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+
+    return userData.configObj;
+  }
+
+  async updateUserPaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinksConfigDto): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
+    if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+
+    await this.userDataService.updatePaymentLinksConfig(userData, dto);
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {

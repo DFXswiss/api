@@ -13,10 +13,12 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UpdatePaymentLinksConfigDto } from 'src/subdomains/generic/user/models/user/dto/update-user.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
+import { PaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
@@ -98,6 +100,27 @@ export class PaymentLinkController {
     return this.paymentLinkService
       .update(+jwt.user, dto, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
+  // -- CONFIG --- //
+
+  @Get('config')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: PaymentLinkConfigDto })
+  async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkConfigDto> {
+    return this.paymentLinkService.getUserPaymentLinksConfig(jwt.account);
+  }
+
+  @Put('config')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse()
+  async updateUserPaymentLinksConfig(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: UpdatePaymentLinksConfigDto,
+  ): Promise<void> {
+    return this.paymentLinkService.updateUserPaymentLinksConfig(jwt.account, dto);
   }
 
   // --- PAYMENT --- //

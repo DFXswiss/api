@@ -273,13 +273,11 @@ export class UserDataService {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
-  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinksConfigDto): Promise<UserData> {
+  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinksConfigDto): Promise<void> {
     const paymentLinksConfig = JSON.stringify(dto.config);
 
     await this.userDataRepo.update(user.id, { paymentLinksConfig });
     user.paymentLinksConfig = paymentLinksConfig;
-
-    return user;
   }
 
   async updateUserName(userData: UserData, dto: UserNameDto) {

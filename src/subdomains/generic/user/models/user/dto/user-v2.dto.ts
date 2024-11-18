@@ -3,7 +3,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycLevel } from '../../user-data/user-data.entity';
 import { TradingLimit, VolumeInformation } from './user.dto';
@@ -85,9 +84,6 @@ export class UserKycDto {
 export class UserPaymentLinkDto {
   @ApiProperty()
   active: boolean;
-
-  @ApiPropertyOptional()
-  config?: PaymentLinkConfig;
 }
 
 export class UserV2Dto {

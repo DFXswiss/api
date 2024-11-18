@@ -32,7 +32,6 @@ export class UserDtoMapper {
       activeAddress: activeUser && this.mapAddress(activeUser, userData),
       paymentLink: {
         active: userData.paymentLinksAllowed,
-        config: userData.paymentLinksAllowed && userData.configObj,
       },
     };
 
