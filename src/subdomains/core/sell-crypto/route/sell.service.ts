@@ -64,9 +64,17 @@ export class SellService {
 
     for (const entity of entities) {
       try {
-        const bankData = await this.bankDataService
-          .getAllBankDatasForUser(entity.bankAccount.userData.id)
-          .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban));
+        const bankData =
+          (await this.bankDataService
+            .getAllBankDatasForUser(entity.bankAccount.userData.id)
+            .then((b) => b.find((b) => b.type === BankDataType.USER && b.iban === entity.bankAccount.iban))) ??
+          (!(await this.bankDataService.existsUserBankDataWithIban(entity.iban)) &&
+            (await this.bankDataService.createIbanForUser(
+              entity.bankAccount.userData.id,
+              { iban: entity.bankAccount.iban },
+              false,
+              BankDataType.USER,
+            )));
         if (!bankData) continue;
 
         await this.sellRepo.update(entity.id, { bankData });

@@ -204,30 +204,24 @@ export class BankDataService {
       .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
   }
 
-  async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
-    return this.bankDataRepo.find({
-      where: [
-        { userData: { id: userDataId }, approved: true },
-        { userData: { id: userDataId }, approved: IsNull() },
-      ],
-      relations: { userData: true },
-    });
+  async existsUserBankDataWithIban(iban: string): Promise<boolean> {
+    return this.bankDataRepo.existsBy({ iban, type: BankDataType.USER });
+  }
+
+  async getValidBankDatasForUser(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo
+      .find({
+        where: [
+          { userData: { id: userDataId }, approved: true },
+          { userData: { id: userDataId }, approved: IsNull() },
+        ],
+        relations: { userData: true },
+      })
+      .then((l) => l.filter((b) => IbanTools.validateIBAN(b.iban).valid));
   }
 
   async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
-  }
-
-  async getUserBankData(userDataId: number): Promise<BankData[]> {
-    const bankDatas = await this.getBankDatasForUser(userDataId);
-
-    return Array.from(
-      new Set(
-        bankDatas
-          .map((b) => ({ ...b, iban: b.iban.split(';')[0] } as BankData))
-          .filter((b) => IbanTools.validateIBAN(b.iban).valid),
-      ),
-    );
   }
 
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
