@@ -150,7 +150,7 @@ export class KycService {
                     `%${existingFile.name.substring(existingFile.name.indexOf('-') + 1).split('.')[0]}%`,
                   ),
                 }
-              : { result: Like(`%${existingFile.name}%`) },
+              : { result: Like(`%${encodeURIComponent(existingFile.name)}%`) },
           });
 
           const isProtected = [
