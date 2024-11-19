@@ -130,12 +130,12 @@ export class KycService {
   }
 
   // TODO: Remove temporary cron job
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async storeExistingKycFiles(): Promise<void> {
     try {
-      this.logger.info('Starting Cron Job to store existing KYC files');
-
       const allUserData = await this.userDataService.getAllUserDataBy({ kycFiles: { id: IsNull() } });
+
+      this.logger.info(`Starting Cron Job to store existing KYC files for ${allUserData.length} users`);
 
       for (const userData of allUserData) {
         const existingFiles = await this.documentService.listUserFiles(userData.id);
@@ -171,15 +171,15 @@ export class KycService {
             };
 
             await this.kycFileService.createKycFile(kycFile);
-          } catch {
-            this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}`);
+          } catch (e) {
+            this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}:`, e);
           }
         }
       }
 
       this.logger.info('Successfully stored existing KYC files in the database');
-    } catch (error) {
-      this.logger.error('Failed to store existing KYC files:', error);
+    } catch (e) {
+      this.logger.error('Failed to store existing KYC files:', e);
     }
   }
 

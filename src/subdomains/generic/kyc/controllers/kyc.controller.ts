@@ -207,7 +207,6 @@ export class KycController {
   @ApiUnauthorizedResponse(MergedResponse)
   async updateResidencePermitData(
     @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
@@ -220,7 +219,6 @@ export class KycController {
   @ApiUnauthorizedResponse(MergedResponse)
   async updateAdditionalDocumentsData(
     @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
