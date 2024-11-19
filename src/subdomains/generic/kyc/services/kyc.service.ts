@@ -18,7 +18,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -135,11 +135,9 @@ export class KycService {
     try {
       this.logger.info('Starting Cron Job to store existing KYC files');
 
-      const allUserData = await this.userDataService.getAllUserData();
+      const allUserData = await this.userDataService.getAllUserDataBy({ kycFiles: { id: IsNull() } });
 
       for (const userData of allUserData) {
-        if (this.kycFileService.userIsSynced(userData.id)) continue;
-
         const existingFiles = await this.documentService.listUserFiles(userData.id);
 
         for (const existingFile of existingFiles) {
@@ -370,7 +368,7 @@ export class KycService {
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
     const url = await this.documentService.uploadUserFile(
-      user.id,
+      user,
       fileType,
       data.fileName,
       buffer,
@@ -516,7 +514,7 @@ export class KycService {
 
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
     const newUrl = await this.documentService.uploadUserFile(
-      user.id,
+      user,
       FileType.IDENTIFICATION,
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
       buffer,
@@ -875,12 +873,12 @@ export class KycService {
 
     for (const { name, content, contentType } of documents) {
       await this.documentService.uploadFile(
-        user.id,
+        user,
         FileType.IDENTIFICATION,
         `${namePrefix}${name}`,
         content,
         contentType,
-        false,
+        true,
         kycStep,
       );
     }

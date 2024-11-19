@@ -1,4 +1,4 @@
-import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
 import { FileType } from '../dto/kyc-file.dto';
@@ -24,15 +24,4 @@ export class KycFile extends IEntity {
 
   @ManyToOne(() => KycStep, { nullable: true })
   kycStep: KycStep;
-
-  // --- ENTITY METHODS --- //
-  setName(fileName: string): UpdateResult<KycFile> {
-    const update: Partial<KycFile> = {
-      name: fileName,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
 }
