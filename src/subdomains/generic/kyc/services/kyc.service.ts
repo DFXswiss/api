@@ -231,6 +231,8 @@ export class KycService {
   async getFileByUid(uid: string, userDataId?: number, role?: UserRole): Promise<KycFileDataDto> {
     const kycFile = await this.kycFileService.getKycFile(uid);
 
+    if (!kycFile) throw new NotFoundException('KYC file not found');
+
     if (kycFile.protected && role !== UserRole.ADMIN) {
       throw new ForbiddenException('Requires admin role');
     }

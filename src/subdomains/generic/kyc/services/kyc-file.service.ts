@@ -19,7 +19,7 @@ export class KycFileService {
   }
 
   async getKycFile(uid: string, relations?: FindOptionsRelations<KycFile>): Promise<KycFile> {
-    return this.kycFileRepository.findOneOrFail({
+    return this.kycFileRepository.findOne({
       where: { uid },
       relations,
     });
