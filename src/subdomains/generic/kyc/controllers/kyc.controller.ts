@@ -12,8 +12,10 @@ import {
   Query,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
@@ -26,6 +28,9 @@ import {
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -44,7 +49,7 @@ import {
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
-import { FileType } from '../dto/kyc-file.dto';
+import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
@@ -107,6 +112,13 @@ export class KycController {
     @Query('sequence') sequence?: string,
   ): Promise<KycSessionDto> {
     return this.kycService.getOrCreateStep(code, ip, stepName, stepType, sequence ? +sequence : undefined);
+  }
+
+  @Get('file/:id')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
+  async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
+    return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
   }
 
   @Post('transfer')

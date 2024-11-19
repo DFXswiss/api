@@ -62,6 +62,7 @@ export enum KycLogType {
   MERGE = 'Merge',
   MAIL_CHANGE = 'MailChange',
   TFA = '2FA',
+  KYC_FILE = 'KycFile',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {
