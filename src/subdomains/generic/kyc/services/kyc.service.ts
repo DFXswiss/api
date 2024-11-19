@@ -18,7 +18,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { IsNull, LessThan } from 'typeorm';
+import { IsNull, LessThan, Like } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -141,12 +141,33 @@ export class KycService {
         const existingFiles = await this.documentService.listUserFiles(userData.id);
 
         for (const existingFile of existingFiles) {
+          const isIdent = existingFile.type === FileType.IDENTIFICATION;
+
+          const kycStep = await this.kycStepRepo.findOne({
+            where: isIdent
+              ? {
+                  transactionId: Like(
+                    `%${existingFile.name.substring(existingFile.name.indexOf('-') + 1).split('.')[0]}%`,
+                  ),
+                }
+              : { result: Like(`%${existingFile.name}%`) },
+          });
+
+          const isProtected = [
+            FileType.NAME_CHECK,
+            FileType.USER_INFORMATION,
+            FileType.IDENTIFICATION,
+            FileType.USER_NOTES,
+            FileType.TRANSACTION_NOTES,
+          ].includes(existingFile.type);
+
           try {
             const kycFile = {
               name: existingFile.name,
               type: existingFile.type,
-              protected: false,
+              protected: isProtected,
               userData: userData,
+              kycStep: kycStep,
             };
 
             await this.kycFileService.createKycFile(kycFile);
