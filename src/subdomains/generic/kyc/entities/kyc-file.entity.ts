@@ -1,11 +1,10 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { FileType } from '../dto/kyc-file.dto';
 import { KycStep } from './kyc-step.entity';
 
 @Entity()
-@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
 export class KycFile extends IEntity {
   @Column({ length: 'MAX', nullable: false })
   name: string;
