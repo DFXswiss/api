@@ -61,14 +61,7 @@ import {
   getSumsubResult,
 } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import {
-  KycLogType,
-  KycStepName,
-  KycStepStatus,
-  KycStepType,
-  getIdentificationType,
-  requiredKycSteps,
-} from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
@@ -857,7 +850,6 @@ export class KycService {
 
   private async createStepLog(user: UserData, kycStep: KycStep): Promise<void> {
     const entity = this.stepLogRepo.create({
-      type: KycLogType.KYC_STEP,
       result: kycStep.result,
       userData: user,
       kycStep: kycStep,

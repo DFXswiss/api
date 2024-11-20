@@ -57,12 +57,13 @@ export enum KycStepType {
 }
 
 export enum KycLogType {
-  KYC_STEP = 'KycStep',
-  NAME_CHECK = 'NameCheck',
-  MERGE = 'Merge',
-  MAIL_CHANGE = 'MailChange',
-  TFA = '2FA',
-  KYC_FILE = 'KycFile',
+  KYC = 'KycLog',
+  STEP = 'StepLog',
+  NAME_CHECK = 'NameCheckLog',
+  MERGE = 'MergeLog',
+  MAIL_CHANGE = 'MailChangeLog',
+  TFA = 'TfaLog',
+  FILE = 'KycFileLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {
