@@ -7,8 +7,7 @@ param location string = resourceGroup().location
 param baseName string
 
 @description('Tags to be applied to all resources')
-param tags object = {
-}
+param tags object = {}
 
 module network './modules/network.bicep' = {
   name: 'network'
@@ -96,16 +95,9 @@ module readPrivateLinkService './modules/readPrivateEndpoint.bicep' = {
   ]
 }
 
-// Prepare Output
-var privateLinkEndpointConnectionId = readPrivateLinkService.outputs.privateLinkEndpointConnectionId
-var fqdn = frontDoor.outputs.fqdn
-
-// Outputs
-//output frontdoor_fqdn string = fqdn
-//output privateLinkEndpointConnectionId string = privateLinkEndpointConnectionId
-
+// Output
 output result object = {
-  fqdn: fqdn
+  fqdn: frontDoor.outputs.fqdn
   privateLinkServiceId: privateLinkService.outputs.privateLinkServiceId
-  privateLinkEndpointConnectionId: privateLinkEndpointConnectionId
+  privateLinkEndpointConnectionId: readPrivateLinkService.outputs.privateLinkEndpointConnectionId
 }

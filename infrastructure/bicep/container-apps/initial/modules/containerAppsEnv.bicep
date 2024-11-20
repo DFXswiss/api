@@ -21,7 +21,7 @@ var environmentName = '${baseName}-aca-env'
 var storageShareName = 'hello-app'
 var storageName = 'fileshare-app-test'
 
-// Read Log Analytics Workspace
+// Read existing resources
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   name: logAnalyticsWorkspaceName
 }

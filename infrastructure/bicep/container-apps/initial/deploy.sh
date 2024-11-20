@@ -3,7 +3,6 @@ set -e
 
 ## Global variables
 BASE_NAME="app-test"
-LOCATION="westeurope"
 
 ## Resource Group & Deployment
 RESOURCE_GROUP_NAME=rg-$BASE_NAME
