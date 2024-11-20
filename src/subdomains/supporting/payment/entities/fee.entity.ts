@@ -42,7 +42,7 @@ export class Fee extends IEntity {
 
   // Filter columns
   @Column({ length: 256, nullable: true })
-  discountCode: string;
+  specialCode: string;
 
   @Column({ length: 256, nullable: true })
   accountType: AccountType;

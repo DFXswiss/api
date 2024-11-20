@@ -19,10 +19,15 @@ export class OptionalSignUpDto {
   @IsString()
   wallet?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ deprecated: true, description: 'This field is deprecated, use "specialCode" instead.' })
   @IsOptional()
   @IsString()
   discountCode?: string;
+
+  @ApiPropertyOptional({ description: 'Special code' })
+  @IsOptional()
+  @IsString()
+  specialCode?: string;
 }
 
 export class CreateUserDto extends OptionalSignUpDto {

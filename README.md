@@ -29,7 +29,7 @@ Contact [support](mailto:support@dfx.swiss) to register your wallet name. This i
 #### Sign-Up / Sign-In
 
 1. Get the sign message from [sign-message endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_getSignMessage) (with the user's address) and sign it with the corresponding private key
-1. Sign the user up or in with the [auth endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_authenticate). This call will register a new user, if the user does not exist yet. If there is already a user with the same address, the user will be signed in. The response contains a JWT access token, which can be used for further API calls. `usedRef`, `wallet` and `discountCode` parameters are optional. `usedRef` and `wallet` are only taken into account on user registration.
+1. Sign the user up or in with the [auth endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_authenticate). This call will register a new user, if the user does not exist yet. If there is already a user with the same address, the user will be signed in. The response contains a JWT access token, which can be used for further API calls. `usedRef`, `wallet` and `specialCode` parameters are optional. `usedRef` and `wallet` are only taken into account on user registration.
    - Use the wallet name (`wallet`) from step [initial setup](#initial-wallet-setup-optional)
    - See [below](#referral-program) for more information on the referral program (`usedRef`)
 

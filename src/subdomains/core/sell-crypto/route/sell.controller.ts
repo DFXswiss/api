@@ -93,7 +93,7 @@ export class SellController {
       asset,
       currency,
       targetAmount,
-      discountCode,
+      specialCode,
     } = await this.paymentInfoService.sellCheck(dto);
 
     const {
@@ -119,7 +119,7 @@ export class SellController {
       FiatPaymentMethod.BANK,
       true,
       undefined,
-      discountCode ? [discountCode] : [],
+      specialCode ? [specialCode] : [],
     );
 
     return {
