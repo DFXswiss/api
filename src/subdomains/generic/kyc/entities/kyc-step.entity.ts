@@ -336,6 +336,11 @@ export class KycStep extends IEntity {
     }
   }
 
+  get identDocumentId(): string {
+    const data = this.resultData;
+    return data ? `${this.userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}` : undefined;
+  }
+
   get isValidCreatingBankData(): boolean {
     return (
       this.name === KycStepName.IDENT &&
@@ -346,11 +351,6 @@ export class KycStep extends IEntity {
       this.userName &&
       this.userData.kycType === KycType.DFX
     );
-  }
-
-  get identDocumentId(): string | undefined {
-    const result = this.resultData;
-    return result.documentNumber;
   }
 
   get userName(): string | undefined {

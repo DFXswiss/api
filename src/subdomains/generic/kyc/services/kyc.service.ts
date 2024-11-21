@@ -658,6 +658,24 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
+        const identSteps = user.getStepsWith(KycStepName.IDENT);
+        if (identSteps.some((i) => i.comment.split(';').includes(IdentCheckError.USER_DATA_EXISTING)))
+          return { nextStep: undefined };
+
+        const userDataMergeRequestedStep = identSteps.find((i) =>
+          i.comment.split(';').includes(IdentCheckError.USER_DATA_MERGE_REQUESTED),
+        );
+        if (userDataMergeRequestedStep) {
+          const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
+            user.id,
+            userDataMergeRequestedStep.identDocumentId,
+          );
+
+          if (existing) await this.accountMergeService.sendMergeRequest(existing, user, MergeReason.IDENT_DOCUMENT);
+
+          return { nextStep: undefined };
+        }
+
         return {
           nextStep: {
             name: nextStep,
@@ -754,8 +772,10 @@ export class KycService {
       data.documentNumber &&
       nationality
     ) {
-      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}`;
-      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
+      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
+        userData.id,
+        kycStep.identDocumentId,
+      );
 
       if (existing) {
         const mergeRequest = await this.accountMergeService.sendMergeRequest(
@@ -786,7 +806,7 @@ export class KycService {
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: data.documentType,
-          identDocumentId,
+          identDocumentId: kycStep.identDocumentId,
           nationality,
         });
 
