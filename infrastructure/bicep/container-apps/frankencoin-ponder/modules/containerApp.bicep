@@ -13,14 +13,11 @@ param containerImage string
 @description('Name of the storage')
 param storageName string
 
-@description('Name of the storage share')
-param storageShareName string
-
 @description('Tags to be applied to all resources')
 param tags object = {}
 
 // Define names
-var appName = '${baseName}-ca-fp-app'
+var appName = '${baseName}-aca-fp-app'
 
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -85,7 +82,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           volumeMounts: [
             {
               volumeName: 'volume'
-              subPath: storageShareName
               mountPath: '/app/.ponder'
             }
           ]

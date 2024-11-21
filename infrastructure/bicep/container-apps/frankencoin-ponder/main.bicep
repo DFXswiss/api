@@ -35,11 +35,9 @@ module storage './modules/storage.bicep' = {
 module containerAppsEnv './modules/containerAppsEnv.bicep' = {
   name: 'containerAppsEnv'
   params: {
-    location: location
     baseName: baseName
-    tags: tags
     storageAccountName: storage.outputs.storageAccountName
-    infrastructureSubnetId: network.outputs.containerAppsSubnetid
+    fileShareName: storage.outputs.fileShareName
   }
 }
 
@@ -52,7 +50,6 @@ module containerApp './modules/containerApp.bicep' = {
     containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
     containerImage: 'dfxswiss/frankencoin-ponder:beta'
     storageName: containerAppsEnv.outputs.storageName
-    storageShareName: containerAppsEnv.outputs.storageShareName
   }
 }
 
