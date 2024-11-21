@@ -8,6 +8,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { NodeService } from '../../ain/node/node.service';
@@ -35,6 +36,7 @@ export class CryptoService {
     private readonly moneroService: MoneroService,
     private readonly arweaveService: ArweaveService,
     private readonly nodeService: NodeService,
+    private readonly railgunService: RailgunService,
   ) {}
 
   // --- PAYMENT REQUEST --- //
@@ -114,6 +116,7 @@ export class CryptoService {
     if (this.isLiquidAddress(address)) return [Blockchain.LIQUID];
     if (CryptoService.isArweaveAddress(address)) return [Blockchain.ARWEAVE];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
+    if (CryptoService.isRailgunAddress(address)) return [Blockchain.RAILGUN];
     return [Blockchain.DEFICHAIN];
   }
 
@@ -148,6 +151,10 @@ export class CryptoService {
     return new RegExp(`^(${Config.cardanoAddressFormat})$`).test(address);
   }
 
+  public static isRailgunAddress(address: string): boolean {
+    return new RegExp(`^(${Config.railgunAddressFormat})$`).test(address);
+  }
+
   // --- SIGNATURE VERIFICATION --- //
   public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
     const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
@@ -163,6 +170,7 @@ export class CryptoService {
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
+      if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
     } catch {}
 
     return false;
@@ -203,5 +211,9 @@ export class CryptoService {
 
   private async verifyArweave(message: string, signature: string, key: string): Promise<boolean> {
     return this.arweaveService.verifySignature(message, signature, key);
+  }
+
+  private async verifyRailgun(message: string, address: string, signature: string): Promise<boolean> {
+    return this.railgunService.verifySignature(message, address, signature);
   }
 }

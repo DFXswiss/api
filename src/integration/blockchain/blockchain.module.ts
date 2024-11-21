@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { LightningModule } from '../lightning/lightning.module';
+import { RailgunModule } from '../railgun/railgun.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
 import { BaseModule } from './base/base.module';
@@ -33,6 +34,7 @@ import { CryptoService } from './shared/services/crypto.service';
     FrankencoinModule,
     Ebel2xModule,
     ArweaveModule,
+    RailgunModule,
   ],
   exports: [
     AinModule,
@@ -46,6 +48,7 @@ import { CryptoService } from './shared/services/crypto.service';
     MoneroModule,
     FrankencoinModule,
     Ebel2xModule,
+    RailgunModule,
     EvmGasPriceService,
     CryptoService,
     BlockchainRegistryService,

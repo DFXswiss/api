@@ -49,8 +49,13 @@ export class GetBuyQuoteDto {
   @IsEnum(FiatPaymentMethod)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 
-  @ApiPropertyOptional({ description: 'Discount code' })
+  @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
   @IsOptional()
   @IsString()
   discountCode: string;
+
+  @ApiPropertyOptional({ description: 'Special code' })
+  @IsOptional()
+  @IsString()
+  specialCode: string;
 }
