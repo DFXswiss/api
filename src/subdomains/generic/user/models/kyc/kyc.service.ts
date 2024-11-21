@@ -10,7 +10,6 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import {
@@ -30,7 +29,6 @@ import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
-import { KycUserDataDto } from './dto/kyc-user-data.dto';
 
 @Injectable()
 export class KycService {
@@ -52,15 +50,6 @@ export class KycService {
     const user = await this.getUser(code, userDataId);
 
     return this.countryService.getCountriesByKycType(user.kycType);
-  }
-
-  async updateKycData(code: string, data: KycUserDataDto, userDataId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userDataId);
-    if (user.kycLevel !== KycLevel.LEVEL_0 || user.mail)
-      throw new BadRequestException('KYC already started, mail already set');
-
-    const updatedUser = await this.userDataService.updateKycData(user, data);
-    return this.createKycInfoBasedOn(updatedUser);
   }
 
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
@@ -90,24 +79,6 @@ export class KycService {
     if (dfxUser.userData.id == externalUser.userData.id) throw new ConflictException('User already merged');
 
     await this.userDataService.mergeUserData(dfxUser.userData.id, externalUser.userData.id);
-  }
-
-  async uploadDocument(
-    code: string,
-    document: Express.Multer.File,
-    kycDocument: FileType,
-    userDataId?: number,
-  ): Promise<boolean> {
-    const userData = await this.getUser(code, userDataId);
-
-    const upload = await this.documentService.uploadUserFile(
-      userData.id,
-      kycDocument,
-      `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
-      document.buffer,
-      document.mimetype as ContentType,
-    );
-    return upload != '';
   }
 
   // --- KYC PROCESS --- //

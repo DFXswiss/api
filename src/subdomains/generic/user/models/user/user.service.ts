@@ -20,7 +20,6 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
-import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -222,19 +221,15 @@ export class UserService {
     await this.userDataService.updateUserMail(userData, dto, ip);
   }
 
-  async verifyMail(
-    userDataId: number,
-    token: string,
-    userId: number,
-  ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
+  async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
 
-    const { user: update, isKnownUser } = await this.userDataService.verifyUserMail(userData, token);
+    const user = await this.userDataService.verifyUserMail(userData, token);
 
-    return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
+    return UserDtoMapper.mapUser(user, userId);
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
@@ -244,7 +239,7 @@ export class UserService {
     await this.userDataService.updateUserName(user.userData, dto);
   }
 
-  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({
       where: { id },
       relations: { userData: { users: true }, wallet: true },
@@ -252,14 +247,10 @@ export class UserService {
     if (user.userData.kycLevel !== KycLevel.LEVEL_0 || user.userData.mail)
       throw new BadRequestException('KYC already started, mail already set');
 
-    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
+    user.userData = await this.userDataService.trySetUserMail(user.userData, dto.mail);
+    user.userData = await this.userDataService.updatePersonalData(user.userData, dto);
 
-    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserMailInternal(user.userData, {
-      mail: dto.mail,
-    });
-    user.userData = updatedUser;
-
-    return { user: await this.toDto(user, true), isKnownUser };
+    return this.toDto(user, true);
   }
 
   async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {

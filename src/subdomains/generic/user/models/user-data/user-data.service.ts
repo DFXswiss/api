@@ -24,6 +24,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -37,7 +38,6 @@ import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
-import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
@@ -55,6 +55,12 @@ interface SecretCacheEntry {
   secret: string;
   mail: string;
   expiryDate: Date;
+}
+
+enum MailCheckResult {
+  AVAILABLE = 'Available',
+  UNAVAILABLE = 'Unavailable',
+  MERGE_REQUESTED = 'MergeRequested',
 }
 
 @Injectable()
@@ -83,6 +89,7 @@ export class UserDataService {
     private readonly tfaService: TfaService,
   ) {}
 
+  // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
@@ -155,6 +162,7 @@ export class UserDataService {
       .getOne();
   }
 
+  // --- CREATE / UPDATE ---
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const userData = this.userDataRepo.create({
       ...dto,
@@ -208,24 +216,6 @@ export class UserDataService {
     return userData;
   }
 
-  async updateUserMailInternal(
-    userData: UserData,
-    dto: UpdateUserMailDto,
-  ): Promise<{ user: UserData; isKnownUser: boolean }> {
-    const updateSiftAccount: CreateAccount = { $time: Date.now() };
-    updateSiftAccount.$user_email = dto.mail;
-
-    for (const user of userData.users) {
-      updateSiftAccount.$user_id = user.id.toString();
-      await this.siftService.updateAccount(updateSiftAccount);
-    }
-
-    await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
-    userData = await this.userDataRepo.save(Object.assign(userData, { mail: dto.mail }));
-
-    return { user: userData, isKnownUser: await this.isKnownKycUser(userData) };
-  }
-
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
@@ -246,18 +236,32 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
   }
 
-  async triggerVideoIdent(userData: UserData): Promise<void> {
-    await this.kycAdminService.triggerVideoIdentInternal(userData);
-  }
+  async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
+    const update: Partial<UserData> = {
+      accountType: data.accountType,
+      firstname: data.firstName,
+      surname: data.lastName,
+      street: data.address.street,
+      houseNumber: data.address.houseNumber,
+      location: data.address.city,
+      zip: data.address.zip,
+      country: data.address.country,
+      phone: data.phone,
+      organizationName: data.organizationName,
+      organizationStreet: data.organizationAddress?.street,
+      organizationHouseNumber: data.organizationAddress?.houseNumber,
+      organizationLocation: data.organizationAddress?.city,
+      organizationZip: data.organizationAddress?.zip,
+      organizationCountry: data.organizationAddress?.country,
+    };
 
-  async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
     const isPersonalAccount =
-      (data.accountType ?? userData.accountType ?? AccountType.PERSONAL) === AccountType.PERSONAL;
+      (update.accountType ?? userData.accountType ?? AccountType.PERSONAL) === AccountType.PERSONAL;
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
-      this.countryService.getCountry(data.country?.id ?? userData.country?.id),
-      this.countryService.getCountry(data.organizationCountry?.id ?? userData.organizationCountry?.id),
+      this.countryService.getCountry(update.country?.id ?? userData.country?.id),
+      this.countryService.getCountry(update.organizationCountry?.id ?? userData.organizationCountry?.id),
     ]);
     if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
     if (
@@ -267,37 +271,37 @@ export class UserDataService {
       throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
 
     if (isPersonalAccount) {
-      data.organizationName = null;
-      data.organizationStreet = null;
-      data.organizationHouseNumber = null;
-      data.organizationLocation = null;
-      data.organizationZip = null;
-      data.organizationCountry = null;
+      update.organizationName = null;
+      update.organizationStreet = null;
+      update.organizationHouseNumber = null;
+      update.organizationLocation = null;
+      update.organizationZip = null;
+      update.organizationCountry = null;
     }
 
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
-        $user_email: data.mail,
-        $name: `${data.firstname} ${data.surname}`,
-        $phone: data.phone,
+        $user_email: update.mail,
+        $name: `${update.firstname} ${update.surname}`,
+        $phone: update.phone,
         $billing_address: {
-          $name: `${data.firstname} ${data.surname}`,
-          $address_1: `${data.street} ${data.houseNumber}`,
-          $city: data.location,
-          $phone: data.phone,
+          $name: `${update.firstname} ${update.surname}`,
+          $address_1: `${update.street} ${update.houseNumber}`,
+          $city: update.location,
+          $phone: update.phone,
           $country: country.symbol,
-          $zipcode: data.zip,
+          $zipcode: update.zip,
         },
       });
     }
 
-    if (data.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
+    if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
 
-    await this.userDataRepo.update(userData.id, data);
+    await this.userDataRepo.update(userData.id, update);
 
-    return Object.assign(userData, data);
+    return Object.assign(userData, update);
   }
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
@@ -316,11 +320,21 @@ export class UserDataService {
     await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
+  async deactivateUserData(userData: UserData): Promise<void> {
+    await this.userDataRepo.update(...userData.deactivateUserData());
+    await this.kycAdminService.resetKyc(userData);
+  }
+
+  async refreshLastNameCheckDate(userData: UserData): Promise<void> {
+    await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+  }
+
+  // --- MAIL UPDATE --- //
+
   async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
-    const isKnownUser = await this.isKnownKycUser({ ...userData, mail: dto.mail } as UserData);
-    if (isKnownUser) throw new BadRequestException('Mail already in use. Sent merge request');
+    await this.checkMail(userData, dto.mail);
 
     // mail verification
     const secret = Util.randomId().toString().slice(0, 6);
@@ -341,14 +355,64 @@ export class UserDataService {
     );
   }
 
-  async verifyUserMail(userData: UserData, token: string): Promise<{ user: UserData; isKnownUser: boolean }> {
+  async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
     const cacheEntry = this.secretCache.get(userData.id);
-    if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired Email verification token');
+    if (token !== cacheEntry?.secret) throw new ForbiddenException('Invalid or expired mail verification token');
     this.secretCache.delete(userData.id);
 
-    return this.updateUserMailInternal(userData, { mail: cacheEntry.mail });
+    await this.checkMail(userData, cacheEntry.mail);
+
+    return this.doUpdateUserMail(userData, cacheEntry.mail);
   }
 
+  async trySetUserMail(userData: UserData, mail: string): Promise<UserData> {
+    await this.checkMail(userData, mail);
+
+    return this.doUpdateUserMail(userData, mail);
+  }
+
+  async checkMail(userData: UserData, mail: string): Promise<void> {
+    const conflictUsers = await this.getUsersByMail(mail).then((l) => l.filter((u) => u.id !== userData.id));
+    if (!conflictUsers.length) return;
+
+    let errorMessage = 'Account already exists';
+
+    // check if merge possible
+    const mergeUser = conflictUsers.find((u) => u.isMergePossibleWith(userData));
+    if (mergeUser) {
+      const mergeRequested = await this.mergeService.sendMergeRequest(mergeUser, userData, MergeReason.MAIL);
+      if (mergeRequested) errorMessage += ' - account merge request sent';
+    }
+
+    throw new ConflictException(errorMessage);
+  }
+
+  private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
+    // TODO: check if mail is already used
+    //    -> exception
+    //    -> verify callers
+    //    -> KYC Step can fail with Merge Sent or Merge Not Sent
+
+    await this.userDataRepo.update(userData.id, { mail });
+    Object.assign(userData, { mail });
+
+    // update Sift
+    const updateSiftAccount: CreateAccount = {
+      $time: Date.now(),
+      $user_email: mail,
+    };
+
+    for (const user of userData.users) {
+      updateSiftAccount.$user_id = user.id.toString();
+      await this.siftService.updateAccount(updateSiftAccount);
+    }
+
+    await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
+
+    return userData;
+  }
+
+  // --- SETTINGS UPDATE --- //
   async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check phone KYC is already started
     if (userData.kycLevel != KycLevel.LEVEL_0 && (dto.phone === null || dto.phone === ''))
@@ -382,15 +446,7 @@ export class UserDataService {
     return this.userDataRepo.save(Object.assign(userData, dto));
   }
 
-  async deactivateUserData(userData: UserData): Promise<void> {
-    await this.userDataRepo.update(...userData.deactivateUserData());
-    await this.kycAdminService.resetKyc(userData);
-  }
-
-  async refreshLastNameCheckDate(userData: UserData): Promise<void> {
-    await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
-  }
-
+  // --- KYC --- //
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
     const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
     const customIdent = await this.customIdentMethod(userData.id);
@@ -398,6 +454,22 @@ export class UserDataService {
 
     const ident = isVipUser ? KycStatus.VIDEO_ID : customIdent ?? (defaultIdent as KycStatus);
     return ident === KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO;
+  }
+
+  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
+    const userWithCustomMethod = await this.userRepo.findOne({
+      where: {
+        userData: { id: userDataId },
+        wallet: { identMethod: Not(IsNull()) },
+      },
+      relations: { wallet: true },
+    });
+
+    return userWithCustomMethod?.wallet.identMethod;
+  }
+
+  async triggerVideoIdent(userData: UserData): Promise<void> {
+    await this.kycAdminService.triggerVideoIdentInternal(userData);
   }
 
   // --- API KEY --- //
@@ -440,18 +512,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
-    const userWithCustomMethod = await this.userRepo.findOne({
-      where: {
-        userData: { id: userDataId },
-        wallet: { identMethod: Not(IsNull()) },
-      },
-      relations: { wallet: true },
-    });
-
-    return userWithCustomMethod?.wallet.identMethod;
-  }
-
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
     return this.userRepo.existsBy({ userData: { id: userDataId }, role });
   }
@@ -583,26 +643,7 @@ export class UserDataService {
     });
   }
 
-  async isKnownKycUser(user: UserData): Promise<boolean> {
-    if (user.isDfxUser && user.mail) {
-      const users = await this.getUsersByMail(user.mail);
-      const matchingUser = users.find(
-        (u) =>
-          u.id !== user.id &&
-          u.isDfxUser &&
-          u.verifiedName &&
-          (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
-      );
-      if (matchingUser) {
-        // send a merge request
-        await this.mergeService.sendMergeRequest(matchingUser, user, MergeReason.MAIL);
-        return true;
-      }
-    }
-
-    return false;
-  }
-
+  // --- MERGING --- //
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 

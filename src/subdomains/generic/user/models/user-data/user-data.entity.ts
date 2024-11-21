@@ -602,16 +602,31 @@ export class UserData extends IEntity {
 
   checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
+
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');
+
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
+
     if (slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
+
     if (!this.verifiedName) throw new BadRequestException('Verified name missing');
+
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+
     if (this.accountType !== slave.accountType && slave.kycLevel >= KycLevel.LEVEL_20)
       throw new BadRequestException('Account type mismatch');
+  }
+
+  isMergePossibleWith(slave: UserData): boolean {
+    try {
+      this.checkIfMergePossibleWith(slave);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   get requiredKycFields(): string[] {
