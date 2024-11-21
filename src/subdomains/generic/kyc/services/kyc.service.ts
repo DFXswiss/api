@@ -18,7 +18,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan, Like } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -123,58 +123,36 @@ export class KycService {
   }
 
   // TODO: Remove temporary cron job
-  // @Cron(CronExpression.EVERY_10_MINUTES)
-  // async storeExistingKycFiles(): Promise<void> {
-  //   try {
-  //     const allUserData = await this.userDataService.getAllUserDataBy({ kycFiles: { id: IsNull() } });
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async storeExistingKycFilesBatched(): Promise<void> {
+    try {
+      let offset = 0;
 
-  //     this.logger.info(`Starting Cron Job to store existing KYC files for ${allUserData.length} users`);
+      const BATCH_SIZE = 100;
 
-  //     for (const userData of allUserData) {
-  //       const existingFiles = await this.documentService.listUserFiles(userData.id);
+      while (true) {
+        const userDataBatch = await this.userDataService.getAllUserDataBy({
+          where: { kycFiles: { id: IsNull() } },
+          skip: offset,
+          take: BATCH_SIZE,
+        });
 
-  //       for (const existingFile of existingFiles) {
-  //         const isIdent = existingFile.type === FileType.IDENTIFICATION;
+        if (userDataBatch.length === 0) break;
 
-  //         const kycStep = await this.kycStepRepo.findOne({
-  //           where: isIdent
-  //             ? {
-  //                 transactionId: Like(
-  //                   `%${existingFile.name.substring(existingFile.name.indexOf('-') + 1).split('.')[0]}%`,
-  //                 ),
-  //               }
-  //             : { result: Like(`%${encodeURIComponent(existingFile.name)}%`) },
-  //         });
+        this.logger.info(`Processing batch of ${userDataBatch.length} users starting from offset ${offset}`);
 
-  //         const isProtected = [
-  //           FileType.NAME_CHECK,
-  //           FileType.USER_INFORMATION,
-  //           FileType.IDENTIFICATION,
-  //           FileType.USER_NOTES,
-  //           FileType.TRANSACTION_NOTES,
-  //         ].includes(existingFile.type);
+        for (const userData of userDataBatch) {
+          await this.syncKycFiles(userData);
+        }
 
-  //         try {
-  //           const kycFile = {
-  //             name: existingFile.name,
-  //             type: existingFile.type,
-  //             protected: isProtected,
-  //             userData: userData,
-  //             kycStep: kycStep,
-  //           };
+        offset += BATCH_SIZE;
+      }
 
-  //           await this.kycFileService.createKycFile(kycFile);
-  //         } catch (e) {
-  //           this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}:`, e);
-  //         }
-  //       }
-  //     }
-
-  //     this.logger.info('Successfully stored existing KYC files in the database');
-  //   } catch (e) {
-  //     this.logger.error('Failed to store existing KYC files:', e);
-  //   }
-  // }
+      this.logger.info('Successfully stored existing KYC files for all users');
+    } catch (e) {
+      this.logger.error('Failed to store existing KYC files:', e);
+    }
+  }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async reviewIdentSteps(): Promise<void> {
@@ -936,6 +914,50 @@ export class KycService {
         true,
         kycStep,
       );
+    }
+  }
+
+  private async syncKycFiles(userData: UserData): Promise<void> {
+    try {
+      const existingFiles = await this.documentService.listUserFiles(userData.id);
+
+      for (const existingFile of existingFiles) {
+        const isIdent = existingFile.type === FileType.IDENTIFICATION;
+
+        const kycStep = await this.kycStepRepo.findOne({
+          where: isIdent
+            ? {
+                transactionId: Like(
+                  `%${existingFile.name.substring(existingFile.name.indexOf('-') + 1).split('.')[0]}%`,
+                ),
+              }
+            : { result: Like(`%${encodeURIComponent(existingFile.name)}%`) },
+        });
+
+        const isProtected = [
+          FileType.NAME_CHECK,
+          FileType.USER_INFORMATION,
+          FileType.IDENTIFICATION,
+          FileType.USER_NOTES,
+          FileType.TRANSACTION_NOTES,
+        ].includes(existingFile.type);
+
+        try {
+          const kycFile = {
+            name: existingFile.name,
+            type: existingFile.type,
+            protected: isProtected,
+            userData: userData,
+            kycStep: kycStep,
+          };
+
+          await this.kycFileService.createKycFile(kycFile);
+        } catch (e) {
+          this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}:`, e);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Failed to process user data ${userData.id}:`, e);
     }
   }
 }
