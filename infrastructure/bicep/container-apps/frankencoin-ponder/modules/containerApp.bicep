@@ -2,7 +2,7 @@
 param baseName string
 
 @description('Azure Location/Region')
-param location string 
+param location string
 
 @description('Id of the Container Apps Environment')
 param containerAppsEnvironmentId string
@@ -16,12 +16,11 @@ param storageName string
 @description('Name of the storage share')
 param storageShareName string
 
-
 @description('Tags to be applied to all resources')
 param tags object = {}
 
 // Define names
-var appName = '${baseName}-aca-fp-app'
+var appName = '${baseName}-ca-fp-app'
 
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -57,18 +56,18 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             memory: '1Gi'
           }
           probes: []
-//          probes: [
-//            {
-//              type: 'Liveness'
-//              httpGet: {
-//                path: '/health'
-//                port: 3000
-//              }
-//              periodSeconds: 60
-//              failureThreshold: 3
-//              initialDelaySeconds: 10
-//            }
-//          ]
+          //          probes: [
+          //            {
+          //              type: 'Liveness'
+          //              httpGet: {
+          //                path: '/health'
+          //                port: 3000
+          //              }
+          //              periodSeconds: 60
+          //              failureThreshold: 3
+          //              initialDelaySeconds: 10
+          //            }
+          //          ]
           env: [
             {
               name: 'PORT'

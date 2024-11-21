@@ -1,12 +1,6 @@
 @description('Basename / Prefix of all resources')
 param baseName string
 
-@description('Azure Location/Region')
-param location string 
-
-@description('Tags to be applied to all resources')
-param tags object = {}
-
 // Define names
 var storageAccountName = replace('st-dfx-${baseName}', '-', '')
 var fileShareName = 'frankencoin-ponder-app'

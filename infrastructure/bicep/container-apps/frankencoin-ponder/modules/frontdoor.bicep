@@ -10,9 +10,6 @@ param privateLinkServiceId string
 @description('Hostname of App')
 param frontDoorAppHostName string
 
-@description('Tags to be applied to all resources')
-param tags object = {}
-
 // Define names
 var frontDoorProfileName = '${baseName}-fd'
 var frontDoorEndpointName = '${baseName}-fd-fp-endpoint'
@@ -95,7 +92,6 @@ resource frontDoorOriginRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-0
     httpsRedirect: 'Enabled'
     enabledState: 'Enabled'
   }
-
   dependsOn: [
     frontDoorOrigin
   ]

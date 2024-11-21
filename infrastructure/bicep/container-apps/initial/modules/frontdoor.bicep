@@ -2,7 +2,7 @@
 param baseName string
 
 @description('Azure Location/Region')
-param location string 
+param location string
 
 @description('Private Link Service Id')
 param privateLinkServiceId string
@@ -19,7 +19,6 @@ var frontDoorEndpointName = '${baseName}-fd-endpoint'
 var frontDoorOriginGroupName = '${baseName}-fd-og'
 var frontDoorOriginRouteName = '${baseName}-fd-route'
 var frontDoorOriginName = '${baseName}-fd-origin'
-
 
 resource frontDoorProfile 'Microsoft.Cdn/profiles@2024-09-01' = {
   name: frontDoorProfileName
@@ -104,7 +103,6 @@ resource frontDoorOriginRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-0
     httpsRedirect: 'Enabled'
     enabledState: 'Enabled'
   }
-
   dependsOn: [
     frontDoorOrigin
   ]

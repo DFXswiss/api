@@ -2,7 +2,7 @@
 param baseName string
 
 @description('Azure Location/Region')
-param location string 
+param location string
 
 @description('Subnet resource ID for the Container App environment')
 param infrastructureSubnetId string
@@ -17,7 +17,7 @@ param tags object = {}
 param storageAccountName string = replace('st-dfx-${baseName}', '-', '')
 
 // Define names
-var environmentName = '${baseName}-aca-fp-1-env'
+var environmentName = '${baseName}-ca-fp-env'
 var storageShareName = 'frankencoin-ponder-app'
 var storageName = 'fileshare-app-test'
 
@@ -57,7 +57,7 @@ resource environmentStorages 'Microsoft.App/managedEnvironments/storages@2024-03
   properties: {
     azureFile: {
       accountName: storageAccountName
-      accountKey: storageAccount.listKeys().keys[1].value
+      accountKey: storageAccount.listKeys().keys[0].value
       shareName: storageShareName
       accessMode: 'ReadWrite'
     }

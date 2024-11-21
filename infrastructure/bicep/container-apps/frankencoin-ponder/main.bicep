@@ -6,12 +6,6 @@ param location string = resourceGroup().location
 @maxLength(12)
 param baseName string
 
-@description('Name of the environment')
-param environmentName string = '${baseName}-aca-env'
-
-@description('Name of the environment storage')
-param environmentStorageName string = 'fileshare-app-test'
-
 @description('Name of the private link service')
 param privateLinkServiceName string = '${baseName}-aca-env-pl'
 
@@ -19,10 +13,6 @@ param privateLinkServiceName string = '${baseName}-aca-env-pl'
 param tags object = {}
 
 // Read existing resources
-resource environment 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
-  name: environmentName
-}
-
 resource privateLinkService 'Microsoft.Network/privateLinkServices@2024-03-01' existing = {
   name: privateLinkServiceName
 }
@@ -31,18 +21,14 @@ resource privateLinkService 'Microsoft.Network/privateLinkServices@2024-03-01' e
 module network './modules/network.bicep' = {
   name: 'network'
   params: {
-    location: location
     baseName: baseName
-    tags: tags
   }
 }
 
 module storage './modules/storage.bicep' = {
   name: 'storage'
   params: {
-    location: location
     baseName: baseName
-    tags: tags
   }
 }
 
@@ -63,9 +49,9 @@ module containerApp './modules/containerApp.bicep' = {
     location: location
     baseName: baseName
     tags: tags
-    containerAppsEnvironmentId: environment.id
+    containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
     containerImage: 'dfxswiss/frankencoin-ponder:beta'
-    storageName: environmentStorageName
+    storageName: containerAppsEnv.outputs.storageName
     storageShareName: containerAppsEnv.outputs.storageShareName
   }
 }
@@ -75,7 +61,6 @@ module frontDoor './modules/frontdoor.bicep' = {
   params: {
     baseName: baseName
     location: location
-    tags: tags
     privateLinkServiceId: privateLinkService.id
     frontDoorAppHostName: containerApp.outputs.containerFqdn
   }

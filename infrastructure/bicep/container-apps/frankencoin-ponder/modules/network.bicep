@@ -1,12 +1,6 @@
 @description('Basename / Prefix of all resources')
 param baseName string
 
-@description('Azure Location/Region')
-param location string
-
-@description('Tags to be applied to all resources')
-param tags object = {}
-
 // Define names
 var vnetName = '${baseName}-vnet'
 var subnetNsgName = '${baseName}-subnet-nsg'
