@@ -16,6 +16,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { IsNull, LessThan, Like } from 'typeorm';
@@ -98,6 +99,7 @@ export class KycService {
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Lock()
   async checkIdentSteps(): Promise<void> {
     if (DisabledProcess(Process.KYC)) return;
 
@@ -124,37 +126,35 @@ export class KycService {
 
   // TODO: Remove temporary cron job
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock()
   async storeExistingKycFilesBatched(): Promise<void> {
-    try {
-      let offset = 0;
+    let offset = 0;
 
-      const BATCH_SIZE = 100;
+    const BATCH_SIZE = 100;
 
-      while (true) {
-        const userDataBatch = await this.userDataService.getAllUserDataBy({
-          where: { kycFiles: { id: IsNull() } },
-          skip: offset,
-          take: BATCH_SIZE,
-        });
+    while (true) {
+      const userDataBatch = await this.userDataService.getAllUserDataBy({
+        where: { kycFiles: { id: IsNull() } },
+        skip: offset,
+        take: BATCH_SIZE,
+      });
 
-        if (userDataBatch.length === 0) break;
+      if (userDataBatch.length === 0) break;
 
-        this.logger.info(`Processing batch of ${userDataBatch.length} users starting from offset ${offset}`);
+      this.logger.info(`Processing batch of ${userDataBatch.length} users starting from offset ${offset}`);
 
-        for (const userData of userDataBatch) {
-          await this.syncKycFiles(userData);
-        }
-
-        offset += BATCH_SIZE;
+      for (const userData of userDataBatch) {
+        await this.syncKycFiles(userData);
       }
 
-      this.logger.info('Successfully stored existing KYC files for all users');
-    } catch (e) {
-      this.logger.error('Failed to store existing KYC files:', e);
+      offset += BATCH_SIZE;
     }
+
+    this.logger.info('Successfully stored existing KYC files for all users');
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
   async reviewIdentSteps(): Promise<void> {
     if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
 
