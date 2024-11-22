@@ -244,6 +244,10 @@ export class BankDataService {
     if (!(await this.isValidIbanCountry(dto.iban)))
       throw new BadRequestException('IBAN country is currently not supported');
 
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (userData.status === UserDataStatus.KYC_ONLY)
+      throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
+
     const existing = await this.bankDataRepo.findOne({
       where: [
         { iban: dto.iban, approved: true, type },
@@ -252,7 +256,6 @@ export class BankDataService {
       relations: { userData: true },
     });
     if (existing) {
-      const userData = await this.userDataRepo.findOneBy({ id: userDataId });
       if (userData.id === existing.userData.id) return existing;
 
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))

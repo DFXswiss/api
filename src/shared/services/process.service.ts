@@ -50,7 +50,6 @@ export enum Process {
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
-  BANK_DATA_SYNC = 'BankDataSync',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   BUY_BANK_ACCOUNT_SYNC = 'BuyBankAccountSync',

@@ -40,6 +40,8 @@ export class PaymentInfoService {
         throw new BadRequestException(`Asset not buyable ${'paymentMethod' in dto ? 'via Bank' : ''}`);
     }
 
+    if ('discountCode' in dto) dto.specialCode = dto.discountCode;
+
     return dto;
   }
 
@@ -67,6 +69,8 @@ export class PaymentInfoService {
         'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
       );
 
+    if ('discountCode' in dto) dto.specialCode = dto.discountCode;
+
     return dto;
   }
 
@@ -92,6 +96,8 @@ export class PaymentInfoService {
     if (!dto.targetAsset.buyable) throw new BadRequestException('Asset not buyable');
     if (jwt && !dto.targetAsset.isBuyableOn(jwt.blockchains))
       throw new BadRequestException('Asset blockchain mismatch');
+
+    if ('discountCode' in dto) dto.specialCode = dto.discountCode;
 
     return dto;
   }

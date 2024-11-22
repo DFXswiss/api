@@ -32,7 +32,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindManyOptions, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -87,6 +87,11 @@ export class UserDataService {
 
   async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
+  }
+
+  // TODO: Remove this method (temporarily used by Cron Job)
+  async getAllUserDataBy(options?: FindManyOptions<UserData>): Promise<UserData[]> {
+    return this.userDataRepo.find(options);
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {

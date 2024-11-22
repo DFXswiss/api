@@ -100,11 +100,12 @@ export class KycService {
     const userData = await this.getUser(code, userDataId);
 
     const upload = await this.documentService.uploadUserFile(
-      userData.id,
+      userData,
       kycDocument,
       `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
       document.buffer,
       document.mimetype as ContentType,
+      false,
     );
     return upload != '';
   }

@@ -37,6 +37,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.HAQQ]: undefined,
   [Blockchain.LIQUID]: undefined,
   [Blockchain.ARWEAVE]: undefined,
+  [Blockchain.RAILGUN]: undefined,
 };
 
 @Injectable()
