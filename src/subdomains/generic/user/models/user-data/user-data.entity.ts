@@ -17,6 +17,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 
 export enum KycStatus {
   NA = 'NA',
@@ -348,6 +349,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
+
+  @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
+  bankTxReturns: BankTxReturn[];
 
   @OneToMany(() => User, (user) => user.userData)
   users: User[];

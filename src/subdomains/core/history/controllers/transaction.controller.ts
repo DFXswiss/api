@@ -38,6 +38,9 @@ import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
   BankTx,
   BankTxType,
@@ -101,6 +104,8 @@ export class TransactionController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly feeService: FeeService,
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly userDataService: UserDataService,
+    private readonly bankTxReturnService: BankTxReturnService,
   ) {}
 
   // --- JOBS --- //
@@ -289,16 +294,62 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<TransactionRefundData> {
     const transaction = await this.transactionService.getTransactionById(+id, {
+      bankTx: true,
+      bankTxReturn: true,
       user: { userData: true },
       buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: { route: { user: true } } },
     });
 
-    if (
-      !transaction ||
-      (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat))
-    )
+    if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
+
+    // Unassigned transaction
+    if (
+      !(transaction.targetEntity instanceof BuyFiat) &&
+      (transaction.targetEntity instanceof BankTxReturn || !transaction.targetEntity)
+    ) {
+      if (!transaction.bankTx || !BankTxTypeUnassigned(transaction.bankTx.type))
+        throw new NotFoundException('Transaction not found');
+      const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
+      if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
+        throw new ForbiddenException('You can only refund your own transaction');
+
+      if (transaction.targetEntity?.chargebackAmount)
+        throw new BadRequestException('You can only refund a transaction once');
+
+      const forexFee = transaction.bankTx.txCurrency === transaction.bankTx.currency ? 0 : 0.02;
+      const forexFeeAmount = (transaction.bankTx.amount + transaction.bankTx.chargeAmount) * forexFee;
+      const feeAmount = 0 + forexFeeAmount;
+
+      const userData = await this.userDataService.getUserData(jwt.account);
+
+      const inputAmount = transaction.bankTx.amount + transaction.bankTx.chargeAmount;
+
+      if (feeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
+
+      const refundAsset = FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.bankTx.currency));
+
+      let refundTarget =
+        IbanTools.validateIBAN(transaction.bankTx?.iban).valid &&
+        (await this.transactionUtilService.validateChargebackIban(transaction.bankTx.iban, userData))
+          ? transaction.bankTx.iban
+          : transaction.targetEntity?.chargebackIban;
+
+      const refundData = {
+        expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+        refundAmount: Util.roundReadable(inputAmount - feeAmount, true),
+        feeAmount: Util.roundReadable(feeAmount, true),
+        refundAsset,
+        refundTarget,
+      };
+
+      this.refundList.set(transaction.id, refundData);
+
+      return refundData;
+    }
+
+    // Assigned transaction
     if (jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
     if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.targetEntity.amlCheck))
@@ -365,6 +416,8 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
+      bankTx: true,
+      bankTxReturn: true,
       user: { userData: true },
       buyCrypto: {
         transaction: { user: { userData: true } },
@@ -375,12 +428,9 @@ export class TransactionController {
       buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
     });
 
-    if (
-      !transaction ||
-      (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat))
-    )
+    if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
-    if (jwt.account !== transaction.userData.id)
+    if (transaction.targetEntity && jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
 
     const refundData = this.refundList.get(transaction.id);
@@ -389,6 +439,20 @@ export class TransactionController {
     this.refundList.delete(transaction.id);
 
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
+
+    if (!transaction.targetEntity) {
+      const userData = await this.userDataService.getUserData(jwt.account);
+      transaction.bankTxReturn = await this.bankTxService
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN }, userData)
+        .then((b) => b.bankTxReturn);
+    }
+
+    if (transaction.targetEntity instanceof BankTxReturn) {
+      return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
+        refundIban: refundData.refundTarget ?? dto.refundTarget,
+        ...refundDto,
+      });
+    }
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
