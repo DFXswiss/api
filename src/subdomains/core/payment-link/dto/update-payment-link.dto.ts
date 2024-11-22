@@ -4,7 +4,7 @@ import { IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-va
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { PaymentLinkStatus } from '../enums';
-import { PaymentLinkConfigDto } from './payment-link-config.dto';
+import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
 export class UpdatePaymentLinkBaseDto {
   @ApiPropertyOptional({ enum: PaymentLinkStatus })
@@ -19,11 +19,11 @@ export class UpdatePaymentLinkBaseDto {
 }
 
 export class UpdatePaymentLinkDto extends UpdatePaymentLinkBaseDto {
-  @ApiPropertyOptional({ type: PaymentLinkConfigDto })
+  @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })
   @IsOptional()
-  @Type(() => PaymentLinkConfigDto)
+  @Type(() => UpdatePaymentLinkConfigDto)
   @ValidateNested()
-  config?: PaymentLinkConfigDto;
+  config?: UpdatePaymentLinkConfigDto;
 }
 
 export class UpdatePaymentLinkInternalDto {

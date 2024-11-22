@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CreatePaymentLinkPaymentDto } from './create-payment-link-payment.dto';
-import { PaymentLinkConfigDto } from './payment-link-config.dto';
+import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
 export class CreatePaymentLinkDto {
   @ApiPropertyOptional()
@@ -31,9 +31,9 @@ export class CreatePaymentLinkDto {
   @ValidateNested()
   payment?: CreatePaymentLinkPaymentDto;
 
-  @ApiPropertyOptional({ type: PaymentLinkConfigDto })
+  @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })
   @IsOptional()
-  @Type(() => PaymentLinkConfigDto)
+  @Type(() => UpdatePaymentLinkConfigDto)
   @ValidateNested()
-  config?: PaymentLinkConfigDto;
+  config?: UpdatePaymentLinkConfigDto;
 }

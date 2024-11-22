@@ -5,7 +5,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
-export class PaymentLinkConfigDto {
+export class UpdatePaymentLinkConfigDto {
   @ApiPropertyOptional({ enum: PaymentStandard, isArray: true })
   @IsOptional()
   @IsEnum(PaymentStandard, { each: true })
@@ -36,4 +36,11 @@ export class PaymentLinkConfigDto {
   @IsOptional()
   @IsNumber()
   paymentTimeout?: number;
+}
+
+export class PaymentLinkConfigDto extends UpdatePaymentLinkConfigDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  fee?: number;
 }
