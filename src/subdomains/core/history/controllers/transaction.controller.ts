@@ -330,7 +330,7 @@ export class TransactionController {
 
       const refundAsset = FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.bankTx.currency));
 
-      let refundTarget =
+      const refundTarget =
         IbanTools.validateIBAN(transaction.bankTx?.iban).valid &&
         (await this.transactionUtilService.validateChargebackIban(transaction.bankTx.iban, userData))
           ? transaction.bankTx.iban
