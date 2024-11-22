@@ -10,7 +10,6 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UpdatePaymentLinksConfigDto } from 'src/subdomains/generic/user/models/user/dto/update-user.dto';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
@@ -319,7 +318,7 @@ export class PaymentLinkService {
     return userData.paymentLinksConfigObj;
   }
 
-  async updateUserPaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinksConfigDto): Promise<void> {
+  async updateUserPaymentLinksConfig(userDataId: number, dto: PaymentLinkConfigDto): Promise<void> {
     const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
 

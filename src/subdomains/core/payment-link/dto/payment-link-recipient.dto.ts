@@ -11,7 +11,7 @@ export class PaymentLinkRecipientDto {
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientAddressDto })
   @IsOptional()
-  @Type()
+  @Type(() => PaymentLinkRecipientAddressDto)
   @ValidateNested()
   address?: PaymentLinkRecipientAddressDto;
 

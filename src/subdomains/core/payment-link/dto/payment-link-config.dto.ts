@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsOptional, ValidateNested } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
@@ -8,12 +8,12 @@ import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 export class PaymentLinkConfigDto {
   @ApiPropertyOptional({ enum: PaymentStandard, isArray: true })
   @IsOptional()
-  @IsArray()
+  @IsEnum(PaymentStandard, { each: true })
   standards?: PaymentStandard[];
 
   @ApiPropertyOptional({ enum: Blockchain, isArray: true })
   @IsOptional()
-  @IsArray()
+  @IsEnum(Blockchain, { each: true })
   blockchains?: Blockchain[];
 
   @ApiPropertyOptional()
@@ -23,11 +23,8 @@ export class PaymentLinkConfigDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
   displayQr?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  fee?: number;
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   @IsOptional()
@@ -37,5 +34,6 @@ export class PaymentLinkConfigDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
   paymentTimeout?: number;
 }
