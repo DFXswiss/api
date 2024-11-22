@@ -57,12 +57,6 @@ interface SecretCacheEntry {
   expiryDate: Date;
 }
 
-enum MailCheckResult {
-  AVAILABLE = 'Available',
-  UNAVAILABLE = 'Unavailable',
-  MERGE_REQUESTED = 'MergeRequested',
-}
-
 @Injectable()
 export class UserDataService {
   private readonly logger = new DfxLogger(UserDataService);
