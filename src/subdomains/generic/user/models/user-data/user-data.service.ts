@@ -283,7 +283,10 @@ export class UserDataService {
   }
 
   async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
-    const paymentLinksConfig = JSON.stringify(dto);
+    const paymentLinksConfig = JSON.stringify({
+      ...JSON.parse(user.paymentLinksConfig || '{}'),
+      ...dto,
+    });
 
     await this.userDataRepo.update(user.id, { paymentLinksConfig });
     user.paymentLinksConfig = paymentLinksConfig;
