@@ -388,11 +388,6 @@ export class UserDataService {
   }
 
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
-    // TODO: check if mail is already used
-    //    -> exception
-    //    -> verify callers
-    //    -> KYC Step can fail with Merge Sent or Merge Not Sent
-
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 
