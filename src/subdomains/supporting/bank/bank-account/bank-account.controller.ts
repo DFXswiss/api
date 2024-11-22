@@ -30,7 +30,7 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
-    return this.bankDataService.getValidBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
+    return this.bankDataService.getValidIbanBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
   }
 
   @Post()
@@ -61,7 +61,9 @@ export class BankAccountController {
   @ApiExcludeEndpoint()
   @ApiOperation({ deprecated: true })
   async getAllUserIban(@GetJwt() jwt: JwtPayload): Promise<IbanDto[]> {
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account).then((b) => this.toDtoList(b));
+    const bankDatas = await this.bankDataService
+      .getValidIbanBankDatasForUser(jwt.account)
+      .then((b) => this.toDtoList(b));
 
     return bankDatas.map((bankData) => ({ iban: bankData.iban }));
   }
