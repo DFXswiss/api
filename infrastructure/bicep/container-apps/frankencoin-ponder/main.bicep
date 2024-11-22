@@ -18,13 +18,6 @@ resource privateLinkService 'Microsoft.Network/privateLinkServices@2024-03-01' e
 }
 
 // Modules
-module network './modules/network.bicep' = {
-  name: 'network'
-  params: {
-    baseName: baseName
-  }
-}
-
 module storage './modules/storage.bicep' = {
   name: 'storage'
   params: {
