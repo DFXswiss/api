@@ -8,6 +8,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -222,6 +223,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
+
+  @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
+  kycFiles: KycFile[];
 
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;

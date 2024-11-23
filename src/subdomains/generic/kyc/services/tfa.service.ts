@@ -9,12 +9,10 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -46,7 +44,6 @@ export class TfaService {
   constructor(
     private readonly tfaRepo: TfaLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
-    private readonly settingService: SettingService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -200,7 +197,6 @@ export class TfaService {
 
   private async createTfaLog(userData: UserData, ipAddress: string, level: TfaLevel, type: TfaType) {
     const logEntity = this.tfaRepo.create({
-      type: KycLogType.TFA,
       ipAddress,
       userData,
       comment: `${level} (${type})`,

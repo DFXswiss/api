@@ -159,7 +159,7 @@ export class UserService {
     userIp: string,
     userOrigin?: string,
     wallet?: Wallet,
-    discountCode?: string,
+    specialCode?: string,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
@@ -180,10 +180,10 @@ export class UserService {
     user = await this.userRepo.save(user);
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
       if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
+      this.logger.warn(`Error while adding specialCode to new user ${user.id}:`, e);
     }
 
     return user;
@@ -386,7 +386,7 @@ export class UserService {
       from,
       to,
       txVolume: undefined,
-      discountCodes: [],
+      specialCodes: [],
       allowCachedBlockchainFee: true,
     });
   }

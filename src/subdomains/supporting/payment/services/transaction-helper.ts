@@ -194,7 +194,7 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     allowExpiredPrice: boolean,
     user?: User,
-    discountCodes: string[] = [],
+    specialCodes: string[] = [],
   ): Promise<TransactionDetails> {
     const txAsset = targetAmount ? to : from;
     const txAmount = targetAmount ?? sourceAmount;
@@ -204,7 +204,7 @@ export class TransactionHelper implements OnModuleInit {
 
     // get fee
     const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(user, paymentMethodIn, paymentMethodOut, from, to, txAmountChf, discountCodes, true),
+      this.getTxFee(user, paymentMethodIn, paymentMethodOut, from, to, txAmountChf, specialCodes, true),
       this.getNetworkStartFee(to, allowExpiredPrice, user),
     ]);
 
@@ -328,7 +328,7 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     to: Active,
     txVolumeChf: number,
-    discountCodes: string[],
+    specialCodes: string[],
     allowCachedBlockchainFee: boolean,
   ): Promise<InternalFeeDto> {
     const feeRequest: UserFeeRequest = {
@@ -338,7 +338,7 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
       txVolume: txVolumeChf,
-      discountCodes,
+      specialCodes,
       allowCachedBlockchainFee,
     };
 

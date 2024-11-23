@@ -1,15 +1,24 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan, Like } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -36,7 +45,8 @@ import { IdentStatus } from '../dto/ident.dto';
 import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
-import { ContentType, FileType } from '../dto/kyc-file.dto';
+import { ContentType, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -50,20 +60,15 @@ import {
   getSumsubResult,
 } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import {
-  KycLogType,
-  KycStepName,
-  KycStepStatus,
-  KycStepType,
-  getIdentificationType,
-  requiredKycSteps,
-} from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 import { KycDocumentService } from './integration/kyc-document.service';
 import { SumsubService } from './integration/sum-sub.service';
+import { KycFileService } from './kyc-file.service';
+import { KycLogService } from './kyc-log.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaLevel, TfaService } from './tfa.service';
 
@@ -77,10 +82,12 @@ export class KycService {
     private readonly financialService: FinancialService,
     private readonly documentService: KycDocumentService,
     private readonly kycStepRepo: KycStepRepository,
+    private readonly kycLogService: KycLogService,
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
     private readonly tfaService: TfaService,
+    private readonly kycFileService: KycFileService,
     private readonly kycNotificationService: KycNotificationService,
     @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly walletService: WalletService,
@@ -90,6 +97,7 @@ export class KycService {
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Lock()
   async checkIdentSteps(): Promise<void> {
     if (DisabledProcess(Process.KYC)) return;
 
@@ -114,7 +122,37 @@ export class KycService {
     }
   }
 
+  // TODO: Remove temporary cron job
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock()
+  async storeExistingKycFilesBatched(): Promise<void> {
+    let offset = 0;
+
+    const BATCH_SIZE = 100;
+
+    while (true) {
+      const userDataBatch = await this.userDataService.getAllUserDataBy({
+        where: { kycFiles: { id: IsNull() } },
+        skip: offset,
+        take: BATCH_SIZE,
+      });
+
+      if (userDataBatch.length === 0) break;
+
+      this.logger.info(`Processing batch of ${userDataBatch.length} users starting from offset ${offset}`);
+
+      for (const userData of userDataBatch) {
+        await this.syncKycFiles(userData);
+      }
+
+      offset += BATCH_SIZE;
+    }
+
+    this.logger.info('Successfully stored existing KYC files for all users');
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
   async reviewIdentSteps(): Promise<void> {
     if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
 
@@ -178,6 +216,23 @@ export class KycService {
     await this.verifyUserDuplication(user);
 
     return this.toDto(user, false);
+  }
+
+  async getFileByUid(uid: string, userDataId?: number, role?: UserRole): Promise<KycFileDataDto> {
+    const kycFile = await this.kycFileService.getKycFile(uid);
+
+    if (!kycFile) throw new NotFoundException('KYC file not found');
+
+    if (kycFile.protected && role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Requires admin role');
+    }
+
+    const blob = await this.documentService.downloadFile(kycFile.userData.id, kycFile.type, kycFile.name);
+
+    const log = `User ${userDataId} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
+    await this.kycLogService.createKycFileLog(log, kycFile.userData);
+
+    return KycFileMapper.mapKycFile(kycFile, blob);
   }
 
   async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
@@ -294,11 +349,13 @@ export class KycService {
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
     const url = await this.documentService.uploadUserFile(
-      user.id,
+      user,
       fileType,
       data.fileName,
       buffer,
       contentType as ContentType,
+      false,
+      kycStep,
     );
 
     await this.kycStepRepo.update(...kycStep.internalReview(url));
@@ -438,11 +495,13 @@ export class KycService {
 
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
     const newUrl = await this.documentService.uploadUserFile(
-      user.id,
+      user,
       FileType.IDENTIFICATION,
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
       buffer,
       contentType as ContentType,
+      false,
+      kycStep,
     );
 
     await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
@@ -572,6 +631,24 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
+        const identSteps = user.getStepsWith(KycStepName.IDENT);
+        if (identSteps.some((i) => i.comment.split(';').includes(KycError.USER_DATA_EXISTING)))
+          return { nextStep: undefined };
+
+        const userDataMergeRequestedStep = identSteps.find((i) =>
+          i.comment.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED),
+        );
+        if (userDataMergeRequestedStep) {
+          const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
+            user.id,
+            userDataMergeRequestedStep.identDocumentId,
+          );
+
+          if (existing) await this.accountMergeService.sendMergeRequest(existing, user, MergeReason.IDENT_DOCUMENT);
+
+          return { nextStep: undefined };
+        }
+
         return {
           nextStep: {
             name: nextStep,
@@ -675,8 +752,10 @@ export class KycService {
       data.documentNumber &&
       nationality
     ) {
-      const identDocumentId = `${userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}`;
-      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(userData.id, identDocumentId);
+      const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
+        userData.id,
+        kycStep.identDocumentId,
+      );
 
       if (existing) {
         const mergeRequest = await this.accountMergeService.sendMergeRequest(
@@ -704,7 +783,7 @@ export class KycService {
           bankTransactionVerification:
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: data.documentType,
-          identDocumentId,
+          identDocumentId: kycStep.identDocumentId,
           nationality,
         });
 
@@ -767,7 +846,6 @@ export class KycService {
 
   private async createStepLog(user: UserData, kycStep: KycStep): Promise<void> {
     const entity = this.stepLogRepo.create({
-      type: KycLogType.KYC_STEP,
       result: kycStep.result,
       userData: user,
       kycStep: kycStep,
@@ -826,12 +904,58 @@ export class KycService {
 
     for (const { name, content, contentType } of documents) {
       await this.documentService.uploadFile(
-        user.id,
+        user,
         FileType.IDENTIFICATION,
         `${namePrefix}${name}`,
         content,
         contentType,
+        true,
+        kycStep,
       );
+    }
+  }
+
+  private async syncKycFiles(userData: UserData): Promise<void> {
+    try {
+      const existingFiles = await this.documentService.listUserFiles(userData.id);
+
+      for (const existingFile of existingFiles) {
+        const isIdent = existingFile.type === FileType.IDENTIFICATION;
+
+        const kycStep = await this.kycStepRepo.findOne({
+          where: isIdent
+            ? {
+                transactionId: Like(
+                  `%${existingFile.name.substring(existingFile.name.indexOf('-') + 1).split('.')[0]}%`,
+                ),
+              }
+            : { result: Like(`%${encodeURIComponent(existingFile.name)}%`) },
+        });
+
+        const isProtected = [
+          FileType.NAME_CHECK,
+          FileType.USER_INFORMATION,
+          FileType.IDENTIFICATION,
+          FileType.USER_NOTES,
+          FileType.TRANSACTION_NOTES,
+        ].includes(existingFile.type);
+
+        try {
+          const kycFile = {
+            name: existingFile.name,
+            type: existingFile.type,
+            protected: isProtected,
+            userData: userData,
+            kycStep: kycStep,
+          };
+
+          await this.kycFileService.createKycFile(kycFile);
+        } catch (e) {
+          this.logger.error(`Failed to store existing KYC file ${existingFile.name} for user ${userData.id}:`, e);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Failed to process user data ${userData.id}:`, e);
     }
   }
 }

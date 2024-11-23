@@ -47,6 +47,7 @@
     "@nestjs/typeorm": "^9.0.1",
     "@nestjs/websockets": "^9.4.3",
     "@noble/curves": "^1.2.0",
+    "@railgun-community/engine": "^9.2.0",
     "@supercharge/request-ip": "^1.2.0",
     "@uniswap/sdk-core": "^5.9.0",
     "@uniswap/smart-order-router": "^4.7.8",

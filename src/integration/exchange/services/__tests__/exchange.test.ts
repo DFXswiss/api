@@ -28,5 +28,6 @@ export class TestExchangeService extends ExchangeService {
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
+    Railgun: undefined,
   };
 }

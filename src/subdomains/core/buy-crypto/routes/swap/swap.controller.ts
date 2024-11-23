@@ -92,7 +92,7 @@ export class SwapController {
       sourceAsset,
       targetAsset,
       targetAmount,
-      discountCode,
+      specialCode,
     } = await this.paymentInfoService.swapCheck(dto);
 
     const {
@@ -117,7 +117,7 @@ export class SwapController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
-      discountCode ? [discountCode] : [],
+      specialCode ? [specialCode] : [],
     );
 
     return {

@@ -7,7 +7,6 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
 import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
-import { KycLogType } from '../enums/kyc.enum';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
 import { DilisenseService } from './integration/dilisense.service';
 
@@ -140,7 +139,6 @@ export class NameCheckService implements OnModuleInit {
     });
 
     const entity = this.nameCheckLogRepo.create({
-      type: KycLogType.NAME_CHECK,
       result,
       riskStatus: riskRate,
       userData: bankData.userData,
