@@ -576,6 +576,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -587,6 +588,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
     ]);
@@ -608,6 +610,7 @@ export class UserDataService {
       slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
+      slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -648,6 +651,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
+    master.supportIssues = master.supportIssues.concat(slave.supportIssues);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
