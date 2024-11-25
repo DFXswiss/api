@@ -230,7 +230,7 @@ export class SiftService {
 
     const data = {
       decision_id: 'looks_suspicious_payment_abuse',
-      analyst: Config.sift.source,
+      analyst: Config.sift.analyst,
       source: SiftDecisionSource.MANUAL_REVIEW,
       description,
     };
