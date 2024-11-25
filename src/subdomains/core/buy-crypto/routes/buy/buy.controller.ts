@@ -275,7 +275,6 @@ export class BuyController {
     const bankInfo = await this.getBankInfo({
       amount: amount,
       currency: dto.currency.name,
-      bankAccount: buy.bankAccount,
       paymentMethod: dto.paymentMethod,
       userData: user.userData,
     });
@@ -306,7 +305,7 @@ export class BuyController {
       error,
       // bank info
       ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
+      sepaInstant: bankInfo.sepaInstant,
       remittanceInfo: buy.active ? buy.bankUsage : undefined,
       paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto) : undefined,
       // card info
