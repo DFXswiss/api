@@ -39,6 +39,7 @@ export enum MailTranslationKey {
   SUPPORT_MESSAGE = 'mail.support_message',
   VERIFICATION_CODE = 'mail.verification_code',
   CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
+  PROCESSING = 'mail.payment.processing',
 }
 
 export enum MailKey {

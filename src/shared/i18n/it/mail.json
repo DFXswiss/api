@@ -37,6 +37,10 @@
             "title": "Pagamento versato",
             "salutation": "Il pagamento è stato inviato al vostro conto corrente bancario"
         },
+        "processing": {
+            "title": "La transazione viene elaborata",
+            "salutation": "La transazione verrà ora elaborata"
+        },
         "chargeback": {
             "unconfirmed": {
                 "title": "Azione necessaria",

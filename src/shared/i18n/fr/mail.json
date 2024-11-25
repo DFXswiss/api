@@ -37,6 +37,10 @@
             "title": "Paiement payé",
             "salutation": "Votre paiement a été envoyé sur votre compte bancaire"
         },
+        "processing": {
+            "title": "La transaction est traitée",
+            "salutation": "Votre transaction va maintenant être traitée"
+        },
         "chargeback": {
             "unconfirmed": {
                 "title": "Action requise",
