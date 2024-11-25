@@ -1,7 +1,6 @@
-import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
-import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
 import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createDefaultUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
 import { Buy } from '../buy.entity';
 
 const defaultBuy: Partial<Buy> = {
@@ -14,7 +13,6 @@ const defaultBuy: Partial<Buy> = {
   asset: createDefaultAsset(),
   deposit: null as Deposit,
   buyCryptos: [],
-  bankAccount: createDefaultBankAccount(),
 };
 
 export function createDefaultBuy(): Buy {

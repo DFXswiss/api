@@ -241,7 +241,7 @@ export class TransactionController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
+    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
 
     const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
     return Util.asyncMap(txList, async (tx) => {
@@ -281,7 +281,7 @@ export class TransactionController {
     const buy = await this.buyService.get(jwt.account, +buyId);
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
+    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
     if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
       throw new ForbiddenException('You can only assign your own transaction');
 

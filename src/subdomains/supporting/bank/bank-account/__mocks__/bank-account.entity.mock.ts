@@ -4,8 +4,6 @@ import { BankAccount } from '../bank-account.entity';
 const defaultBankAccount: Partial<BankAccount> = {
   iban: 'DE89370400440532013000',
   userData: createDefaultUserData(),
-  buys: [],
-  sells: [],
   sctInst: true,
 };
 

@@ -208,7 +208,7 @@ export class BankDataService {
     return this.bankDataRepo.existsBy({ iban, type: BankDataType.USER });
   }
 
-  async getValidBankDatasForUser(userDataId: number): Promise<BankData[]> {
+  async getValidBankDatasForUser(userDataId: number, ibansOnly = true): Promise<BankData[]> {
     return this.bankDataRepo
       .find({
         where: [
@@ -217,7 +217,7 @@ export class BankDataService {
         ],
         relations: { userData: true },
       })
-      .then((l) => l.filter((b) => IbanTools.validateIBAN(b.iban).valid));
+      .then((l) => (ibansOnly ? l.filter((b) => IbanTools.validateIBAN(b.iban).valid) : l));
   }
 
   async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
@@ -244,6 +244,10 @@ export class BankDataService {
     if (!(await this.isValidIbanCountry(dto.iban)))
       throw new BadRequestException('IBAN country is currently not supported');
 
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (userData.status === UserDataStatus.KYC_ONLY)
+      throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
+
     const existing = await this.bankDataRepo.findOne({
       where: [
         { iban: dto.iban, approved: true, type },
@@ -252,7 +256,6 @@ export class BankDataService {
       relations: { userData: true },
     });
     if (existing) {
-      const userData = await this.userDataRepo.findOneBy({ id: userDataId });
       if (userData.id === existing.userData.id) return existing;
 
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
