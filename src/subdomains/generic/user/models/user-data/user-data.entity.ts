@@ -4,7 +4,6 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
@@ -18,6 +17,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 
 export enum KycStatus {
   NA = 'NA',
@@ -114,8 +114,6 @@ export enum UserDataStatus {
   },
 )
 export class UserData extends IEntity {
-  private readonly logger = new DfxLogger(UserData);
-
   @Column({ nullable: true, length: 256 })
   accountType: AccountType;
 
@@ -352,6 +350,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
+
+  @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.userData)
+  supportIssues: SupportIssue[];
 
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
