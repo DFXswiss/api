@@ -225,7 +225,7 @@ export class SiftService {
     }
   }
 
-  private async sendDecision(userId: string, description?: string): Promise<SiftResponse> {
+  async sendDecision(userId: string, description?: string): Promise<SiftResponse> {
     if (!Config.sift.apiKey) return;
 
     const data = {
@@ -238,7 +238,7 @@ export class SiftService {
     const scoreUrl = `${Config.sift.accountId}/users/${userId}/decisions`;
 
     try {
-      return await this.http.post(`${this.url}${scoreUrl}`, data, {
+      return await this.http.post(`${this.decisionUrl}${scoreUrl}`, data, {
         headers: { Authorization: Config.sift.apiKey },
       });
     } catch (error) {
