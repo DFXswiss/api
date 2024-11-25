@@ -155,65 +155,113 @@ export class KycStep extends IEntity {
     return this.isInReview || this.isCompleted;
   }
 
-  update(status: KycStepStatus, result?: KycStepResult): this {
-    this.status = status;
+  update(status: KycStepStatus, result?: KycStepResult, sequenceNumber?: number): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status,
+      result: this.setResult(result),
+      sequenceNumber,
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  complete(result?: KycStepResult): this {
-    this.status = KycStepStatus.COMPLETED;
+  complete(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.COMPLETED,
+      result: this.setResult(result),
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  fail(result?: KycStepResult): this {
-    this.status = KycStepStatus.FAILED;
+  fail(result?: KycStepResult, comment?: string): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.FAILED,
+      result: this.setResult(result),
+      comment,
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  pause(result?: KycStepResult): this {
-    this.status = KycStepStatus.IN_PROGRESS;
-    this.reminderSentDate = null;
+  pause(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.IN_PROGRESS,
+      result: this.setResult(result),
+      reminderSentDate: null,
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  cancel(): this {
-    this.status = KycStepStatus.CANCELED;
+  cancel(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.CANCELED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  ignored(): this {
-    this.status = KycStepStatus.IGNORED;
+  ignored(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.IGNORED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  finish(): this {
-    if (this.isInProgress) this.status = KycStepStatus.FINISHED;
+  finish(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.FINISHED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  externalReview(result?: KycStepResult): this {
-    this.status = KycStepStatus.EXTERNAL_REVIEW;
+  externalReview(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.EXTERNAL_REVIEW,
+      result: this.setResult(result),
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  internalReview(result?: KycStepResult): this {
-    this.status = KycStepStatus.INTERNAL_REVIEW;
+  internalReview(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.INTERNAL_REVIEW,
+      result: this.setResult(result),
+    };
 
-    return this.setResult(result);
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
-  manualReview(): this {
-    this.status = KycStepStatus.MANUAL_REVIEW;
+  manualReview(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.MANUAL_REVIEW,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   getResult<T extends KycStepResult>(): T | undefined {
@@ -225,10 +273,10 @@ export class KycStep extends IEntity {
     return this.result as T;
   }
 
-  setResult(result?: KycStepResult): this {
+  setResult(result?: KycStepResult): string {
     if (result !== undefined) this.result = typeof result === 'string' ? result : JSON.stringify(result);
 
-    return this;
+    return this.result;
   }
 
   get resultData(): IdentResultData {
@@ -288,6 +336,11 @@ export class KycStep extends IEntity {
     }
   }
 
+  get identDocumentId(): string {
+    const data = this.resultData;
+    return data ? `${this.userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}` : undefined;
+  }
+
   get isValidCreatingBankData(): boolean {
     return (
       this.name === KycStepName.IDENT &&
@@ -300,15 +353,10 @@ export class KycStep extends IEntity {
     );
   }
 
-  get identDocumentId(): string | undefined {
-    const result = this.getResult<IdNowResult>();
-    return result?.identificationdocument?.number?.value;
-  }
-
   get userName(): string | undefined {
-    const result = this.getResult<IdNowResult>();
+    const result = this.resultData;
     if (!result) return undefined;
-    return [result.userdata?.firstname?.value, result.userdata?.lastname?.value, result.userdata?.birthname?.value]
+    return [result.firstname, result.lastname, result.birthname]
       .filter((n) => n)
       .map((n) => n.trim())
       .join(' ');

@@ -9,6 +9,7 @@ export class CountryDtoMapper {
       name: country.name,
       locationAllowed: country.ipEnable,
       kycAllowed: country.dfxEnable,
+      nationalityAllowed: country.nationalityStepEnable,
       bankAllowed: country.dfxEnable,
       cardAllowed: country.fatfEnable,
     };

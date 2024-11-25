@@ -1,12 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
-import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
+import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
@@ -30,18 +28,15 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private btcClient: BtcClient;
   private readonly lightningClient: LightningClient;
-  private readonly moneroClient: MoneroClient;
 
   constructor(
     private readonly dexService: DexService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     nodeService: NodeService,
     lightningService: LightningService,
-    moneroService: MoneroService,
   ) {
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.btcClient = client));
     this.lightningClient = lightningService.getDefaultClient();
-    this.moneroClient = moneroService.getDefaultClient();
   }
 
   async getBalances(assets: (Asset & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {
@@ -144,7 +139,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
 
-        const balance = await this.moneroClient.getBalance().then((b) => b.balance);
+        const client = this.blockchainRegistryService.getClient(asset.blockchain);
+        const balance = await client.getNativeCoinBalance();
         this.balanceCache.set(asset.id, balance);
       } catch (e) {
         this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
@@ -157,7 +153,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     if (assets.length === 0) return;
 
     const blockchain = assets[0].blockchain;
-    const client = this.evmRegistryService.getClient(blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     await this.getForEvmAsset(
       assets.filter((a) => a.type !== AssetType.POOL),
@@ -171,7 +167,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private async getForEvmAsset(assets: Asset[], client: EvmClient): Promise<void> {
     let coinBalance: number;
-    let tokenBalances: EvmTokenBalance[];
+    let tokenBalances: BlockchainTokenBalance[];
 
     try {
       coinBalance = await client.getNativeCoinBalance();

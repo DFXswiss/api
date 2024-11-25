@@ -73,7 +73,7 @@ export class AlchemyService {
 
     const tokenBalancesResponse = await alchemy.core.getTokenBalances(address, contractAddresses);
 
-    return tokenBalancesResponse.tokenBalances;
+    return tokenBalancesResponse?.tokenBalances ?? [];
   }
 
   async getBlockNumber(blockchain: Blockchain): Promise<number> {

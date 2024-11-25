@@ -33,6 +33,8 @@ export class UserDtoMapper {
       paymentLink: {
         active: userData.paymentLinksAllowed,
       },
+      apiKeyCT: userData.apiKeyCT,
+      apiFilterCT: ApiKeyService.getFilterArray(userData.apiFilterCT),
     };
 
     return Object.assign(new UserV2Dto(), dto);

@@ -46,7 +46,7 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     this.addressWebhookMessageQueue
       .handle<void>(async () => this.processWebhookTransactions(dto))
       .catch((e) => {
-        this.logger.error('Error while processing new pay-in entries:', e);
+        this.logger.error(`Error while processing new pay-in entries with webhook dto ${JSON.stringify(dto)}:`, e);
       });
   }
 
@@ -77,15 +77,25 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
   private async mapWebhookTransactions(transactions: AlchemyWebhookActivityDto[]): Promise<PayInEntry[]> {
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
-    return transactions.map((tx) => ({
-      senderAddresses: tx.fromAddress,
-      receiverAddress: BlockchainAddress.create(tx.toAddress, this.blockchain),
-      txId: tx.hash,
-      txType: this.getTxType(tx.toAddress),
-      blockHeight: Number(tx.blockNum),
-      amount: EvmUtil.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
-      asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
-    }));
+    return transactions.map((tx) => this.doMapWebhookTransaction(tx, supportedAssets)).filter((p) => p);
+  }
+
+  private doMapWebhookTransaction(
+    transaction: AlchemyWebhookActivityDto,
+    supportedAssets: Asset[],
+  ): PayInEntry | undefined {
+    const rawValue = transaction.rawContract.rawValue;
+    if (!rawValue || rawValue === '0x') return;
+
+    return {
+      senderAddresses: transaction.fromAddress,
+      receiverAddress: BlockchainAddress.create(transaction.toAddress, this.blockchain),
+      txId: transaction.hash,
+      txType: this.getTxType(transaction.toAddress),
+      blockHeight: Number(transaction.blockNum),
+      amount: EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals),
+      asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
+    };
   }
 
   // --- ASSET TRANSFERS --- //

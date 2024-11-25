@@ -130,7 +130,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
@@ -159,7 +159,7 @@ export class UserService {
     userIp: string,
     userOrigin?: string,
     wallet?: Wallet,
-    discountCode?: string,
+    specialCode?: string,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
@@ -180,21 +180,19 @@ export class UserService {
     user = await this.userRepo.save(user);
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
       if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
+      this.logger.warn(`Error while adding specialCode to new user ${user.id}:`, e);
     }
 
     return user;
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
-    // update
-    user = await this.userRepo.save({ ...user, ...dto });
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
     user.userData = update;
 
@@ -374,7 +372,7 @@ export class UserService {
       from,
       to,
       txVolume: undefined,
-      discountCodes: [],
+      specialCodes: [],
       allowCachedBlockchainFee: true,
     });
   }

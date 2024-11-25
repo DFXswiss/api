@@ -24,6 +24,7 @@ export class BinanceService extends ExchangeService {
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
+    Railgun: undefined,
   };
 
   constructor() {

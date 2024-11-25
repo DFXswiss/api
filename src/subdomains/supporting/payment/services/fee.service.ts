@@ -55,7 +55,7 @@ export interface FeeRequestBase {
   from: Active;
   to: Active;
   txVolume?: number;
-  discountCodes: string[];
+  specialCodes: string[];
   allowCachedBlockchainFee: boolean;
 }
 
@@ -110,9 +110,9 @@ export class FeeService implements OnModuleInit {
       paymentMethodsOut: dto.paymentMethodsOutArray?.join(';'),
     });
     if (existing) throw new BadRequestException('Fee already created');
-    if (dto.type === FeeType.BASE && dto.createDiscountCode)
-      throw new BadRequestException('Base fees cannot have a discountCode');
-    if ((dto.type === FeeType.DISCOUNT || dto.type === FeeType.ADDITION) && !dto.createDiscountCode && dto.maxUsages)
+    if (dto.type === FeeType.BASE && dto.createSpecialCode)
+      throw new BadRequestException('Base fees cannot have a specialCode');
+    if ((dto.type === FeeType.DISCOUNT || dto.type === FeeType.ADDITION) && !dto.createSpecialCode && dto.maxUsages)
       throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
     if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
       throw new BadRequestException('Base fees must have an accountType and assetIds');
@@ -147,10 +147,10 @@ export class FeeService implements OnModuleInit {
 
     if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
 
-    if (dto.createDiscountCode) {
+    if (dto.createSpecialCode) {
       // create hash
       const hash = Util.createHash(fee.label + fee.type).toUpperCase();
-      fee.discountCode = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
+      fee.specialCode = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
     }
 
     // save
@@ -175,8 +175,8 @@ export class FeeService implements OnModuleInit {
     }
   }
 
-  async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
-    const cachedFee = await this.getFeeByDiscountCode(discountCode);
+  async addSpecialCodeUser(user: User, specialCode: string): Promise<void> {
+    const cachedFee = await this.getFeeBySpecialCode(specialCode);
 
     await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
 
@@ -200,9 +200,9 @@ export class FeeService implements OnModuleInit {
       await this.feeRepo.update(...cachedFee.increaseAnnualUserTxVolume(userData.id, txVolume));
   }
 
-  async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
-    const fee = await this.getAllFees().then((fees) => fees.find((f) => f.discountCode === discountCode));
-    if (!fee) throw new NotFoundException(`Discount code ${discountCode} not found`);
+  async getFeeBySpecialCode(specialCode: string): Promise<Fee> {
+    const fee = await this.getAllFees().then((fees) => fees.find((f) => f.specialCode === specialCode));
+    if (!fee) throw new NotFoundException(`Discount code ${specialCode} not found`);
     return fee;
   }
 
@@ -390,9 +390,9 @@ export class FeeService implements OnModuleInit {
       fees.filter(
         (f) =>
           [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.discountCode) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
-          request.discountCodes.includes(f.discountCode) ||
+          request.specialCodes.includes(f.specialCode) ||
           (f.wallet && f.wallet.id === wallet?.id),
       ),
     );

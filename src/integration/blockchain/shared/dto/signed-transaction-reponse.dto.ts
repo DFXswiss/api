@@ -1,6 +1,6 @@
 import { TransactionResponse } from 'alchemy-sdk';
 
-export interface EvmSignedTransactionResponse {
+export interface SignedTransactionResponse {
   response?: TransactionResponse;
   error?: {
     code: number;

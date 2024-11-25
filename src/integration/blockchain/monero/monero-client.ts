@@ -1,8 +1,13 @@
+import { Currency } from '@uniswap/sdk-core';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
+import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { BlockchainClient } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
   GetAddressResultDto,
@@ -20,8 +25,10 @@ import {
 } from './dto/monero.dto';
 import { MoneroHelper } from './monero-helper';
 
-export class MoneroClient {
-  constructor(private readonly http: HttpService) {}
+export class MoneroClient extends BlockchainClient {
+  constructor(private readonly http: HttpService) {
+    super();
+  }
 
   // --- MONERO DAEMON --- //
 
@@ -55,6 +62,31 @@ export class MoneroClient {
         this.httpConfig(),
       )
       .then((r) => this.convertFeeEstimateAuToXmr(r.result));
+  }
+
+  // --- UNIMPLEMENTED METHODS --- //
+
+  async getToken(_: Asset): Promise<Currency> {
+    throw new Error('Monero has no token');
+  }
+
+  async getTokenBalance(_: Asset, __?: string): Promise<number> {
+    throw new Error('Monero has no token');
+  }
+
+  async getTokenBalances(_: Asset[], __?: string): Promise<BlockchainTokenBalance[]> {
+    throw new Error('Monero has no token');
+  }
+
+  async sendSignedTransaction(_: string): Promise<SignedTransactionResponse> {
+    throw new Error('Method not implemented');
+  }
+
+  // --- PRIVATE HELPER METHODS --- //
+
+  async isTxComplete(txId: string, confirmations?: number): Promise<boolean> {
+    const transaction = await this.getTransaction(txId);
+    return MoneroHelper.isTransactionComplete(transaction, confirmations);
   }
 
   private convertFeeEstimateAuToXmr(feeEstimateResult: GetFeeEstimateResultDto): GetFeeEstimateResultDto {
@@ -164,7 +196,15 @@ export class MoneroClient {
       .then((r) => r.result.addresses);
   }
 
-  async getBalance(): Promise<GetBalanceResultDto> {
+  async getNativeCoinBalance(): Promise<number> {
+    return this.getBalance().then((b) => b.balance);
+  }
+
+  async getUnlockedBalance(): Promise<number> {
+    return this.getBalance().then((b) => b.unlocked_balance);
+  }
+
+  private async getBalance(): Promise<GetBalanceResultDto> {
     return this.http
       .post<{ result: GetBalanceResultDto }>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
@@ -175,6 +215,10 @@ export class MoneroClient {
         this.httpConfig(),
       )
       .then((r) => this.convertBalanceAuToXmr(r.result));
+  }
+
+  async getNativeCoinBalanceForAddress(_: string): Promise<number> {
+    throw new Error('Coin balance for address not possible for monero');
   }
 
   private convertBalanceAuToXmr(balanceResultDto: GetBalanceResultDto): GetBalanceResultDto {

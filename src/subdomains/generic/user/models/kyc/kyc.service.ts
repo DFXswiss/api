@@ -100,11 +100,12 @@ export class KycService {
     const userData = await this.getUser(code, userDataId);
 
     const upload = await this.documentService.uploadUserFile(
-      userData.id,
+      userData,
       kycDocument,
       `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
       document.buffer,
       document.mimetype as ContentType,
+      false,
     );
     return upload != '';
   }
@@ -153,7 +154,7 @@ export class KycService {
   private async getUserByKycCode(code: string): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { kycHash: code },
-      relations: ['users', 'users.wallet'],
+      relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
     return userData;

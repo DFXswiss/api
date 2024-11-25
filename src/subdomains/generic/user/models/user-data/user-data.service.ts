@@ -31,7 +31,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindManyOptions, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -88,8 +88,13 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
   }
 
+  // TODO: Remove this method (temporarily used by Cron Job)
+  async getAllUserDataBy(options?: FindManyOptions<UserData>): Promise<UserData[]> {
+    return this.userDataRepo.find(options);
+  }
+
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
-    let user = await this.userDataRepo.findOne({ where: { kycHash }, relations });
+    let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
     if (user.status === UserDataStatus.MERGED) {
@@ -157,25 +162,25 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne({
+    const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true }, kycSteps: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
       const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
       const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
-      if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
+      if (identCompleted && pendingVideo) await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
     }
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
       const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-      if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+      if (pendingDfxApproval) await this.kycAdminService.updateKycStepInternal(pendingDfxApproval.complete());
 
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
@@ -189,7 +194,8 @@ export class UserDataService {
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(userData.id, dto);
+    Object.assign(userData, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -266,7 +272,9 @@ export class UserDataService {
     const mailChanged = data.mail && data.mail !== userData.mail;
     if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
 
-    return this.userDataRepo.save(Object.assign(userData, data));
+    await this.userDataRepo.update(userData.id, data);
+
+    return Object.assign(userData, data);
   }
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
@@ -326,7 +334,9 @@ export class UserDataService {
 
     if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(userData.id, dto);
+
+    userData = Object.assign(userData, dto);
 
     const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(userData));
     return { user: userData, isKnownUser };
@@ -468,10 +478,6 @@ export class UserDataService {
     }
   }
 
-  async save(userData: UserData): Promise<UserData> {
-    return this.userDataRepo.save(userData);
-  }
-
   // --- KYC CLIENTS --- //
 
   async addKycClient(userData: UserData, walletId: number): Promise<void> {
@@ -570,6 +576,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -581,6 +588,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
     ]);
@@ -602,6 +610,7 @@ export class UserDataService {
       slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
+      slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -617,19 +626,23 @@ export class UserDataService {
 
     // Adapt slave kyc step sequenceNumber
     const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
-    slave.kycSteps.forEach((k) => {
-      k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset;
-      if (
-        [
-          KycStepStatus.IN_PROGRESS,
-          KycStepStatus.MANUAL_REVIEW,
-          KycStepStatus.INTERNAL_REVIEW,
-          KycStepStatus.EXTERNAL_REVIEW,
-          KycStepStatus.FINISHED,
-        ].includes(k.status)
-      )
-        k.status = KycStepStatus.CANCELED;
-    });
+    for (const kycStep of slave.kycSteps) {
+      await this.kycAdminService.updateKycStepInternal(
+        kycStep.update(
+          [
+            KycStepStatus.IN_PROGRESS,
+            KycStepStatus.MANUAL_REVIEW,
+            KycStepStatus.INTERNAL_REVIEW,
+            KycStepStatus.EXTERNAL_REVIEW,
+            KycStepStatus.FINISHED,
+          ].includes(kycStep.status)
+            ? KycStepStatus.CANCELED
+            : undefined,
+          undefined,
+          kycStep.sequenceNumber + sequenceNumberOffset,
+        ),
+      );
+    }
 
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
@@ -638,6 +651,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
+    master.supportIssues = master.supportIssues.concat(slave.supportIssues);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
