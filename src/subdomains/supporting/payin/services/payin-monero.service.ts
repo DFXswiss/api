@@ -32,4 +32,9 @@ export class PayInMoneroService extends PayInBitcoinBasedService {
       .sendTransfer(payIn.destinationAddress.address, payIn.sendingAmount)
       .then((r) => ({ outTxId: r.txid, feeAmount: r.fee }));
   }
+
+  async getConfirmations(txId: string): Promise<number> {
+    const transaction = await this.client.getTransaction(txId);
+    return transaction.confirmations;
+  }
 }

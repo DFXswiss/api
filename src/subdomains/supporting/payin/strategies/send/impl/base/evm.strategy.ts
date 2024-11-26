@@ -90,7 +90,9 @@ export abstract class EvmStrategy extends SendStrategy {
       try {
         if (!payIn.confirmationTxId(direction)) continue;
 
-        const isConfirmed = await this.payInEvmService.isConfirmed(payIn, direction);
+        const minConfirmation = await this.getMinConfirmations(payIn, direction);
+
+        const isConfirmed = await this.payInEvmService.isConfirmed(payIn.confirmationTxId(direction), minConfirmation);
         if (isConfirmed) {
           payIn.confirm(direction, this.forwardRequired);
           await this.payInRepo.save(payIn);

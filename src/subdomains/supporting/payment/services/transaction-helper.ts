@@ -19,7 +19,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { CryptoInput } from '../../payin/entities/crypto-input.entity';
+import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
@@ -147,6 +147,16 @@ export class TransactionHelper implements OnModuleInit {
         asset: 'CHF',
       },
     };
+  }
+
+  async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
+    const spec = this.specRepo.getSpec(
+      this.transactionSpecifications,
+      payIn.asset.blockchain,
+      payIn.asset.name,
+      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
+    );
+    return spec.minConfirmations;
   }
 
   // --- TARGET ESTIMATION --- //

@@ -5,8 +5,6 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { TransactionDirection } from 'src/subdomains/supporting/payment/entities/transaction-specification.entity';
-import { CryptoInput, PayInConfirmationType } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
@@ -39,16 +37,8 @@ export class BitcoinStrategy extends BitcoinBasedStrategy {
     return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
 
-  protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
-    const specRepo = this.repoFactory.transactionSpecification;
-    const specs = await specRepo.find();
-    const spec = specRepo.getSpec(
-      specs,
-      payIn.asset.blockchain,
-      payIn.asset.name,
-      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
-    );
-    const { confirmations } = await this.bitcoinService.getTx(payIn.confirmationTxId(direction));
-    return confirmations >= spec.minConfirmations;
+  protected async isConfirmed(txId: string, minConfirmations: number): Promise<boolean> {
+    const { confirmations } = await this.bitcoinService.getTx(txId);
+    return confirmations >= minConfirmations;
   }
 }
