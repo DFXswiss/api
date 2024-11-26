@@ -2,6 +2,7 @@ import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBaseService } from '../../../services/payin-base.service';
@@ -49,7 +50,7 @@ describe('SendStrategyRegistry', () => {
   let registry: SendStrategyRegistryWrapper;
 
   beforeEach(() => {
-    bitcoin = new BitcoinStrategy(mock<PayInBitcoinService>(), mock<PayInRepository>());
+    bitcoin = new BitcoinStrategy(mock<PayInBitcoinService>(), mock<PayInRepository>(), mock<RepositoryFactory>());
 
     lightning = new LightningStrategy(mock<PayInLightningService>(), mock<PayInRepository>());
 
