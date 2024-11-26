@@ -28,6 +28,10 @@ import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
+import { ServiceProviderController } from './models/service-provider/service-provider.controller';
+import { ServiceProvider } from './models/service-provider/service-provider.entity';
+import { ServiceProviderRepository } from './models/service-provider/service-provider.repository';
+import { ServiceProviderService } from './models/service-provider/service-provider.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -46,7 +50,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, ServiceProvider]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -68,6 +72,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycController,
     UserDataRelationController,
     WalletController,
+    ServiceProviderController,
   ],
   providers: [
     UserRepository,
@@ -90,7 +95,17 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataNotificationService,
     UserDataRelationService,
     AccountMergeService,
+    ServiceProviderService,
+    ServiceProviderRepository,
   ],
-  exports: [UserService, UserDataService, WebhookService, BankDataService, WalletService, AccountMergeService],
+  exports: [
+    UserService,
+    UserDataService,
+    WebhookService,
+    BankDataService,
+    WalletService,
+    AccountMergeService,
+    ServiceProviderService,
+  ],
 })
 export class UserModule {}
