@@ -1,9 +1,7 @@
-import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { BankAccount } from '../bank-account.entity';
 
 const defaultBankAccount: Partial<BankAccount> = {
   iban: 'DE89370400440532013000',
-  userData: createDefaultUserData(),
   sctInst: true,
 };
 
