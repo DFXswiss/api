@@ -10,6 +10,11 @@ import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import {
+  CryptoPaymentMethod,
+  FiatPaymentMethod,
+  PaymentMethod,
+} from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -490,6 +495,14 @@ export class BuyFiat extends IEntity {
 
   get paymentLinkPayment(): PaymentLinkPayment | undefined {
     return this.cryptoInput?.paymentLinkPayment;
+  }
+
+  get paymentMethodIn(): PaymentMethod {
+    return CryptoPaymentMethod.CRYPTO;
+  }
+
+  get paymentMethodOut(): PaymentMethod {
+    return FiatPaymentMethod.BANK;
   }
 }
 

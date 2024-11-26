@@ -308,9 +308,24 @@ export class TransactionController {
     if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
       throw new BadRequestException('You cannot refund payment transactions');
 
-    const feeAmount = transaction.targetEntity.cryptoInput
-      ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
-      : 0;
+    const inputCurrency =
+      transaction.targetEntity.cryptoInput?.asset ??
+      (await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
+
+    const fees = await this.feeService.getUserFee({
+      from: inputCurrency,
+      to: transaction.targetEntity.outputAsset,
+      paymentMethodIn: transaction.targetEntity.paymentMethodIn,
+      paymentMethodOut: transaction.targetEntity.paymentMethodOut,
+      specialCodes: [],
+      allowCachedBlockchainFee: false,
+      user: transaction.user,
+    });
+
+    const feeAmount =
+      transaction.targetEntity.inputAmount * fees.chargebackRate +
+      fees.chargebackFixed +
+      (transaction.targetEntity.cryptoInput ? fees.chargebackNetwork : 0);
 
     if (feeAmount >= transaction.targetEntity.inputAmount)
       throw new BadRequestException('Transaction fee is too expensive');

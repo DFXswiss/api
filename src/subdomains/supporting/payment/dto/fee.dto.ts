@@ -29,4 +29,7 @@ export class FeeDto extends BaseFeeDto {
 export class InternalFeeDto extends BaseFeeDto {
   fees: Fee[];
   payoutRefBonus: boolean;
+  chargebackRate: number;
+  chargebackFixed: number;
+  chargebackNetwork: number;
 }

@@ -276,9 +276,14 @@ export class FeeService implements OnModuleInit {
     allowCachedBlockchainFee: boolean,
     userDataId?: number,
   ): Promise<InternalFeeDto> {
-    const blockchainFee =
-      (await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee)) +
-      (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
+    const blockchainFeeIn = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
+    const blockchainFee = blockchainFeeIn + (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
+
+    // get chargeback fees
+    const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
+
+    const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
+    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -291,6 +296,9 @@ export class FeeService implements OnModuleInit {
         fees: [specialFee],
         rate: specialFee.rate,
         fixed: specialFee.fixed ?? 0,
+        chargebackRate: combinedChargebackFeeRate,
+        chargebackFixed: combinedChargebackFixedFee,
+        chargebackNetwork: blockchainFeeIn,
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -306,6 +314,9 @@ export class FeeService implements OnModuleInit {
         fees: [customFee],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
+        chargebackRate: combinedChargebackFeeRate,
+        chargebackFixed: combinedChargebackFixedFee,
+        chargebackNetwork: blockchainFeeIn,
         payoutRefBonus: customFee.payoutRefBonus,
         network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -337,6 +348,9 @@ export class FeeService implements OnModuleInit {
         fees: [baseFee],
         rate: baseFee.rate,
         fixed: baseFee.fixed,
+        chargebackRate: combinedChargebackFeeRate,
+        chargebackFixed: combinedChargebackFixedFee,
+        chargebackNetwork: blockchainFeeIn,
         payoutRefBonus: true,
         network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -346,6 +360,9 @@ export class FeeService implements OnModuleInit {
       fees: [baseFee, discountFee, ...additiveFees].filter((e) => e != null),
       rate: baseFee.rate + combinedExtraFeeRate,
       fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0),
+      chargebackRate: combinedChargebackFeeRate,
+      chargebackFixed: combinedChargebackFixedFee,
+      chargebackNetwork: blockchainFeeIn,
       payoutRefBonus:
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
@@ -390,7 +407,8 @@ export class FeeService implements OnModuleInit {
       fees.filter(
         (f) =>
           [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.specialCode) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.CHARGEBACK].includes(f.type) &&
+            !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||
           (f.wallet && f.wallet.id === wallet?.id),
