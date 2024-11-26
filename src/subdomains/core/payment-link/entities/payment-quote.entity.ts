@@ -9,10 +9,10 @@ import { PaymentLinkPayment } from './payment-link-payment.entity';
 
 @Entity()
 export class PaymentQuote extends IEntity {
-  @Column({ length: 256, nullable: false, unique: true })
+  @Column({ length: 256, unique: true })
   uniqueId: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: PaymentQuoteStatus;
 
   @ManyToOne(() => PaymentLinkPayment, (p) => p.quotes, { nullable: false })
@@ -21,29 +21,29 @@ export class PaymentQuote extends IEntity {
   @Column({ length: 'MAX' })
   transferAmounts: string;
 
-  @Column({ type: 'datetime2', nullable: false })
+  @Column({ type: 'datetime2' })
   expiryDate: Date;
 
   @Column({ length: 256 })
   standard: PaymentStandard;
 
   @Column({ length: 256, nullable: true })
-  txBlockchain: Blockchain;
+  txBlockchain?: Blockchain;
 
   @Column({ length: 'MAX', nullable: true })
-  tx: string;
+  tx?: string;
 
   @Column({ length: 256, nullable: true })
-  txId: string;
+  txId?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  errorMessage: string;
+  errorMessage?: string;
 
   @OneToMany(() => PaymentActivation, (p) => p.quote, { nullable: true })
-  activations: PaymentActivation[];
+  activations?: PaymentActivation[];
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentQuote, { nullable: true })
-  cryptoInputs: CryptoInput[];
+  cryptoInputs?: CryptoInput[];
 
   // --- ENTITY METHODS --- //
 

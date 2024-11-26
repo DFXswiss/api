@@ -38,20 +38,20 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, default: SupportIssueState.CREATED })
   state: SupportIssueState;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: SupportIssueType;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   reason: SupportIssueReason;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   name: string;
 
   @Column({ length: 'MAX', nullable: true })
-  information: string;
+  information?: string;
 
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
-  transaction: Transaction;
+  transaction?: Transaction;
 
   @OneToMany(() => SupportMessage, (supportMessage) => supportMessage.issue)
   messages: SupportMessage[];
@@ -61,7 +61,7 @@ export class SupportIssue extends IEntity {
 
   @OneToOne(() => LimitRequest, { nullable: true })
   @JoinColumn()
-  limitRequest: LimitRequest;
+  limitRequest?: LimitRequest;
 
   set additionalInformation(info: object) {
     this.information = JSON.stringify(info);
