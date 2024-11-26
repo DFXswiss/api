@@ -572,7 +572,6 @@ export class UserDataService {
         relations: {
           users: { wallet: true },
           bankDatas: true,
-          bankAccounts: true,
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
@@ -584,7 +583,6 @@ export class UserDataService {
         relations: {
           users: { wallet: true },
           bankDatas: true,
-          bankAccounts: true,
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
@@ -596,12 +594,7 @@ export class UserDataService {
 
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
 
-    const bankAccountsToReassign = slave.bankAccounts.filter(
-      (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
-    );
-
     const mergedEntitiesString = [
-      bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id)}`,
       slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
       slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
@@ -644,8 +637,7 @@ export class UserDataService {
       );
     }
 
-    // reassign bank accounts, datas, users and userDataRelations
-    master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
+    // reassign bank datas, users and userDataRelations
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
