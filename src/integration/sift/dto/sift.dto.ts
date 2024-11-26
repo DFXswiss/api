@@ -55,7 +55,7 @@ export enum PaymentType {
 export enum SiftDecisionSource {
   MANUAL_REVIEW = 'MANUAL_REVIEW',
   AUTOMATED_RULE = 'AUTOMATED_RULE',
-  SESSION = 'CHARGEBACK',
+  CHARGEBACK = 'CHARGEBACK',
 }
 
 export enum PaymentGateway {
