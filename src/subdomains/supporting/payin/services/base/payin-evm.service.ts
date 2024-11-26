@@ -3,11 +3,14 @@ import { Direction, EvmClient } from 'src/integration/blockchain/shared/evm/evm-
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { TransactionDirection } from 'src/subdomains/supporting/payment/entities/transaction-specification.entity';
+import { CryptoInput, PayInConfirmationType } from '../../entities/crypto-input.entity';
 
 export abstract class PayInEvmService {
   #client: EvmClient;
 
-  constructor(protected readonly service: EvmService) {
+  constructor(protected readonly service: EvmService, protected readonly repoFactory?: RepositoryFactory) {
     this.#client = service.getDefaultClient();
   }
 
@@ -31,6 +34,20 @@ export abstract class PayInEvmService {
 
   async checkTransactionCompletion(txHash: string): Promise<boolean> {
     return this.#client.isTxComplete(txHash);
+  }
+
+  async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
+    const specRepo = this.repoFactory.transactionSpecification;
+    const specs = await specRepo.find();
+    const spec = specRepo.getSpec(
+      specs,
+      payIn.asset.blockchain,
+      payIn.asset.name,
+      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
+    );
+    const confirmations = await this.#client.getConfirmations(payIn.confirmationTxId(direction));
+
+    return confirmations >= spec.minConfirmations;
   }
 
   async getHistory(
