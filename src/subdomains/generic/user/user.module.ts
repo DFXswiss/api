@@ -26,12 +26,12 @@ import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankData } from './models/bank-data/bank-data.entity';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
+import { CustodyProviderController } from './models/custody-provider/custody-provider.controller';
+import { CustodyProvider } from './models/custody-provider/custody-provider.entity';
+import { CustodyProviderRepository } from './models/custody-provider/custody-provider.repository';
+import { CustodyProviderService } from './models/custody-provider/custody-provider.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
-import { ServiceProviderController } from './models/service-provider/service-provider.controller';
-import { ServiceProvider } from './models/service-provider/service-provider.entity';
-import { ServiceProviderRepository } from './models/service-provider/service-provider.repository';
-import { ServiceProviderService } from './models/service-provider/service-provider.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -50,7 +50,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, ServiceProvider]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, CustodyProvider]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -72,7 +72,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycController,
     UserDataRelationController,
     WalletController,
-    ServiceProviderController,
+    CustodyProviderController,
   ],
   providers: [
     UserRepository,
@@ -95,8 +95,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataNotificationService,
     UserDataRelationService,
     AccountMergeService,
-    ServiceProviderService,
-    ServiceProviderRepository,
+    CustodyProviderService,
+    CustodyProviderRepository,
   ],
   exports: [
     UserService,
@@ -105,7 +105,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataService,
     WalletService,
     AccountMergeService,
-    ServiceProviderService,
+    CustodyProviderService,
   ],
 })
 export class UserModule {}

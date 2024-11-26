@@ -12,7 +12,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import { ServiceProvider } from '../service-provider/service-provider.entity';
+import { CustodyProvider } from '../custody-provider/custody-provider.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -53,8 +53,8 @@ export class User extends IEntity {
   @ManyToOne(() => Wallet)
   wallet: Wallet;
 
-  @ManyToOne(() => ServiceProvider)
-  serviceProvider: ServiceProvider;
+  @ManyToOne(() => CustodyProvider)
+  custodyProvider: CustodyProvider;
 
   @Column({ length: 256, default: '000-000' })
   usedRef: string;
