@@ -461,6 +461,10 @@ export class Configuration {
     },
   };
 
+  sell = {
+    guaranteedPrice: 2,
+  };
+
   exchange: ExchangeConfig = {
     enableRateLimit: true,
     rateLimit: 500,

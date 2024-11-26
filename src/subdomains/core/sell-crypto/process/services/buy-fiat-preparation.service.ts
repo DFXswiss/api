@@ -301,10 +301,14 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const asset = entity.cryptoInput.asset;
         const currency = entity.outputAsset;
         const price = await this.pricingService.getPrice(asset, currency, false);
+        let outputPrice = price.convert(entity.inputReferenceAmountMinusFee);
 
-        await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), price.steps),
-        );
+        if (Util.minutesDiff(entity.transaction.request?.created, new Date()) < 10) {
+          const priceChange = 1 - entity.transaction.request.amount / outputPrice;
+          if (priceChange < Config.sell.guaranteedPrice) outputPrice = entity.transaction.request.amount;
+        }
+
+        await this.buyFiatRepo.update(...entity.setOutput(outputPrice, price.steps));
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
       }
