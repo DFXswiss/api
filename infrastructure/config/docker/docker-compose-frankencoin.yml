@@ -1,0 +1,21 @@
+name: 'frankencoin-mainnet'
+
+services:
+  ponder:
+    image: dfxswiss/frankencoin-ponder:[IMAGE_TAG]
+    restart: always
+    volumes:
+      - ./volumes/frankencoin/ponder:/app/.ponder
+    ports:
+      - '6001:6001'
+    healthcheck:
+      test: 'curl --fail http://localhost:6001/health || exit 1'
+      start_period: 120s
+      interval: 30s
+      timeout: 60s
+      retries: 10
+    environment:
+      - PONDER_PROFILE=mainnet
+      - RPC_URL_MAINNET=[URL]
+      - PORT=6001
+      - HOSTNAME=0.0.0.0

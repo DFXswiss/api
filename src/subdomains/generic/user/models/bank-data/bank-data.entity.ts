@@ -1,7 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum BankDataType {
   IDENT = 'Ident',
@@ -53,6 +54,9 @@ export class BankData extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
+
+  @OneToMany(() => Sell, (sell) => sell.bankData)
+  sells: Sell[];
 
   // --- ENTITY METHODS --- //
 

@@ -1,9 +1,9 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
@@ -30,7 +30,6 @@ import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-d
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { ApiKeyDto } from './dto/api-key.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -129,7 +128,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
@@ -138,6 +137,7 @@ export class UserService {
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
     return UserDtoMapper.mapUser(userData, userId);
   }
@@ -157,7 +157,7 @@ export class UserService {
     userIp: string,
     userOrigin?: string,
     wallet?: Wallet,
-    discountCode?: string,
+    specialCode?: string,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
@@ -178,21 +178,19 @@ export class UserService {
     user = await this.userRepo.save(user);
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
       if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
+      this.logger.warn(`Error while adding specialCode to new user ${user.id}:`, e);
     }
 
     return user;
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
-    // update
-    user = await this.userRepo.save({ ...user, ...dto });
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
     user.userData = update;
 
@@ -216,14 +214,14 @@ export class UserService {
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
     await this.userDataService.updateUserName(user.userData, dto);
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
@@ -369,7 +367,7 @@ export class UserService {
       from,
       to,
       txVolume: undefined,
-      discountCodes: [],
+      specialCodes: [],
       allowCachedBlockchainFee: true,
     });
   }
@@ -468,21 +466,6 @@ export class UserService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const user = await this.userRepo.findOneBy({ id: userId });
-    if (!user) throw new BadRequestException('User not found');
-    if (user.apiKeyCT) throw new ConflictException('API key already exists');
-
-    user.apiKeyCT = ApiKeyService.createKey(user.address);
-    user.apiFilterCT = ApiKeyService.getFilterCode(filter);
-
-    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiFilterCT: user.apiFilterCT });
-
-    const secret = ApiKeyService.getSecret(user);
-
-    return { key: user.apiKeyCT, secret: secret };
-  }
-
   async deleteApiKey(userId: number): Promise<void> {
     await this.userRepo.update(userId, { apiKeyCT: null });
   }
@@ -524,8 +507,8 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
-      apiKeyCT: user.apiKeyCT,
-      apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
+      apiKeyCT: user.userData?.apiKeyCT ?? user.apiKeyCT,
+      apiFilterCT: ApiKeyService.getFilterArray(user.userData?.apiFilterCT ?? user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };

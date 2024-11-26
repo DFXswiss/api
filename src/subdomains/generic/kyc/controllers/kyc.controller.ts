@@ -12,19 +12,25 @@ import {
   Query,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
   ApiForbiddenResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -43,7 +49,7 @@ import {
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
-import { FileType } from '../dto/kyc-file.dto';
+import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
@@ -91,6 +97,7 @@ export class KycController {
   @Get('countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiUnauthorizedResponse(MergedResponse)
+  @ApiOperation({ deprecated: true })
   async getKycCountries(@Headers(CodeHeaderName) code: string): Promise<CountryDto[]> {
     return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
@@ -105,6 +112,13 @@ export class KycController {
     @Query('sequence') sequence?: string,
   ): Promise<KycSessionDto> {
     return this.kycService.getOrCreateStep(code, ip, stepName, stepType, sequence ? +sequence : undefined);
+  }
+
+  @Get('file/:id')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
+  async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
+    return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
   }
 
   @Post('transfer')
@@ -193,7 +207,6 @@ export class KycController {
   @ApiUnauthorizedResponse(MergedResponse)
   async updateResidencePermitData(
     @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
@@ -206,7 +219,6 @@ export class KycController {
   @ApiUnauthorizedResponse(MergedResponse)
   async updateAdditionalDocumentsData(
     @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
   ): Promise<KycResultDto> {
@@ -265,14 +277,14 @@ export class KycController {
 
   @Post('ident/sumsub')
   @ApiExcludeEndpoint()
-  async sumsubWebhook(@Req() req: Request, @Body() data: SumSubWebhookResult) {
-    if (!SumsubService.checkWebhook(req, data)) {
-      this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`);
+  async sumsubWebhook(@Req() req: Request, @Body() data: any) {
+    if (!SumsubService.checkWebhook(req, req.body)) {
+      this.logger.error(`Received invalid sumsub webhook: ${data}`);
       throw new ForbiddenException('Invalid key');
     }
 
     try {
-      await this.kycService.updateSumsubIdent(data);
+      await this.kycService.updateSumsubIdent(JSON.parse(data) as SumSubWebhookResult);
     } catch (e) {
       this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${data.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);

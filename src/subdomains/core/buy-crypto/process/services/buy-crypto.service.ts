@@ -43,7 +43,7 @@ import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entit
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, Brackets, In, IsNull, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -252,10 +252,7 @@ export class BuyCryptoService {
 
     if (dto.chargebackAllowedDate) {
       if (entity.bankTx && !entity.chargebackOutput)
-        update.chargebackOutput = await this.fiatOutputService.create({
-          buyCryptoId: entity.id,
-          type: 'BuyCryptoFail',
-        });
+        update.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto: entity });
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -422,10 +419,7 @@ export class BuyCryptoService {
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
-      dto.chargebackOutput = await this.fiatOutputService.create({
-        buyCryptoId: buyCrypto.id,
-        type: 'BuyCryptoFail',
-      });
+      dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto });
     }
 
     await this.buyCryptoRepo.update(
@@ -465,6 +459,10 @@ export class BuyCryptoService {
       .getOne();
   }
 
+  async getBuyCrypto(from: Date, relations?: FindOptionsRelations<BuyCrypto>): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  }
+
   async updateVolumes(start = 1, end = 100000): Promise<void> {
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { id: Between(start, end) },
@@ -493,14 +491,16 @@ export class BuyCryptoService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyCryptoRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
-    if (entity.isComplete || entity.batch)
+    if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
 
     const fee = entity.fee;
+    const fiatOutputId = entity.chargebackOutput?.id;
 
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
+    if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
   }
 
   async getUserVolume(

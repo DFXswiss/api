@@ -35,6 +35,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
+  [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -52,6 +53,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
+  [Blockchain.RAILGUN]: 'transaction',
 };
 
 function assetPaths(asset: Asset): string | undefined {

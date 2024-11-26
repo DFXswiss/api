@@ -22,7 +22,7 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
-    return this.bankDataService.getUserBankData(jwt.account).then((l) => this.toDtoList(l));
+    return this.bankDataService.getValidBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
   }
 
   @Post()
@@ -46,14 +46,14 @@ export class BankAccountController {
   }
 
   // --- DTO --- //
-  private async toDtoList(bankDatas: BankData[]): Promise<BankAccountDto[]> {
-    return Promise.all(bankDatas.map((b) => this.toDto(b)));
+  private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
+    return bankDatas.map((b) => this.toDto(b));
   }
 
-  private async toDto(bankData: BankData): Promise<BankAccountDto> {
+  private toDto(bankData: BankData): BankAccountDto {
     return {
       id: bankData.id,
-      iban: bankData.iban,
+      iban: bankData.iban.split(';')[0],
       label: bankData.label,
       preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
       sepaInstant: false,

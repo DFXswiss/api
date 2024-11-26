@@ -4,10 +4,11 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
+import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -16,6 +17,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 
 export enum KycStatus {
   NA = 'NA',
@@ -112,8 +114,6 @@ export enum UserDataStatus {
   },
 )
 export class UserData extends IEntity {
-  private readonly logger = new DfxLogger(UserData);
-
   @Column({ nullable: true, length: 256 })
   accountType: AccountType;
 
@@ -222,6 +222,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
+  @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
+  kycFiles: KycFile[];
+
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
 
@@ -236,7 +239,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycType: KycType;
 
-  @OneToMany(() => KycStep, (step) => step.userData, { cascade: true })
+  @OneToMany(() => KycStep, (step) => step.userData)
   kycSteps: KycStep[];
 
   @Column({ type: 'float', nullable: true })
@@ -290,6 +293,14 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   individualFees: string; // semicolon separated id's
 
+  // CT
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  apiKeyCT: string;
+
+  @Column({ length: 256, nullable: true })
+  apiFilterCT: string;
+
   // Volumes
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF
@@ -339,6 +350,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
+
+  @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.userData)
+  supportIssues: SupportIssue[];
 
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
@@ -534,79 +548,11 @@ export class UserData extends IEntity {
         };
   }
 
+  get paymentLinksConfigObj(): PaymentLinkConfig {
+    return JSON.parse(this.paymentLinksConfig ?? '{}');
+  }
+
   // --- KYC PROCESS --- //
-
-  setKycLevel(level: KycLevel): this {
-    this.kycLevel = level;
-
-    this.logger.verbose(`User ${this.id} changed to KYC level ${level}`);
-
-    return this;
-  }
-
-  completeStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.complete(result);
-    this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  failStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.fail(result);
-
-    this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  pauseStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.pause(result);
-    this.logger.verbose(`User ${this.id} pauses step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  cancelStep(kycStep: KycStep): this {
-    kycStep.cancel();
-    this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  finishStep(kycStep: KycStep): this {
-    kycStep.finish();
-
-    this.logger.verbose(`User ${this.id} finishes step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  externalReviewStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.externalReview(result);
-
-    this.logger.verbose(`User ${this.id} checks step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  internalReviewStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.internalReview(result);
-
-    this.logger.verbose(`User ${this.id} reviews step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  nextStep(kycStep: KycStep): this {
-    this.kycSteps.push(kycStep);
-
-    this.logger.verbose(`User ${this.id} starts step ${kycStep.name}`);
-
-    if (kycStep.isCompleted) this.completeStep(kycStep);
-    if (kycStep.isFailed) this.failStep(kycStep);
-
-    return this;
-  }
 
   get hasSuspiciousMail(): boolean {
     return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;

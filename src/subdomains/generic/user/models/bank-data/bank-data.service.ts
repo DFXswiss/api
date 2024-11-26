@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -15,8 +16,9 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -38,6 +40,8 @@ export class BankDataService {
     private readonly accountMergeService: AccountMergeService,
     private readonly nameCheckService: NameCheckService,
     private readonly fiatService: FiatService,
+    private readonly countryService: CountryService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -51,7 +55,6 @@ export class BankDataService {
     const search: FindOptionsWhere<BankData> = {
       type: Not(In([BankDataType.IDENT, BankDataType.USER])),
       comment: IsNull(),
-      userData: { verifiedName: Not(IsNull()) },
     };
     const entities = await this.bankDataRepo.find({
       where: [
@@ -67,22 +70,21 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
-      if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
+    try {
+      if (
+        !entity.userData.verifiedName &&
+        (entity.userData.accountType === AccountType.PERSONAL || entity.type === BankDataType.BANK_IN)
+      )
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       if (entity.type === BankDataType.IDENT) await this.nameCheckService.closeAndRefreshRiskStatus(entity);
 
-      return;
-    }
-    try {
+      if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
+
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, approved: true },
         relations: { userData: true },
       });
-
-      if (!entity.userData.verifiedName && entity.type === BankDataType.BANK_IN)
-        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
@@ -202,30 +204,24 @@ export class BankDataService {
       .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
   }
 
-  async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
-    return this.bankDataRepo.find({
-      where: [
-        { userData: { id: userDataId }, approved: true },
-        { userData: { id: userDataId }, approved: IsNull() },
-      ],
-      relations: { userData: true },
-    });
+  async existsUserBankDataWithIban(iban: string): Promise<boolean> {
+    return this.bankDataRepo.existsBy({ iban, type: BankDataType.USER });
+  }
+
+  async getValidBankDatasForUser(userDataId: number, ibansOnly = true): Promise<BankData[]> {
+    return this.bankDataRepo
+      .find({
+        where: [
+          { userData: { id: userDataId }, approved: true },
+          { userData: { id: userDataId }, approved: IsNull() },
+        ],
+        relations: { userData: true },
+      })
+      .then((l) => (ibansOnly ? l.filter((b) => IbanTools.validateIBAN(b.iban).valid) : l));
   }
 
   async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
-  }
-
-  async getUserBankData(userDataId: number): Promise<BankData[]> {
-    const bankDatas = await this.getBankDatasForUser(userDataId);
-
-    return Array.from(
-      new Set(
-        bankDatas
-          .map((b) => ({ ...b, iban: b.iban.split(';')[0] } as BankData))
-          .filter((b) => IbanTools.validateIBAN(b.iban).valid),
-      ),
-    );
   }
 
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
@@ -245,6 +241,13 @@ export class BankDataService {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
+    if (!(await this.isValidIbanCountry(dto.iban)))
+      throw new BadRequestException('IBAN country is currently not supported');
+
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (userData.status === UserDataStatus.KYC_ONLY)
+      throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
+
     const existing = await this.bankDataRepo.findOne({
       where: [
         { iban: dto.iban, approved: true, type },
@@ -253,7 +256,6 @@ export class BankDataService {
       relations: { userData: true },
     });
     if (existing) {
-      const userData = await this.userDataRepo.findOneBy({ id: userDataId });
       if (userData.id === existing.userData.id) return existing;
 
       if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
@@ -275,6 +277,8 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
+    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
+
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },
       iban: dto.iban,
@@ -285,5 +289,11 @@ export class BankDataService {
     });
 
     return this.bankDataRepo.save(bankData);
+  }
+
+  private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
+    const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
+
+    return ibanCountry.isEnabled(kycType);
   }
 }

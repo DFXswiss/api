@@ -1,10 +1,10 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { CreateLogDto, UpdateLogDto } from './dto/create-log.dto';
 import { Log } from './log.entity';
-import { CreateLogDto } from './dto/create-log.dto';
 import { LogService } from './log.service';
 
 @ApiTags('log')
@@ -18,5 +18,13 @@ export class LogController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
   async create(@Body() dto: CreateLogDto): Promise<Log> {
     return this.logService.create(dto);
+  }
+
+  @Put(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async update(@Param('id') id: string, @Body() dto: UpdateLogDto): Promise<Log> {
+    return this.logService.update(+id, dto);
   }
 }

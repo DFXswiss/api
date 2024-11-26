@@ -26,7 +26,7 @@ export class BankAccountService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async process() {
-    if (DisabledProcess(Process.BANK_DATA_SYNC)) return;
+    if (DisabledProcess(Process.BANK_ACCOUNT_DUPLICATE_SYNC)) return;
 
     const entities = await this.bankAccountRepo.find({
       where: { synced: IsNull() },

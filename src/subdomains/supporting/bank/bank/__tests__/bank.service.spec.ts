@@ -9,8 +9,6 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
@@ -28,12 +26,10 @@ import { BankSelectorInput, BankService } from '../bank.service';
 function createBankSelectorInput(
   currency = 'EUR',
   amount = 1,
-  bankAccount: BankAccount = createDefaultBankAccount(),
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK,
   userData: UserData = createDefaultUserData(),
 ): BankSelectorInput {
   return {
-    bankAccount,
     amount,
     currency,
     paymentMethod,
@@ -108,7 +104,7 @@ describe('BankService', () => {
   it('should return Olkypay if currency = EUR & sctInst & Method instant', async () => {
     defaultSetup();
     await expect(
-      service.getBank(createBankSelectorInput('EUR', undefined, undefined, FiatPaymentMethod.INSTANT)),
+      service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT)),
     ).resolves.toMatchObject({
       iban: olkyEUR.iban,
       bic: olkyEUR.bic,
@@ -134,7 +130,7 @@ describe('BankService', () => {
   it('should return maerki if currency = EUR & sctInst & Method instant & olky disabled', async () => {
     defaultSetup(true, true);
     await expect(
-      service.getBank(createBankSelectorInput('EUR', undefined, undefined, FiatPaymentMethod.INSTANT)),
+      service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT)),
     ).resolves.toMatchObject({
       iban: maerkiEUR.iban,
       bic: maerkiEUR.bic,

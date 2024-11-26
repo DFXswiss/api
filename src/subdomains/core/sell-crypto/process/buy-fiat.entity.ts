@@ -28,8 +28,7 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
-  @OneToOne(() => FiatOutput, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => FiatOutput, (o) => o.buyFiats, { nullable: true })
   fiatOutput: FiatOutput;
 
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
@@ -435,6 +434,22 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  pendingInputAmount(asset: Asset): number {
+    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      (asset.blockchain as string) === 'MaerkiBaumann'
+      ? this.outputAmount
+      : 0;
+  }
+
+  get feeAmountChf(): number {
+    return this.totalFeeAmountChf;
+  }
+
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
       exchangeRate: Util.roundReadable(
@@ -475,18 +490,6 @@ export class BuyFiat extends IEntity {
 
   get paymentLinkPayment(): PaymentLinkPayment | undefined {
     return this.cryptoInput?.paymentLinkPayment;
-  }
-
-  pendingInputAmount(asset: Asset): number {
-    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
-  }
-
-  pendingOutputAmount(asset: Asset): number {
-    return this.outputAmount &&
-      asset.dexName === this.sell.fiat.name &&
-      (asset.blockchain as string) === 'MaerkiBaumann'
-      ? this.outputAmount
-      : 0;
   }
 }
 

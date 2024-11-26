@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import {
   KycIdentificationType,
@@ -42,6 +43,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
+    Config.kyc.residencePermitCountries.includes(userData.nationality?.symbol) ? KycStepName.RESIDENCE_PERMIT : null,
     KycStepName.DFX_APPROVAL,
   ].filter(Boolean) as KycStepName[];
 }
@@ -55,11 +57,13 @@ export enum KycStepType {
 }
 
 export enum KycLogType {
-  KYC_STEP = 'KycStep',
-  NAME_CHECK = 'NameCheck',
-  MERGE = 'Merge',
-  MAIL_CHANGE = 'MailChange',
-  TFA = '2FA',
+  KYC = 'KycLog',
+  STEP = 'StepLog',
+  NAME_CHECK = 'NameCheckLog',
+  MERGE = 'MergeLog',
+  MAIL_CHANGE = 'MailChangeLog',
+  TFA = 'TfaLog',
+  FILE = 'KycFileLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {
@@ -72,6 +76,8 @@ export function getIdentificationType(type: IdentType, companyId: string): KycId
     return companyId === SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED
       ? KycIdentificationType.VIDEO_ID
       : KycIdentificationType.ONLINE_ID;
+
+  if (type === IdentType.MANUAL) return KycIdentificationType.MANUAL;
 
   switch (companyId) {
     case 'dfxautonew':

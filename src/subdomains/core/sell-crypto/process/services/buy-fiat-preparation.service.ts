@@ -16,7 +16,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -117,6 +117,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
+
+        // check if amlCheck changed (e.g. reset or refund)
+        if (
+          entity.amlCheck === CheckStatus.PENDING &&
+          (await this.buyFiatRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
+        )
+          continue;
 
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(
@@ -285,7 +292,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
         inputReferenceAmountMinusFee: Not(IsNull()),
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
-        cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
       },
       relations: { sell: true, cryptoInput: true },
     });

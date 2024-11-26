@@ -37,6 +37,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.HAQQ]: undefined,
   [Blockchain.LIQUID]: undefined,
   [Blockchain.ARWEAVE]: undefined,
+  [Blockchain.RAILGUN]: undefined,
 };
 
 @Injectable()
@@ -131,6 +132,16 @@ export class RefRewardService {
     const outputAssetEntity = await this.assetService.getNativeAsset(reward.targetBlockchain);
 
     return Object.assign(reward, { outputAssetEntity });
+  }
+
+  async getRefRewardVolume(from: Date): Promise<number> {
+    const { volume } = await this.rewardRepo
+      .createQueryBuilder('refReward')
+      .select('SUM(amountInChf)', 'volume')
+      .where('created >= :from', { from })
+      .getRawOne<{ volume: number }>();
+
+    return volume ?? 0;
   }
 
   // --- HELPER METHODS --- //

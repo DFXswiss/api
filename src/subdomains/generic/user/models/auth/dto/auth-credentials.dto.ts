@@ -26,8 +26,13 @@ export class AuthCredentialsDto {
   )
   key?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
   @IsOptional()
   @IsString()
   discountCode?: string;
+
+  @ApiPropertyOptional({ description: 'Special code' })
+  @IsOptional()
+  @IsString()
+  specialCode?: string;
 }

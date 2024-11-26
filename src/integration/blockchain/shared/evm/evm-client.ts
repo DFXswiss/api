@@ -1,5 +1,5 @@
 import { ChainId, Currency, CurrencyAmount, Ether, NativeCurrency, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import { AlphaRouter, SwapOptions, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/main/util/methodParameters';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
@@ -15,9 +15,10 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
+import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
+import { BlockchainClient } from '../util/blockchain-client';
 import { WalletAccount } from './domain/wallet-account';
-import { EvmSignedTransactionResponse } from './dto/evm-signed-transaction-reponse.dto';
-import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
@@ -47,7 +48,7 @@ export enum Direction {
   INCOMING = 'incoming',
 }
 
-export abstract class EvmClient {
+export abstract class EvmClient extends BlockchainClient {
   protected http: HttpService;
   private readonly alchemyService: AlchemyService;
   private readonly chainId: ChainId;
@@ -62,6 +63,7 @@ export abstract class EvmClient {
   private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
+    super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
     this.chainId = params.chainId;
@@ -119,8 +121,8 @@ export abstract class EvmClient {
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
-  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
-    const evmTokenBalances: EvmTokenBalance[] = [];
+  async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
+    const evmTokenBalances: BlockchainTokenBalance[] = [];
 
     const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, address ?? this.dfxAddress, assets);
 
@@ -135,8 +137,8 @@ export abstract class EvmClient {
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
-    // 10% cap
-    return this.provider.getGasPrice().then((p) => p.mul(11).div(10));
+    // 20% cap
+    return this.provider.getGasPrice().then((p) => p.mul(12).div(10));
   }
 
   async getCurrentBlock(): Promise<number> {
@@ -279,7 +281,7 @@ export abstract class EvmClient {
     return result.hash;
   }
 
-  async sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse> {
+  async sendSignedTransaction(tx: string): Promise<SignedTransactionResponse> {
     const txToUse = tx.toLowerCase().startsWith('0x') ? tx : '0x' + tx;
 
     return this.alchemyService
@@ -582,13 +584,15 @@ export abstract class EvmClient {
     return this.wallet.address;
   }
 
-  swapConfig(maxSlippage: number) {
-    return {
+  swapConfig(maxSlippage: number): SwapOptions {
+    const config: SwapOptions = {
       recipient: this.dfxAddress,
       slippageTolerance: new Percent(maxSlippage * 100000, 100000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
       type: SwapType.SWAP_ROUTER_02,
     };
+
+    return config;
   }
 
   // --- PUBLIC HELPER METHODS --- //

@@ -11,6 +11,7 @@ import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.se
 import { BankModule } from '../bank/bank.module';
 import { NotificationModule } from '../notification/notification.module';
 import { TransactionModule } from '../payment/transaction.module';
+import { PricingModule } from '../pricing/pricing.module';
 import { BankTxReturnController } from './bank-tx-return/bank-tx-return.controller';
 import { BankTxReturn } from './bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return/bank-tx-return.repository';
@@ -22,6 +23,7 @@ import { BankTxBatchRepository } from './bank-tx/repositories/bank-tx-batch.repo
 import { BankTxRepository } from './bank-tx/repositories/bank-tx.repository';
 import { BankTxBatchService } from './bank-tx/services/bank-tx-batch.service';
 import { BankTxService } from './bank-tx/services/bank-tx.service';
+import { SepaParser } from './bank-tx/services/sepa-parser.service';
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { BankTxService } from './bank-tx/services/bank-tx.service';
     forwardRef(() => BuyCryptoModule),
     BankModule,
     TransactionModule,
+    PricingModule,
   ],
 
   controllers: [BankTxController, BankTxReturnController, BankTxRepeatController],
@@ -45,6 +48,7 @@ import { BankTxService } from './bank-tx/services/bank-tx.service';
     BankTxReturnService,
     BankTxRepeatService,
     BankTxBatchService,
+    SepaParser,
   ],
   exports: [BankTxService, BankTxRepeatService, BankTxBatchService, BankTxReturnService],
 })

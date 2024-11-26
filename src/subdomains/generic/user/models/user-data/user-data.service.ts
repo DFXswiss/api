@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -17,10 +18,12 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -28,11 +31,12 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindManyOptions, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
+import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
 import { UserRepository } from '../user/user.repository';
@@ -84,8 +88,13 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
   }
 
+  // TODO: Remove this method (temporarily used by Cron Job)
+  async getAllUserDataBy(options?: FindManyOptions<UserData>): Promise<UserData[]> {
+    return this.userDataRepo.find(options);
+  }
+
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
-    let user = await this.userDataRepo.findOne({ where: { kycHash }, relations });
+    let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
     if (user.status === UserDataStatus.MERGED) {
@@ -153,25 +162,25 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne({
+    const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true }, kycSteps: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
       const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
       const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
-      if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
+      if (identCompleted && pendingVideo) await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
     }
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
       const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-      if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+      if (pendingDfxApproval) await this.kycAdminService.updateKycStepInternal(pendingDfxApproval.complete());
 
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
@@ -185,7 +194,8 @@ export class UserDataService {
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(userData.id, dto);
+    Object.assign(userData, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -262,7 +272,9 @@ export class UserDataService {
     const mailChanged = data.mail && data.mail !== userData.mail;
     if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, data.mail);
 
-    return this.userDataRepo.save(Object.assign(userData, data));
+    await this.userDataRepo.update(userData.id, data);
+
+    return Object.assign(userData, data);
   }
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
@@ -322,7 +334,9 @@ export class UserDataService {
 
     if (mailChanged) await this.kycLogService.createMailChangeLog(userData, userData.mail, dto.mail);
 
-    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(userData.id, dto);
+
+    userData = Object.assign(userData, dto);
 
     const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(userData));
     return { user: userData, isKnownUser };
@@ -346,6 +360,46 @@ export class UserDataService {
     return ident === KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO;
   }
 
+  // --- API KEY --- //
+  async createApiKey(userDataId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (!userData) throw new BadRequestException('User not found');
+    if (userData.apiKeyCT) throw new ConflictException('API key already exists');
+
+    userData.apiKeyCT = ApiKeyService.createKey(userData.id);
+    userData.apiFilterCT = ApiKeyService.getFilterCode(filter);
+
+    await this.userDataRepo.update(userDataId, { apiKeyCT: userData.apiKeyCT, apiFilterCT: userData.apiFilterCT });
+
+    const secret = ApiKeyService.getSecret(userData);
+
+    return { key: userData.apiKeyCT, secret };
+  }
+
+  async deleteApiKey(userDataId: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, { apiKeyCT: null });
+  }
+
+  async updateApiFilter(userDataId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    if (!userData) throw new BadRequestException('UserData not found');
+
+    userData.apiFilterCT = ApiKeyService.getFilterCode(filter);
+    await this.userDataRepo.update(userDataId, { apiFilterCT: userData.apiFilterCT });
+
+    return ApiKeyService.getFilterArray(userData.apiFilterCT);
+  }
+
+  async checkApiKey(key: string, sign: string, timestamp: string): Promise<UserData> {
+    const userData = await this.userDataRepo.findOne({ where: { apiKeyCT: key }, relations: { users: true } });
+    if (!userData) throw new NotFoundException('API key not found');
+
+    if (!ApiKeyService.isValidSign(userData, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
+
+    return userData;
+  }
+
+  // --- HELPER METHODS --- //
   private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
     const userWithCustomMethod = await this.userRepo.findOne({
       where: {
@@ -422,10 +476,6 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
-  }
-
-  async save(userData: UserData): Promise<UserData> {
-    return this.userDataRepo.save(userData);
   }
 
   // --- KYC CLIENTS --- //
@@ -513,7 +563,7 @@ export class UserDataService {
     return false;
   }
 
-  async mergeUserData(masterId: number, slaveId: number, notifyUser = false): Promise<void> {
+  async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     const [master, slave] = await Promise.all([
@@ -526,6 +576,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -537,10 +588,13 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
     ]);
     master.checkIfMergePossibleWith(slave);
+
+    if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
@@ -556,25 +610,39 @@ export class UserDataService {
       slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
+      slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
 
-    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
+    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
     this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);
 
     // Notify user about changed mail
-    if (notifyUser && slave.mail && master.mail !== slave.mail)
+    if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
       await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
     // Adapt slave kyc step sequenceNumber
     const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
-    slave.kycSteps.forEach((k) => {
-      k.sequenceNumber = k.sequenceNumber + sequenceNumberOffset;
-      if (k.status === KycStepStatus.IN_PROGRESS) k.status = KycStepStatus.CANCELED;
-    });
+    for (const kycStep of slave.kycSteps) {
+      await this.kycAdminService.updateKycStepInternal(
+        kycStep.update(
+          [
+            KycStepStatus.IN_PROGRESS,
+            KycStepStatus.MANUAL_REVIEW,
+            KycStepStatus.INTERNAL_REVIEW,
+            KycStepStatus.EXTERNAL_REVIEW,
+            KycStepStatus.FINISHED,
+          ].includes(kycStep.status)
+            ? KycStepStatus.CANCELED
+            : undefined,
+          undefined,
+          kycStep.sequenceNumber + sequenceNumberOffset,
+        ),
+      );
+    }
 
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
@@ -583,6 +651,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
+    master.supportIssues = master.supportIssues.concat(slave.supportIssues);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
@@ -601,7 +670,7 @@ export class UserDataService {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
-    master.mail = slave.mail ?? master.mail;
+    master.mail = mail ?? slave.mail ?? master.mail;
 
     // update slave status
     await this.userDataRepo.update(slave.id, {

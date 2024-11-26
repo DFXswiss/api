@@ -134,7 +134,7 @@ export class PaymentLink extends IEntity {
     return Object.assign(
       {},
       DefaultPaymentLinkConfig,
-      JSON.parse(this.route.userData.paymentLinksConfig ?? '{}'),
+      this.route.userData.paymentLinksConfigObj,
       JSON.parse(this.config ?? '{}'),
     );
   }

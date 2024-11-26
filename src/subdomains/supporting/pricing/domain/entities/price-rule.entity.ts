@@ -22,6 +22,7 @@ export enum PriceSource {
 export interface Rule {
   source: PriceSource;
   param?: string;
+  name?: string;
   asset: string;
   reference: string;
   limit?: number;
@@ -39,7 +40,7 @@ export class PriceRule extends IEntity {
   reference?: Asset;
 
   @Column()
-  priceSource: string; // {src}:{param}
+  priceSource: string; // {src}:{param}:{name}
 
   @Column()
   priceAsset: string;
@@ -143,12 +144,13 @@ export class PriceRule extends IEntity {
       : undefined;
   }
 
-  private parseSource(priceSource: string): { source: PriceSource; param?: string } {
-    const [source, param] = priceSource.split(':');
+  private parseSource(priceSource: string): { source: PriceSource; param?: string; name?: string } {
+    const [source, param, name] = priceSource.split(':');
 
     return {
       source: source as PriceSource,
       param,
+      name,
     };
   }
 }

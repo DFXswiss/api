@@ -3,9 +3,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { NodeService } from '../../node/node.service';
 
@@ -16,14 +17,16 @@ describe('CryptoService', () => {
   let moneroService: MoneroService;
   let arweaveService: ArweaveService;
   let nodeService: NodeService;
-  let evmRegistryService: EvmRegistryService;
+  let railgunService: RailgunService;
+  let blockchainRegistryService: BlockchainRegistryService;
 
   beforeEach(async () => {
     lightningService = createMock<LightningService>();
     moneroService = createMock<MoneroService>();
     arweaveService = createMock<ArweaveService>();
+    railgunService = createMock<RailgunService>();
     nodeService = createMock<NodeService>();
-    evmRegistryService = createMock<EvmRegistryService>();
+    blockchainRegistryService = createMock<BlockchainRegistryService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -32,7 +35,8 @@ describe('CryptoService', () => {
         { provide: MoneroService, useValue: moneroService },
         { provide: ArweaveService, useValue: arweaveService },
         { provide: NodeService, useValue: nodeService },
-        { provide: EvmRegistryService, useValue: evmRegistryService },
+        { provide: RailgunService, useValue: railgunService },
+        { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -146,5 +150,13 @@ describe('CryptoService', () => {
     expect(CryptoService.getBlockchainsBasedOn('stake1uxuejpadqz7gtt9r7jk3xkqnzvd4xx7yazz0wgsry6srgvc075tzy')).toEqual([
       Blockchain.CARDANO,
     ]);
+  });
+
+  it('should return Blockchain.RAILGUN for address 0zk1qyq24xdx7xuuf2ldgm2a96zd32t9ktru7dm88apaykhqu9cmnx9a3rv7j6fe3z53l7p2rhypluwfqqwa6t7nejqq0nj2quwy0599l8aw8u7fqh98qkhyupxjfqh', () => {
+    expect(
+      CryptoService.getBlockchainsBasedOn(
+        '0zk1qyq24xdx7xuuf2ldgm2a96zd32t9ktru7dm88apaykhqu9cmnx9a3rv7j6fe3z53l7p2rhypluwfqqwa6t7nejqq0nj2quwy0599l8aw8u7fqh98qkhyupxjfqh',
+      ),
+    ).toEqual([Blockchain.RAILGUN]);
   });
 });

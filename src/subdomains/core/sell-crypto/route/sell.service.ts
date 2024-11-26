@@ -15,6 +15,8 @@ import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-sell.dto';
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -22,7 +24,6 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
-import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -39,7 +40,6 @@ export class SellService {
     private readonly depositService: DepositService,
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
-    private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
@@ -48,6 +48,7 @@ export class SellService {
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   // --- SELLS --- //
@@ -130,6 +131,12 @@ export class SellService {
       if (!existing.active && userData.isDataComplete) {
         // reactivate deleted route
         existing.active = true;
+        existing.bankData = await this.bankDataService.createIbanForUser(
+          userData.id,
+          { iban: dto.iban },
+          true,
+          BankDataType.USER,
+        );
         await this.sellRepo.save(existing);
       }
 
@@ -142,7 +149,12 @@ export class SellService {
     sell.route = await this.routeService.createRoute({ sell });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
-    sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+    sell.bankData = await this.bankDataService.createIbanForUser(
+      userData.id,
+      { iban: dto.iban },
+      true,
+      BankDataType.USER,
+    );
 
     return this.sellRepo.save(sell);
   }

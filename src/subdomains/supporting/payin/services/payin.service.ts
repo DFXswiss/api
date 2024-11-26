@@ -36,8 +36,26 @@ export class PayInService {
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
 
-    for (const { address, txId, txType, txSequence, blockHeight, amount, asset } of transactions) {
-      const payIn = CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset);
+    for (const {
+      senderAddresses,
+      receiverAddress,
+      txId,
+      txType,
+      txSequence,
+      blockHeight,
+      amount,
+      asset,
+    } of transactions) {
+      const payIn = CryptoInput.create(
+        senderAddresses,
+        receiverAddress,
+        txId,
+        txType,
+        txSequence,
+        blockHeight,
+        amount,
+        asset,
+      );
 
       const exists = await this.payInRepository.exists({
         where: {
@@ -45,8 +63,8 @@ export class PayInService {
           txSequence: txSequence,
           asset: { id: asset?.id },
           address: {
-            address: address.address,
-            blockchain: address.blockchain,
+            address: receiverAddress.address,
+            blockchain: receiverAddress.blockchain,
           },
         },
       });
@@ -94,13 +112,27 @@ export class PayInService {
   }
 
   async getPendingPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy([{ status: PayInStatus.ACKNOWLEDGED, isConfirmed: true }]);
+    return this.payInRepository.findBy({
+      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
+      isConfirmed: true,
+    });
+  }
+
+  async getPayInFee(from: Date): Promise<number> {
+    const { fee } = await this.payInRepository
+      .createQueryBuilder('cryptoInput')
+      .select('SUM(forwardFeeAmountChf)', 'fee')
+      .where('created >= :from', { from })
+      .getRawOne<{ fee: number }>();
+
+    return fee ?? 0;
   }
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
+    const strategy = this.sendStrategyRegistry.getSendStrategy(payIn.asset);
 
-    payIn.acknowledge(purpose, route);
+    payIn.acknowledge(purpose, route, strategy.forwardRequired);
 
     await this.payInRepository.save(payIn);
   }
@@ -181,6 +213,7 @@ export class PayInService {
       action: PayInAction.FORWARD,
       outTxId: IsNull(),
       asset: Not(IsNull()),
+      isConfirmed: true,
     });
 
     if (payIns.length === 0) return;
@@ -244,6 +277,7 @@ export class PayInService {
       returnTxId: IsNull(),
       asset: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
+      isConfirmed: true,
     });
 
     if (payIns.length === 0) return;

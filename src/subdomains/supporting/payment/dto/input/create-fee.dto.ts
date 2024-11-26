@@ -50,7 +50,7 @@ export class CreateFeeDto {
   // Filter columns
   @IsOptional()
   @IsBoolean()
-  createDiscountCode = false;
+  createSpecialCode = false;
 
   @IsOptional()
   @IsEnum(AccountType)

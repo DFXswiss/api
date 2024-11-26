@@ -41,8 +41,13 @@ export class GetSwapQuoteDto {
   @IsNumber()
   targetAmount: number;
 
-  @ApiPropertyOptional({ description: 'Discount code' })
+  @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
   @IsOptional()
   @IsString()
   discountCode: string;
+
+  @ApiPropertyOptional({ description: 'Special code' })
+  @IsOptional()
+  @IsString()
+  specialCode: string;
 }

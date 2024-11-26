@@ -13,4 +13,5 @@ export enum Blockchain {
   ARWEAVE = 'Arweave',
   CARDANO = 'Cardano',
   DEFICHAIN = 'DeFiChain',
+  RAILGUN = 'Railgun',
 }

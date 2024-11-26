@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
-import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -19,8 +20,12 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
+import { TradingOrderService } from 'src/subdomains/core/trading/services/trading-order.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
@@ -30,25 +35,20 @@ import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
+import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
+import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
+import { PayoutService } from '../payout/services/payout.service';
+import {
+  AssetLog,
+  BalancesByFinancialType,
+  BankExchangeType,
+  ChangeLog,
+  ManualDebtPosition,
+  TradingLog,
+} from './dto/log.dto';
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
-
-export type BankExchangeType = ExchangeTxType | BankTxType;
-
-type BalancesByFinancialType = {
-  [financialType: string]: {
-    plusBalance: number;
-    plusBalanceChf: number;
-    minusBalance: number;
-    minusBalanceChf: number;
-  };
-};
-
-type ManualDebtPosition = {
-  assetId: number;
-  value: number;
-};
 
 @Injectable()
 export class LogJobService {
@@ -69,7 +69,10 @@ export class LogJobService {
     private readonly liquidityManagementPipelineService: LiquidityManagementPipelineService,
     private readonly exchangeTxService: ExchangeTxService,
     private readonly bankService: BankService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly refRewardService: RefRewardService,
+    private readonly tradingOrderService: TradingOrderService,
+    private readonly payoutService: PayoutService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -78,7 +81,78 @@ export class LogJobService {
     if (DisabledProcess(Process.TRADING_LOG)) return;
 
     // trading log
-    const tradingLog = await this.tradingRuleService.getCurrentTradingOrders().then((t) =>
+    const tradingLog = await this.getTradingLog();
+
+    // assets
+    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
+
+    // asset log
+    const assetLog = await this.getAssetLog(assets);
+
+    // balances grouped by financialType
+    const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+
+    // changes
+    const changeLog = await this.getChangeLog();
+
+    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
+    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+
+    await this.logService.create({
+      system: 'LogService',
+      subsystem: 'FinancialDataLog',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({
+        assets: assetLog,
+        tradings: tradingLog,
+        balancesByFinancialType,
+        balancesTotal: {
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
+          totalBalanceChf: plusBalanceChf - minusBalanceChf,
+        },
+        changes: changeLog,
+      }),
+      valid: null,
+      category: null,
+    });
+  }
+
+  // --- LOG METHODS --- //
+
+  private getBalancesByFinancialType(assets: Asset[], assetLog: AssetLog): BalancesByFinancialType {
+    const financialTypeMap = Util.groupBy<Asset, string>(
+      assets.filter((a) => a.financialType),
+      'financialType',
+    );
+
+    return Array.from(financialTypeMap.entries()).reduce((acc, [financialType, assets]) => {
+      const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
+      const plusBalanceChf = assets.reduce(
+        (prev, curr) =>
+          prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
+        0,
+      );
+      const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
+      const minusBalanceChf = assets.reduce(
+        (prev, curr) =>
+          prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
+        0,
+      );
+
+      acc[financialType] = {
+        plusBalance: this.getJsonValue(plusBalance, true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
+        minusBalance: this.getJsonValue(minusBalance, true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
+      };
+
+      return acc;
+    }, {});
+  }
+
+  private async getTradingLog(): Promise<TradingLog> {
+    return this.tradingRuleService.getCurrentTradingOrders().then((t) =>
       t.reduce((prev, curr) => {
         prev[curr.tradingRule.id] = {
           price1: curr.price1,
@@ -89,18 +163,41 @@ export class LogJobService {
         return prev;
       }, {}),
     );
+  }
 
-    // assets
-    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
-
+  private async getAssetLog(assets: Asset[]): Promise<AssetLog> {
     // custom balance
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
-    const assetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
+    const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
     const customBalances = await Promise.all(
-      Array.from(assetMap.entries()).map(async ([e, a]) => {
-        const client = this.evmRegistryService.getClient(e);
-        const balances = await this.getCustomBalances(client, a).then((b) => b.flat());
+      Array.from(customAssetMap.entries()).map(async ([e, a]) => {
+        const client = this.blockchainRegistryService.getClient(e);
+
+        const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
+          b.flat(),
+        );
+        return { blockchain: e, balances };
+      }),
+    );
+
+    // deposit address balance
+    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
+    const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
+
+    const depositBalances = await Promise.all(
+      Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
+        const client = this.blockchainRegistryService.getClient(e);
+
+        const balances =
+          e === Blockchain.MONERO
+            ? [{ contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
+            : await this.getCustomBalances(client, a, [
+                EvmUtil.createWallet({
+                  seed: Config.payment.evmSeed,
+                  index: 0,
+                }).address,
+              ]).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
     );
@@ -134,42 +231,13 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
     ]);
 
-    // TODO reset to 14 after testing
-    const before14Days = Util.daysBefore(16);
+    const before14Days = Util.daysBefore(14);
     const before21Days = Util.daysBefore(21);
 
     before14Days.setHours(0, 0, 0, 0);
 
-    // receiver data
-    const recentEurKrakenBankTx = recentKrakenBankTx.filter(
-      (b) =>
-        b.accountIban === maerkiEurBank.iban &&
-        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > before14Days,
-    );
-    const recentChfKrakenBankTx = recentKrakenBankTx.filter(
-      (b) =>
-        b.accountIban === maerkiChfBank.iban &&
-        b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        b.created > before14Days,
-    );
-    const recentChfBankTxKraken = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.DEPOSIT &&
-        k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'MAEBCHZZXXX' &&
-        k.created > before14Days,
-    );
-    const recentEurBankTxKraken = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.DEPOSIT &&
-        k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'MAEBCHZZXXX' &&
-        k.created > before14Days,
-    );
-
-    // sender data
-    const recentChfKrakenMaerkiTx = this.filterSenderPendingList(
+    // sender and receiver data
+    const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
@@ -177,9 +245,14 @@ export class LogJobService {
           k.address === 'Maerki Baumann' &&
           k.created > before21Days,
       ),
-      recentChfKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.accountIban === maerkiChfBank.iban &&
+          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+          b.created > before14Days,
+      ),
     );
-    const recentEurKrakenMaerkiTx = this.filterSenderPendingList(
+    const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
@@ -187,30 +260,47 @@ export class LogJobService {
           k.address === 'Maerki Baumann & Co. AG' &&
           k.created > before21Days,
       ),
-      recentEurKrakenBankTx?.sort((a, b) => a.id - b.id)[0],
+      recentKrakenBankTx.filter(
+        (b) =>
+          b.accountIban === maerkiEurBank.iban &&
+          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
+          b.created > before14Days,
+      ),
     );
 
-    const recentChfMaerkiKrakenTx = this.filterSenderPendingList(
+    const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiChfBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > before21Days,
       ),
-      recentChfBankTxKraken?.sort((a, b) => a.id - b.id)[0],
+      recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.DEPOSIT &&
+          k.method === 'Bank Frick (SIC) International' &&
+          k.address === 'MAEBCHZZXXX' &&
+          k.created > before14Days,
+      ),
     );
-    const recentEurMaerkiKrakenTx = this.filterSenderPendingList(
+    const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiEurBank.iban &&
           b.creditDebitIndicator === BankTxIndicator.DEBIT &&
           b.created > before21Days,
       ),
-      recentEurBankTxKraken?.sort((a, b) => a.id - b.id)[0],
+      recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.DEPOSIT &&
+          k.method === 'Bank Frick (SEPA) International' &&
+          k.address === 'MAEBCHZZXXX' &&
+          k.created > before14Days,
+      ),
     );
 
-    // asset log
-    const assetLog = assets.reduce((prev, curr) => {
+    // assetLog
+    return assets.reduce((prev, curr) => {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
@@ -218,8 +308,17 @@ export class LogJobService {
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
 
+      const depositBalance = depositBalances
+        .find((c) => c.blockchain === curr.blockchain)
+        ?.balances?.reduce(
+          (sum, result) =>
+            sum +
+            (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+          0,
+        );
+
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0);
+      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -228,7 +327,7 @@ export class LogJobService {
       );
 
       // Olky to Maerki
-      const pendingOlkyMaerkiAmount = this.getPendingBankAmounts(
+      const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
         [curr],
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
@@ -237,37 +336,37 @@ export class LogJobService {
       );
 
       // Kraken to Maerki
-      const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmounts(
+      const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmount(
         [curr],
         recentChfKrakenMaerkiTx,
         ExchangeTxType.WITHDRAWAL,
         maerkiChfBank.iban,
       );
-      const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmounts(
+      const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmount(
         [curr],
         recentEurKrakenMaerkiTx,
         ExchangeTxType.WITHDRAWAL,
         maerkiEurBank.iban,
       );
-      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmounts(
+      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmount(
         [curr],
         [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
         BankTxType.KRAKEN,
       );
 
       // Maerki to Kraken
-      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmounts(
+      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
         [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
-      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
+      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentChfBankTxKraken,
         ExchangeTxType.DEPOSIT,
         maerkiChfBank.iban,
       );
-      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmounts(
+      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentEurBankTxKraken,
         ExchangeTxType.DEPOSIT,
@@ -376,57 +475,121 @@ export class LogJobService {
 
       return prev;
     }, {});
+  }
 
-    const financialTypeMap = Util.groupBy<Asset, string>(
-      assets.filter((a) => a.financialType),
-      'financialType',
-    );
+  private async getChangeLog(): Promise<ChangeLog> {
+    const firstDayOfMonth = Util.firstDayOfMonth();
 
-    const balancesByFinancialType: BalancesByFinancialType = Array.from(financialTypeMap.entries()).reduce(
-      (acc, [financialType, assets]) => {
-        const plusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.plusBalance?.total ?? 0), 0);
-        const plusBalanceChf = assets.reduce(
-          (prev, curr) =>
-            prev + (assetLog[curr.id] ? assetLog[curr.id].plusBalance.total * assetLog[curr.id].priceChf : 0),
-          0,
-        );
-        const minusBalance = assets.reduce((prev, curr) => prev + (assetLog[curr.id]?.minusBalance?.total ?? 0), 0);
-        const minusBalanceChf = assets.reduce(
-          (prev, curr) =>
-            prev + (assetLog[curr.id] ? assetLog[curr.id].minusBalance.total * assetLog[curr.id].priceChf : 0),
-          0,
-        );
-
-        acc[financialType] = {
-          plusBalance: this.getJsonValue(plusBalance, true),
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
-          minusBalance: this.getJsonValue(minusBalance, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
-        };
-
-        return acc;
-      },
-      {},
-    );
-
-    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
-    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
-
-    await this.logService.create({
-      system: 'LogService',
-      subsystem: 'FinancialDataLog',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify({
-        assets: assetLog,
-        tradings: tradingLog,
-        balancesByFinancialType,
-        balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
-          totalBalanceChf: plusBalanceChf - minusBalanceChf,
-        },
-      }),
+    // plus amounts
+    const buyFiats = await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
+      cryptoInput: { paymentLinkPayment: true },
     });
+    const buyCryptos = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth, {
+      cryptoInput: { paymentLinkPayment: true },
+    });
+    const { fee: tradingOrderFee, profit: tradingOrderProfit } = await this.tradingOrderService.getTradingOrderYield(
+      firstDayOfMonth,
+    );
+
+    const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
+    const paymentLinkFee = this.getFeeAmount([
+      ...buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment),
+      ...buyCryptos.filter((p) => p.cryptoInput?.paymentLinkPayment),
+    ]);
+    const buyCryptoFee = this.getFeeAmount(buyCryptos.filter((b) => !b.cryptoInput?.paymentLinkPayment));
+
+    // minus amounts
+    const exchangeTx = await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
+    const payoutOrders = await this.payoutService.getPayoutOrders(firstDayOfMonth);
+
+    const bankTxFee = await this.bankTxService.getBankTxFee(firstDayOfMonth);
+    const krakenTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const krakenTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.TRADE),
+    );
+    const binanceTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const binanceTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
+    );
+    const cryptoInputFee = await this.payInService.getPayInFee(firstDayOfMonth);
+    const refRewards = await this.refRewardService.getRefRewardVolume(firstDayOfMonth);
+    const payoutOrderRefFee = this.getFeeAmount(
+      payoutOrders.filter((p) => p.context === PayoutOrderContext.REF_PAYOUT),
+    );
+    const payoutOrderFee = this.getFeeAmount(payoutOrders.filter((p) => p.context !== PayoutOrderContext.REF_PAYOUT));
+
+    const totalKrakenFee = krakenTxWithdrawFee + krakenTxTradingFee;
+    const totalBinanceFee = binanceTxWithdrawFee + binanceTxTradingFee;
+
+    const totalRefReward = refRewards + payoutOrderRefFee;
+    const totalTxFee = cryptoInputFee + payoutOrderFee;
+    const totalBlockchainFee = totalTxFee + tradingOrderFee;
+
+    // total amounts
+    const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfit;
+    const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward;
+
+    return {
+      total: totalPlus - totalMinus,
+      plus: {
+        total: totalPlus,
+        buyCrypto: buyCryptoFee || undefined,
+        buyFiat: buyFiatFee || undefined,
+        paymentLink: paymentLinkFee || undefined,
+        trading: tradingOrderProfit || undefined,
+      },
+      minus: {
+        total: totalMinus,
+        bank: bankTxFee || undefined,
+        kraken: totalKrakenFee
+          ? {
+              total: totalKrakenFee,
+              withdraw: krakenTxWithdrawFee || undefined,
+              trading: krakenTxTradingFee || undefined,
+            }
+          : undefined,
+        binance: totalBinanceFee
+          ? {
+              total: totalBinanceFee,
+              withdraw: binanceTxWithdrawFee || undefined,
+              trading: binanceTxTradingFee || undefined,
+            }
+          : undefined,
+        blockchain: totalBlockchainFee
+          ? {
+              total: totalBlockchainFee,
+              tx: totalTxFee
+                ? {
+                    total: totalTxFee,
+                    in: cryptoInputFee || undefined,
+                    out: payoutOrderFee || undefined,
+                  }
+                : undefined,
+              trading: tradingOrderFee || undefined,
+              lm: undefined,
+            }
+          : undefined,
+        ref: totalRefReward
+          ? {
+              total: totalRefReward,
+              amount: refRewards || undefined,
+              fee: payoutOrderRefFee || undefined,
+            }
+          : undefined,
+      },
+    };
+  }
+
+  // --- HELPER METHODS --- //
+
+  private getFeeAmount(
+    tx: (BuyCrypto | BuyFiat | BankTx | ExchangeTx | RefReward | TradingOrder | CryptoInput | PayoutOrder)[],
+  ): number {
+    return tx.reduce((sum, tx) => sum + (tx.feeAmountChf ?? 0), 0);
   }
 
   private getPendingAmounts(
@@ -445,7 +608,7 @@ export class LogJobService {
     };
   }
 
-  private getPendingBankAmounts(
+  private getPendingBankAmount(
     assets: Asset[],
     pendingTx: (BankTx | ExchangeTx)[],
     type: BankExchangeType,
@@ -460,32 +623,59 @@ export class LogJobService {
 
   private filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
-    receiverTx: BankTx | ExchangeTx | undefined,
-  ): (BankTx | ExchangeTx)[] {
-    if (!receiverTx) return senderTx;
-    senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
-    const receiverAmount = receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount;
-    const senderPair = senderTx.find((s) =>
-      s instanceof BankTx
-        ? s.instructedAmount === receiverAmount && receiverTx.created.toDateString() === s.valueDate.toDateString()
-        : s.amount === receiverAmount && receiverTx.created > s.created,
-    );
+    receiverTx: (BankTx | ExchangeTx)[] | undefined,
+  ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
+    if (!receiverTx?.length) return { sender: senderTx, receiver: receiverTx };
+    let receiverIndex = 0;
+    let senderPair = undefined;
+
+    if (senderTx.length > 1)
+      senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+    if (receiverTx.length > 1) receiverTx.sort((a, b) => a.id - b.id);
+
+    do {
+      const receiverAmount =
+        receiverTx[receiverIndex] instanceof BankTx
+          ? (receiverTx[receiverIndex] as BankTx).instructedAmount
+          : receiverTx[receiverIndex].amount;
+
+      senderPair = senderTx.find((s) =>
+        s instanceof BankTx
+          ? s.instructedAmount === receiverAmount &&
+            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
+            receiverTx[receiverIndex].created > s.created
+          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
+      );
+
+      if (!senderPair) receiverIndex++;
+    } while (!senderPair && receiverTx.length > receiverIndex);
 
     if (senderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${receiverTx.id}/${receiverTx.created.toDateString()}; senderTx[0] id/date: ${
-          senderTx[0].id
-        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair.id}/${
-          senderPair instanceof BankTx ? senderPair.valueDate.toDateString() : senderPair.created.toDateString()
+        `FinanceLog receiverTxId/date: ${receiverTx?.[receiverIndex]?.id}/${receiverTx?.[
+          receiverIndex
+        ]?.created.toDateString()}; senderTx[0] id/date: ${
+          senderTx[0]?.id
+        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
+          senderPair && senderPair instanceof BankTx
+            ? senderPair.valueDate.toDateString()
+            : senderPair?.created.toDateString()
         }; senderTx length: ${senderTx.length}`,
       );
     }
 
-    return (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id);
+    return {
+      receiver: receiverTx.filter((r) => r.id >= receiverTx[receiverIndex]?.id ?? 0),
+      sender: (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id),
+    };
   }
 
-  private async getCustomBalances(client: EvmClient, assets: Asset[]): Promise<EvmTokenBalance[][]> {
-    return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
+  private async getCustomBalances(
+    client: BlockchainClient,
+    assets: Asset[],
+    addresses: string[],
+  ): Promise<BlockchainTokenBalance[][]> {
+    return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
   private getJsonValue(value: number | undefined, returnZero = false): number | undefined {

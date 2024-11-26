@@ -5,7 +5,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { BankExchangeType } from 'src/subdomains/supporting/log/log-job.service';
+import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -102,6 +102,9 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   chargeCurrency: string;
+
+  @Column({ type: 'float', nullable: true })
+  chargeAmountChf: number;
 
   @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
@@ -219,6 +222,10 @@ export class BankTx extends IEntity {
     return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiat?.user;
   }
 
+  get feeAmountChf(): number {
+    return this.chargeAmountChf;
+  }
+
   completeName(multiAccountName?: string): string {
     const regex = multiAccountName ? new RegExp(`${multiAccountName}|,`, 'g') : /[,]/g;
     return [this.name, this.ultimateName]
@@ -236,18 +243,18 @@ export class BankTx extends IEntity {
 
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
-      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().split(' ').join('')}`;
-      if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().split(' ').join('')}`;
+      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().replace(/ /g, '')}`;
+      if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().replace(/ /g, '')}`;
       return this.iban;
     }
 
     if (this.name) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
-      if (this.name === 'Schaltereinzahlung') return `${this.name};${this.ultimateName?.split(' ')?.join('')}`;
+      if (this.name === 'Schaltereinzahlung') return `${this.name};${this.ultimateName?.replace(/ /g, '')}`;
     }
 
     if (this.completeName()) {
-      return this.completeName().split(' ').join(':');
+      return this.completeName().replace(/ /g, ':');
     }
   }
 

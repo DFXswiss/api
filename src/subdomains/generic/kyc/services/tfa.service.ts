@@ -8,12 +8,10 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -45,7 +43,6 @@ export class TfaService {
   constructor(
     private readonly tfaRepo: TfaLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
-    private readonly settingService: SettingService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -64,10 +61,8 @@ export class TfaService {
   }
 
   async setup(kycHash: string, level: TfaLevel): Promise<Setup2faDto> {
-    const mail2faActive = await this.settingService.get('mail2fa').then((s) => s === 'on'); // TODO: remove
-
     const user = await this.getUser(kycHash);
-    if (mail2faActive && user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
+    if (user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
       // mail 2FA
       const type = TfaType.MAIL;
       const secret = Util.randomId().toString().slice(0, 6);
@@ -153,7 +148,6 @@ export class TfaService {
 
   private async createTfaLog(userData: UserData, ipAddress: string, level: TfaLevel, type: TfaType) {
     const logEntity = this.tfaRepo.create({
-      type: KycLogType.TFA,
       ipAddress,
       userData,
       comment: `${level} (${type})`,

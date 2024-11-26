@@ -64,7 +64,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async mergeUserData(@Param('id') masterId: string, @Query('id') slaveId: string): Promise<void> {
-    return this.userDataService.mergeUserData(+masterId, +slaveId, true);
+    return this.userDataService.mergeUserData(+masterId, +slaveId, undefined, true);
   }
 
   @Put(':id/volumes')
@@ -110,12 +110,16 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
+    const userData = await this.userDataService.getUserData(+id);
+
     const url = await this.documentService.uploadUserFile(
-      +id,
+      userData,
       dto.documentType,
       dto.originalName,
       Buffer.from(dto.data, 'base64'),
       dto.contentType,
+      true,
+      undefined,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),

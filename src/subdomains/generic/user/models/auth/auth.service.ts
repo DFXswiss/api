@@ -127,7 +127,13 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser(dto, userIp, ref?.origin, wallet, dto.discountCode);
+    const user = await this.userService.createUser(
+      dto,
+      userIp,
+      ref?.origin,
+      wallet,
+      dto.specialCode ?? dto.discountCode,
+    );
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
@@ -166,9 +172,10 @@ export class AuthService {
     }
 
     try {
-      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user, dto.discountCode);
+      if (dto.specialCode || dto.discountCode)
+        await this.feeService.addSpecialCodeUser(user, dto.specialCode ?? dto.discountCode);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
+      this.logger.warn(`Error while adding specialCode in user signIn ${user.id}:`, e);
     }
 
     await this.siftService.login(user, userIp);
@@ -313,9 +320,11 @@ export class AuthService {
   // --- VERIFY SIGN MESSAGES --- //
 
   async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
-    return {
-      isValid: await this.cryptoService.verifySignature(message, address, signature),
-    };
+    const keyWallet = await this.walletService.getWithMasterKey(signature);
+
+    const isValid = keyWallet ? true : await this.cryptoService.verifySignature(message, address, signature);
+
+    return { isValid };
   }
 
   // --- HELPER METHODS --- //

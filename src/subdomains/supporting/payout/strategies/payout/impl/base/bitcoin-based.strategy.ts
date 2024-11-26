@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -91,7 +92,10 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         const orderPayoutFee = this.calculateOrderPayoutFee(order, totalPayoutFee, totalPayoutAmount);
 
         order.complete();
-        order.recordPayoutFee(await this.feeAsset(), orderPayoutFee);
+
+        const feeAsset = await this.feeAsset();
+        const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+        order.recordPayoutFee(feeAsset, orderPayoutFee, price.convert(orderPayoutFee, Config.defaultVolumeDecimal));
 
         await this.payoutOrderRepo.save(order);
       }
