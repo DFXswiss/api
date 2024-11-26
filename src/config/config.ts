@@ -462,7 +462,7 @@ export class Configuration {
   };
 
   sell = {
-    guaranteedPrice: 2,
+    guaranteedPrice: 0.02,
   };
 
   exchange: ExchangeConfig = {
