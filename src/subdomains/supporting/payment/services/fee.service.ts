@@ -409,7 +409,8 @@ export class FeeService implements OnModuleInit {
       fees.filter(
         (f) =>
           [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.specialCode) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.BANK].includes(f.type) &&
+            !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||
           (f.wallet && f.wallet.id === wallet?.id),
