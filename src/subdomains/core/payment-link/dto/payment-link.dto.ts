@@ -53,6 +53,11 @@ export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
 
 export interface PaymentLinkPaymentNotFoundDto extends PaymentLinkRequestDto, ErrorDto {}
 
+export interface PaymentLinkPaymentCompletedDto extends PaymentLinkRequestDto {
+  statusCode: number;
+  message: string;
+}
+
 export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;
