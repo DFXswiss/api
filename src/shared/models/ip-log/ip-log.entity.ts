@@ -11,7 +11,7 @@ export class IpLog extends IEntity {
   ip: string;
 
   @Column({ length: 256, nullable: true })
-  country: string;
+  country?: string;
 
   @Column({ length: 256 })
   url: string;
@@ -20,5 +20,5 @@ export class IpLog extends IEntity {
   result: boolean;
 
   @ManyToOne(() => User, { nullable: true })
-  user: User;
+  user?: User;
 }

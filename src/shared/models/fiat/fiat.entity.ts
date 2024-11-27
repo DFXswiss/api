@@ -30,7 +30,7 @@ export class Fiat extends IEntity {
   priceRule: PriceRule;
 
   @Column({ type: 'float', nullable: true })
-  approxPriceChf: number;
+  approxPriceChf?: number;
 
   @Column({ default: AmlRule.DEFAULT })
   amlRuleFrom: AmlRule;

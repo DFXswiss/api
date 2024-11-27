@@ -28,29 +28,29 @@ export enum BankDataVerificationError {
 })
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
-  name: string;
+  name?: string;
 
   @Column({ nullable: true })
-  approved: boolean;
+  approved?: boolean;
 
   @Column({ length: 256 })
   @Index({ unique: true, where: 'approved = 1' })
   iban: string;
 
   @Column({ length: 256, nullable: true })
-  type: BankDataType;
+  type?: BankDataType;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @Column({ nullable: true })
-  manualApproved: boolean;
+  manualApproved?: boolean;
 
   @Column({ length: 256, nullable: true })
-  label: string;
+  label?: string;
 
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
-  preferredCurrency: Fiat;
+  preferredCurrency?: Fiat;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;

@@ -1,10 +1,10 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
-import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus } from '../enums';
-import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
-import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
+import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
+import { LiquidityManagementAction } from './liquidity-management-action.entity';
+import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -12,7 +12,7 @@ export class LiquidityManagementOrder extends IEntity {
   status: LiquidityManagementOrderStatus;
 
   @Column({ type: 'float', nullable: true })
-  amount: number;
+  amount?: number;
 
   @ManyToOne(() => LiquidityManagementPipeline, { eager: true, nullable: false })
   @JoinTable()
@@ -23,13 +23,13 @@ export class LiquidityManagementOrder extends IEntity {
   action: LiquidityManagementAction;
 
   @Column({ type: 'int', nullable: true })
-  previousOrderId: number;
+  previousOrderId?: number;
 
   @Column({ length: 256, nullable: true })
-  correlationId: string;
+  correlationId?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  errorMessage: string;
+  errorMessage?: string;
 
   //*** FACTORY ***//
 

@@ -8,16 +8,16 @@ import { ChildEntity, Column, ManyToOne, OneToMany } from 'typeorm';
 @ChildEntity()
 export class Staking extends DepositRoute {
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
-  rewardDeposit: Deposit;
+  rewardDeposit?: Deposit;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  rewardAsset: Asset;
+  rewardAsset?: Asset;
 
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
-  paybackDeposit: Deposit;
+  paybackDeposit?: Deposit;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  paybackAsset: Asset;
+  paybackAsset?: Asset;
 
   @ManyToOne(() => User, (user) => user.stakingRoutes, { nullable: false })
   user: User;

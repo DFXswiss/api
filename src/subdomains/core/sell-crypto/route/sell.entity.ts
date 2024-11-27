@@ -16,7 +16,7 @@ export class Sell extends DepositRoute {
   iban: string;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  fiat: Fiat;
+  fiat?: Fiat;
 
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
@@ -25,11 +25,11 @@ export class Sell extends DepositRoute {
   user: User;
 
   @ManyToOne(() => BankData, (bankData) => bankData.sells, { nullable: true })
-  bankData: BankData;
+  bankData?: BankData;
 
   @OneToOne(() => Route, { eager: true, nullable: true })
   @JoinColumn()
-  route: Route;
+  route?: Route;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
   cryptoInputs: CryptoInput[];

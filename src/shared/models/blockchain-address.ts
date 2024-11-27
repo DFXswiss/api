@@ -3,10 +3,10 @@ import { Column } from 'typeorm';
 
 export class BlockchainAddress {
   @Column({ nullable: true })
-  address: string;
+  address?: string;
 
   @Column({ nullable: true })
-  blockchain: Blockchain;
+  blockchain?: Blockchain;
 
   //*** FACTORY METHODS ***//
 

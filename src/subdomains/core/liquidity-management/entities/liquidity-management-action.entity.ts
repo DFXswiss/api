@@ -4,25 +4,25 @@ import { LiquidityManagementSystem } from '../enums';
 
 @Entity()
 export class LiquidityManagementAction extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   system: LiquidityManagementSystem;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   command: string;
 
   @Column({ length: 256, nullable: true })
-  tag: string;
+  tag?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  params: string;
+  params?: string;
 
   @ManyToOne(() => LiquidityManagementAction, { nullable: true })
   @JoinColumn()
-  onSuccess: LiquidityManagementAction | null;
+  onSuccess?: LiquidityManagementAction | null;
 
   @ManyToOne(() => LiquidityManagementAction, { nullable: true })
   @JoinColumn()
-  onFail: LiquidityManagementAction | null;
+  onFail?: LiquidityManagementAction | null;
 
   get paramMap(): Record<string, unknown> | null {
     try {

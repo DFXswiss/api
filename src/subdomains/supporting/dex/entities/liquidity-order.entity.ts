@@ -26,37 +26,37 @@ export type TargetAmount = number;
 @Entity()
 @Index((order: LiquidityOrder) => [order.context, order.correlationId])
 export class LiquidityOrder extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: LiquidityOrderType;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   context: LiquidityOrderContext;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   correlationId: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   chain: Blockchain;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  referenceAsset: Asset;
+  referenceAsset?: Asset;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   referenceAmount: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  targetAsset: Asset;
+  targetAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  targetAmount: number;
+  targetAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  estimatedTargetAmount: number;
+  estimatedTargetAmount?: number;
 
-  @Column({ nullable: false, default: false })
+  @Column({ default: false })
   isReady: boolean;
 
-  @Column({ nullable: false, default: false })
+  @Column({ default: false })
   isComplete: boolean;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })

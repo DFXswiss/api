@@ -14,23 +14,23 @@ export class Webhook extends IEntity {
   data: string;
 
   @Column({ length: 256, nullable: true })
-  identifier: string;
+  identifier?: string;
 
   @Column({ length: 256, nullable: true })
-  reason: string;
+  reason?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  lastTryDate: Date;
+  lastTryDate?: Date;
 
   @Column({ length: 'MAX', nullable: true })
-  error: string;
+  error?: string;
 
   @Column({ default: false })
   isComplete: boolean;
 
   // References
   @ManyToOne(() => User, { nullable: true, eager: true })
-  user: User;
+  user?: User;
 
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;

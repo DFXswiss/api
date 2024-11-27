@@ -21,11 +21,11 @@ export class NameCheckLog extends KycLog {
   riskStatus: RiskStatus;
 
   @Column({ length: 256, nullable: true })
-  riskEvaluation: RiskEvaluation;
+  riskEvaluation?: RiskEvaluation;
 
   @Column({ type: 'datetime2', nullable: true })
-  riskEvaluationDate: Date;
+  riskEvaluationDate?: Date;
 
   @ManyToOne(() => BankData, { nullable: true })
-  bankData: BankData;
+  bankData?: BankData;
 }

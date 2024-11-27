@@ -7,13 +7,13 @@ import { Column, Entity, ManyToOne } from 'typeorm';
 @Entity()
 export class LiquidityBalance extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  asset: Asset;
+  asset?: Asset;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  fiat: Fiat;
+  fiat?: Fiat;
 
   @Column({ type: 'float', nullable: true })
-  amount: number;
+  amount?: number;
 
   //*** FACTORY METHODS ***//
 

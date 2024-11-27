@@ -20,9 +20,9 @@ export class FiatOutput extends IEntity {
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  bankTx: BankTx;
+  bankTx?: BankTx;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: string;
 
   @Column({ type: 'integer', nullable: true })

@@ -13,23 +13,23 @@ export class BankTxReturn extends IEntity {
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  chargebackBankTx: BankTx;
+  chargebackBankTx?: BankTx;
 
   @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
-  transaction: Transaction;
+  transaction?: Transaction;
 
   @Column({ length: 256, nullable: true })
-  info: string;
+  info?: string;
 
   @Column({ type: 'float', nullable: true })
-  amountInChf: number;
+  amountInChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInEur: number;
+  amountInEur?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInUsd: number;
+  amountInUsd?: number;
 
   //*** METHODS ***//
 

@@ -64,7 +64,7 @@ export class BankTx extends IEntity {
   txId?: string;
 
   @Column({ nullable: true })
-  highRisk: boolean;
+  highRisk?: boolean;
 
   // amounts
   @Column({ type: 'float', nullable: true })
@@ -98,13 +98,13 @@ export class BankTx extends IEntity {
   exchangeRate?: number;
 
   @Column({ type: 'float', nullable: true })
-  chargeAmount: number;
+  chargeAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  chargeCurrency: string;
+  chargeCurrency?: string;
 
   @Column({ type: 'float', nullable: true })
-  chargeAmountChf: number;
+  chargeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
@@ -156,7 +156,7 @@ export class BankTx extends IEntity {
   accountIban?: string;
 
   @Column({ length: 256, nullable: true })
-  senderAccount: string;
+  senderAccount?: string;
 
   // related bank info
   @Column({ length: 256, nullable: true })
@@ -192,10 +192,10 @@ export class BankTx extends IEntity {
   aba?: string;
 
   @Column({ length: 256, nullable: true })
-  type: BankTxType;
+  type?: BankTxType;
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
-  batch: BankTxBatch;
+  batch?: BankTxBatch;
 
   @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.bankTx, { nullable: true })
   bankTxReturn?: BankTxReturn;
@@ -214,7 +214,7 @@ export class BankTx extends IEntity {
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
-  transaction: Transaction;
+  transaction?: Transaction;
 
   //*** GETTER METHODS ***//
 
