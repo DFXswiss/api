@@ -8,8 +8,4 @@ export class CustodyProviderRepository extends CachedRepository<CustodyProvider>
   constructor(manager: EntityManager) {
     super(CustodyProvider, manager);
   }
-
-  async getByMasterKey(masterKey: string): Promise<CustodyProvider> {
-    return this.findOneBy({ masterKey });
-  }
 }
