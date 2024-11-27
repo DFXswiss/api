@@ -6,8 +6,9 @@ set -e
 
 # 1. Parameter "fcp": Frankencoin Ponder
 # 1. Parameter "dep": Decentralized Euro Ponder
-if [[ ! $1 =~ ^("fcp"|"dep")$ ]]; then
-  echo "Missing 1. parameter: 'fcp' or 'dep' expected ..."
+# 1. Parameter "ded": Decentralized Euro Dapp
+if [[ ! $1 =~ ^("fcp"|"dep"|"ded")$ ]]; then
+  echo "Missing 1. parameter: 'fcp' or 'dep' or 'ded' expected ..."
   exit
 fi
 
@@ -75,7 +76,7 @@ ACA_ENDPOINT=$(az containerapp show \
     --query properties.configuration.ingress.fqdn \
     --output tsv)
 
-echo "AVA Endpoint:"
+echo "ACA Endpoint:"
 echo $ACA_ENDPOINT
 
 az afd endpoint create \
