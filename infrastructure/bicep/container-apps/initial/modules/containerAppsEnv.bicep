@@ -1,36 +1,28 @@
-@description('Basename / Prefix of all resources')
-param baseName string
-
+// --- PARAMETERS --- //
 @description('Azure Location/Region')
-param location string 
+param location string = resourceGroup().location
+
+@description('Name of the container app environment')
+param environmentName string
+
+@description('Name of the log analytics workspace')
+param logAnalyticsWorkspaceName string
+
+@description('Name of the managed cluster resource group')
+param mcResourceGroupName string
 
 @description('Subnet resource ID for the Container App environment')
 param infrastructureSubnetId string
 
-@description('Name of the log analytics workspace')
-param logAnalyticsWorkspaceName string = '${baseName}-log'
-
 @description('Tags to be applied to all resources')
 param tags object = {}
 
-@description('Name of the storage account')
-param storageAccountName string
-
-// Define names
-var environmentName = '${baseName}-aca-env'
-var storageShareName = 'hello-app'
-var storageName = 'fileshare-app-test'
-
-// Read existing resources
+// --- EXISTING RESOURCES --- //
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   name: logAnalyticsWorkspaceName
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
-  name: storageAccountName
-}
-
-// Container Apps Environment
+// --- RESOURCES --- //
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: environmentName
   location: location
@@ -48,25 +40,15 @@ resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
       internal: true
     }
     zoneRedundant: false
+    infrastructureResourceGroup: mcResourceGroupName
+    workloadProfiles: [
+      {
+        name: 'Consumption'
+        workloadProfileType: 'Consumption'
+      }
+    ]
   }
 }
 
-resource environmentStorages 'Microsoft.App/managedEnvironments/storages@2024-03-01' = {
-  parent: environment
-  name: storageName
-  properties: {
-    azureFile: {
-      accountName: storageAccountName
-      accountKey: storageAccount.listKeys().keys[0].value
-      shareName: storageShareName
-      accessMode: 'ReadWrite'
-    }
-  }
-}
-
-output containerAppsEnvironmentId string = environment.id
-output containerAppsEnvironmentStaticIp string = environment.properties.staticIp
+// --- OUTPUT --- //
 output containerAppsEnvironmentDefaultDomain string = environment.properties.defaultDomain
-
-output storageName string = storageName
-output storageShareName string = storageShareName

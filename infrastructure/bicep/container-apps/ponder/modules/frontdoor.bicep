@@ -1,26 +1,38 @@
-@description('Basename / Prefix of all resources')
-param baseName string
-
+// --- PARAMETERS --- //
 @description('Azure Location/Region')
-param location string
+param location string = resourceGroup().location
 
-@description('Private Link Service Id')
-param privateLinkServiceId string
+@description('Name of the container app environment')
+param environmentName string
+
+@description('Front Door profile name')
+param frontDoorProfileName string
+
+@description('Front Door endpoint name')
+param frontDoorEndpointName string
+
+@description('Front Door origin group name')
+param frontDoorOriginGroupName string
+
+@description('Front Door origin route name')
+param frontDoorOriginRouteName string
+
+@description('Front Door origin name')
+param frontDoorOriginName string
 
 @description('Hostname of App')
 param frontDoorAppHostName string
 
-// Define names
-var frontDoorProfileName = '${baseName}-fd'
-var frontDoorEndpointName = '${baseName}-fd-fp-endpoint'
-var frontDoorOriginGroupName = '${baseName}-fd-fp-og'
-var frontDoorOriginRouteName = '${baseName}-fd-fp-route'
-var frontDoorOriginName = '${baseName}-fd-fp-origin'
+// --- EXISTING RESOURCES --- //
+resource environment 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
+  name: environmentName
+}
 
 resource frontDoorProfile 'Microsoft.Cdn/profiles@2024-09-01' existing = {
   name: frontDoorProfileName
 }
 
+// --- RESOURCES --- //
 resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdEndpoints@2024-09-01' = {
   parent: frontDoorProfile
   name: frontDoorEndpointName
@@ -62,10 +74,10 @@ resource frontDoorOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2024-09-01
     enabledState: 'Enabled'
     sharedPrivateLinkResource: {
       privateLink: {
-        id: privateLinkServiceId
+        id: environment.id
       }
       privateLinkLocation: location
-      requestMessage: 'frontdoor'
+      requestMessage: 'AFD Private Link Request'
     }
     enforceCertificateNameCheck: true
   }
@@ -97,4 +109,5 @@ resource frontDoorOriginRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-0
   ]
 }
 
+// --- OUTPUT --- //
 output fqdn string = frontDoorEndpoint.properties.hostName

@@ -1,5 +1,9 @@
-@description('Basename / Prefix of all resources')
-param baseName string
+// --- PARAMETERS --- //
+@description('Name of the container app environment')
+param environmentName string
+
+@description('Name of the container app environment storage')
+param environmentStorageName string
 
 @description('Name of the storage account')
 param storageAccountName string
@@ -7,11 +11,7 @@ param storageAccountName string
 @description('Name of the file share')
 param fileShareName string
 
-// Define names
-var environmentName = '${baseName}-aca-env'
-var storageName = 'fileshare-frankencoin-ponder'
-
-// Read existing resources
+// --- EXISTING RESOURCES --- //
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: environmentName
 }
@@ -20,10 +20,10 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing 
   name: storageAccountName
 }
 
-// Container Apps Environment Storage
+// --- RESOURCES --- //
 resource environmentStorages 'Microsoft.App/managedEnvironments/storages@2024-03-01' = {
   parent: environment
-  name: storageName
+  name: environmentStorageName
   properties: {
     azureFile: {
       accountName: storageAccountName
@@ -34,8 +34,7 @@ resource environmentStorages 'Microsoft.App/managedEnvironments/storages@2024-03
   }
 }
 
+// --- OUTPUT --- //
 output containerAppsEnvironmentId string = environment.id
 output containerAppsEnvironmentStaticIp string = environment.properties.staticIp
 output containerAppsEnvironmentDefaultDomain string = environment.properties.defaultDomain
-
-output storageName string = storageName

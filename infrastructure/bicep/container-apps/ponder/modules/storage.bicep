@@ -1,11 +1,11 @@
-@description('Basename / Prefix of all resources')
-param baseName string
+// --- PARAMETERS --- //
+@description('Name of the storage account')
+param storageAccountName string
 
-// Define names
-var storageAccountName = replace('st-dfx-${baseName}', '-', '')
-var fileShareName = 'frankencoin-ponder-app'
+@description('Name of the file share')
+param fileShareName string
 
-// Read existing resources
+// --- EXISTING RESOURCES --- //
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
 }
@@ -15,6 +15,7 @@ resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2023-05-01'
   name: 'default'
 }
 
+// --- RESOURCES --- //
 resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-05-01' = {
   parent: fileService
   name: fileShareName
@@ -24,7 +25,5 @@ resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-0
     enabledProtocols: 'SMB'
   }
 }
-
-output storageAccountName string = storageAccountName
-output fileShareName string = fileShareName
+// --- OUTPUT --- //
 output storageAccountId string = storageAccount.id

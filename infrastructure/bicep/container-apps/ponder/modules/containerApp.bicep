@@ -1,8 +1,9 @@
-@description('Basename / Prefix of all resources')
-param baseName string
-
+// --- PARAMETERS --- //
 @description('Azure Location/Region')
-param location string
+param location string = resourceGroup().location
+
+@description('Name of the container app')
+param appName string
 
 @description('Id of the Container Apps Environment')
 param containerAppsEnvironmentId string
@@ -13,12 +14,25 @@ param containerImage string
 @description('Name of the storage')
 param storageName string
 
+@description('Container CPU resource')
+param containerCPU string
+
+@description('Container memory resource')
+param containerMemory string
+
+@description('Container environment: PORT')
+param containerEnvPort string
+
+@description('Container environment: PONDER_PROFILE')
+param containerEnvPonderProfile string
+
+@description('Container environment: RPC_URL_MAINNET')
+param containerEnvRpcUrlMainnet string
+
 @description('Tags to be applied to all resources')
 param tags object = {}
 
-// Define names
-var appName = '${baseName}-aca-fp-app'
-
+// --- RESOURCES --- //
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
@@ -30,7 +44,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: 3000
+        targetPort: int(containerEnvPort)
         transport: 'auto'
         allowInsecure: false
       }
@@ -49,8 +63,8 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'app'
           image: containerImage
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json(containerCPU)
+            memory: containerMemory
           }
           probes: []
           //          probes: [
@@ -68,15 +82,15 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           env: [
             {
               name: 'PORT'
-              value: '3000'
+              value: containerEnvPort
             }
             {
               name: 'PONDER_PROFILE'
-              value: 'mainnet'
+              value: containerEnvPonderProfile
             }
             {
               name: 'RPC_URL_MAINNET'
-              value: 'https://eth-mainnet.g.alchemy.com/v2/tIcvTb9F_QApINtFsWad19a9QQt3KiFp'
+              value: containerEnvRpcUrlMainnet
             }
           ]
           volumeMounts: [
@@ -95,4 +109,5 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
+// --- OUTPUT --- //
 output containerFqdn string = containerApp.properties.configuration.ingress.fqdn
