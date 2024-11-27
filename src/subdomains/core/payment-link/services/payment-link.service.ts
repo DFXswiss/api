@@ -8,7 +8,11 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
+import {
+  PaymentLinkPayRequestDto,
+  PaymentLinkPaymentCompletedDto,
+  PaymentLinkPaymentNotFoundDto,
+} from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -175,6 +179,9 @@ export class PaymentLinkService {
     uniqueId: string,
     standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
   ): Promise<PaymentLinkPayRequestDto> {
+    const paymentComplete = await this.checkPaymentComplete(uniqueId, standardParam);
+    if (paymentComplete) throw new ConflictException(await this.paymentCompleteResponse(uniqueId, standardParam));
+
     const pendingPayment = await this.waitForPendingPayment(uniqueId);
     if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
 
@@ -214,6 +221,15 @@ export class PaymentLinkService {
     return payRequest;
   }
 
+  private async checkPaymentComplete(uniqueId: string, standardParam: PaymentStandard): Promise<boolean> {
+    if (standardParam === PaymentStandard.OPEN_CRYPTO_PAY) {
+      const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(uniqueId);
+      return mostRecentPayment.status === PaymentLinkPaymentStatus.COMPLETED;
+    }
+
+    return false;
+  }
+
   private async waitForPendingPayment(uniqueId: string): Promise<PaymentLinkPayment> {
     return Util.poll(
       () => this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId),
@@ -227,6 +243,30 @@ export class PaymentLinkService {
     uniqueId: string,
     standardParam: PaymentStandard,
   ): Promise<PaymentLinkPaymentNotFoundDto | string> {
+    const response = await this.createDefaultResponse<PaymentLinkPaymentNotFoundDto>(uniqueId, standardParam);
+    if (typeof response === 'string') return response;
+
+    response.statusCode = new NotFoundException().getStatus();
+    response.message = 'No pending payment found';
+    response.error = 'Not Found';
+
+    return response;
+  }
+
+  private async paymentCompleteResponse(
+    uniqueId: string,
+    standardParam: PaymentStandard,
+  ): Promise<PaymentLinkPaymentCompletedDto | string> {
+    const response = await this.createDefaultResponse<PaymentLinkPaymentCompletedDto>(uniqueId, standardParam);
+    if (typeof response === 'string') return response;
+
+    response.statusCode = new ConflictException().getStatus();
+    response.message = 'Payment complete';
+
+    return response;
+  }
+
+  private async createDefaultResponse<T>(uniqueId: string, standardParam: PaymentStandard): Promise<T | string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { uniqueId, status: PaymentLinkStatus.ACTIVE },
       relations: { route: { user: { userData: true } } },
@@ -237,11 +277,7 @@ export class PaymentLinkService {
     const { standards, displayQr } = paymentLink.configObj;
     const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
-    return {
-      statusCode: new NotFoundException().getStatus(),
-      message: 'No pending payment found',
-      error: 'Not Found',
-
+    return <T>{
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
