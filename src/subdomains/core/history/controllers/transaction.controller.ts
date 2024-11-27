@@ -36,6 +36,7 @@ import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import {
@@ -47,6 +48,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
 import {
@@ -87,6 +89,7 @@ interface TransactionRefundData {
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
   private readonly refundList = new Map<number, TransactionRefundData>();
+  private readonly multiAccountIbanCache = new AsyncCache<string[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
     private readonly historyService: HistoryService,
@@ -101,6 +104,7 @@ export class TransactionController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly feeService: FeeService,
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
   // --- JOBS --- //
@@ -323,9 +327,14 @@ export class TransactionController {
 
     if (transaction.targetEntity instanceof BuyCrypto) {
       try {
+        const multiAccountIbans = await this.multiAccountIbanCache.get('MultiAccountIbans', () =>
+          this.specialExternalAccountService.getMultiAccountIbans(),
+        );
+
         refundTarget = transaction.targetEntity.checkoutTx
           ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
           : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
+            !multiAccountIbans.includes(transaction.targetEntity.bankTx?.iban) &&
             (await this.transactionUtilService.validateChargebackIban(
               transaction.targetEntity.bankTx.iban,
               transaction.userData,
