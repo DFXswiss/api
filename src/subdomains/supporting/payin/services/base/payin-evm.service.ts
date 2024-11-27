@@ -3,12 +3,11 @@ import { Direction, EvmClient } from 'src/integration/blockchain/shared/evm/evm-
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 export abstract class PayInEvmService {
   #client: EvmClient;
 
-  constructor(protected readonly service: EvmService, protected readonly repoFactory?: RepositoryFactory) {
+  constructor(protected readonly service: EvmService) {
     this.#client = service.getDefaultClient();
   }
 
@@ -30,13 +29,8 @@ export abstract class PayInEvmService {
     return this.#client.sendTokenFromAccount(account, addressTo, tokenName, amount, feeLimit);
   }
 
-  async checkTransactionCompletion(txHash: string): Promise<boolean> {
-    return this.#client.isTxComplete(txHash);
-  }
-
-  async isConfirmed(txId: string, minConfirmation: number): Promise<boolean> {
-    const confirmations = await this.#client.getConfirmations(txId);
-    return confirmations >= minConfirmation;
+  async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
+    return this.#client.isTxComplete(txHash, minConfirmations);
   }
 
   async getHistory(

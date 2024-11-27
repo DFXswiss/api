@@ -64,9 +64,4 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   protected getForwardAddress(): BlockchainAddress {
     throw new Error('Method not implemented.');
   }
-
-  protected async isConfirmed(txId: string, minConfirmations: number): Promise<boolean> {
-    const confirmations = await this.moneroService.getConfirmations(txId);
-    return confirmations >= minConfirmations;
-  }
 }

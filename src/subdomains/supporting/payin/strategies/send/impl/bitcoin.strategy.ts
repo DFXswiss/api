@@ -3,7 +3,6 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
@@ -13,11 +12,7 @@ import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 export class BitcoinStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  constructor(
-    protected readonly bitcoinService: PayInBitcoinService,
-    protected payInRepo: PayInRepository,
-    private readonly repoFactory: RepositoryFactory,
-  ) {
+  constructor(protected readonly bitcoinService: PayInBitcoinService, protected payInRepo: PayInRepository) {
     super(bitcoinService, payInRepo);
   }
 
@@ -35,10 +30,5 @@ export class BitcoinStrategy extends BitcoinBasedStrategy {
 
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
-  }
-
-  protected async isConfirmed(txId: string, minConfirmations: number): Promise<boolean> {
-    const { confirmations } = await this.bitcoinService.getTx(txId);
-    return confirmations >= minConfirmations;
   }
 }
