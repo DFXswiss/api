@@ -36,7 +36,6 @@ import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import {
@@ -89,7 +88,6 @@ interface TransactionRefundData {
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
   private readonly refundList = new Map<number, TransactionRefundData>();
-  private readonly multiAccountIbanCache = new AsyncCache<string[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
     private readonly historyService: HistoryService,
@@ -327,9 +325,7 @@ export class TransactionController {
 
     if (transaction.targetEntity instanceof BuyCrypto) {
       try {
-        const multiAccountIbans = await this.multiAccountIbanCache.get('MultiAccountIbans', () =>
-          this.specialExternalAccountService.getMultiAccountIbans(),
-        );
+        const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 
         refundTarget = transaction.targetEntity.checkoutTx
           ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
