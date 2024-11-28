@@ -31,4 +31,8 @@ export class BitcoinStrategy extends BitcoinBasedStrategy {
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
+
+  async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
+    return this.bitcoinService.checkTransactionCompletion(txId, minConfirmations);
+  }
 }
