@@ -555,6 +555,8 @@ export class Configuration {
 
   sift = {
     apiKey: process.env.SIFT_API_KEY,
+    accountId: process.env.SIFT_ACCOUNT_ID,
+    analyst: process.env.SIFT_ANALYST,
   };
 
   checkout = {

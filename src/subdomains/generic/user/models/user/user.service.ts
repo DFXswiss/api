@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active } from 'src/shared/models/active';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -57,6 +58,7 @@ export class UserService {
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
+    private readonly siftService: SiftService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -240,6 +242,9 @@ export class UserService {
 
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
+
+    if (update.status && update.status == UserStatus.BLOCKED)
+      await this.siftService.sendDecision(user.id.toString(), update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
