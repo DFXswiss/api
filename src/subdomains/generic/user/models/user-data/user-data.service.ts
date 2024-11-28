@@ -550,8 +550,7 @@ export class UserDataService {
         (u) =>
           u.id !== user.id &&
           u.isDfxUser &&
-          u.verifiedName &&
-          (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
+          (!user.verifiedName || !u.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
       );
       if (matchingUser) {
         // send a merge request
