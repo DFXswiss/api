@@ -26,9 +26,6 @@ export class Country extends IEntity {
   maerkiBaumannEnable: boolean;
 
   @Column({ default: true })
-  checkoutEnable: boolean;
-
-  @Column({ default: true })
   fatfEnable: boolean;
 
   @Column({ default: true })
@@ -39,6 +36,15 @@ export class Country extends IEntity {
 
   @Column({ default: false })
   bankTransactionVerificationEnable: boolean;
+
+  @Column({ default: true })
+  bankEnable: boolean;
+
+  @Column({ default: true })
+  cryptoEnable: boolean;
+
+  @Column({ default: true })
+  checkoutEnable: boolean;
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {

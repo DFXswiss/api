@@ -104,6 +104,8 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
+        if (ibanCountry && !ibanCountry.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+
         if (
           blacklist.some((b) =>
             b.matches(
@@ -142,6 +144,7 @@ export class AmlHelperService {
         if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
+        if (ibanCountry && !ibanCountry.checkoutEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (
           !bankData.manualApproved &&
           entity.checkoutTx.cardName &&
@@ -149,7 +152,6 @@ export class AmlHelperService {
         )
           errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (ibanCountry && !ibanCountry.checkoutEnable) errors.push(AmlError.CHECKOUT_COUNTRY_NOT_ALLOWED);
         if (
           blacklist.some((b) =>
             b.matches(
@@ -166,12 +168,15 @@ export class AmlHelperService {
         if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
+        if (ibanCountry && !ibanCountry.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
         }
       }
     } else {
       // buyFiat
+      if (ibanCountry && !ibanCountry.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
@@ -280,8 +285,8 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    banks?: Bank[],
     ibanCountry?: Country,
+    banks?: Bank[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;

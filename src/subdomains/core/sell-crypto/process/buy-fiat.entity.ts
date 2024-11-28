@@ -1,5 +1,6 @@
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -369,6 +370,7 @@ export class BuyFiat extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    ibanCountry: Country,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
@@ -381,6 +383,7 @@ export class BuyFiat extends IEntity {
       last365dVolume,
       bankData,
       blacklist,
+      ibanCountry,
     );
 
     Object.assign(this, update);

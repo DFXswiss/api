@@ -24,4 +24,7 @@ export class CountryDto {
 
   @ApiProperty({ description: 'Allowed for card transactions' })
   cardAllowed: boolean;
+
+  @ApiProperty({ description: 'Allowed for crypto transactions' })
+  cryptoAllowed: boolean;
 }
