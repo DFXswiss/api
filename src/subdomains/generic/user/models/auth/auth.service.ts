@@ -100,6 +100,7 @@ export class AuthService {
   async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, {
       userData: true,
+      wallet: true,
       custodyProvider: true,
     });
     return existingUser
