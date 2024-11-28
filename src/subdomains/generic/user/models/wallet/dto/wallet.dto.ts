@@ -20,10 +20,6 @@ export class WalletDto {
   displayName: string;
 
   @IsOptional()
-  @IsString()
-  masterKey: string;
-
-  @IsOptional()
   @IsBoolean()
   isKycClient: boolean;
 

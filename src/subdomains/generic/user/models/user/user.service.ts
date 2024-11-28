@@ -27,6 +27,7 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
+import { CustodyProvider } from '../custody-provider/custody-provider.entity';
 import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
@@ -160,6 +161,7 @@ export class UserService {
     userOrigin?: string,
     wallet?: Wallet,
     specialCode?: string,
+    custodyProvider?: CustodyProvider,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
@@ -168,6 +170,7 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
+    user.custodyProvider = custodyProvider;
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
