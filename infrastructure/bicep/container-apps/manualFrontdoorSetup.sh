@@ -6,9 +6,10 @@ set -e
 
 # 1. Parameter "fcp": Frankencoin Ponder
 # 1. Parameter "dep": Decentralized Euro Ponder
-# 1. Parameter "ded": Decentralized Euro Dapp
-if [[ ! $1 =~ ^("fcp"|"dep"|"ded")$ ]]; then
-  echo "Missing 1. parameter: 'fcp' or 'dep' or 'ded' expected ..."
+# 1. Parameter "ded": Decentralized Euro DApp
+# 1. Parameter "dea": Decentralized Euro API
+if [[ ! $1 =~ ^("fcp"|"dep"|"ded"|"dea")$ ]]; then
+  echo "Missing 1. parameter: 'fcp' or 'dep' or 'ded' or 'dea' expected ..."
   exit
 fi
 
@@ -49,6 +50,13 @@ echo "Frontdoor Origingroup: ${AFD_ORIGIN_GROUP}"
 echo "Frontdoor Origin:      ${AFD_ORIGIN}"
 echo "Frontdoor Route:       ${AFD_ROUTE}"
 
+#az containerapp update \
+#    --name $CONTAINERAPP_NAME \
+#    --resource-group $RESOURCE_GROUP \
+#    --image "dfxswiss/deuro-dapp:beta"
+#
+#exit
+
 ENVIRONMENT_ID=$(az containerapp env show \
     --resource-group $RESOURCE_GROUP \
     --name $ENVIRONMENT_NAME \
@@ -58,17 +66,15 @@ ENVIRONMENT_ID=$(az containerapp env show \
 echo "Environment Id:"
 echo $ENVIRONMENT_ID
 
-: '
-az containerapp up \
-    --name $CONTAINERAPP_NAME \
-    --resource-group $RESOURCE_GROUP \
-    --location $LOCATION \
-    --environment $ENVIRONMENT_NAME \
-    --image mcr.microsoft.com/k8se/quickstart:latest \
-    --target-port 80 \
-    --ingress external \
-    --query properties.configuration.ingress.fqdn
-'
+#az containerapp up \
+#    --name $CONTAINERAPP_NAME \
+#    --resource-group $RESOURCE_GROUP \
+#    --location $LOCATION \
+#    --environment $ENVIRONMENT_NAME \
+#    --image mcr.microsoft.com/k8se/quickstart:latest \
+#    --target-port 80 \
+#    --ingress external \
+#    --query properties.configuration.ingress.fqdn
 
 ACA_ENDPOINT=$(az containerapp show \
     --name $CONTAINERAPP_NAME \
