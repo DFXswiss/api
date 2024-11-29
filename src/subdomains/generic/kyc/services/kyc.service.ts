@@ -833,7 +833,7 @@ export class KycService {
     if (!data.success) errors.push(IdentCheckError.INVALID_RESULT);
 
     if (entity.userData.accountType === AccountType.PERSONAL) {
-      if (entity.userData.verifiedCountry?.dfxEnable === false ?? entity.userData.country?.dfxEnable === false)
+      if ((entity.userData.verifiedCountry?.dfxEnable ?? entity.userData.country?.dfxEnable) === false)
         errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
 
       if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
@@ -846,8 +846,8 @@ export class KycService {
       }
     } else {
       if (
-        entity.userData.verifiedCountry?.dfxOrganizationEnable === false ??
-        entity.userData.country?.dfxOrganizationEnable === false
+        (entity.userData.verifiedCountry?.dfxOrganizationEnable ?? entity.userData.country?.dfxOrganizationEnable) ===
+        false
       )
         errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
     }
