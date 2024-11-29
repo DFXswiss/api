@@ -16,6 +16,9 @@ export class Country extends IEntity {
   @Column({ default: true })
   dfxEnable: boolean;
 
+  @Column({ default: false })
+  dfxOrganizationEnable: boolean;
+
   @Column({ default: true })
   lockEnable: boolean;
 

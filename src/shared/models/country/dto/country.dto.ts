@@ -16,6 +16,9 @@ export class CountryDto {
   @ApiProperty({ description: 'Allowed for KYC' })
   kycAllowed: boolean;
 
+  @ApiProperty({ description: 'Allowed for organization KYC' })
+  kycOrganizationAllowed: boolean;
+
   @ApiProperty({ description: 'Allowed nationality for KYC' })
   nationalityAllowed: boolean;
 

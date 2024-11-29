@@ -14,6 +14,7 @@ export enum IdentCheckError {
   FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
+  COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
 }
 
 export const IdentCheckErrorMap: Record<IdentCheckError, string> = {
@@ -33,4 +34,5 @@ export const IdentCheckErrorMap: Record<IdentCheckError, string> = {
   [IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your last name does not match your account name',
   [IdentCheckError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME]:
     'Your organization name does not match your account name',
+  [IdentCheckError.COUNTRY_NOT_ALLOWED]: 'Your country is not allowed for KYC',
 };

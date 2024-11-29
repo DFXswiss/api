@@ -833,6 +833,9 @@ export class KycService {
     if (!data.success) errors.push(IdentCheckError.INVALID_RESULT);
 
     if (entity.userData.accountType === AccountType.PERSONAL) {
+      if (entity.userData.verifiedCountry?.dfxEnable === false ?? entity.userData.country?.dfxEnable === false)
+        errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
+
       if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
         errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
       } else if (entity.userData.verifiedName) {
@@ -841,6 +844,12 @@ export class KycService {
         if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
           errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
+    } else {
+      if (
+        entity.userData.verifiedCountry?.dfxOrganizationEnable === false ??
+        entity.userData.country?.dfxOrganizationEnable === false
+      )
+        errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
     }
 
     return errors;
