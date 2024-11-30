@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
+import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
-import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
+import { UpdateTransactionInternalDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 
@@ -19,14 +20,16 @@ export class TransactionService {
     return this.repo.save(entity);
   }
 
-  async update(id: number, dto: UpdateTransactionDto): Promise<Transaction> {
+  async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
     let entity = await this.getTransactionById(id);
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
-    entity.externalId = dto.request?.externalTransactionId;
+    if (dto instanceof UpdateTransactionInternalDto) {
+      entity.externalId = dto.request?.externalTransactionId;
 
-    if (dto.resetMailSendDate) entity.mailSendDate = null;
+      if (dto.resetMailSendDate) entity.mailSendDate = null;
+    }
 
     entity = await this.repo.save(entity);
 
