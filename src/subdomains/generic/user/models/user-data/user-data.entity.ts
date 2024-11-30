@@ -614,7 +614,7 @@ export class UserData extends IEntity {
     if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
-    if (slave.accountType != null && this.accountType !== slave.accountType)
+    if (slave.kycLevel >= KycLevel.LEVEL_20 && this.accountType !== slave.accountType)
       throw new BadRequestException('Account type mismatch');
   }
 
