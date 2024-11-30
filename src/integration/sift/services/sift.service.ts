@@ -225,7 +225,7 @@ export class SiftService {
     }
   }
 
-  async sendDecision(user: User, description?: string): Promise<SiftResponse> {
+  async sendUserBlocked(user: User, description?: string): Promise<SiftResponse> {
     if (!Config.sift.apiKey) return;
 
     const data = {
