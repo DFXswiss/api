@@ -243,8 +243,7 @@ export class UserService {
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
 
-    if (update.status && update.status == UserStatus.BLOCKED)
-      await this.siftService.sendDecision(user.id.toString(), update.comment);
+    if (update.status && update.status == UserStatus.BLOCKED) await this.siftService.sendDecision(user, update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
