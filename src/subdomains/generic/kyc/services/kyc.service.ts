@@ -19,7 +19,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { IsNull, LessThan, Like } from 'typeorm';
+import { LessThan, Like } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -122,35 +122,6 @@ export class KycService {
 
       await this.kycNotificationService.identFailed(user, 'Identification session has expired');
     }
-  }
-
-  // TODO: Remove temporary cron job
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock()
-  async storeExistingKycFilesBatched(): Promise<void> {
-    let offset = 0;
-
-    const BATCH_SIZE = 100;
-
-    while (true) {
-      const userDataBatch = await this.userDataService.getAllUserDataBy({
-        where: { kycFiles: { id: IsNull() } },
-        skip: offset,
-        take: BATCH_SIZE,
-      });
-
-      if (userDataBatch.length === 0) break;
-
-      this.logger.info(`Processing batch of ${userDataBatch.length} users starting from offset ${offset}`);
-
-      for (const userData of userDataBatch) {
-        await this.syncKycFiles(userData);
-      }
-
-      offset += BATCH_SIZE;
-    }
-
-    this.logger.info('Successfully stored existing KYC files for all users');
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
