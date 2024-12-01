@@ -7,8 +7,8 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
-import { RewardStatus } from './ref-reward.entity';
-import { RefRewardRepository } from './ref-reward.repository';
+import { RewardStatus } from '../ref-reward.entity';
+import { RefRewardRepository } from '../ref-reward.repository';
 
 @Injectable()
 export class RefRewardNotificationService {

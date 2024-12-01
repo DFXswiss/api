@@ -36,6 +36,7 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   transactionRefundExpirySeconds = 30;
+  refRewardManualCheckLimit = 3000; //EUR
 
   defaults = {
     currency: 'EUR',

@@ -9,8 +9,8 @@ import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/li
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { RefReward, RewardStatus } from './ref-reward.entity';
-import { RefRewardRepository } from './ref-reward.repository';
+import { RefReward, RewardStatus } from '../ref-reward.entity';
+import { RefRewardRepository } from '../ref-reward.repository';
 
 export interface RefLiquidityRequest {
   amount: number;

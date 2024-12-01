@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
-import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { RefRewardRepository } from './ref-reward.repository';
-import { RefReward, RewardStatus } from './ref-reward.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
+import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { RefReward, RewardStatus } from '../ref-reward.entity';
+import { RefRewardRepository } from '../ref-reward.repository';
 
 @Injectable()
 export class RefRewardOutService {
