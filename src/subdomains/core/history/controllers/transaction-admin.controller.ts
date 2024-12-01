@@ -8,7 +8,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
 
 @ApiTags('TransactionAdmin')
-@Controller('transactionAdmin')
+@Controller('transaction/admin')
 @ApiExcludeController()
 export class TransactionAdminController {
   constructor(private readonly transactionService: TransactionService) {}
