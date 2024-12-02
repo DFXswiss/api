@@ -50,13 +50,6 @@ echo "Frontdoor Origingroup: ${AFD_ORIGIN_GROUP}"
 echo "Frontdoor Origin:      ${AFD_ORIGIN}"
 echo "Frontdoor Route:       ${AFD_ROUTE}"
 
-#az containerapp update \
-#    --name $CONTAINERAPP_NAME \
-#    --resource-group $RESOURCE_GROUP \
-#    --image "dfxswiss/deuro-dapp:beta"
-#
-#exit
-
 ENVIRONMENT_ID=$(az containerapp env show \
     --resource-group $RESOURCE_GROUP \
     --name $ENVIRONMENT_NAME \

@@ -11,6 +11,9 @@ param containerAppsEnvironmentId string
 @description('Container Image')
 param containerImage string
 
+@description('Name of the storage')
+param storageName string
+
 @description('Container CPU resource')
 param containerCPU string
 
@@ -65,6 +68,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       }
     }
     template: {
+      volumes: [
+        {
+          name: 'volume'
+          storageType: 'AzureFile'
+          storageName: storageName
+          mountOptions: 'nobrl,cache=none'
+        }
+      ]
       containers: [
         {
           name: 'app'
@@ -122,6 +133,12 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'RPC_URL_POLYGON'
               value: containerEnvRpcUrlPolygon
+            }
+          ]
+          volumeMounts: [
+            {
+              volumeName: 'volume'
+              mountPath: '/app/.api'
             }
           ]
         }

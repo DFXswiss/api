@@ -49,14 +49,28 @@ var compName = 'dfx'
 var apiName = 'api'
 
 var environmentName = 'cae-${compName}-${apiName}-${env}'
+var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
+var fileShareName = 'ca-${app}'
+var environmentStorageName = 'share-${compName}-${app}-${env}'
 
 var appName = 'ca-${compName}-${app}-${env}'
 
 // --- MODULES --- //
+module storage './modules/storage.bicep' = {
+  name: 'storage'
+  params: {
+    storageAccountName: storageAccountName
+    fileShareName: fileShareName
+  }
+}
+
 module containerAppsEnv './modules/containerAppsEnv.bicep' = {
   name: 'containerAppsEnv'
   params: {
     environmentName: environmentName
+    environmentStorageName: environmentStorageName
+    storageAccountName: storageAccountName
+    fileShareName: fileShareName
   }
 }
 
@@ -67,6 +81,7 @@ module containerApp './modules/containerApp.bicep' = {
     tags: tags
     containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
     containerImage: containerImage
+    storageName: environmentStorageName
     containerCPU: containerCPU
     containerMemory: containerMemory
     containerEnvPort: containerEnvPort

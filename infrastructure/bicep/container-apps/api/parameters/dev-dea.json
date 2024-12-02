@@ -18,7 +18,7 @@
       "value": "localhostMainnet"
     },
     "containerEnvConfigChain": {
-      "value": "polygon"
+      "value": "ethereum"
     },
     "containerEnvConfigAppUrl": {
       "value": "https://dev.app.deuro.com"
