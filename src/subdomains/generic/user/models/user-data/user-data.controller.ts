@@ -9,6 +9,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserData, UserDataStatus } from './user-data.entity';
@@ -130,5 +131,13 @@ export class UserDataController {
     if (dto.kycLogId != null) await this.kycLogService.updateLogPdfUrl(dto.kycLogId, url);
 
     return url;
+  }
+
+  @Post('download')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  async downloadUserData(@Body() data: DownloadUserDataDto): Promise<string> {
+    return this.userDataService.downloadUserData(data.userDataIds);
   }
 }

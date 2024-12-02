@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -24,6 +25,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -195,6 +197,68 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  // Get user data files and return them as a zip file
+  async downloadUserData(userDataIds: number[]): Promise<string> {
+    const zip = new JSZip();
+
+    for (const userDataId of userDataIds) {
+      const [userData, userFiles, spiderFiles] = await Promise.all([
+        this.getUserData(userDataId),
+        this.documentService.listUserFiles(userDataId),
+        this.documentService.listSpiderFiles(userDataId, false),
+      ]);
+
+      const baseFolderName = `${String(userDataId).padStart(2, '0')}_${userData.completeName}`;
+      const parentFolder = zip.folder(baseFolderName);
+      if (!parentFolder) throw new Error(`Failed to create folder for user data ${userDataId}`);
+
+      // === First subfolder: Identifikationsdokument ===
+      const identificationFolder = parentFolder.folder('02_Identifikationsdokument');
+      if (!identificationFolder) {
+        throw new Error(`Failed to create folder '02_Identifikationsdokument' for user data ${userDataId}`);
+      }
+
+      const identificationFiles =
+        userFiles.concat(spiderFiles).filter((file) => file.type === FileType.IDENTIFICATION) || [];
+
+      if (identificationFiles.length > 0) {
+        const latestFile = identificationFiles.reduce((latest, current) =>
+          new Date(latest.updated) > new Date(current.updated) ? latest : current,
+        );
+
+        // Fetch and add the file to the ZIP
+        const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
+
+        identificationFolder.file(latestFile.name, fileData.data);
+      }
+
+      // === Second subfolder: Identifizierungsformular ===
+      const formFolder = parentFolder.folder('04_Identifizierungsformular');
+      if (!formFolder) throw new Error(`Failed to create folder '04_Identifizierungsformular' for user ${userDataId}`);
+
+      const formFiles = userFiles.filter((file) => file.type === 'Identification');
+      if (formFiles.length > 0) {
+        const latestFormFile = formFiles.reduce((latest, current) =>
+          new Date(latest.updated) > new Date(current.updated) ? latest : current,
+        );
+
+        // Fetch and add the file to the ZIP
+        const formFileData = await this.documentService.downloadFile(
+          userDataId,
+          latestFormFile.type,
+          latestFormFile.name,
+        );
+        formFolder.file(latestFormFile.name, formFileData.data);
+      }
+    }
+
+    // Generate the ZIP file
+    const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
+
+    // return the ZIP file as a base64 string
+    return zipContent.toString('base64');
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
