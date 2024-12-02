@@ -14,9 +14,6 @@
     "containerEnvPort": {
       "value": "3000"
     },
-    "containerEnvConfigProfile": {
-      "value": "localhostMainnet"
-    },
     "containerEnvConfigChain": {
       "value": "ethereum"
     },
@@ -29,14 +26,17 @@
     "containerEnvCoingeckoApiKey": {
       "value": "[API-KEY]"
     },
-    "containerEnvTelegramBotToken": {
-      "value": "[API-KEY]"
-    },
     "containerEnvRpcUrlMainnet": {
       "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
     },
     "containerEnvRpcUrlPolygon": {
       "value": "https://polygon-mainnet.g.alchemy.com/v2/[API-KEY]"
+    },
+    "containerEnvTelegramBotToken": {
+      "value": "[API-KEY]"
+    },
+    "containerEnvTelegramGroupsJson": {
+      "value": "/app/.api/telegram.groups.json"
     }
   }
 }

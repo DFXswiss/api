@@ -17,9 +17,6 @@ param containerMemory string
 @description('Container environment: PORT')
 param containerEnvPort string
 
-@description('Container environment: CONFIG_PROFILE')
-param containerEnvConfigProfile string
-
 @description('Container environment: CONFIG_CHAIN')
 param containerEnvConfigChain string
 
@@ -32,14 +29,17 @@ param containerEnvConfigIndexerUrl string
 @description('Container environment: COINGECKO_API_KEY')
 param containerEnvCoingeckoApiKey string
 
-@description('Container environment: TELEGRAM_BOT_TOKEN')
-param containerEnvTelegramBotToken string
-
 @description('Container environment: RPC_URL_MAINNET')
 param containerEnvRpcUrlMainnet string
 
 @description('Container environment: RPC_URL_POLYGON')
 param containerEnvRpcUrlPolygon string
+
+@description('Container environment: TELEGRAM_BOT_TOKEN')
+param containerEnvTelegramBotToken string
+
+@description('Container environment: TELEGRAM_GROUPS_JSON')
+param containerEnvTelegramGroupsJson string
 
 @description('Tags to be applied to all resources')
 param tags object = {}
@@ -85,13 +85,13 @@ module containerApp './modules/containerApp.bicep' = {
     containerCPU: containerCPU
     containerMemory: containerMemory
     containerEnvPort: containerEnvPort
-    containerEnvConfigProfile: containerEnvConfigProfile
     containerEnvConfigChain: containerEnvConfigChain
     containerEnvConfigAppUrl: containerEnvConfigAppUrl
     containerEnvConfigIndexerUrl: containerEnvConfigIndexerUrl
     containerEnvCoingeckoApiKey: containerEnvCoingeckoApiKey
-    containerEnvTelegramBotToken: containerEnvTelegramBotToken
     containerEnvRpcUrlMainnet: containerEnvRpcUrlMainnet
     containerEnvRpcUrlPolygon: containerEnvRpcUrlPolygon
+    containerEnvTelegramBotToken: containerEnvTelegramBotToken
+    containerEnvTelegramGroupsJson: containerEnvTelegramGroupsJson
   }
 }
