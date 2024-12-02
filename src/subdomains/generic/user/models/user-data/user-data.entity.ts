@@ -15,6 +15,7 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -160,6 +161,8 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   birthday: Date;
 
+  // --- ORGANIZATION DATA --- //
+  // TODO remove after sync
   @Column({ length: 256, nullable: true })
   organizationName: string;
 
@@ -338,6 +341,9 @@ export class UserData extends IEntity {
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener: UserData;
+
+  @ManyToOne(() => Organization, { nullable: true })
+  organization: Organization;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
@@ -531,6 +537,7 @@ export class UserData extends IEntity {
   }
 
   get address() {
+    // Only for Organization, not for SoleProprietorship?
     return this.accountType === AccountType.ORGANIZATION
       ? {
           street: this.organizationStreet,
