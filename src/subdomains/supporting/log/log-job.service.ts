@@ -22,7 +22,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
-import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';

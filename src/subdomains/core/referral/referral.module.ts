@@ -12,13 +12,14 @@ import { RefController } from './process/ref.controller';
 import { Ref } from './process/ref.entity';
 import { RefRepository } from './process/ref.repository';
 import { RefService } from './process/ref.service';
-import { RefRewardDexService } from './reward/ref-reward-dex.service';
-import { RefRewardNotificationService } from './reward/ref-reward-notification.service';
-import { RefRewardOutService } from './reward/ref-reward-out.service';
 import { RefRewardController } from './reward/ref-reward.controller';
 import { RefReward } from './reward/ref-reward.entity';
 import { RefRewardRepository } from './reward/ref-reward.repository';
-import { RefRewardService } from './reward/ref-reward.service';
+import { RefRewardDexService } from './reward/services/ref-reward-dex.service';
+import { RefRewardJobService } from './reward/services/ref-reward-job.service';
+import { RefRewardNotificationService } from './reward/services/ref-reward-notification.service';
+import { RefRewardOutService } from './reward/services/ref-reward-out.service';
+import { RefRewardService } from './reward/services/ref-reward.service';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { RefRewardService } from './reward/ref-reward.service';
     RefRewardNotificationService,
     RefRewardDexService,
     RefRewardOutService,
+    RefRewardJobService,
   ],
   exports: [RefService, RefRewardService],
 })
