@@ -21,6 +21,13 @@ export class KycDocumentService {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
+  async listSpiderKycFiles(userDataId: number): Promise<KycFile[]> {
+    const onlineIdentFiles = await this.listFilesByPrefix(`spider/${userDataId}/online-identification/`);
+    const videoIdentFiles = await this.listFilesByPrefix(`spider/${userDataId}/video-identification/`);
+
+    return [...onlineIdentFiles, ...videoIdentFiles];
+  }
+
   async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
     const blobs = await this.storageService.listBlobs(prefix);
     return blobs.map((b) => {

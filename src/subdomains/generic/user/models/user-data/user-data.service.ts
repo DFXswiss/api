@@ -206,7 +206,7 @@ export class UserDataService {
       const [userData, userFiles, spiderFiles] = await Promise.all([
         this.getUserData(userDataId),
         this.documentService.listUserFiles(userDataId),
-        this.documentService.listSpiderFiles(userDataId, false),
+        this.documentService.listSpiderKycFiles(userDataId),
       ]);
 
       const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.completeName}`;

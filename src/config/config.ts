@@ -569,7 +569,10 @@ export class Configuration {
     {
       folderName: '02_Identifikationsdokument',
       filter: (file: KycFile, userDataId: number) =>
-        file.name.endsWith('.pdf') && file.name.startsWith(`user/${userDataId}/Identification`),
+        file.name.endsWith('.pdf') &&
+        (file.name.startsWith(`user/${userDataId}/Identification`) ||
+          file.name.startsWith(`spider/${userDataId}/online-identification`) ||
+          file.name.startsWith(`spider/${userDataId}/video-identification`)),
       reduceFilter: (latest: KycFile, current: KycFile) =>
         new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
