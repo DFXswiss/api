@@ -487,7 +487,7 @@ export class UserDataService {
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
 
-    if (dto.accountType === AccountType.ORGANIZATION && !userData.organization)
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
       userData.organization = await this.organizationService.createOrganization({
         name: dto.organizationName,
         street: dto.organizationStreet,

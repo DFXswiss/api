@@ -4,7 +4,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { IsNull } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { OrganizationDto } from './dto/organization.dto';
@@ -27,7 +27,10 @@ export class OrganizationService {
     if (DisabledProcess(Process.ORGANIZATION_SYNC)) return;
 
     const entities = await this.userDataRepo.find({
-      where: { organization: { id: IsNull() }, accountType: AccountType.ORGANIZATION },
+      where: {
+        organization: { id: IsNull() },
+        accountType: In([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP]),
+      },
       relations: { organization: true },
     });
 
