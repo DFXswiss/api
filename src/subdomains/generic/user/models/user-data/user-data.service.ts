@@ -201,24 +201,26 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<string> {
     let count = 0;
     const zip = new JSZip();
+    const downloadTargets = GetConfig().downloadTargets;
 
     for (const userDataId of userDataIds) {
-      const [userData, userFiles, spiderFiles] = await Promise.all([
+      const [userData, allFiles] = await Promise.all([
         this.getUserData(userDataId),
-        this.documentService.listUserFiles(userDataId),
-        this.documentService.listSpiderKycFiles(userDataId),
+        this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
       ]);
 
       const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.completeName}`;
       const parentFolder = zip.folder(baseFolderName);
       if (!parentFolder) throw new BadRequestException(`Failed to create folder for UserData ${userDataId}`);
 
-      for (const { folderName, filter, reduceFilter } of GetConfig().downloadTargets) {
+      for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
         if (!subFolder)
           throw new BadRequestException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
 
-        const files = userFiles.concat(spiderFiles).filter((f) => filter(f, userDataId));
+        let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
+        files = files.filter((f) => prefixes(userDataId).some((p) => f.name.startsWith(p)));
+        if (filter) files = files.filter(filter);
 
         if (files.length > 0) {
           const latestFile = files.reduce(reduceFilter);
