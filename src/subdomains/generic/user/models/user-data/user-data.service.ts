@@ -5,6 +5,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -209,14 +210,14 @@ export class UserDataService {
         this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
       ]);
 
-      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.completeName}`;
+      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
       const parentFolder = zip.folder(baseFolderName);
-      if (!parentFolder) throw new BadRequestException(`Failed to create folder for UserData ${userDataId}`);
+      if (!parentFolder) throw new InternalServerErrorException(`Failed to create folder for UserData ${userDataId}`);
 
       for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
         if (!subFolder)
-          throw new BadRequestException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
+          throw new InternalServerErrorException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
 
         let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
         files = files.filter((f) => prefixes(userDataId).some((p) => f.name.startsWith(p)));
@@ -229,7 +230,9 @@ export class UserDataService {
             const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
             subFolder.file(latestFile.name, fileData.data);
           } catch (error) {
-            throw new BadRequestException(`Failed to download file '${latestFile.name}' for UserData ${userDataId}`);
+            throw new InternalServerErrorException(
+              `Failed to download file '${latestFile.name}' for UserData ${userDataId}`,
+            );
           }
         }
       }
