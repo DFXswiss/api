@@ -34,6 +34,7 @@ export class KycDocumentService {
       return {
         type,
         name,
+        path: b.name,
         url: b.url,
         contentType: b.contentType as ContentType,
         created: b.created,

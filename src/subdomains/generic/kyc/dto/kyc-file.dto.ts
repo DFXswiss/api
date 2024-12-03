@@ -25,6 +25,7 @@ export enum KycReportType {
 export interface KycFile extends Blob {
   type: FileType;
   contentType: ContentType;
+  path?: string;
 }
 
 export class CreateKycFileDto {

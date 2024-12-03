@@ -210,6 +210,8 @@ export class UserDataService {
         this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
       ]);
 
+      if (!userData) throw new NotFoundException(`UserData ${userDataId} not found`);
+
       const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
       const parentFolder = zip.folder(baseFolderName);
       if (!parentFolder) throw new InternalServerErrorException(`Failed to create folder for UserData ${userDataId}`);
@@ -220,7 +222,7 @@ export class UserDataService {
           throw new InternalServerErrorException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
 
         let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
-        files = files.filter((f) => prefixes(userDataId).some((p) => f.name.startsWith(p)));
+        files = files.filter((f) => prefixes(userDataId).some((p) => f.path.startsWith(p)));
         if (filter) files = files.filter(filter);
 
         if (files.length > 0) {
