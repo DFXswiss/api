@@ -211,11 +211,12 @@ export class UserDataService {
 
       const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.completeName}`;
       const parentFolder = zip.folder(baseFolderName);
-      if (!parentFolder) throw new Error(`Failed to create folder for UserData ${userDataId}`);
+      if (!parentFolder) throw new BadRequestException(`Failed to create folder for UserData ${userDataId}`);
 
       for (const { folderName, filter, reduceFilter } of GetConfig().downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
-        if (!subFolder) throw new Error(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
+        if (!subFolder)
+          throw new BadRequestException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
 
         const files = userFiles.concat(spiderFiles).filter((f) => filter(f, userDataId));
 
@@ -226,7 +227,7 @@ export class UserDataService {
             const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
             subFolder.file(latestFile.name, fileData.data);
           } catch (error) {
-            console.error(`Failed to download file '${latestFile.name}' for UserData ${userDataId}:`, error);
+            throw new BadRequestException(`Failed to download file '${latestFile.name}' for UserData ${userDataId}`);
           }
         }
       }

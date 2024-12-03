@@ -136,7 +136,7 @@ export class UserDataController {
   @Post('download')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT)) // TODO: Change to ADMIN
   async downloadUserData(@Body() data: DownloadUserDataDto): Promise<string> {
     return this.userDataService.downloadUserData(data.userDataIds);
   }
