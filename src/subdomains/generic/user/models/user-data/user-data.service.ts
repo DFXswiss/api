@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import JSZip from 'jszip';
-import { Config } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -25,7 +25,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -199,8 +198,8 @@ export class UserDataService {
     return userData;
   }
 
-  // Get user data files and return them as a zip file
   async downloadUserData(userDataIds: number[]): Promise<string> {
+    let count = 0;
     const zip = new JSZip();
 
     for (const userDataId of userDataIds) {
@@ -210,54 +209,31 @@ export class UserDataService {
         this.documentService.listSpiderFiles(userDataId, false),
       ]);
 
-      const baseFolderName = `${String(userDataId).padStart(2, '0')}_${userData.completeName}`;
+      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.completeName}`;
       const parentFolder = zip.folder(baseFolderName);
-      if (!parentFolder) throw new Error(`Failed to create folder for user data ${userDataId}`);
+      if (!parentFolder) throw new Error(`Failed to create folder for UserData ${userDataId}`);
 
-      // === First subfolder: Identifikationsdokument ===
-      const identificationFolder = parentFolder.folder('02_Identifikationsdokument');
-      if (!identificationFolder) {
-        throw new Error(`Failed to create folder '02_Identifikationsdokument' for user data ${userDataId}`);
-      }
+      for (const { folderName, filter, reduceFilter } of GetConfig().downloadTargets) {
+        const subFolder = parentFolder.folder(folderName);
+        if (!subFolder) throw new Error(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
 
-      const identificationFiles =
-        userFiles.concat(spiderFiles).filter((file) => file.type === FileType.IDENTIFICATION) || [];
+        const files = userFiles.concat(spiderFiles).filter((f) => filter(f, userDataId));
 
-      if (identificationFiles.length > 0) {
-        const latestFile = identificationFiles.reduce((latest, current) =>
-          new Date(latest.updated) > new Date(current.updated) ? latest : current,
-        );
+        if (files.length > 0) {
+          const latestFile = files.reduce(reduceFilter);
 
-        // Fetch and add the file to the ZIP
-        const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
-
-        identificationFolder.file(latestFile.name, fileData.data);
-      }
-
-      // === Second subfolder: Identifizierungsformular ===
-      const formFolder = parentFolder.folder('04_Identifizierungsformular');
-      if (!formFolder) throw new Error(`Failed to create folder '04_Identifizierungsformular' for user ${userDataId}`);
-
-      const formFiles = userFiles.filter((file) => file.type === 'Identification');
-      if (formFiles.length > 0) {
-        const latestFormFile = formFiles.reduce((latest, current) =>
-          new Date(latest.updated) > new Date(current.updated) ? latest : current,
-        );
-
-        // Fetch and add the file to the ZIP
-        const formFileData = await this.documentService.downloadFile(
-          userDataId,
-          latestFormFile.type,
-          latestFormFile.name,
-        );
-        formFolder.file(latestFormFile.name, formFileData.data);
+          try {
+            const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
+            subFolder.file(latestFile.name, fileData.data);
+          } catch (error) {
+            console.error(`Failed to download file '${latestFile.name}' for UserData ${userDataId}:`, error);
+          }
+        }
       }
     }
 
-    // Generate the ZIP file
     const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
 
-    // return the ZIP file as a base64 string
     return zipContent.toString('base64');
   }
 
