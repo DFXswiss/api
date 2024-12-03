@@ -4,12 +4,11 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Check, ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { Route } from '../../route/route.entity';
 import { BuyFiat } from '../process/buy-fiat.entity';
 
-@Check(`"active" = 0 OR "bankDataId" IS NOT NULL OR "type" <> 'Sell'`)
 @ChildEntity()
 export class Sell extends DepositRoute {
   @Column({ length: 256 })
