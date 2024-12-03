@@ -5,11 +5,13 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import JSZip from 'jszip';
+import { Config, GetConfig } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -195,6 +197,52 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async downloadUserData(userDataIds: number[]): Promise<string> {
+    let count = 0;
+    const zip = new JSZip();
+    const downloadTargets = GetConfig().downloadTargets;
+
+    for (const userDataId of userDataIds) {
+      const [userData, allFiles] = await Promise.all([
+        this.getUserData(userDataId),
+        this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
+      ]);
+
+      if (!userData) throw new NotFoundException(`UserData ${userDataId} not found`);
+
+      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const parentFolder = zip.folder(baseFolderName);
+      if (!parentFolder) throw new InternalServerErrorException(`Failed to create folder for UserData ${userDataId}`);
+
+      for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
+        const subFolder = parentFolder.folder(folderName);
+        if (!subFolder)
+          throw new InternalServerErrorException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
+
+        let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
+        files = files.filter((f) => prefixes(userDataId).some((p) => f.path.startsWith(p)));
+        if (filter) files = files.filter(filter);
+
+        if (files.length > 0) {
+          const latestFile = files.reduce(reduceFilter);
+
+          try {
+            const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
+            subFolder.file(latestFile.name, fileData.data);
+          } catch (error) {
+            throw new InternalServerErrorException(
+              `Failed to download file '${latestFile.name}' for UserData ${userDataId}`,
+            );
+          }
+        }
+      }
+    }
+
+    const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
+
+    return zipContent.toString('base64');
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {

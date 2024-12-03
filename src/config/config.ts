@@ -11,6 +11,8 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
+import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -563,6 +565,29 @@ export class Configuration {
   checkout = {
     entityId: process.env.CKO_ENTITY_ID,
   };
+
+  downloadTargets = [
+    {
+      folderName: '02_Identifikationsdokument',
+      fileTypes: [ContentType.PDF],
+      prefixes: (userDataId: number) => [
+        `user/${userDataId}/Identification`,
+        `spider/${userDataId}/online-identification`,
+        `spider/${userDataId}/video-identification`,
+      ],
+      filter: null,
+      reduceFilter: (latest: KycFile, current: KycFile) =>
+        new Date(latest.updated) > new Date(current.updated) ? latest : current,
+    },
+    {
+      folderName: '04_Identifizierungsformular',
+      fileTypes: [ContentType.PDF],
+      prefixes: (userDataId: number) => [`user/${userDataId}/UserNotes`],
+      filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
+      reduceFilter: (latest: KycFile, current: KycFile) =>
+        new Date(latest.updated) > new Date(current.updated) ? latest : current,
+    },
+  ];
 
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {
