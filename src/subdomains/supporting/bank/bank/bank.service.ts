@@ -33,7 +33,7 @@ export class BankService {
   }
 
   async getBankByIban(iban: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(`${iban}`, { iban });
+    return this.bankRepo.findOneCachedBy(iban, { iban });
   }
 
   // --- BankSelector --- //
