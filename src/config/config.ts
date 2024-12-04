@@ -574,8 +574,6 @@ export class Configuration {
       prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
       fileTypes: [ContentType.PDF],
       filter: (file: KycFile) => file.name.includes('GwGFileDeckblatt'),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
     {
       folderName: '02_Identifikationsdokument',
@@ -585,9 +583,6 @@ export class Configuration {
         `spider/${userData.id}/video-identification`,
       ],
       fileTypes: [ContentType.PDF],
-      filter: null,
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
     {
       folderName: '03_Banktransaktion oder Videoident Tonspur',
@@ -606,32 +601,24 @@ export class Configuration {
         (userData.identificationType === KycIdentificationType.ONLINE_ID &&
           file.name.includes('bankTransactionVerify') &&
           file.contentType === ContentType.PDF),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
     {
       folderName: '04_Identifizierungsformular',
       prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
       fileTypes: [ContentType.PDF],
       filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
     {
       folderName: '05_Kundenprofil',
       prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
       fileTypes: [ContentType.PDF],
       filter: (file: KycFile) => file.name.includes('Kundenprofil'),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
     {
       folderName: '06_Risikoprofil',
       prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
       fileTypes: [ContentType.PDF],
       filter: (file: KycFile) => file.name.includes('Risikoprofil'),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
     {
       folderName: '07_Formular A oder K',
@@ -640,8 +627,6 @@ export class Configuration {
       filter: (file: KycFile, userData: UserData) =>
         (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
         (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
     },
   ];
 

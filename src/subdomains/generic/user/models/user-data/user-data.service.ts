@@ -227,7 +227,7 @@ export class UserDataService {
         downloadTargets.map((t) => t.prefixes(userData)).flat(),
       );
 
-      for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
+      for (const { folderName, fileTypes, prefixes, filter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -240,7 +240,7 @@ export class UserDataService {
         if (filter) files = files.filter((file) => filter(file, userData));
 
         if (files.length > 0) {
-          const latestFile = files.reduce(reduceFilter);
+          const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
 
           try {
             const fileData = await this.documentService.downloadFile(
