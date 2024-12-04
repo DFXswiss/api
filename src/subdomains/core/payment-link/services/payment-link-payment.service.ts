@@ -8,6 +8,7 @@ import {
 import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
@@ -32,7 +33,6 @@ import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payme
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
-import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -112,7 +112,7 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: { route: { deposit: true, user: { userData: true } } },
+        link: { route: { deposit: true, user: { userData: { organization: true } } } },
       },
     });
   }

@@ -37,6 +37,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
+import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
@@ -72,6 +73,7 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
+    private readonly organizationService: OrganizationService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -311,6 +313,19 @@ export class UserDataService {
       data.organizationLocation = null;
       data.organizationZip = null;
       data.organizationCountry = null;
+    } else {
+      const organizationData = {
+        name: data.organizationName,
+        street: data.organizationStreet,
+        location: data.organizationLocation,
+        houseNumber: data.organizationHouseNumber,
+        zip: data.organizationZip,
+        countryId: data.organizationCountry?.id,
+      };
+
+      userData.organization = !userData.organization
+        ? await this.organizationService.createOrganization(organizationData)
+        : await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
     }
 
     for (const user of userData.users) {
@@ -538,6 +553,16 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
+
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
+      userData.organization = await this.organizationService.createOrganization({
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        countryId: dto.organizationCountryId,
+      });
   }
 
   // --- KYC CLIENTS --- //
