@@ -18,6 +18,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
@@ -55,12 +56,6 @@ export enum KycState {
 export enum KycType {
   DFX = 'DFX',
   LOCK = 'LOCK',
-}
-
-export enum KycIdentificationType {
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
-  MANUAL = 'Manual',
 }
 
 export enum LegalEntity {

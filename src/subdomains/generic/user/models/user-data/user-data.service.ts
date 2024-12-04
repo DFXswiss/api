@@ -44,8 +44,9 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -205,10 +206,7 @@ export class UserDataService {
     let errorLog = '';
 
     for (const userDataId of userDataIds) {
-      const [userData, allFiles] = await Promise.all([
-        this.getUserData(userDataId),
-        this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
-      ]);
+      const userData = await this.getUserData(userDataId);
 
       if (!userData?.verifiedName) {
         errorLog += !userData
@@ -225,6 +223,10 @@ export class UserDataService {
         continue;
       }
 
+      const allFiles = await this.documentService.listFilesByPrefixes(
+        downloadTargets.map((t) => t.prefixes(userData)).flat(),
+      );
+
       for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
 
@@ -233,9 +235,9 @@ export class UserDataService {
           continue;
         }
 
-        let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
-        files = files.filter((f) => prefixes(userDataId).some((p) => f.path.startsWith(p)));
-        if (filter) files = files.filter(filter);
+        let files = allFiles.filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)));
+        if (fileTypes) files = allFiles.filter((f) => fileTypes.includes(f.contentType));
+        if (filter) files = files.filter((file) => filter(file, userData));
 
         if (files.length > 0) {
           const latestFile = files.reduce(reduceFilter);
