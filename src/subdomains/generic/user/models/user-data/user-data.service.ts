@@ -210,8 +210,10 @@ export class UserDataService {
         this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
       ]);
 
-      if (!userData) {
-        errorLog += `Error: UserData ${userDataId} not found\n`;
+      if (!userData?.verifiedName) {
+        errorLog += !userData
+          ? `Error: UserData ${userDataId} not found\n`
+          : `Error: UserData ${userDataId} has no verifiedName\n`;
         continue;
       }
 
