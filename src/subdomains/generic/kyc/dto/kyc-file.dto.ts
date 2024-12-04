@@ -22,7 +22,13 @@ export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
 
+export enum FileCategory {
+  USER = 'user',
+  SPIDER = 'spider',
+}
+
 export interface KycFile extends Blob {
+  category: FileCategory;
   type: FileType;
   contentType: ContentType;
   path?: string;

@@ -5,7 +5,6 @@ import {
   forwardRef,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -200,9 +199,10 @@ export class UserDataService {
   }
 
   async downloadUserData(userDataIds: number[]): Promise<string> {
-    let count = 0;
+    let count = 1;
     const zip = new JSZip();
     const downloadTargets = GetConfig().downloadTargets;
+    let errorLog = '';
 
     for (const userDataId of userDataIds) {
       const [userData, allFiles] = await Promise.all([
@@ -210,16 +210,28 @@ export class UserDataService {
         this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
       ]);
 
-      if (!userData) throw new NotFoundException(`UserData ${userDataId} not found`);
+      if (!userData?.verifiedName) {
+        errorLog += !userData
+          ? `Error: UserData ${userDataId} not found\n`
+          : `Error: UserData ${userDataId} has no verifiedName\n`;
+        continue;
+      }
 
       const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
       const parentFolder = zip.folder(baseFolderName);
-      if (!parentFolder) throw new InternalServerErrorException(`Failed to create folder for UserData ${userDataId}`);
+
+      if (!parentFolder) {
+        errorLog += `Error: Failed to create folder for UserData ${userDataId}\n`;
+        continue;
+      }
 
       for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
-        if (!subFolder)
-          throw new InternalServerErrorException(`Failed to create folder '${folderName}' for UserData ${userDataId}`);
+
+        if (!subFolder) {
+          errorLog += `Error: Failed to create folder '${folderName}' for UserData ${userDataId}\n`;
+          continue;
+        }
 
         let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
         files = files.filter((f) => prefixes(userDataId).some((p) => f.path.startsWith(p)));
@@ -229,16 +241,21 @@ export class UserDataService {
           const latestFile = files.reduce(reduceFilter);
 
           try {
-            const fileData = await this.documentService.downloadFile(userDataId, latestFile.type, latestFile.name);
+            const fileData = await this.documentService.downloadFile(
+              latestFile.category,
+              userDataId,
+              latestFile.type,
+              latestFile.name,
+            );
             subFolder.file(latestFile.name, fileData.data);
           } catch (error) {
-            throw new InternalServerErrorException(
-              `Failed to download file '${latestFile.name}' for UserData ${userDataId}`,
-            );
+            errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
           }
         }
       }
     }
+
+    if (errorLog) zip.file('error_log.txt', errorLog);
 
     const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
 
