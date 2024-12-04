@@ -7,9 +7,9 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
-import { ContentType } from '../../dto/kyc-file.dto';
 import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
+import { ContentType } from '../../enums/content-type.enum';
 
 @Injectable()
 export class SumsubService {

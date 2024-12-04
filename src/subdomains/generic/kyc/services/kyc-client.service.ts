@@ -9,7 +9,8 @@ import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { PaymentWebhookData } from '../../user/services/webhook/dto/payment-webhook.dto';
 import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
-import { ContentType, FileType, KycClientDataDto, KycFile, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { FileCategory, FileType, KycClientDataDto, KycFile, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { ContentType } from '../enums/content-type.enum';
 import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
@@ -75,7 +76,9 @@ export class KycClientService {
     const document = this.getFileFor(type, allDocuments);
     if (!document) throw new NotFoundException('File not found');
 
-    return this.documentService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+    return this.documentService
+      .downloadFile(FileCategory.USER, user.userData.id, document.type, document.name)
+      .then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //

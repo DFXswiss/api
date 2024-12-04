@@ -9,7 +9,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import JSZip from 'jszip';
+import { Config, GetConfig } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -31,7 +32,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { Equal, FindManyOptions, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -43,8 +44,9 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -86,11 +88,6 @@ export class UserDataService {
 
   async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
-  }
-
-  // TODO: Remove this method (temporarily used by Cron Job)
-  async getAllUserDataBy(options?: FindManyOptions<UserData>): Promise<UserData[]> {
-    return this.userDataRepo.find(options);
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
@@ -200,6 +197,71 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async downloadUserData(userDataIds: number[]): Promise<string> {
+    let count = userDataIds.length;
+    const zip = new JSZip();
+    const downloadTargets = GetConfig().downloadTargets.reverse();
+    let errorLog = '';
+
+    for (const userDataId of userDataIds.reverse()) {
+      const userData = await this.getUserData(userDataId);
+
+      if (!userData?.verifiedName) {
+        errorLog += !userData
+          ? `Error: UserData ${userDataId} not found\n`
+          : `Error: UserData ${userDataId} has no verifiedName\n`;
+        continue;
+      }
+
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const parentFolder = zip.folder(baseFolderName);
+
+      if (!parentFolder) {
+        errorLog += `Error: Failed to create folder for UserData ${userDataId}\n`;
+        continue;
+      }
+
+      const allFiles = await this.documentService.listFilesByPrefixes(
+        downloadTargets.map((t) => t.prefixes(userData)).flat(),
+      );
+
+      for (const { folderName, fileTypes, prefixes, filter } of downloadTargets) {
+        const subFolder = parentFolder.folder(folderName);
+
+        if (!subFolder) {
+          errorLog += `Error: Failed to create folder '${folderName}' for UserData ${userDataId}\n`;
+          continue;
+        }
+
+        let files = allFiles.filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)));
+        if (fileTypes) files = allFiles.filter((f) => fileTypes.includes(f.contentType));
+        if (filter) files = files.filter((file) => filter(file, userData));
+
+        if (files.length > 0) {
+          const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+
+          try {
+            const fileData = await this.documentService.downloadFile(
+              latestFile.category,
+              userDataId,
+              latestFile.type,
+              latestFile.name,
+            );
+            subFolder.file(latestFile.name, fileData.data);
+          } catch (error) {
+            errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
+          }
+        }
+      }
+    }
+
+    if (errorLog) zip.file('error_log.txt', errorLog);
+
+    const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
+
+    return zipContent.toString('base64');
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
@@ -550,8 +612,7 @@ export class UserDataService {
         (u) =>
           u.id !== user.id &&
           u.isDfxUser &&
-          u.verifiedName &&
-          (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
+          (!user.verifiedName || !u.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
       );
       if (matchingUser) {
         // send a merge request

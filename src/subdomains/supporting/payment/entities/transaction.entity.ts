@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -57,6 +58,25 @@ export class Transaction extends IEntity {
 
   @Column({ length: 256, nullable: true })
   externalId: string;
+
+  @Column({ length: 256, nullable: true })
+  assets: string;
+
+  @Column({ type: 'float', nullable: true })
+  amountInChf: number;
+
+  @Column({ type: 'datetime2', nullable: true })
+  eventDate: Date;
+
+  // Check
+  @Column({ length: 256, nullable: true })
+  amlCheck: CheckStatus;
+
+  @Column({ length: 256, nullable: true })
+  amlType: string;
+
+  @Column({ nullable: true })
+  highRisk: boolean;
 
   // Mail
   @Column({ length: 256, nullable: true })
