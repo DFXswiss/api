@@ -44,8 +44,9 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -199,16 +200,13 @@ export class UserDataService {
   }
 
   async downloadUserData(userDataIds: number[]): Promise<string> {
-    let count = 1;
+    let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = GetConfig().downloadTargets;
+    const downloadTargets = GetConfig().downloadTargets.reverse();
     let errorLog = '';
 
-    for (const userDataId of userDataIds) {
-      const [userData, allFiles] = await Promise.all([
-        this.getUserData(userDataId),
-        this.documentService.listFilesByPrefixes(downloadTargets.map((t) => t.prefixes(userDataId)).flat()),
-      ]);
+    for (const userDataId of userDataIds.reverse()) {
+      const userData = await this.getUserData(userDataId);
 
       if (!userData?.verifiedName) {
         errorLog += !userData
@@ -217,7 +215,7 @@ export class UserDataService {
         continue;
       }
 
-      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
       const parentFolder = zip.folder(baseFolderName);
 
       if (!parentFolder) {
@@ -225,7 +223,11 @@ export class UserDataService {
         continue;
       }
 
-      for (const { folderName, fileTypes, prefixes, filter, reduceFilter } of downloadTargets) {
+      const allFiles = await this.documentService.listFilesByPrefixes(
+        downloadTargets.map((t) => t.prefixes(userData)).flat(),
+      );
+
+      for (const { folderName, fileTypes, prefixes, filter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -233,12 +235,12 @@ export class UserDataService {
           continue;
         }
 
-        let files = allFiles.filter((f) => fileTypes.includes(f.contentType));
-        files = files.filter((f) => prefixes(userDataId).some((p) => f.path.startsWith(p)));
-        if (filter) files = files.filter(filter);
+        let files = allFiles.filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)));
+        if (fileTypes) files = allFiles.filter((f) => fileTypes.includes(f.contentType));
+        if (filter) files = files.filter((file) => filter(file, userData));
 
         if (files.length > 0) {
-          const latestFile = files.reduce(reduceFilter);
+          const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
 
           try {
             const fileData = await this.documentService.downloadFile(
