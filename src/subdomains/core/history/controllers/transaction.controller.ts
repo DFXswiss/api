@@ -77,7 +77,7 @@ import { ExportType, HistoryService } from '../services/history.service';
 
 interface TransactionRefundData {
   expiryDate: Date;
-  feeAmount: number;
+  fee: { dfx: number; bank: number };
   refundAmount: number;
   refundAsset: AssetDto | FiatDto;
   refundTarget: string;
@@ -310,11 +310,15 @@ export class TransactionController {
     if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
       throw new BadRequestException('You cannot refund payment transactions');
 
-    const feeAmount = transaction.targetEntity.cryptoInput
+    const dfxFeeAmount = transaction.targetEntity.cryptoInput
       ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
       : 0;
 
-    if (feeAmount >= transaction.targetEntity.inputAmount)
+    const bankFeeAmount = transaction.targetEntity.cryptoInput
+      ? 0
+      : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
+
+    if (dfxFeeAmount >= transaction.targetEntity.inputAmount)
       throw new BadRequestException('Transaction fee is too expensive');
 
     const refundAsset = transaction.targetEntity.cryptoInput?.asset
@@ -347,10 +351,13 @@ export class TransactionController {
     const refundData = {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       refundAmount: Util.roundReadable(
-        transaction.targetEntity.inputAmount - feeAmount,
+        transaction.targetEntity.inputAmount - dfxFeeAmount - bankFeeAmount,
         !transaction.targetEntity.cryptoInput,
       ),
-      feeAmount: Util.roundReadable(feeAmount, !transaction.targetEntity.cryptoInput),
+      fee: {
+        dfx: Util.roundReadable(dfxFeeAmount, !transaction.targetEntity.cryptoInput),
+        bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
+      },
       refundAsset,
       refundTarget,
     };
