@@ -13,11 +13,12 @@ import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.e
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
-import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
@@ -55,12 +56,6 @@ export enum KycState {
 export enum KycType {
   DFX = 'DFX',
   LOCK = 'LOCK',
-}
-
-export enum KycIdentificationType {
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
-  MANUAL = 'Manual',
 }
 
 export enum LegalEntity {
@@ -611,11 +606,10 @@ export class UserData extends IEntity {
       throw new BadRequestException('Slave and master are on AML list');
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
-    if (slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
+    if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
-    if (!this.verifiedName) throw new BadRequestException('Verified name missing');
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
-    if (this.accountType !== slave.accountType && slave.kycLevel >= KycLevel.LEVEL_20)
+    if (slave.kycLevel >= KycLevel.LEVEL_20 && this.accountType !== slave.accountType)
       throw new BadRequestException('Account type mismatch');
   }
 

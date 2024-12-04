@@ -7,8 +7,8 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
-import { RewardStatus } from './ref-reward.entity';
-import { RefRewardRepository } from './ref-reward.repository';
+import { RewardStatus } from '../ref-reward.entity';
+import { RefRewardRepository } from '../ref-reward.repository';
 
 @Injectable()
 export class RefRewardNotificationService {
@@ -35,7 +35,7 @@ export class RefRewardNotificationService {
         targetAddress: Not(IsNull()),
         targetBlockchain: Not(IsNull()),
       },
-      relations: ['user', 'user.userData'],
+      relations: { user: { userData: true } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'ref reward' email(s)`);

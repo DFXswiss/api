@@ -105,7 +105,10 @@ export class LiquidityManagementService {
       const result = rule.verify(balance);
 
       if (result.deficit || result.redundancy) {
-        if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
+        if (!this.ruleActivations.has(rule.id)) {
+          this.ruleActivations.set(rule.id, new Date());
+          this.logger.info(`Rule ${rule.id} activated: ${result.deficit} deficit, ${result.redundancy} redundancy`);
+        }
 
         // execute rule 30 minutes after activation
         const delay = await this.settingService.get('lmActivationDelay', '30');

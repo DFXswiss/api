@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
-import { CountryService } from '../../../../shared/models/country/country.service';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
@@ -11,14 +9,13 @@ import { IbanBankName } from './dto/bank.dto';
 export interface BankSelectorInput {
   amount: number;
   currency: string;
-  bankAccount?: BankAccount;
   paymentMethod: FiatPaymentMethod;
   userData: UserData;
 }
 
 @Injectable()
 export class BankService {
-  constructor(private bankRepo: BankRepository, private countryService: CountryService) {}
+  constructor(private bankRepo: BankRepository) {}
 
   async getAllBanks(): Promise<Bank[]> {
     return this.bankRepo.findCached(`all`);
@@ -37,13 +34,9 @@ export class BankService {
   }
 
   // --- BankSelector --- //
-  async getBank({ bankAccount, amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
+  async getBank({ amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
     const fallBackCurrency = 'EUR';
-
-    const ibanCodeCountry = bankAccount
-      ? await this.countryService.getCountryWithSymbol(bankAccount.iban.substring(0, 2))
-      : undefined;
 
     const banks = await this.getAllBanks();
 
@@ -63,10 +56,6 @@ export class BankService {
     if (!account && (amount > frickAmountLimit || currency === 'USD')) {
       // amount > 9k => Frick || USD => Frick
       account = this.getMatchingBank(banks, IbanBankName.FRICK, currency, fallBackCurrency);
-    }
-    if (!account && (!ibanCodeCountry || ibanCodeCountry.maerkiBaumannEnable)) {
-      // Valid Maerki Baumann country => MB CHF/USD/EUR
-      account = this.getMatchingBank(banks, IbanBankName.MAERKI, currency, fallBackCurrency);
     }
     if (!account) {
       // Default => MB
