@@ -11,7 +11,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { FileCategory, FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import {
@@ -198,7 +198,9 @@ export class KycService {
     const document = this.getFileFor(type, allDocuments);
     if (!document) throw new NotFoundException('File not found');
 
-    return this.documentService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+    return this.documentService
+      .downloadFile(FileCategory.USER, user.userData.id, document.type, document.name)
+      .then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //

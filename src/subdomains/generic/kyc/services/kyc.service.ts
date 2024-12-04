@@ -46,7 +46,7 @@ import {
 import { IdentStatus } from '../dto/ident.dto';
 import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileCategory, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
@@ -201,7 +201,12 @@ export class KycService {
       throw new ForbiddenException('Requires admin role');
     }
 
-    const blob = await this.documentService.downloadFile(kycFile.userData.id, kycFile.type, kycFile.name);
+    const blob = await this.documentService.downloadFile(
+      FileCategory.USER,
+      kycFile.userData.id,
+      kycFile.type,
+      kycFile.name,
+    );
 
     const log = `User ${userDataId} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
     await this.kycLogService.createKycFileLog(log, kycFile.userData);
