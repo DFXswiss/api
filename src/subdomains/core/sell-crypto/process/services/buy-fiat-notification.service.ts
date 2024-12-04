@@ -13,7 +13,7 @@ import {
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
-import { BuyFiatAmlReasonPendingStates } from '../buy-fiat.entity';
+import { BuyFiat, BuyFiatAmlReasonPendingStates } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 
 @Injectable()
@@ -81,6 +81,41 @@ export class BuyFiatNotificationService {
       } catch (e) {
         this.logger.error(`Failed to send buy-fiat completed mail ${entity.id}:`, e);
       }
+    }
+  }
+
+  async paymentProcessing(entity: BuyFiat): Promise<void> {
+    try {
+      if (entity.userData.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context: MailContext.BUY_FIAT_PROCESSING,
+          input: {
+            userData: entity.userData,
+            title: `${MailTranslationKey.PROCESSING}.title`,
+            salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
+            suffix: [
+              {
+                key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                params: { url: entity.transaction.url },
+              },
+              {
+                key: `${MailTranslationKey.GENERAL}.link`,
+                params: { url: entity.transaction.url, urlText: entity.transaction.url },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              { key: `${MailTranslationKey.GENERAL}.support` },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: `${MailTranslationKey.GENERAL}.thanks` },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      }
+
+      await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
+    } catch (e) {
+      this.logger.error(`Failed to send buy-fiat processing mail ${entity.id}:`, e);
     }
   }
 

@@ -21,6 +21,7 @@ import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatNotificationService } from '../services/buy-fiat-notification.service';
 import { BuyFiatService } from '../services/buy-fiat.service';
 
 enum MockBuyData {
@@ -47,6 +48,7 @@ describe('BuyFiatService', () => {
   let transactionService: TransactionService;
   let payInService: PayInService;
   let userDataService: UserDataService;
+  let buyFiatNotificationService: BuyFiatNotificationService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -63,6 +65,7 @@ describe('BuyFiatService', () => {
     transactionService = createMock<TransactionService>();
     payInService = createMock<PayInService>();
     userDataService = createMock<UserDataService>();
+    buyFiatNotificationService = createMock<BuyFiatNotificationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -82,6 +85,7 @@ describe('BuyFiatService', () => {
         { provide: TransactionService, useValue: transactionService },
         { provide: PayInService, useValue: payInService },
         { provide: UserDataService, useValue: userDataService },
+        { provide: BuyFiatNotificationService, useValue: buyFiatNotificationService },
       ],
     }).compile();
 

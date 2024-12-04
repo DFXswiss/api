@@ -37,6 +37,10 @@
             "title": "Pago abonado",
             "salutation": "Su pago ha sido enviado a su cuenta bancaria"
         },
+        "processing": {
+            "title": "Se procesa la transacción",
+            "salutation": "Su transacción será procesada"
+        },
         "chargeback": {
             "unconfirmed": {
                 "title": "Medidas necesarias",
