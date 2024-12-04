@@ -320,7 +320,7 @@ export class TransactionController {
       if (transaction.targetEntity?.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
 
-      const forexFee = transaction.bankTx.txCurrency === transaction.bankTx.currency ? 0 : 0.02;
+      const forexFee = transaction.bankTx.txCurrency === transaction.bankTx.currency ? 0 : Config.bank.forexFee;
       const forexFeeAmount = (transaction.bankTx.amount + transaction.bankTx.chargeAmount) * forexFee;
       const feeAmount = 0 + forexFeeAmount;
 

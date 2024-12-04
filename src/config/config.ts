@@ -514,6 +514,7 @@ export class Configuration {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
     },
+    forexFee: 0.02,
   };
 
   giroCode = {

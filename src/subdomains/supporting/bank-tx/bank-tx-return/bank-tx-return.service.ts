@@ -68,11 +68,10 @@ export class BankTxReturnService {
   }
 
   async refundBankTx(bankTxReturn: BankTxReturn, dto: BankTxRefund): Promise<void> {
-    if (!dto.refundIban && !bankTxReturn.chargebackIban)
-      throw new BadRequestException('You have to define a chargebackIban');
-
     const chargebackAmount = dto.chargebackAmount ?? bankTxReturn.chargebackAmount;
     const chargebackIban = dto.refundIban ?? bankTxReturn.chargebackIban;
+
+    if (!chargebackIban) throw new BadRequestException('You have to define a chargebackIban');
 
     TransactionUtilService.validateRefund(bankTxReturn, {
       refundIban: chargebackIban,
