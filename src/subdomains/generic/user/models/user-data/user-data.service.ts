@@ -200,12 +200,12 @@ export class UserDataService {
   }
 
   async downloadUserData(userDataIds: number[]): Promise<string> {
-    let count = 1;
+    let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = GetConfig().downloadTargets;
+    const downloadTargets = GetConfig().downloadTargets.reverse();
     let errorLog = '';
 
-    for (const userDataId of userDataIds) {
+    for (const userDataId of userDataIds.reverse()) {
       const userData = await this.getUserData(userDataId);
 
       if (!userData?.verifiedName) {
@@ -215,7 +215,7 @@ export class UserDataService {
         continue;
       }
 
-      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
       const parentFolder = zip.folder(baseFolderName);
 
       if (!parentFolder) {
