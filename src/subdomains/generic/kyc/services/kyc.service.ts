@@ -25,12 +25,8 @@ import { AccountMergeService } from '../../user/models/account-merge/account-mer
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import {
-  KycIdentificationType,
-  KycLevel,
-  UserData,
-  UserDataStatus,
-} from '../../user/models/user-data/user-data.entity';
+import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
