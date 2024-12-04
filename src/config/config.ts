@@ -11,6 +11,10 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
+import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -36,6 +40,7 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   transactionRefundExpirySeconds = 30;
+  refRewardManualCheckLimit = 3000; //EUR
 
   defaults = {
     currency: 'EUR',
@@ -563,6 +568,68 @@ export class Configuration {
   checkout = {
     entityId: process.env.CKO_ENTITY_ID,
   };
+
+  downloadTargets = [
+    {
+      folderName: '01_Deckblatt',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('GwGFileDeckblatt'),
+    },
+    {
+      folderName: '02_Identifikationsdokument',
+      prefixes: (userData: UserData) => [
+        `user/${userData.id}/Identification`,
+        `spider/${userData.id}/online-identification`,
+        `spider/${userData.id}/video-identification`,
+      ],
+      fileTypes: [ContentType.PDF],
+    },
+    {
+      folderName: '03_Banktransaktion oder Videoident Tonspur',
+      prefixes: (userData: UserData) => {
+        switch (userData.identificationType) {
+          case KycIdentificationType.VIDEO_ID:
+            return [`user/${userData.id}/Identification`];
+          case KycIdentificationType.ONLINE_ID:
+            return [`user/${userData.id}/UserNotes`];
+          default:
+            return [];
+        }
+      },
+      filter: (file: KycFile, userData: UserData) =>
+        (userData.identificationType === KycIdentificationType.VIDEO_ID && file.contentType === ContentType.MP3) ||
+        (userData.identificationType === KycIdentificationType.ONLINE_ID &&
+          file.name.includes('bankTransactionVerify') &&
+          file.contentType === ContentType.PDF),
+    },
+    {
+      folderName: '04_Identifizierungsformular',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
+    },
+    {
+      folderName: '05_Kundenprofil',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Kundenprofil'),
+    },
+    {
+      folderName: '06_Risikoprofil',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Risikoprofil'),
+    },
+    {
+      folderName: '07_Formular A oder K',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
+        (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+    },
+  ];
 
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {

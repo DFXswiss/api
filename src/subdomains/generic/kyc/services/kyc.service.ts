@@ -19,18 +19,14 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { IsNull, LessThan, Like } from 'typeorm';
+import { LessThan, Like } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import {
-  KycIdentificationType,
-  KycLevel,
-  UserData,
-  UserDataStatus,
-} from '../../user/models/user-data/user-data.entity';
+import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -46,7 +42,7 @@ import {
 import { IdentStatus } from '../dto/ident.dto';
 import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { ContentType, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileCategory, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
@@ -62,6 +58,7 @@ import {
   getSumsubResult,
 } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
+import { ContentType } from '../enums/content-type.enum';
 import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
@@ -122,35 +119,6 @@ export class KycService {
 
       await this.kycNotificationService.identFailed(user, 'Identification session has expired');
     }
-  }
-
-  // TODO: Remove temporary cron job
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock()
-  async storeExistingKycFilesBatched(): Promise<void> {
-    let offset = 0;
-
-    const BATCH_SIZE = 100;
-
-    while (true) {
-      const userDataBatch = await this.userDataService.getAllUserDataBy({
-        where: { kycFiles: { id: IsNull() } },
-        skip: offset,
-        take: BATCH_SIZE,
-      });
-
-      if (userDataBatch.length === 0) break;
-
-      this.logger.info(`Processing batch of ${userDataBatch.length} users starting from offset ${offset}`);
-
-      for (const userData of userDataBatch) {
-        await this.syncKycFiles(userData);
-      }
-
-      offset += BATCH_SIZE;
-    }
-
-    this.logger.info('Successfully stored existing KYC files for all users');
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -229,7 +197,12 @@ export class KycService {
       throw new ForbiddenException('Requires admin role');
     }
 
-    const blob = await this.documentService.downloadFile(kycFile.userData.id, kycFile.type, kycFile.name);
+    const blob = await this.documentService.downloadFile(
+      FileCategory.USER,
+      kycFile.userData.id,
+      kycFile.type,
+      kycFile.name,
+    );
 
     const log = `User ${userDataId} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
     await this.kycLogService.createKycFileLog(log, kycFile.userData);

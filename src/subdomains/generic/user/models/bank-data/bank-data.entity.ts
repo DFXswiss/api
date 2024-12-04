@@ -22,10 +22,6 @@ export enum BankDataVerificationError {
 }
 
 @Entity()
-@Index((bankData: BankData) => [bankData.iban, bankData.userData], {
-  unique: true,
-  where: `type = '${BankDataType.USER}'`,
-})
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   name: string;

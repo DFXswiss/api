@@ -65,7 +65,7 @@ import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-c
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';

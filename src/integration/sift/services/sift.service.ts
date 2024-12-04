@@ -225,7 +225,7 @@ export class SiftService {
     }
   }
 
-  async sendDecision(userId: string, description?: string): Promise<SiftResponse> {
+  async sendUserBlocked(user: User, description?: string): Promise<SiftResponse> {
     if (!Config.sift.apiKey) return;
 
     const data = {
@@ -235,14 +235,14 @@ export class SiftService {
       description,
     };
 
-    const scoreUrl = `${Config.sift.accountId}/users/${userId}/decisions`;
+    const scoreUrl = `${Config.sift.accountId}/users/${user.id}/decisions`;
 
     try {
       return await this.http.post(`${this.decisionUrl}${scoreUrl}`, data, {
         headers: { Authorization: Config.sift.apiKey },
       });
     } catch (error) {
-      this.logger.error(`Error sending Sift decision for user ${userId}:`, error);
+      this.logger.error(`Error sending Sift decision for user ${user.id}:`, error);
     }
   }
 }
