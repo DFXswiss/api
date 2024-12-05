@@ -448,7 +448,7 @@ export class UserDataService {
     // check if merge possible
     const mergeUser = conflictUsers.find((u) => u.isMergePossibleWith(userData));
     if (mergeUser) {
-      const mergeRequested = await this.mergeService.sendMergeRequest(mergeUser, userData, MergeReason.MAIL, false);
+      const mergeRequested = await this.mergeService.sendMergeRequest(mergeUser, userData, MergeReason.MAIL);
       if (mergeRequested) errorMessage += ' - account merge request sent';
     }
 

@@ -253,7 +253,7 @@ export class BankDataService {
       if (userData.id === existing.userData.id) return existing;
 
       if (sendMergeRequest)
-        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN, false);
+        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);
     }
 
     if (dto.preferredCurrency) {

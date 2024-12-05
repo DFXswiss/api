@@ -618,7 +618,8 @@ export class KycService {
             userDataMergeRequestedStep.identDocumentId,
           );
 
-          if (existing) await this.accountMergeService.sendMergeRequest(existing, user, MergeReason.IDENT_DOCUMENT);
+          if (existing)
+            await this.accountMergeService.sendMergeRequest(existing, user, MergeReason.IDENT_DOCUMENT, true);
 
           return { nextStep: undefined };
         }
@@ -736,6 +737,7 @@ export class KycService {
           existing,
           userData,
           MergeReason.IDENT_DOCUMENT,
+          true,
         );
 
         await this.kycStepRepo.update(
