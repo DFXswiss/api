@@ -226,7 +226,7 @@ export class UserDataService {
       const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter } of downloadTargets) {
+      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -240,6 +240,7 @@ export class UserDataService {
           .filter((f) => !filter || filter(f, userData));
 
         if (!files.length) {
+          if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
           errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
           continue;
         }
