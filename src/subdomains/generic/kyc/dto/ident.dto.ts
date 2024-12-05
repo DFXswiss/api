@@ -1,4 +1,4 @@
-import { ContentType } from './kyc-file.dto';
+import { ContentType } from '../enums/content-type.enum';
 
 export interface IdentConfig {
   customer: string;

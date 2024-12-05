@@ -45,4 +45,5 @@ export enum MailContext {
   UNASSIGNED_TX = 'UnassignedTx',
   SUPPORT_MESSAGE = 'SupportMessage',
   VERIFICATION_MAIL = 'VerificationMail',
+  EMAIL_VERIFICATION = 'EmailVerification',
 }

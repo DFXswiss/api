@@ -1,9 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import { Sell } from '../../../core/sell-crypto/route/sell.entity';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 export interface BankAccountInfos {
   result: string;
@@ -47,12 +45,6 @@ export class BankAccount extends IEntity implements BankAccountInfos {
 
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency: Fiat;
-
-  @OneToMany(() => Buy, (buy) => buy.bankAccount)
-  buys: Buy[];
-
-  @OneToMany(() => Sell, (sell) => sell.bankAccount)
-  sells: Sell[];
 
   @Column({ length: 256, nullable: true })
   result: string;

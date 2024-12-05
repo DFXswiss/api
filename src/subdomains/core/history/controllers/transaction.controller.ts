@@ -47,6 +47,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
 import {
@@ -61,7 +62,7 @@ import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-c
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -101,6 +102,7 @@ export class TransactionController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly feeService: FeeService,
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
   // --- JOBS --- //
@@ -236,7 +238,7 @@ export class TransactionController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
+    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
 
     const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
     return Util.asyncMap(txList, async (tx) => {
@@ -276,7 +278,7 @@ export class TransactionController {
     const buy = await this.buyService.get(jwt.account, +buyId);
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
+    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
     if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
       throw new ForbiddenException('You can only assign your own transaction');
 
@@ -323,9 +325,12 @@ export class TransactionController {
 
     if (transaction.targetEntity instanceof BuyCrypto) {
       try {
+        const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
+
         refundTarget = transaction.targetEntity.checkoutTx
           ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
           : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
+            !multiAccountIbans.includes(transaction.targetEntity.bankTx?.iban) &&
             (await this.transactionUtilService.validateChargebackIban(
               transaction.targetEntity.bankTx.iban,
               transaction.userData,

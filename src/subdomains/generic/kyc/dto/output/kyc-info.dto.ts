@@ -13,6 +13,11 @@ export enum KycStepStatus {
   OUTDATED = 'Outdated',
 }
 
+export enum KycStepReason {
+  ACCOUNT_EXISTS = 'AccountExists',
+  ACCOUNT_MERGE_REQUESTED = 'AccountMergeRequested',
+}
+
 // step
 export class KycSessionInfoDto {
   @ApiProperty()
@@ -31,6 +36,9 @@ export class KycStepBase {
 
   @ApiProperty({ enum: KycStepStatus })
   status: KycStepStatus;
+
+  @ApiPropertyOptional({ enum: KycStepReason })
+  reason?: KycStepReason;
 
   @ApiProperty()
   sequenceNumber: number;

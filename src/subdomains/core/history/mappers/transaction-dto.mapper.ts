@@ -266,9 +266,11 @@ export const RefRewardStatusMapper: {
 } = {
   [RewardStatus.CREATED]: TransactionState.CREATED,
   [RewardStatus.PREPARED]: TransactionState.CREATED,
+  [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
   [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
   [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
   [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 

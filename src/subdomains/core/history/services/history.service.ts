@@ -9,7 +9,7 @@ import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto'
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
