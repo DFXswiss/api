@@ -608,9 +608,12 @@ export class UserData extends IEntity {
 
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
+
     if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
+
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+
     if (slave.kycLevel >= KycLevel.LEVEL_20 && this.accountType !== slave.accountType)
       throw new BadRequestException('Account type mismatch');
   }

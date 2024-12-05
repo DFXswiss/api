@@ -436,8 +436,12 @@ export class UserDataService {
   }
 
   async checkMail(userData: UserData, mail: string): Promise<void> {
-    const conflictUsers = await this.getUsersByMail(mail).then((l) => l.filter((u) => u.id !== userData.id));
+    const mailUsers = await this.getUsersByMail(mail).then((l) => this.mergeService.masterFirst(l));
+    const conflictUsers = mailUsers.filter((u) => u.id !== userData.id);
     if (!conflictUsers.length) return;
+
+    // check if current user is the master
+    if (mailUsers[0].id === userData.id) return;
 
     let errorMessage = 'Account already exists';
 
