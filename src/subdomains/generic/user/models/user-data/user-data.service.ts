@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import JSZip from 'jszip';
-import { Config, GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -202,7 +202,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<string> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = GetConfig().downloadTargets.reverse();
+    const downloadTargets = Config.downloadTargets.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
@@ -223,9 +223,8 @@ export class UserDataService {
         continue;
       }
 
-      const allFiles = await this.documentService.listFilesByPrefixes(
-        downloadTargets.map((t) => t.prefixes(userData)).flat(),
-      );
+      const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
+      const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
       for (const { folderName, fileTypes, prefixes, filter } of downloadTargets) {
         const subFolder = parentFolder.folder(folderName);
@@ -235,24 +234,28 @@ export class UserDataService {
           continue;
         }
 
-        let files = allFiles.filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)));
-        if (fileTypes) files = allFiles.filter((f) => fileTypes.includes(f.contentType));
-        if (filter) files = files.filter((file) => filter(file, userData));
+        const files = allFiles
+          .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
+          .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
+          .filter((f) => !filter || filter(f, userData));
 
-        if (files.length > 0) {
-          const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+        if (!files.length) {
+          errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
+          continue;
+        }
 
-          try {
-            const fileData = await this.documentService.downloadFile(
-              latestFile.category,
-              userDataId,
-              latestFile.type,
-              latestFile.name,
-            );
-            subFolder.file(latestFile.name, fileData.data);
-          } catch (error) {
-            errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
-          }
+        const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+
+        try {
+          const fileData = await this.documentService.downloadFile(
+            latestFile.category,
+            userDataId,
+            latestFile.type,
+            latestFile.name,
+          );
+          subFolder.file(latestFile.name, fileData.data);
+        } catch (error) {
+          errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
         }
       }
     }

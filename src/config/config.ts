@@ -580,7 +580,7 @@ export class Configuration {
       prefixes: (userData: UserData) => [
         `user/${userData.id}/Identification`,
         `spider/${userData.id}/online-identification`,
-        `spider/${userData.id}/video-identification`,
+        `spider/${userData.id}/video_identification`,
       ],
       fileTypes: [ContentType.PDF],
     },
@@ -589,7 +589,7 @@ export class Configuration {
       prefixes: (userData: UserData) => {
         switch (userData.identificationType) {
           case KycIdentificationType.VIDEO_ID:
-            return [`user/${userData.id}/Identification`];
+            return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
           case KycIdentificationType.ONLINE_ID:
             return [`user/${userData.id}/UserNotes`];
           default:
@@ -597,10 +597,11 @@ export class Configuration {
         }
       },
       filter: (file: KycFile, userData: UserData) =>
-        (userData.identificationType === KycIdentificationType.VIDEO_ID && file.contentType === ContentType.MP3) ||
+        (userData.identificationType === KycIdentificationType.VIDEO_ID &&
+          file.contentType.startsWith(ContentType.MP3)) ||
         (userData.identificationType === KycIdentificationType.ONLINE_ID &&
           file.name.includes('bankTransactionVerify') &&
-          file.contentType === ContentType.PDF),
+          file.contentType.startsWith(ContentType.PDF)),
     },
     {
       folderName: '04_Identifizierungsformular',
