@@ -46,8 +46,7 @@ import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
-import { KycResultDto } from '../dto/output/kyc-result.dto';
+import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.dto';
 import {
   SumSubRejectionLabels,
   SumSubWebhookResult,
@@ -265,7 +264,7 @@ export class KycService {
   }
 
   // --- UPDATE METHODS --- //
-  async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycResultDto> {
+  async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -275,10 +274,10 @@ export class KycService {
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toKycResult(kycStep);
+    return KycStepMapper.toStepBase(kycStep);
   }
 
-  async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycResultDto> {
+  async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycStepBase> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -291,7 +290,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toKycResult(kycStep);
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   async updateKycStep(
@@ -299,7 +298,7 @@ export class KycService {
     stepId: number,
     data: Partial<UserData>,
     requiresInternalReview: boolean,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -314,10 +313,10 @@ export class KycService {
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toKycResult(kycStep);
+    return KycStepMapper.toStepBase(kycStep);
   }
 
-  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycResultDto> {
+  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -337,7 +336,7 @@ export class KycService {
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toKycResult(kycStep);
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
@@ -358,7 +357,7 @@ export class KycService {
     ip: string,
     stepId: number,
     data: KycFinancialInData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -374,7 +373,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toKycResult(kycStep);
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   async updateIntrumIdent(dto: IdNowResult): Promise<void> {
@@ -461,7 +460,7 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
-  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycResultDto> {
+  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -484,7 +483,7 @@ export class KycService {
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
-    return KycStepMapper.toKycResult(kycStep);
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   private getIdentReason(type: IdentType, reason: IdNowReason[] | SumSubRejectionLabels[]): string {

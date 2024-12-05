@@ -54,9 +54,8 @@ import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
-import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -166,116 +165,116 @@ export class KycController {
 
   // --- UPDATE ENDPOINTS --- //
   @Put('data/contact/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateContactData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycContactData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateContactData(code, +id, data);
   }
 
   @Put('data/personal/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updatePersonalData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycPersonalData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updatePersonalData(code, +id, data);
   }
 
   @Put('data/legal/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateLegalEntityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycLegalEntityData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, false);
   }
 
   @Put('data/stock/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateStockRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     data.fileName = this.fileName('stock-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
   }
 
   @Put('data/nationality/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateNationalityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycNationalityData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, true);
   }
 
   @Put('data/commercial/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     data.fileName = this.fileName('commercial-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
   @Put('data/residence/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateResidencePermitData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     data.fileName = this.fileName('residence-permit', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
   }
 
   @Put('data/additional/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateAdditionalDocumentsData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     data.fileName = this.fileName('additional-documents', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
   }
 
   @Put('data/signatory/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateSignatoryPowerData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, true);
   }
 
   @Put('data/authority/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateAuthorityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     data.fileName = this.fileName('authority', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
   }
@@ -294,7 +293,7 @@ export class KycController {
   }
 
   @Put('data/financial/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   @ApiForbiddenResponse(TfaResponse)
   async updateFinancialData(
@@ -302,7 +301,7 @@ export class KycController {
     @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFinancialInData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateFinancialData(code, ip, +id, data);
   }
 
@@ -323,13 +322,13 @@ export class KycController {
   }
 
   @Put('ident/manual/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateIdentData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycManualIdentData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateIdentManual(code, +id, data);
   }
 

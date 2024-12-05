@@ -8,12 +8,11 @@ import {
   KycStepReason,
   KycStepSessionDto,
 } from '../output/kyc-info.dto';
-import { KycResultDto } from '../output/kyc-result.dto';
 
 export class KycStepMapper {
   static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
     const dto: KycStepDto = {
-      ...KycStepMapper.toBase(kycStep),
+      ...KycStepMapper.toStepBase(kycStep),
       isCurrent: kycStep.id && kycStep.id === currentStep?.id,
     };
 
@@ -22,18 +21,14 @@ export class KycStepMapper {
 
   static toStepSession(kycStep: KycStep): KycStepSessionDto {
     const dto: KycStepSessionDto = {
-      ...KycStepMapper.toBase(kycStep),
+      ...KycStepMapper.toStepBase(kycStep),
       session: kycStep.sessionInfo,
     };
 
     return Object.assign(new KycStepSessionDto(), dto);
   }
 
-  static toKycResult(kycStep: KycStep): KycResultDto {
-    return { status: KycStepMapper.toStepStatus(kycStep.status) };
-  }
-
-  private static toBase(kycStep: KycStep): KycStepBase {
+  static toStepBase(kycStep: KycStep): KycStepBase {
     return {
       name: kycStep.name,
       type: kycStep.type ?? undefined,
