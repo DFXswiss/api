@@ -247,6 +247,9 @@ param ckoEntityId string
 
 @secure()
 param siftApiKey string
+@secure()
+param siftAccountId string
+param siftAnalyst string
 
 param delisenseJsonPath string
 @secure()
@@ -1135,6 +1138,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SIFT_API_KEY'
           value: siftApiKey
+        }
+        {
+          name: 'SIFT_ACCOUNT_ID'
+          value: siftAccountId
+        }
+        {
+          name: 'SIFT_ANALYST'
+          value: siftAnalyst
         }
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'

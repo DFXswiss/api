@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -34,7 +35,7 @@ import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { Equal, FindManyOptions, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -45,8 +46,9 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -98,11 +100,6 @@ export class UserDataService {
 
   async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
-  }
-
-  // TODO: Remove this method (temporarily used by Cron Job)
-  async getAllUserDataBy(options?: FindManyOptions<UserData>): Promise<UserData[]> {
-    return this.userDataRepo.find(options);
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
@@ -213,6 +210,74 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async downloadUserData(userDataIds: number[]): Promise<string> {
+    let count = userDataIds.length;
+    const zip = new JSZip();
+    const downloadTargets = Config.downloadTargets.reverse();
+    let errorLog = '';
+
+    for (const userDataId of userDataIds.reverse()) {
+      const userData = await this.getUserData(userDataId);
+
+      if (!userData?.verifiedName) {
+        errorLog += !userData
+          ? `Error: UserData ${userDataId} not found\n`
+          : `Error: UserData ${userDataId} has no verifiedName\n`;
+        continue;
+      }
+
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const parentFolder = zip.folder(baseFolderName);
+
+      if (!parentFolder) {
+        errorLog += `Error: Failed to create folder for UserData ${userDataId}\n`;
+        continue;
+      }
+
+      const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
+      const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
+
+      for (const { folderName, fileTypes, prefixes, filter } of downloadTargets) {
+        const subFolder = parentFolder.folder(folderName);
+
+        if (!subFolder) {
+          errorLog += `Error: Failed to create folder '${folderName}' for UserData ${userDataId}\n`;
+          continue;
+        }
+
+        const files = allFiles
+          .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
+          .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
+          .filter((f) => !filter || filter(f, userData));
+
+        if (!files.length) {
+          errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
+          continue;
+        }
+
+        const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+
+        try {
+          const fileData = await this.documentService.downloadFile(
+            latestFile.category,
+            userDataId,
+            latestFile.type,
+            latestFile.name,
+          );
+          subFolder.file(latestFile.name, fileData.data);
+        } catch (error) {
+          errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
+        }
+      }
+    }
+
+    if (errorLog) zip.file('error_log.txt', errorLog);
+
+    const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
+
+    return zipContent.toString('base64');
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
@@ -651,6 +716,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -662,6 +728,7 @@ export class UserDataService {
           accountRelations: true,
           relatedAccountRelations: true,
           kycSteps: true,
+          supportIssues: true,
         },
       }),
     ]);
@@ -683,6 +750,7 @@ export class UserDataService {
       slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
+      slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -723,6 +791,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
+    master.supportIssues = master.supportIssues.concat(slave.supportIssues);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
