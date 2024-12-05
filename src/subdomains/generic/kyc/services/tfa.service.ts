@@ -125,14 +125,14 @@ export class TfaService {
     await this.createTfaLog(user, ip, level, type);
   }
 
-  async check(userDataId: number, ip: string, level: TfaLevel): Promise<void> {
+  async check(userDataId: number, ip: string, level?: TfaLevel): Promise<void> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('User data not found');
 
     await this.checkVerification(userData, ip, level);
   }
 
-  async checkVerification(user: UserData, ip: string, level: TfaLevel) {
+  async checkVerification(user: UserData, ip: string, level?: TfaLevel) {
     const allowedLevels = level === TfaLevel.STRICT ? [TfaLevel.STRICT] : [TfaLevel.BASIC, TfaLevel.STRICT];
     const logs = await this.tfaRepo.findBy({
       userData: { id: user.id },
@@ -143,7 +143,7 @@ export class TfaService {
     const isVerified = logs.some(
       (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
     );
-    if (!isVerified) throw new ForbiddenException(`2FA required (${level.toLowerCase()})`);
+    if (!isVerified) throw new ForbiddenException(`2FA required${level ? ` (${level.toLowerCase()})` : ''}`);
   }
 
   // --- HELPER METHODS --- //
