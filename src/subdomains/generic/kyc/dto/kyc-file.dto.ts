@@ -4,6 +4,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
+import { FileCategory } from '../enums/file-category.enum';
 
 export enum FileType {
   NAME_CHECK = 'NameCheck',
@@ -20,11 +21,6 @@ export enum FileType {
 
 export enum KycReportType {
   IDENTIFICATION = 'Identification',
-}
-
-export enum FileCategory {
-  USER = 'user',
-  SPIDER = 'spider',
 }
 
 export interface KycFile extends Blob {
