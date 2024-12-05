@@ -418,9 +418,8 @@ export class BuyCryptoService {
     if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban, buyCrypto.userData)))
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    if (dto.chargebackAllowedDate && chargebackAmount) {
+    if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto });
-    }
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(

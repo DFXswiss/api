@@ -1,6 +1,13 @@
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepStatus as EntityStatus } from '../../enums/kyc.enum';
-import { KycStepStatus as DtoStatus, KycStepBase, KycStepDto, KycStepSessionDto } from '../output/kyc-info.dto';
+import { KycReasonMap } from '../kyc-error.enum';
+import {
+  KycStepStatus as DtoStatus,
+  KycStepBase,
+  KycStepDto,
+  KycStepReason,
+  KycStepSessionDto,
+} from '../output/kyc-info.dto';
 import { KycResultDto } from '../output/kyc-result.dto';
 
 export class KycStepMapper {
@@ -31,12 +38,17 @@ export class KycStepMapper {
       name: kycStep.name,
       type: kycStep.type ?? undefined,
       status: this.toStepStatus(kycStep.status),
+      reason: this.toStepReason(kycStep),
       sequenceNumber: kycStep.sequenceNumber,
     };
   }
 
   private static toStepStatus(entityStatus: EntityStatus): DtoStatus {
     return KycStepMapper.StepMap[entityStatus];
+  }
+
+  static toStepReason(kycStep: KycStep): KycStepReason {
+    return KycReasonMap[kycStep.comment];
   }
 
   private static StepMap: Record<EntityStatus, DtoStatus> = {

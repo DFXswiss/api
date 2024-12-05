@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   forwardRef,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -75,7 +76,7 @@ export class TfaService {
       });
 
       // send mail
-      await this.sendVerificationMail(user, secret, codeExpiryMinutes);
+      await this.sendVerificationMail(user, secret, codeExpiryMinutes, MailContext.VERIFICATION_MAIL);
 
       return { type };
     } else {
@@ -124,20 +125,68 @@ export class TfaService {
     await this.createTfaLog(user, ip, level, type);
   }
 
-  async checkVerification(user: UserData, ip: string, level: TfaLevel) {
+  async check(userDataId: number, ip: string, level?: TfaLevel): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('User data not found');
+
+    await this.checkVerification(userData, ip, level);
+  }
+
+  async checkVerification(user: UserData, ip: string, level?: TfaLevel) {
     const allowedLevels = level === TfaLevel.STRICT ? [TfaLevel.STRICT] : [TfaLevel.BASIC, TfaLevel.STRICT];
     const logs = await this.tfaRepo.findBy({
       userData: { id: user.id },
       ipAddress: ip,
       created: MoreThan(Util.hoursBefore(TfaValidityHours)),
     });
+
     const isVerified = logs.some(
       (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
     );
-    if (!isVerified) throw new ForbiddenException(`2FA required (${level.toLowerCase()})`);
+    if (!isVerified) throw new ForbiddenException(`2FA required${level ? ` (${level.toLowerCase()})` : ''}`);
   }
 
   // --- HELPER METHODS --- //
+  async sendVerificationMail(
+    userData: UserData,
+    code: string,
+    expirationMinutes: number,
+    context: MailContext.VERIFICATION_MAIL | MailContext.EMAIL_VERIFICATION,
+  ): Promise<void> {
+    try {
+      const tag = context === MailContext.VERIFICATION_MAIL ? 'default' : 'email';
+
+      if (userData.mail)
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context,
+          input: {
+            userData: userData,
+            title: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.title`,
+            salutation: {
+              key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,
+            },
+            suffix: [
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
+                params: { code },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
+                params: { expiration: `${expirationMinutes}` },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+    } catch (e) {
+      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
+      throw new ServiceUnavailableException('Failed to send verification mail');
+    }
+  }
+
   private verifyOrThrow(secret: string, token: string): void {
     const result = verifyToken(secret, token);
     if (!result || ![0, -1].includes(result.delta)) {
@@ -158,37 +207,5 @@ export class TfaService {
 
   private async getUser(kycHash: string): Promise<UserData> {
     return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
-  }
-
-  private async sendVerificationMail(userData: UserData, code: string, expirationMinutes: number): Promise<void> {
-    try {
-      if (userData.mail)
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          context: MailContext.VERIFICATION_MAIL,
-          input: {
-            userData: userData,
-            title: `${MailTranslationKey.VERIFICATION_CODE}.title`,
-            salutation: {
-              key: `${MailTranslationKey.VERIFICATION_CODE}.salutation`,
-            },
-            suffix: [
-              {
-                key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
-                params: { code },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
-                key: `${MailTranslationKey.VERIFICATION_CODE}.closing`,
-                params: { expiration: `${expirationMinutes}` },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: MailKey.DFX_TEAM_CLOSING },
-            ],
-          },
-        });
-    } catch (e) {
-      this.logger.error(`Failed to send verification mail ${userData.id}:`, e);
-    }
   }
 }

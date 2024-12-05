@@ -18,6 +18,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
@@ -55,12 +56,6 @@ export enum KycState {
 export enum KycType {
   DFX = 'DFX',
   LOCK = 'LOCK',
-}
-
-export enum KycIdentificationType {
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
-  MANUAL = 'Manual',
 }
 
 export enum LegalEntity {
@@ -607,15 +602,29 @@ export class UserData extends IEntity {
 
   checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
+
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');
+
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
+
     if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
+
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+
     if (slave.kycLevel >= KycLevel.LEVEL_20 && this.accountType !== slave.accountType)
       throw new BadRequestException('Account type mismatch');
+  }
+
+  isMergePossibleWith(slave: UserData): boolean {
+    try {
+      this.checkIfMergePossibleWith(slave);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   get requiredKycFields(): string[] {

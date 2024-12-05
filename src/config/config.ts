@@ -13,6 +13,9 @@ import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -568,24 +571,84 @@ export class Configuration {
 
   downloadTargets = [
     {
-      folderName: '02_Identifikationsdokument',
+      folderName: '01_Deckblatt',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
       fileTypes: [ContentType.PDF],
-      prefixes: (userDataId: number) => [
-        `user/${userDataId}/Identification`,
-        `spider/${userDataId}/online-identification`,
-        `spider/${userDataId}/video-identification`,
+      filter: (file: KycFile) => file.name.includes('GwGFileDeckblatt'),
+    },
+    {
+      folderName: '02_Identifikationsdokument',
+      prefixes: (userData: UserData) => [
+        `user/${userData.id}/Identification`,
+        `spider/${userData.id}/online-identification`,
+        `spider/${userData.id}/video_identification`,
       ],
-      filter: null,
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
+      fileTypes: [ContentType.PDF],
+    },
+    {
+      folderName: '03_Banktransaktion oder Videoident Tonspur',
+      prefixes: (userData: UserData) => {
+        switch (userData.identificationType) {
+          case KycIdentificationType.VIDEO_ID:
+            return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
+          case KycIdentificationType.ONLINE_ID:
+            return [`user/${userData.id}/UserNotes`];
+          default:
+            return [];
+        }
+      },
+      filter: (file: KycFile, userData: UserData) =>
+        (userData.identificationType === KycIdentificationType.VIDEO_ID &&
+          file.contentType.startsWith(ContentType.MP3)) ||
+        (userData.identificationType === KycIdentificationType.ONLINE_ID &&
+          file.name.includes('bankTransactionVerify') &&
+          file.contentType.startsWith(ContentType.PDF)),
     },
     {
       folderName: '04_Identifizierungsformular',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
       fileTypes: [ContentType.PDF],
-      prefixes: (userDataId: number) => [`user/${userDataId}/UserNotes`],
       filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
-      reduceFilter: (latest: KycFile, current: KycFile) =>
-        new Date(latest.updated) > new Date(current.updated) ? latest : current,
+    },
+    {
+      folderName: '05_Kundenprofil',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Kundenprofil'),
+    },
+    {
+      folderName: '06_Risikoprofil',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Risikoprofil'),
+    },
+    {
+      folderName: '07_Formular A oder K',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
+        (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+    },
+    {
+      folderName: '08_Onboardingdokument',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.toLowerCase().includes('onboarding'),
+    },
+    {
+      folderName: '09_Blockchain Check',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('blockchainAddressAnalyse'),
+    },
+    {
+      folderName: '10_Überprüfung der Wohnsitzadresse',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (file.category === FileCategory.USER && file.name.includes('postversand')) ||
+        (file.category === FileCategory.SPIDER && file.name.toLowerCase().startsWith(userData.firstname.toLowerCase())),
     },
   ];
 

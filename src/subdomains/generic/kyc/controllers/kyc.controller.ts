@@ -14,6 +14,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -31,6 +32,8 @@ import { Config, GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -74,6 +77,34 @@ export class KycController {
 
   constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
 
+  // --- 2FA --- //
+  @Get('2fa')
+  @ApiOkResponse({ description: '2FA active' })
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
+    return this.tfaService.check(jwt.account, ip, level);
+  }
+
+  @Post('2fa')
+  @ApiCreatedResponse({ type: Setup2faDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
+    return this.tfaService.setup(code, level);
+  }
+
+  @Post('2fa/verify')
+  @ApiCreatedResponse({ description: '2FA successful' })
+  @ApiUnauthorizedResponse(MergedResponse)
+  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
+  async verify2fa(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Body() dto: Verify2faDto,
+  ): Promise<void> {
+    return this.tfaService.verify(code, dto.token, ip);
+  }
+
+  // --- KYC --- //
   @Get()
   @ApiOkResponse({ type: KycLevelDto })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -325,26 +356,6 @@ export class KycController {
     const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
     this.allowFrameIntegration(res);
     res.redirect(307, redirectUri);
-  }
-
-  // --- 2FA --- //
-  @Post('2fa')
-  @ApiCreatedResponse({ type: Setup2faDto })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
-    return this.tfaService.setup(code, level);
-  }
-
-  @Post('2fa/verify')
-  @ApiCreatedResponse({ description: '2FA successful' })
-  @ApiUnauthorizedResponse(MergedResponse)
-  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
-  async verify2fa(
-    @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
-    @Body() dto: Verify2faDto,
-  ): Promise<void> {
-    return this.tfaService.verify(code, dto.token, ip);
   }
 
   // --- HELPER METHODS --- //
