@@ -29,8 +29,20 @@ param containerEnvNextPublicApiUrl string
 @description('Container environment: NEXT_PUBLIC_PONDER_URL')
 param containerEnvNextPublicPonderUrl string
 
+@description('Container environment: NEXT_PUBLIC_WAGMI_ID')
+param containerEnvNextPublicWagmiId string
+
+@description('Container environment: NEXT_PUBLIC_ALCHEMY_API_KEY')
+param containerEnvNextPublicAlchemyApiKey string
+
 @description('Container environment: NEXT_PUBLIC_CHAIN_NAME')
 param containerEnvNextPublicChainName string
+
+@description('Container environment: NEXT_PUBLIC_RPC_URL_MAINNET')
+param containerEnvNextPublicRpcUrlMainnet string
+
+@description('Container environment: NEXT_PUBLIC_RPC_URL_POLYGON')
+param containerEnvNextPublicRpcUrlPolygon string
 
 @description('Tags to be applied to all resources')
 param tags object = {}
@@ -92,8 +104,24 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: containerEnvNextPublicPonderUrl
             }
             {
+              name: 'NEXT_PUBLIC_WAGMI_ID'
+              value: containerEnvNextPublicWagmiId
+            }
+            {
+              name: 'NEXT_PUBLIC_ALCHEMY_API_KEY'
+              value: containerEnvNextPublicAlchemyApiKey
+            }
+            {
               name: 'NEXT_PUBLIC_CHAIN_NAME'
               value: containerEnvNextPublicChainName
+            }
+            {
+              name: 'NEXT_PUBLIC_RPC_URL_MAINNET'
+              value: containerEnvNextPublicRpcUrlMainnet
+            }
+            {
+              name: 'NEXT_PUBLIC_RPC_URL_POLYGON'
+              value: containerEnvNextPublicRpcUrlPolygon
             }
           ]
         }

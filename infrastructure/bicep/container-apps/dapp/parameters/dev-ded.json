@@ -12,19 +12,31 @@
         "value": "1Gi"
       },
       "containerEnvNextPublicLandingPage": {
-        "value": "https://frankencoin.com"
+        "value": "https://deuro.com"
       },
       "containerEnvNextPublicAppUrl": {
-        "value": "https://app.test.frankencoin.com"
+        "value": "https://app.test.deuro.com"
       },
       "containerEnvNextPublicApiUrl": {
-        "value": "https://api.test.frankencoin.com"
+        "value": "https://dev.api.deuro.com"
       },
       "containerEnvNextPublicPonderUrl": {
-        "value": "https://ponder.test.frankencoin.com"
+        "value": "https://dev.ponder.deuro.com"
+      },
+      "containerEnvNextPublicWagmiId": {
+        "value": "[API-KEY]"
+      },
+      "containerEnvNextPublicAlchemyApiKey": {
+        "value": "[API-KEY]"
       },
       "containerEnvNextPublicChainName": {
-        "value": "polygon"
+        "value": "mainnet"
+      },
+      "containerEnvNextPublicRpcUrlMainnet": {
+        "value": "https://eth-mainnet.g.alchemy.com/v2"
+      },
+      "containerEnvNextPublicRpcUrlPolygon": {
+        "value": "https://polygon-mainnet.g.alchemy.com/v2"
       }
     }
 }

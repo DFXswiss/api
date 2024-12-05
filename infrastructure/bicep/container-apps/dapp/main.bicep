@@ -25,8 +25,20 @@ param containerEnvNextPublicApiUrl string
 @description('Container environment: NEXT_PUBLIC_PONDER_URL')
 param containerEnvNextPublicPonderUrl string
 
+@description('Container environment: NEXT_PUBLIC_WAGMI_ID')
+param containerEnvNextPublicWagmiId string
+
+@description('Container environment: NEXT_PUBLIC_ALCHEMY_API_KEY')
+param containerEnvNextPublicAlchemyApiKey string
+
 @description('Container environment: NEXT_PUBLIC_CHAIN_NAME')
 param containerEnvNextPublicChainName string
+
+@description('Container environment: NEXT_PUBLIC_RPC_URL_MAINNET')
+param containerEnvNextPublicRpcUrlMainnet string
+
+@description('Container environment: NEXT_PUBLIC_RPC_URL_POLYGON')
+param containerEnvNextPublicRpcUrlPolygon string
 
 @description('Tags to be applied to all resources')
 param tags object = {}
@@ -60,6 +72,10 @@ module containerApp './modules/containerApp.bicep' = {
     containerEnvNextPublicAppUrl: containerEnvNextPublicAppUrl
     containerEnvNextPublicApiUrl: containerEnvNextPublicApiUrl
     containerEnvNextPublicPonderUrl: containerEnvNextPublicPonderUrl
+    containerEnvNextPublicWagmiId: containerEnvNextPublicWagmiId
+    containerEnvNextPublicAlchemyApiKey: containerEnvNextPublicAlchemyApiKey
     containerEnvNextPublicChainName: containerEnvNextPublicChainName
+    containerEnvNextPublicRpcUrlMainnet: containerEnvNextPublicRpcUrlMainnet
+    containerEnvNextPublicRpcUrlPolygon: containerEnvNextPublicRpcUrlPolygon
   }
 }
