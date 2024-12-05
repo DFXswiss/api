@@ -653,7 +653,7 @@ export class Configuration {
       fileTypes: [ContentType.PDF],
       filter: (file: KycFile, userData: UserData) =>
         (file.category === FileCategory.USER && file.name.includes('postversand')) ||
-        (file.category === FileCategory.SPIDER && file.name.toLowerCase().startsWith(userData.firstname.toLowerCase())),
+        (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
     },
   ];
 
