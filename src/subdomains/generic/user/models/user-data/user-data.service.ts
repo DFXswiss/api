@@ -48,7 +48,7 @@ import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -511,15 +511,14 @@ export class UserDataService {
 
   // --- KYC --- //
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
-    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
+    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStepType.AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    const ident = isVipUser ? KycStatus.VIDEO_ID : customIdent ?? (defaultIdent as KycStatus);
-    return ident === KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO;
+    return isVipUser ? KycStepType.VIDEO : customIdent ?? (defaultIdent as KycStepType);
   }
 
-  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
+  private async customIdentMethod(userDataId: number): Promise<KycStepType | undefined> {
     const userWithCustomMethod = await this.userRepo.findOne({
       where: {
         userData: { id: userDataId },
