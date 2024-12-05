@@ -11,7 +11,7 @@ import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -269,7 +269,8 @@ export class KycService {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    await this.trySetMail(user, kycStep, data.mail);
+    const result = await this.trySetMail(user, kycStep, data.mail);
+    await this.kycStepRepo.update(...result);
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -695,15 +696,15 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  async trySetMail(user: UserData, step: KycStep, mail: string): Promise<void> {
+  async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
       user = await this.userDataService.trySetUserMail(user, mail);
-      step.complete({ mail });
+      return step.complete({ mail });
     } catch (e) {
       const error = (e as Error).message?.includes('account merge request sent')
         ? KycError.USER_DATA_MERGE_REQUESTED
         : KycError.USER_DATA_EXISTING;
-      step.fail({ mail }, error);
+      return step.fail({ mail }, error);
     }
   }
 
