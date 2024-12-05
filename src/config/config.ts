@@ -13,6 +13,7 @@ import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
@@ -628,6 +629,26 @@ export class Configuration {
       filter: (file: KycFile, userData: UserData) =>
         (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
         (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+    },
+    {
+      folderName: '08_Onboardingdokument',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.toLowerCase().includes('onboarding'),
+    },
+    {
+      folderName: '09_Blockchain Check',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('blockchainAddressAnalyse'),
+    },
+    {
+      folderName: '10_Überprüfung der Wohnsitzadresse',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (file.category === FileCategory.USER && file.name.includes('postversand')) ||
+        (file.category === FileCategory.SPIDER && file.name.toLowerCase().startsWith(userData.firstname.toLowerCase())),
     },
   ];
 

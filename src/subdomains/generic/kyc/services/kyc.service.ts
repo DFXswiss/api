@@ -41,8 +41,7 @@ import { IdentStatus } from '../dto/ident.dto';
 import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
-import { FileCategory, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
-
+import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -58,6 +57,7 @@ import {
 } from '../dto/sum-sub.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
+import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
