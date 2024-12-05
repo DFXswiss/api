@@ -254,7 +254,7 @@ export class UserDataService {
             latestFile.type,
             latestFile.name,
           );
-          subFolder.file(latestFile.name, fileData.data);
+          subFolder.file(latestFile.name.replace(/\//g, '_'), fileData.data);
         } catch (error) {
           errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
         }
