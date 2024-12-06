@@ -35,6 +35,7 @@ export class AmlHelperService {
     ibanCountry?: Country,
   ): AmlError[] {
     const errors = [];
+    const nationality = entity.userData.nationality;
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
@@ -104,6 +105,9 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
+        if ((ibanCountry && !ibanCountry.bankEnable) || (nationality && !nationality.bankEnable))
+          errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+
         if (
           blacklist.some((b) =>
             b.matches(
@@ -142,6 +146,8 @@ export class AmlHelperService {
         if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
+        if ((ibanCountry && !ibanCountry.checkoutEnable) || (nationality && !nationality.checkoutEnable))
+          errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (
           !bankData.manualApproved &&
           entity.checkoutTx.cardName &&
@@ -149,7 +155,6 @@ export class AmlHelperService {
         )
           errors.push(AmlError.CARD_NAME_MISMATCH);
         if (!entity.outputAsset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (ibanCountry && !ibanCountry.checkoutEnable) errors.push(AmlError.CHECKOUT_COUNTRY_NOT_ALLOWED);
         if (
           blacklist.some((b) =>
             b.matches(
@@ -166,12 +171,16 @@ export class AmlHelperService {
         if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
+        if ((ibanCountry && !ibanCountry.cryptoEnable) || (nationality && !nationality.cryptoEnable))
+          errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
         }
       }
     } else {
       // buyFiat
+      if ((ibanCountry && !ibanCountry.cryptoEnable) || (nationality && !nationality.cryptoEnable))
+        errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
@@ -280,8 +289,8 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
-    banks?: Bank[],
     ibanCountry?: Country,
+    banks?: Bank[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -330,6 +339,7 @@ export class AmlHelperService {
     if (crucialErrorResults.length) {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
         crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10

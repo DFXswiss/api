@@ -8,14 +8,19 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankAccount } from './bank-account.entity';
+import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
-import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateBankAccountDto, CreateBankAccountInternalDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @ApiTags('Bank Account')
 @Controller('bankAccount')
 export class BankAccountController {
-  constructor(private readonly bankDataService: BankDataService) {}
+  constructor(
+    private readonly bankDataService: BankDataService,
+    private readonly bankAccountService: BankAccountService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -43,6 +48,15 @@ export class BankAccountController {
     @Body() dto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
     return this.bankDataService.updateUserBankData(+id, jwt.account, dto).then((b) => this.toDto(b));
+  }
+
+  // --- IBAN --- //
+  @Post('iban')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @ApiExcludeEndpoint()
+  async addBankAccountIban(@Body() dto: CreateBankAccountInternalDto): Promise<BankAccount> {
+    return this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
   }
 
   // --- DTO --- //

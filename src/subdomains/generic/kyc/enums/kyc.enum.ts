@@ -1,11 +1,7 @@
 import { Config } from 'src/config/config';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import {
-  KycIdentificationType,
-  LegalEntity,
-  SignatoryPower,
-  UserData,
-} from '../../user/models/user-data/user-data.entity';
+import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
+import { LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
 import { IdentType } from '../dto/ident-result-data.dto';
 import { SumSubWebhookType } from '../dto/sum-sub.dto';
 

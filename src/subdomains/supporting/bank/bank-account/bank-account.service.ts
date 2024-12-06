@@ -18,7 +18,6 @@ export class BankAccountService {
 
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
-    private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
     private readonly countryService: CountryService,
   ) {}
@@ -79,9 +78,15 @@ export class BankAccountService {
     }
   }
 
-  async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
-    const userData = await this.userDataService.getUserDataByUser(userId);
-    return this.getOrCreateBankAccountInternal(iban, userData);
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(3600)
+  async reloadUncheckedBankAccounts(): Promise<void> {
+    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
+
+    const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull() });
+    for (const bankAccount of bankAccounts) {
+      await this.reloadBankAccount(bankAccount);
+    }
   }
 
   // --- HELPER METHODS --- //

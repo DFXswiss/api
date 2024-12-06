@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -38,6 +39,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly userService: UserService,
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
+    private readonly countryService: CountryService,
   ) {}
 
   onModuleInit() {
@@ -118,6 +120,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
+        const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
+
         // check if amlCheck changed (e.g. reset or refund)
         if (
           entity.amlCheck === CheckStatus.PENDING &&
@@ -135,6 +139,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
             last365dVolume,
             bankData,
             blacklist,
+            ibanCountry,
           ),
         );
 

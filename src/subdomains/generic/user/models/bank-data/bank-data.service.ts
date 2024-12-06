@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -258,18 +252,8 @@ export class BankDataService {
     if (existing) {
       if (userData.id === existing.userData.id) return existing;
 
-      if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
-        throw new ForbiddenException('IBAN already in use');
-
-      if (!sendMergeRequest) throw new ConflictException(`IBAN already exists: ${existing.id}`);
-
-      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(
-        existing.userData,
-        userData,
-        MergeReason.IBAN,
-        false,
-      );
-      throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
+      if (sendMergeRequest)
+        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);
     }
 
     if (dto.preferredCurrency) {
