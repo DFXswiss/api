@@ -6,7 +6,6 @@ import { IEntity } from 'src/shared/models/entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
@@ -15,7 +14,6 @@ import { BankAccountRepository } from './bank-account.repository';
 export class BankAccountService {
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
-    private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
     private readonly countryService: CountryService,
   ) {}
@@ -58,11 +56,6 @@ export class BankAccountService {
     for (const bankAccount of bankAccounts) {
       await this.reloadBankAccount(bankAccount);
     }
-  }
-
-  async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
-    const userData = await this.userDataService.getUserDataByUser(userId);
-    return this.getOrCreateBankAccountInternal(iban, userData);
   }
 
   // --- HELPER METHODS --- //
