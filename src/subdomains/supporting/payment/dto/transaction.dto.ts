@@ -53,8 +53,6 @@ export enum TransactionReason {
 }
 
 export const KycRequiredReason = [
-  TransactionReason.DAILY_LIMIT_EXCEEDED,
-  TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   TransactionReason.INSTANT_PAYMENT,
   TransactionReason.SANCTION_SUSPICION,
   TransactionReason.FRAUD_SUSPICION,
