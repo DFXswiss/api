@@ -808,7 +808,7 @@ export class KycService {
 
     const userCountry = entity.userData.verifiedCountry ?? entity.userData.country;
     if (entity.userData.accountType === AccountType.PERSONAL) {
-      if (userCountry && !userCountry.dfxEnable) errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
+      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
       if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
@@ -819,7 +819,7 @@ export class KycService {
           errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
-      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
+      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
     }
 
     return errors;
