@@ -42,6 +42,7 @@ import { AccountMergeService } from '../account-merge/account-merge.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
+import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -382,6 +383,12 @@ export class UserDataService {
     }
 
     await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
+  }
+
+  async addNewUser(userData: UserData, user: User): Promise<void> {
+    if (userData.users.includes(user)) throw new ConflictException('User already exists');
+
+    await this.userDataRepo.update(userData.id, { users: [...userData.users, user] });
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {

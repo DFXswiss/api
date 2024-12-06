@@ -97,9 +97,24 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
+  async authenticate(dto: CreateUserDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
-    return existingUser
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
+
+    if (userData) {
+      if (existingUser) {
+        if (existingUser.userData.id === userDataId)
+          return { accessToken: this.generateUserToken(existingUser, userIp) };
+        throw new ConflictException('User already exists');
+      }
+
+      const newUser = await this.userService.createUser(dto, userIp);
+      await this.userDataService.addNewUser(userData, newUser);
+
+      return { accessToken: this.generateUserToken(newUser, userIp) };
+    }
+
+    existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
       : this.doSignUp(dto, userIp, false).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
