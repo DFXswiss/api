@@ -81,7 +81,7 @@
                 "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
                 "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen"
             },
-            "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
+            "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
         "pending": {
             "daily_limit": {
@@ -257,8 +257,14 @@
         "closing": "Vielen Dank für dein Vertrauen in uns.<br>Oli"
     },
     "verification_code": {
-        "title": "Verifizierungscode",
-        "salutation": "Du hast einen 2FA Verifizierungscode angefordert",
+        "default": {
+            "title": "Verifizierungscode",
+            "salutation": "Du hast einen 2FA Verifizierungscode angefordert"
+        },
+        "email": {
+            "title": "E-Mail Verifizierungscode",
+            "salutation": "Du hast eine Änderung deiner E-Mail Adresse angefordert"
+        },
         "message": "Dein Verifizierungscode lautet:<br>{code}",
         "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
     }
