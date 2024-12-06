@@ -45,6 +45,9 @@ export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   label: string;
 
+  @Column({ default: true })
+  active: boolean;
+
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency: Fiat;
 
@@ -58,6 +61,18 @@ export class BankData extends IEntity {
 
   activate(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
+      active: true,
+      label: null,
+      preferredCurrency: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  allow(): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
       approved: true,
       comment: 'Pass',
     };
@@ -67,7 +82,7 @@ export class BankData extends IEntity {
     return [this.id, update];
   }
 
-  deactivate(comment?: string): UpdateResult<BankData> {
+  forbid(comment?: string): UpdateResult<BankData> {
     const update: Partial<BankData> = {
       approved: false,
       comment,
