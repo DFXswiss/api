@@ -26,7 +26,7 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -156,13 +156,21 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
-  async createUser(
-    { address, signature, usedRef }: CreateUserDto,
-    userIp: string,
-    userOrigin?: string,
-    wallet?: Wallet,
-    specialCode?: string,
-  ): Promise<User> {
+  async createUser({
+    userDetails: { address, signature, usedRef },
+    userIp,
+    userOrigin,
+    wallet,
+    specialCode,
+    userData,
+  }: {
+    userDetails: CreateUserDto;
+    userIp: string;
+    userOrigin?: string;
+    wallet?: Wallet;
+    specialCode?: string;
+    userData?: UserData;
+  }): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
 
     user.ip = userIp;
@@ -174,11 +182,13 @@ export class UserService {
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
-    user.userData = await this.userDataService.createUserData({
-      kycType: user.wallet.customKyc ?? KycType.DFX,
-      language,
-      currency,
-    });
+    user.userData =
+      userData ??
+      (await this.userDataService.createUserData({
+        kycType: user.wallet.customKyc ?? KycType.DFX,
+        language,
+        currency,
+      }));
     user = await this.userRepo.save(user);
 
     try {
