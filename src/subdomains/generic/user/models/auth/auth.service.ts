@@ -99,7 +99,7 @@ export class AuthService {
   // --- AUTH METHODS --- //
   async authenticate(dto: CreateUserDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
-    const userData = await this.userDataService.getUserData(userDataId, { users: true });
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
 
     if (userData) {
       if (existingUser) {
@@ -114,7 +114,7 @@ export class AuthService {
       return { accessToken: this.generateUserToken(newUser, userIp) };
     }
 
-    existingUser
+    return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
       : this.doSignUp(dto, userIp, false).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
