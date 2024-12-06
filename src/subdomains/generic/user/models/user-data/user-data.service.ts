@@ -389,7 +389,8 @@ export class UserDataService {
     if (userData.users.includes(user)) throw new ConflictException('User already exists');
     if (userData.id !== user.userData.id) throw new BadRequestException('User does not belong to this UserData');
 
-    await this.userDataRepo.update(userData.id, { users: [...userData.users, user] });
+    userData.users.push(user);
+    await this.userDataRepo.save(userData);
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {
