@@ -108,7 +108,7 @@ export class AuthService {
         throw new ConflictException('User already exists');
       }
 
-      const newUser = await this.userService.createUser(dto, userIp);
+      const newUser = await this.userService.createUser({ userDetails: dto, userIp, userData });
       await this.userDataService.addNewUser(userData, newUser);
 
       return { accessToken: this.generateUserToken(newUser, userIp) };
@@ -142,13 +142,13 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser(
-      dto,
+    const user = await this.userService.createUser({
+      userDetails: dto,
       userIp,
-      ref?.origin,
+      userOrigin: ref?.origin,
       wallet,
-      dto.specialCode ?? dto.discountCode,
-    );
+      specialCode: dto.specialCode ?? dto.discountCode,
+    });
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
