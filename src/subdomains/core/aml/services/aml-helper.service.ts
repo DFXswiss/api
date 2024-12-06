@@ -339,6 +339,7 @@ export class AmlHelperService {
     if (crucialErrorResults.length) {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
         crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10

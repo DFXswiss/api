@@ -1,9 +1,10 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { FileCategory, FileType, KycFile } from '../../dto/kyc-file.dto';
+import { FileType, KycFile } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
+import { FileCategory } from '../../enums/file-category.enum';
 import { KycFileService } from '../kyc-file.service';
 
 @Injectable()
@@ -89,11 +90,6 @@ export class KycDocumentService {
 
   async downloadFile(category: FileCategory, userDataId: number, type: FileType, name: string): Promise<BlobContent> {
     return this.storageService.getBlob(this.toFileId(category, userDataId, type, name));
-  }
-
-  async downloadFileByUrl(url: string): Promise<BlobContent> {
-    const fileId = this.storageService.blobName(url);
-    return this.storageService.getBlob(fileId);
   }
 
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
