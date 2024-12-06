@@ -11,7 +11,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { BankAccount } from './bank-account.entity';
 import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
-import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateBankAccountDto, CreateBankAccountInternalDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @ApiTags('Bank Account')
@@ -56,7 +56,7 @@ export class BankAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @ApiExcludeEndpoint()
-  async addBankAccountIban(@Body() dto: CreateBankAccountDto): Promise<BankAccount> {
+  async addBankAccountIban(@Body() dto: CreateBankAccountInternalDto): Promise<BankAccount> {
     return this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
   }
 
