@@ -110,6 +110,10 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     return this.transactionHelper.getBlockchainFee(asset, true);
   }
 
+  protected async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
+    return this.transactionHelper.getMinConfirmations(payIn, direction);
+  }
+
   protected async getEstimatedFee(
     asset: Asset,
     amount: number,

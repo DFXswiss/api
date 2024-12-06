@@ -33,6 +33,10 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     return utxos;
   }
 
+  async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
+    return this.client.isTxComplete(txId, minConfirmations);
+  }
+
   async getTx(outTxId: string): Promise<InWalletTransaction> {
     return this.client.getTx(outTxId);
   }
