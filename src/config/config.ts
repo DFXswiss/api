@@ -3,6 +3,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
+import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -603,6 +604,10 @@ export class Configuration {
         (userData.identificationType === KycIdentificationType.ONLINE_ID &&
           file.name.includes('bankTransactionVerify') &&
           file.contentType.startsWith(ContentType.PDF)),
+      handleFileNotFound: (zip: JSZip, userData: UserData) =>
+        userData.identificationType === KycIdentificationType.MANUAL
+          ? zip.file('03_nicht_benötigt_aufgrund_manueller_identifikation.txt', '')
+          : false,
     },
     {
       folderName: '04_Identifizierungsformular',
@@ -648,7 +653,7 @@ export class Configuration {
       fileTypes: [ContentType.PDF],
       filter: (file: KycFile, userData: UserData) =>
         (file.category === FileCategory.USER && file.name.includes('postversand')) ||
-        (file.category === FileCategory.SPIDER && file.name.toLowerCase().startsWith(userData.firstname.toLowerCase())),
+        (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
     },
   ];
 
