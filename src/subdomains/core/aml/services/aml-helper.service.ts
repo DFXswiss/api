@@ -35,6 +35,7 @@ export class AmlHelperService {
     ibanCountry?: Country,
   ): AmlError[] {
     const errors = [];
+    const nationality = entity.userData.nationality;
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
@@ -104,7 +105,7 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
-        if (ibanCountry?.bankEnable === false || entity.userData.nationality?.bankEnable === false)
+        if ((ibanCountry && !ibanCountry.bankEnable) || (nationality && !nationality.bankEnable))
           errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
 
         if (
@@ -145,7 +146,7 @@ export class AmlHelperService {
         if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
-        if (ibanCountry?.checkoutEnable === false || entity.userData.nationality?.checkoutEnable === false)
+        if ((ibanCountry && !ibanCountry.checkoutEnable) || (nationality && !nationality.checkoutEnable))
           errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (
           !bankData.manualApproved &&
@@ -170,7 +171,7 @@ export class AmlHelperService {
         if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
-        if (ibanCountry?.cryptoEnable === false || entity.userData.nationality?.cryptoEnable === false)
+        if ((ibanCountry && !ibanCountry.cryptoEnable) || (nationality && !nationality.cryptoEnable))
           errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -178,7 +179,7 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
-      if (ibanCountry?.cryptoEnable === false || entity.userData.nationality?.cryptoEnable === false)
+      if ((ibanCountry && !ibanCountry.cryptoEnable) || (nationality && !nationality.cryptoEnable))
         errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
