@@ -598,6 +598,10 @@ export class BuyCrypto extends IEntity {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 
+  get paymentMethodOut(): PaymentMethod {
+    return CryptoPaymentMethod.CRYPTO;
+  }
+
   get targetAddress(): string {
     return this.buy?.deposit?.address ?? this.cryptoRoute?.targetDeposit?.address ?? this.user.address;
   }
