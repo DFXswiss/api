@@ -135,6 +135,9 @@ export class BuyCrypto extends IEntity {
   percentFee: number;
 
   @Column({ type: 'float', nullable: true })
+  bankFeeAmount: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
   percentFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
@@ -447,6 +450,7 @@ export class BuyCrypto extends IEntity {
             totalFeeAmount: fee.total,
             totalFeeAmountChf,
             blockchainFee: fee.network,
+            bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
