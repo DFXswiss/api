@@ -7,7 +7,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { IsNull, MoreThan } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
