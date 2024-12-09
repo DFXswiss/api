@@ -45,15 +45,16 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
         this.designateSend(payIn, type);
 
         const { targetFee } = await this.getEstimatedFee(payIn.asset, payIn.amount, payIn.destinationAddress.address);
-        const minInputFee = await this.getMinInputFee(payIn.asset);
 
-        CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
+        CryptoInput.verifyEstimatedFee(targetFee, payIn.blockchainFee, payIn.amount);
 
         const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn);
         await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
         await this.payInRepo.save(payIn);
       } catch (e) {
+        if (e.message.includes('No blockchain fee provided')) continue;
+
         const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
 
         this.logger.log(logLevel, `Failed to send ${this.blockchain} input ${payIn.id} of type ${type}:`, e);
