@@ -167,11 +167,12 @@ export class CryptoInput extends IEntity {
 
   //*** UTILITY METHODS ***//
 
-  static verifyEstimatedFee(estimatedFee: number, minInputFee: number, totalAmount: number): void {
+  static verifyEstimatedFee(estimatedFee: number, blockchainFee: number, totalAmount: number): void {
     if (estimatedFee == null) throw new Error('No fee estimation provided');
+    if (blockchainFee == null) throw new Error('No blockchain fee provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, minInputFee);
+    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, blockchainFee);
 
     if (estimatedFee > maxFee) {
       const feePercent = Util.toPercent(estimatedFee / totalAmount);
@@ -294,6 +295,10 @@ export class CryptoInput extends IEntity {
 
   get sendingAmount(): number {
     return this.action === PayInAction.RETURN ? this.chargebackAmount : this.amount;
+  }
+
+  get blockchainFee(): number {
+    return this.buyCrypto?.blockchainFee ?? this.buyFiat?.blockchainFee;
   }
 
   get isLightningInput(): boolean {

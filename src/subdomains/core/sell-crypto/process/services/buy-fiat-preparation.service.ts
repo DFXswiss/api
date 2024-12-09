@@ -155,14 +155,17 @@ export class BuyFiatPreparationService implements OnModuleInit {
   }
 
   async refreshFee(): Promise<void> {
+    const request = {
+      amlCheck: CheckStatus.PASS,
+      isComplete: false,
+      inputReferenceAmount: Not(IsNull()),
+      cryptoInput: { paymentLinkPayment: { id: IsNull() } },
+    };
     const entities = await this.buyFiatRepo.find({
-      where: {
-        amlCheck: CheckStatus.PASS,
-        isComplete: false,
-        percentFee: IsNull(),
-        inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: { id: IsNull() } },
-      },
+      where: [
+        { ...request, percentFee: IsNull() },
+        { ...request, cryptoInput: { status: PayInStatus.ACKNOWLEDGED } },
+      ],
       relations: {
         sell: true,
         cryptoInput: true,

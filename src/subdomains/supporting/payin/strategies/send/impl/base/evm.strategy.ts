@@ -45,15 +45,15 @@ export abstract class EvmStrategy extends SendStrategy {
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
           const totalAmount = this.getTotalGroupAmount(payInGroup, type);
+          const blockchainFee = this.getTotalGroupFeeAmount(payInGroup);
 
           const { nativeFee, targetFee } = await this.getEstimatedFee(
             payInGroup.asset,
             totalAmount,
             this.getForwardAddress().address,
           );
-          const minInputFee = await this.getMinInputFee(payInGroup.asset);
 
-          CryptoInput.verifyEstimatedFee(targetFee, minInputFee, totalAmount);
+          CryptoInput.verifyEstimatedFee(targetFee, blockchainFee, totalAmount);
 
           /**
            * @note
@@ -72,6 +72,8 @@ export abstract class EvmStrategy extends SendStrategy {
           continue;
         }
       } catch (e) {
+        if (e.message.includes('No blockchain fee provided')) continue;
+
         const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
 
         this.logger.log(
@@ -191,5 +193,9 @@ export abstract class EvmStrategy extends SendStrategy {
     for (const payIn of payIns) {
       await this.payInRepo.save(payIn);
     }
+  }
+
+  private getTotalGroupFeeAmount(payInGroup: SendGroup): number {
+    return Util.sum(payInGroup.payIns.map((p) => p.blockchainFee));
   }
 }
