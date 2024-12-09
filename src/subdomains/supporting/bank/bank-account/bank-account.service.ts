@@ -3,20 +3,50 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IsNull } from 'typeorm';
+import { IsNull, MoreThan } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
 @Injectable()
 export class BankAccountService {
+  private readonly logger = new DfxLogger(BankAccountService);
+
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
     private readonly ibanService: IbanService,
     private readonly countryService: CountryService,
   ) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
+  async process() {
+    if (DisabledProcess(Process.BANK_ACCOUNT_DUPLICATE_SYNC)) return;
+
+    const entities = await this.bankAccountRepo.find({
+      where: { synced: IsNull() },
+      take: 5000,
+    });
+
+    for (const entity of entities) {
+      try {
+        const existing = await this.bankAccountRepo.findBy({ id: MoreThan(entity.id), iban: entity.iban });
+        if (existing.length) {
+          for (const duplicate of existing) {
+            await this.bankAccountRepo.delete({ id: duplicate.id });
+          }
+        }
+
+        await this.bankAccountRepo.update(entity.id, { synced: true });
+      } catch (e) {
+        this.logger.error(`Error in bankAccount duplicate remove ${entity.id}:`, e);
+        await this.bankAccountRepo.update(entity.id, { synced: false });
+      }
+    }
+  }
 
   async getBankAccountByKey(key: string, value: any): Promise<BankAccount> {
     return this.bankAccountRepo

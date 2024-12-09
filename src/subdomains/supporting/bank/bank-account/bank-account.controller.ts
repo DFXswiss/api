@@ -51,7 +51,6 @@ export class BankAccountController {
   }
 
   // --- IBAN --- //
-
   @Post('iban')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
