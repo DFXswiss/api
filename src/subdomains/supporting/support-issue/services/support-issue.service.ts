@@ -162,6 +162,7 @@ export class SupportIssueService {
 
   private async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
     if (!dto.author) throw new BadRequestException('Author for message is missing');
+    if (dto.message?.length > 4000) throw new BadRequestException('Message has too many characters');
 
     const entity = this.messageRepo.create({ ...dto, issue });
 

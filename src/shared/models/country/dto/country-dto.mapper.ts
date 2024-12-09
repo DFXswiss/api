@@ -9,9 +9,11 @@ export class CountryDtoMapper {
       name: country.name,
       locationAllowed: country.ipEnable,
       kycAllowed: country.dfxEnable,
+      kycOrganizationAllowed: country.dfxOrganizationEnable,
       nationalityAllowed: country.nationalityStepEnable,
-      bankAllowed: country.dfxEnable,
-      cardAllowed: country.fatfEnable,
+      bankAllowed: country.bankEnable && country.dfxEnable,
+      cardAllowed: country.checkoutEnable && country.fatfEnable,
+      cryptoAllowed: country.cryptoEnable,
     };
 
     return Object.assign(new CountryDto(), dto);

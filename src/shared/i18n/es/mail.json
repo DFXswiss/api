@@ -182,12 +182,6 @@
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
     },
     "kyc": {
-        "identStarted": {
-            "title": "Identificación en línea",
-            "salutation": "Inicio de la identificación en línea",
-            "line1": "Ha iniciado el proceso de identificación en línea en DFX. Si se produce alguna interrupción, puede continuar el proceso en cualquier momento utilizando este enlace:<br>[url:{urlText}]",
-            "line2": "Si tiene algún problema técnico, también puede utilizar nuestro servicio de identificación por vídeo. Un empleado comprobará su documento de identidad manualmente. Tenga en cuenta que este servicio sólo está disponible durante las horas de apertura y supone para DFX unos costes considerablemente más elevados que el proceso totalmente automatizado con el botón de arriba. Por lo tanto, le rogamos que utilice este enlace sólo en caso de problemas técnicos con el botón anterior:<br>[url:Video Id Link]"
-        },
         "success": {
             "title": "Verificación exitosa",
             "salutation": "Verificación exitosa",
@@ -257,8 +251,14 @@
         "closing": "Thank you for your trust in us.<br>Oli"
     },
     "verification_code": {
-        "title": "Código de verificación",
-        "salutation": "Ha solicitado un código de verificación 2FA",
+        "default": {
+            "title": "Código de verificación",
+            "salutation": "Ha solicitado un código de verificación 2FA"
+        },
+        "email": {
+            "title": "Código de verificación de correo electrónico",
+            "salutation": "Ha solicitado cambiar su dirección de correo electrónico"
+        },
         "message": "Su código de verificación es:<br>{code}",
         "closing": "El código de verificación es válido durante {expiration} minutos. Por favor, no comparta este código de verificación con otras personas. Si no ha solicitado un código de verificación, póngase en contacto con el servicio de asistencia inmediatamente a través de [url:https://services.dfx.swiss/support]."
     }
