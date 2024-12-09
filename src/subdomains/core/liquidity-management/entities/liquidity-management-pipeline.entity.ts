@@ -7,7 +7,7 @@ import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 
 @Entity()
 export class LiquidityManagementPipeline extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: LiquidityManagementPipelineStatus;
 
   @ManyToOne(() => LiquidityManagementRule, { eager: true, nullable: false })
@@ -17,22 +17,22 @@ export class LiquidityManagementPipeline extends IEntity {
   })
   rule: LiquidityManagementRule;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: LiquidityOptimizationType;
 
   @Column({ type: 'float', nullable: true })
-  targetAmount: number;
+  targetAmount?: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
-  currentAction: LiquidityManagementAction;
+  currentAction?: LiquidityManagementAction;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
-  previousAction: LiquidityManagementAction;
+  previousAction?: LiquidityManagementAction;
 
   @Column({ type: 'int', nullable: true })
-  ordersProcessed: number;
+  ordersProcessed?: number;
 
   //*** FACTORY METHODS ***//
 

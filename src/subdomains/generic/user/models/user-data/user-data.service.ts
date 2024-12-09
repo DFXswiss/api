@@ -25,6 +25,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -371,6 +372,16 @@ export class UserDataService {
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
+  }
+
+  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
+    const paymentLinksConfig = JSON.stringify({
+      ...JSON.parse(user.paymentLinksConfig || '{}'),
+      ...dto,
+    });
+
+    await this.userDataRepo.update(user.id, { paymentLinksConfig });
+    user.paymentLinksConfig = paymentLinksConfig;
   }
 
   async updateUserName(userData: UserData, dto: UserNameDto) {

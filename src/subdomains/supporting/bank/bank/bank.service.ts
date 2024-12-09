@@ -25,6 +25,14 @@ export class BankService {
     return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
   }
 
+  async getBankById(id: number): Promise<Bank> {
+    return this.bankRepo.findOneCachedBy(`${id}`, { id });
+  }
+
+  async getBankByIban(iban: string): Promise<Bank> {
+    return this.bankRepo.findOneCachedBy(iban, { iban });
+  }
+
   // --- BankSelector --- //
   async getBank({ amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;

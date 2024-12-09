@@ -41,14 +41,14 @@ export class KycStep extends IEntity {
   result?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
   logs: StepLog;
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
-  reminderSentDate: Date;
+  reminderSentDate?: Date;
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {

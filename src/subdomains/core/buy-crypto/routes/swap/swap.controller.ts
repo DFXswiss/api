@@ -209,6 +209,8 @@ export class SwapController {
       userId,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
+      undefined,
       await this.assetService.getNativeAsset(defaultBlockchain),
       swap.asset,
     );

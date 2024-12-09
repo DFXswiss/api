@@ -46,25 +46,25 @@ export class TransactionRequest extends IEntity {
   rate: number;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentRequest: string;
+  paymentRequest?: string;
 
   @Column({ nullable: true })
-  paymentLink: string;
+  paymentLink?: string;
 
   @Column()
   isValid: boolean;
 
   @Column({ nullable: true })
-  error: QuoteError;
+  error?: QuoteError;
 
   @Column({ type: 'float', nullable: true })
-  dfxFee: number;
+  dfxFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  networkFee: number;
+  networkFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  totalFee: number;
+  totalFee?: number;
 
   @Column({ default: false })
   exactPrice: boolean;
@@ -76,5 +76,5 @@ export class TransactionRequest extends IEntity {
   user: User;
 
   @Column({ length: 'MAX', nullable: true })
-  siftResponse: string;
+  siftResponse?: string;
 }

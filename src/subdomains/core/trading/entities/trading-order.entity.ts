@@ -20,7 +20,7 @@ export class TradingOrder extends IEntity {
   price2: number; // current price
 
   @Column({ type: 'float', nullable: true })
-  price3: number; // check price
+  price3?: number; // check price
 
   @Column({ type: 'float' })
   priceImpact: number;
@@ -32,34 +32,34 @@ export class TradingOrder extends IEntity {
   assetOut: Asset;
 
   @Column({ type: 'float', nullable: true })
-  amountIn: number;
+  amountIn?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountExpected: number;
+  amountExpected?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountOut: number;
+  amountOut?: number;
 
   @Column({ nullable: true })
-  txId: string;
+  txId?: string;
 
   @Column({ type: 'float', nullable: true })
-  txFeeAmount: number;
+  txFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  txFeeAmountChf: number;
+  txFeeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  swapFeeAmount: number;
+  swapFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  swapFeeAmountChf: number;
+  swapFeeAmountChf?: number;
 
   @Column({ length: 'MAX', nullable: true })
-  errorMessage: string;
+  errorMessage?: string;
 
   @Column({ type: 'float', nullable: true })
-  profitChf: number;
+  profitChf?: number;
 
   // --- FACTORY --- //
 

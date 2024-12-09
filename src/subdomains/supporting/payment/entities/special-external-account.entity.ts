@@ -21,13 +21,13 @@ export class SpecialExternalAccount extends IEntity {
   type: SpecialExternalAccountType;
 
   @Column({ length: 256, nullable: true })
-  name: string;
+  name?: string;
 
   @Column({ length: 256, nullable: true })
-  value: string;
+  value?: string;
 
   @Column({ length: 256, nullable: true })
-  comment: string;
+  comment?: string;
 
   // --- ENTITY METHODS --- //
 

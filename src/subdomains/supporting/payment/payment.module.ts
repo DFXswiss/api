@@ -7,6 +7,7 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { SharedModule } from '../../../shared/shared.module';
+import { BankModule } from '../bank/bank.module';
 import { PayoutModule } from '../payout/payout.module';
 import { FeeController } from './controllers/fee.controller';
 import { SpecialExternalAccountController } from './controllers/special-external-account.controller';
@@ -38,6 +39,7 @@ import { TransactionModule } from './transaction.module';
     TransactionModule,
     SiftModule,
     BlockchainModule,
+    BankModule,
   ],
   controllers: [FeeController, SpecialExternalAccountController],
   providers: [

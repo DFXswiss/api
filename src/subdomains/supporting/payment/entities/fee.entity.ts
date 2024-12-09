@@ -6,6 +6,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
+import { Bank } from '../../bank/bank/bank.entity';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
@@ -15,6 +16,7 @@ export enum FeeType {
   ADDITION = 'Addition',
   CUSTOM = 'Custom',
   SPECIAL = 'Special',
+  BANK = 'Bank',
 }
 
 @Entity()
@@ -42,65 +44,68 @@ export class Fee extends IEntity {
 
   // Filter columns
   @Column({ length: 256, nullable: true })
-  specialCode: string;
+  specialCode?: string;
 
   @Column({ length: 256, nullable: true })
-  accountType: AccountType;
+  accountType?: AccountType;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodsIn: string; // semicolon separated payment-methods
+  paymentMethodsIn?: string; // semicolon separated payment-methods
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodsOut: string; // semicolon separated payment-methods
+  paymentMethodsOut?: string; // semicolon separated payment-methods
 
   @Column({ type: 'datetime2', nullable: true })
-  expiryDate: Date;
+  expiryDate?: Date;
 
   @Column({ length: 'MAX', nullable: true })
-  assets: string; // semicolon separated id's
+  assets?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
-  fiats: string; // semicolon separated id's
+  fiats?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
-  financialTypes: string; // semicolon separated financialTypes
+  financialTypes?: string; // semicolon separated financialTypes
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
-  wallet: Wallet;
+  wallet?: Wallet;
+
+  @ManyToOne(() => Bank, { nullable: true, eager: true })
+  bank: Bank;
 
   // Volume columns
 
   @Column({ type: 'float', nullable: true })
-  minTxVolume: number; // CHF
+  minTxVolume?: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxTxVolume: number; // CHF
+  maxTxVolume?: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxAnnualUserTxVolume: number; // CHF
+  maxAnnualUserTxVolume?: number; // CHF
 
   @Column({ length: 'MAX', nullable: true })
-  annualUserTxVolumes: string; // semicolon separated user volumes
+  annualUserTxVolumes?: string; // semicolon separated user volumes
 
   // Acceptance columns
 
   @Column({ type: 'integer', nullable: true })
-  maxUsages: number;
+  maxUsages?: number;
 
   @Column({ type: 'integer', default: 0 })
   usages: number;
 
   @Column({ type: 'integer', nullable: true })
-  maxTxUsages: number;
+  maxTxUsages?: number;
 
   @Column({ type: 'integer', default: 0 })
   txUsages: number;
 
   @Column({ type: 'integer', nullable: true })
-  maxUserTxUsages: number;
+  maxUserTxUsages?: number;
 
   @Column({ length: 'MAX', nullable: true })
-  userTxUsages: string;
+  userTxUsages?: string;
 
   //*** FACTORY METHODS ***//
 
@@ -155,6 +160,7 @@ export class Fee extends IEntity {
 
     const assets = [request.from, request.to].filter((a) => isAsset(a)) as Asset[];
     const fiats = [request.from, request.to].filter((f) => isFiat(f)) as Fiat[];
+    const banks = [request.bankIn, request.bankOut];
 
     return (
       this?.active &&
@@ -165,6 +171,7 @@ export class Fee extends IEntity {
       (!this.paymentMethodsOut || this.paymentMethodsOut.includes(request.paymentMethodOut)) &&
       (!this.assetList?.length || assets.some((a) => this.assetList.includes(a.id))) &&
       (!this.fiatList?.length || fiats.some((f) => this.fiatList.includes(f.id))) &&
+      (!this.bank || (banks.includes(this.bank.name) && fiats.some((f) => f.name === this.bank.currency))) &&
       (!this.financialTypeList?.length ||
         (fiats.every((f) => this.financialTypeList.includes(f.name)) &&
           assets.every((a) => this.financialTypeList.includes(a.financialType)))) &&

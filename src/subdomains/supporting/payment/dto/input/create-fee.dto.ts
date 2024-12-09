@@ -15,6 +15,7 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FeeType } from '../../entities/fee.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../payment-method.enum';
 
@@ -78,6 +79,12 @@ export class CreateFeeDto {
   @IsNotEmpty()
   @IsArray()
   fiatIds: number[];
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  bank: Bank;
 
   @IsOptional()
   @IsObject()

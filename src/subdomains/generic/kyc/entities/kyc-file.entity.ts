@@ -6,21 +6,21 @@ import { KycStep } from './kyc-step.entity';
 
 @Entity()
 export class KycFile extends IEntity {
-  @Column({ length: 'MAX', nullable: false })
+  @Column({ length: 'MAX' })
   name: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: FileType;
 
-  @Column({ nullable: false })
+  @Column()
   protected: boolean;
 
-  @Column({ length: 256, nullable: false, unique: true })
+  @Column({ length: 256, unique: true })
   uid: string;
 
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
 
   @ManyToOne(() => KycStep, { nullable: true })
-  kycStep: KycStep;
+  kycStep?: KycStep;
 }

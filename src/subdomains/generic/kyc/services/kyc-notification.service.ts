@@ -169,38 +169,4 @@ export class KycNotificationService {
       this.logger.error(`Failed to send KYC success mail or KYC changed webhook ${userData.id}:`, e);
     }
   }
-
-  async sendIdentStartedMail(userData: UserData): Promise<void> {
-    try {
-      if (userData?.mail && !DisabledProcess(Process.KYC_MAIL)) {
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          context: MailContext.IDENT_STARTED,
-          input: {
-            userData,
-            title: `${MailTranslationKey.IDENT_STARTED}.title`,
-            salutation: { key: `${MailTranslationKey.IDENT_STARTED}.salutation` },
-            suffix: [
-              { key: MailKey.SPACE, params: { value: '1' } },
-              {
-                key: `${MailTranslationKey.IDENT_STARTED}.line1`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
-              },
-              {
-                key: `${MailTranslationKey.GENERAL}.button`,
-                params: {
-                  url: userData.kycUrl,
-                },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: `${MailTranslationKey.IDENT_STARTED}.line2`, params: { url: userData.kycVideoUrl } },
-              { key: MailKey.DFX_TEAM_CLOSING },
-            ],
-          },
-        });
-      }
-    } catch (e) {
-      this.logger.error(`Failed to send ident started mail ${userData.id}:`, e);
-    }
-  }
 }

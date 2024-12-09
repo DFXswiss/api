@@ -25,7 +25,7 @@ export class CheckoutTx extends IEntity {
   status: CheckoutPaymentStatus;
 
   @Column({ nullable: true })
-  approved: boolean;
+  approved?: boolean;
 
   @Column({ nullable: true })
   reference?: string;
@@ -74,5 +74,5 @@ export class CheckoutTx extends IEntity {
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
-  transaction: Transaction;
+  transaction?: Transaction;
 }

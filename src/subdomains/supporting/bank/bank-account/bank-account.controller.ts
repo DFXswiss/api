@@ -51,7 +51,6 @@ export class BankAccountController {
   }
 
   // --- IBAN --- //
-
   @Post('iban')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -62,7 +61,7 @@ export class BankAccountController {
 
   // --- DTO --- //
   private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
-    return bankDatas.map((b) => this.toDto(b));
+    return bankDatas.filter((b) => b.active).map((b) => this.toDto(b));
   }
 
   private toDto(bankData: BankData): BankAccountDto {
@@ -71,7 +70,7 @@ export class BankAccountController {
       iban: bankData.iban.split(';')[0],
       label: bankData.label,
       preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
-      sepaInstant: false,
+      sepaInstant: undefined,
       active: true,
     };
   }

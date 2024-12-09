@@ -10,6 +10,7 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -192,6 +193,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
           entity.outputAsset,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
+          undefined,
+          IbanBankName.MAERKI,
           entity.user,
         );
 

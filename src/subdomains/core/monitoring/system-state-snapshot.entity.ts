@@ -19,6 +19,6 @@ export type MetricName = string;
 
 @Entity()
 export class SystemStateSnapshot extends IEntity {
-  @Column({ length: 'MAX', nullable: false })
+  @Column({ length: 'MAX' })
   data: string;
 }

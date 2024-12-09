@@ -22,16 +22,16 @@ export enum WebhookConfigOption {
 export class Wallet extends IEntity {
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'address IS NOT NULL' })
-  address: string;
+  address?: string;
 
   @Column({ length: 256, nullable: true })
-  name: string;
+  name?: string;
 
   @Column({ length: 256, nullable: true })
-  displayName: string;
+  displayName?: string;
 
   @Column({ length: 256, nullable: true })
-  masterKey: string;
+  masterKey?: string;
 
   @Column({ default: false })
   isKycClient: boolean;
@@ -40,7 +40,7 @@ export class Wallet extends IEntity {
   usesDummyAddresses: boolean;
 
   @Column({ nullable: true })
-  customKyc: KycType;
+  customKyc?: KycType;
 
   @OneToMany(() => User, (user) => user.wallet)
   users: User[];
@@ -49,16 +49,16 @@ export class Wallet extends IEntity {
   identMethod?: KycStepType;
 
   @Column({ length: 256, nullable: true })
-  apiUrl: string;
+  apiUrl?: string;
 
   @Column({ length: 256, nullable: true })
-  apiKey: string;
+  apiKey?: string;
 
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
 
   @Column({ length: 'MAX', nullable: true })
-  webhookConfig: string; // JSON string
+  webhookConfig?: string; // JSON string
 
   get webhookConfigObject(): WebhookConfig | undefined {
     return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;
