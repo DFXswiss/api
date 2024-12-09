@@ -26,6 +26,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -225,6 +226,8 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
+      IbanBankName.MAERKI,
+      undefined,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,
     );

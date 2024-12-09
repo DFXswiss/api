@@ -6,6 +6,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
+import { Bank } from '../../bank/bank/bank.entity';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
@@ -15,6 +16,7 @@ export enum FeeType {
   ADDITION = 'Addition',
   CUSTOM = 'Custom',
   SPECIAL = 'Special',
+  BANK = 'Bank',
 }
 
 @Entity()
@@ -67,6 +69,9 @@ export class Fee extends IEntity {
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
   wallet?: Wallet;
+
+  @ManyToOne(() => Bank, { nullable: true, eager: true })
+  bank: Bank;
 
   // Volume columns
 
@@ -155,6 +160,7 @@ export class Fee extends IEntity {
 
     const assets = [request.from, request.to].filter((a) => isAsset(a)) as Asset[];
     const fiats = [request.from, request.to].filter((f) => isFiat(f)) as Fiat[];
+    const banks = [request.bankIn, request.bankOut];
 
     return (
       this?.active &&
@@ -165,6 +171,7 @@ export class Fee extends IEntity {
       (!this.paymentMethodsOut || this.paymentMethodsOut.includes(request.paymentMethodOut)) &&
       (!this.assetList?.length || assets.some((a) => this.assetList.includes(a.id))) &&
       (!this.fiatList?.length || fiats.some((f) => this.fiatList.includes(f.id))) &&
+      (!this.bank || (banks.includes(this.bank.name) && fiats.some((f) => f.name === this.bank.currency))) &&
       (!this.financialTypeList?.length ||
         (fiats.every((f) => this.financialTypeList.includes(f.name)) &&
           assets.every((a) => this.financialTypeList.includes(a.financialType)))) &&

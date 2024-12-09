@@ -19,7 +19,10 @@ export class FeeDto extends BaseFeeDto {
   @ApiProperty({ description: 'DFX fee amount' })
   dfx: number;
 
-  @ApiProperty({ description: 'Total fee amount (DFX + network fee)' })
+  @ApiProperty({ description: 'Bank fee amount' })
+  bank: number; // final bank fee addition
+
+  @ApiProperty({ description: 'Total fee amount (DFX + bank + network fee)' })
   total: number;
 
   @ApiPropertyOptional({ description: 'Network start fee' })
@@ -29,4 +32,6 @@ export class FeeDto extends BaseFeeDto {
 export class InternalFeeDto extends BaseFeeDto {
   fees: Fee[];
   payoutRefBonus: boolean;
+  bankRate: number; // bank fee rate
+  bankFixed: number; // bank fixed fee
 }
