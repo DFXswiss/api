@@ -15,6 +15,7 @@ export enum FeeType {
   ADDITION = 'Addition',
   CUSTOM = 'Custom',
   SPECIAL = 'Special',
+  CHARGEBACK = 'Chargeback',
 }
 
 @Entity()
