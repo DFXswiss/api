@@ -683,7 +683,6 @@ export class KycService {
           kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
         }
 
-        if (!user.getStepsWith(KycStepName.IDENT).length) await this.kycNotificationService.sendIdentStartedMail(user);
         break;
 
       case KycStepName.DFX_APPROVAL:
