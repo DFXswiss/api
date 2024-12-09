@@ -3,6 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -61,7 +62,8 @@ export class AmlHelperService {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
       if (!entity.userData.hasBankTxVerification) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
-      if (!entity.userData.letterSentDate) errors.push(AmlError.NO_LETTER);
+      if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
+        errors.push(AmlError.NO_LETTER);
       if (!entity.userData.amlListAddedDate) errors.push(AmlError.NO_AML_LIST);
       if (!entity.userData.kycFileId && (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT))
         errors.push(AmlError.NO_KYC_FILE_ID);
