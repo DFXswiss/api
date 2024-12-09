@@ -14,8 +14,8 @@ export class StakingRefReward extends Reward {
   user: User;
 
   @ManyToOne(() => Staking, (staking) => staking.rewards, { nullable: true })
-  staking: Staking;
+  staking?: Staking;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   stakingRefType: StakingRefType;
 }

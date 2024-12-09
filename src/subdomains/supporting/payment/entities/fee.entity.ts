@@ -44,31 +44,31 @@ export class Fee extends IEntity {
 
   // Filter columns
   @Column({ length: 256, nullable: true })
-  specialCode: string;
+  specialCode?: string;
 
   @Column({ length: 256, nullable: true })
-  accountType: AccountType;
+  accountType?: AccountType;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodsIn: string; // semicolon separated payment-methods
+  paymentMethodsIn?: string; // semicolon separated payment-methods
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodsOut: string; // semicolon separated payment-methods
+  paymentMethodsOut?: string; // semicolon separated payment-methods
 
   @Column({ type: 'datetime2', nullable: true })
-  expiryDate: Date;
+  expiryDate?: Date;
 
   @Column({ length: 'MAX', nullable: true })
-  assets: string; // semicolon separated id's
+  assets?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
-  fiats: string; // semicolon separated id's
+  fiats?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
-  financialTypes: string; // semicolon separated financialTypes
+  financialTypes?: string; // semicolon separated financialTypes
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
-  wallet: Wallet;
+  wallet?: Wallet;
 
   @ManyToOne(() => Bank, { nullable: true, eager: true })
   bank: Bank;
@@ -76,36 +76,36 @@ export class Fee extends IEntity {
   // Volume columns
 
   @Column({ type: 'float', nullable: true })
-  minTxVolume: number; // CHF
+  minTxVolume?: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxTxVolume: number; // CHF
+  maxTxVolume?: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxAnnualUserTxVolume: number; // CHF
+  maxAnnualUserTxVolume?: number; // CHF
 
   @Column({ length: 'MAX', nullable: true })
-  annualUserTxVolumes: string; // semicolon separated user volumes
+  annualUserTxVolumes?: string; // semicolon separated user volumes
 
   // Acceptance columns
 
   @Column({ type: 'integer', nullable: true })
-  maxUsages: number;
+  maxUsages?: number;
 
   @Column({ type: 'integer', default: 0 })
   usages: number;
 
   @Column({ type: 'integer', nullable: true })
-  maxTxUsages: number;
+  maxTxUsages?: number;
 
   @Column({ type: 'integer', default: 0 })
   txUsages: number;
 
   @Column({ type: 'integer', nullable: true })
-  maxUserTxUsages: number;
+  maxUserTxUsages?: number;
 
   @Column({ length: 'MAX', nullable: true })
-  userTxUsages: string;
+  userTxUsages?: string;
 
   //*** FACTORY METHODS ***//
 
