@@ -24,14 +24,13 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
-  async sendMergeRequest(master: UserData, slave: UserData, reason: MergeReason, sendToSlave = true): Promise<boolean> {
-    if (!slave.mail) return false;
-
-    try {
-      master.checkIfMergePossibleWith(slave);
-    } catch {
-      return false;
-    }
+  async sendMergeRequest(
+    master: UserData,
+    slave: UserData,
+    reason: MergeReason,
+    sendToSlave = false,
+  ): Promise<boolean> {
+    if (!master.isMergePossibleWith(slave)) return false;
 
     const request =
       (await this.accountMergeRepo.findOne({
@@ -43,16 +42,16 @@ export class AccountMergeService {
         relations: { master: true, slave: true },
       })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
 
-    const name = sendToSlave
-      ? request.master.organizationName ?? request.master.firstname
-      : request.slave.organizationName ?? request.slave.firstname;
+    const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
 
+    const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
     const url = this.buildConfirmationUrl(request.code);
+
     await this.notificationService.sendMail({
       type: MailType.USER,
       context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
-        userData: sendToSlave ? request.slave : request.master,
+        userData: receiver,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         prefix: [
@@ -84,13 +83,17 @@ export class AccountMergeService {
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
-    const [master, slave] = [request.master, request.slave].sort((a, b) => b.kycLevel - a.kycLevel);
+    const [master, slave] = this.masterFirst([request.master, request.slave]);
 
     await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
     await this.accountMergeRepo.update(...request.complete(master, slave));
 
     return request;
+  }
+
+  masterFirst(users: UserData[]): UserData[] {
+    return users.sort((a, b) => b.kycLevel - a.kycLevel);
   }
 
   private buildConfirmationUrl(code: string): string {

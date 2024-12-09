@@ -7,6 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -18,6 +19,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
@@ -55,12 +57,6 @@ export enum KycState {
 export enum KycType {
   DFX = 'DFX',
   LOCK = 'LOCK',
-}
-
-export enum KycIdentificationType {
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
-  MANUAL = 'Manual',
 }
 
 export enum LegalEntity {
@@ -549,7 +545,7 @@ export class UserData extends IEntity {
   }
 
   get paymentLinksConfigObj(): PaymentLinkConfig {
-    return JSON.parse(this.paymentLinksConfig ?? '{}');
+    return Object.assign({}, DefaultPaymentLinkConfig, JSON.parse(this.paymentLinksConfig ?? '{}'));
   }
 
   // --- KYC PROCESS --- //
@@ -607,16 +603,29 @@ export class UserData extends IEntity {
 
   checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
+
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');
+
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
-    if (slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
+
+    if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
-    if (!this.verifiedName) throw new BadRequestException('Verified name missing');
+
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
-    if (this.accountType !== slave.accountType && slave.kycLevel >= KycLevel.LEVEL_20)
+
+    if (slave.kycLevel >= KycLevel.LEVEL_20 && this.accountType !== slave.accountType)
       throw new BadRequestException('Account type mismatch');
+  }
+
+  isMergePossibleWith(slave: UserData): boolean {
+    try {
+      this.checkIfMergePossibleWith(slave);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   get requiredKycFields(): string[] {

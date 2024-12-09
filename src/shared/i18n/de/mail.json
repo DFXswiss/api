@@ -81,7 +81,7 @@
                 "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
                 "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen"
             },
-            "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
+            "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
         "pending": {
             "daily_limit": {
@@ -182,12 +182,6 @@
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {
-        "identStarted": {
-            "title": "Online-Identifikation gestartet",
-            "salutation": "Online-Identifikation gestartet",
-            "line1": "Du hast den Online Ident Prozess bei DFX gestartet. Sollte es zu Unterbechungen kommen, kannst du den Prozess jederzeit mit diesem Link fortführen:<br>[url:{urlText}]",
-            "line2": "Sollte es zu technischen Problemen kommen, so steht dir alternativ unser Video Ident Service zur Verfügung. Dabei prüft ein Mitarbeiter deinen Ausweis manuell. Bitte beachte, dass dieser Service nur während den Öffnungszeiten zur Verfügung steht und deutlich höhere Kosten für DFX beinhaltet als der vollautomatische Prozess mit dem Button oben. Wir bitten dich daher diesen Link nur zu verwenden, wenn es mit dem Button oben ein technisches Problem gibt:<br>[url:Video Id Link]"
-        },
         "success": {
             "title": "Verifikation erfolgreich",
             "salutation": "Verifikation erfolgreich",
@@ -257,8 +251,14 @@
         "closing": "Vielen Dank für dein Vertrauen in uns.<br>Oli"
     },
     "verification_code": {
-        "title": "Verifizierungscode",
-        "salutation": "Du hast einen 2FA Verifizierungscode angefordert",
+        "default": {
+            "title": "Verifizierungscode",
+            "salutation": "Du hast einen 2FA Verifizierungscode angefordert"
+        },
+        "email": {
+            "title": "E-Mail Verifizierungscode",
+            "salutation": "Du hast eine Änderung deiner E-Mail Adresse angefordert"
+        },
         "message": "Dein Verifizierungscode lautet:<br>{code}",
         "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
     }

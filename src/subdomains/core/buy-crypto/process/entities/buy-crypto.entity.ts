@@ -486,8 +486,8 @@ export class BuyCrypto extends IEntity {
       last365dVolume,
       bankData,
       blacklist,
-      banks,
       ibanCountry,
+      banks,
     );
 
     Object.assign(this, update);

@@ -495,6 +495,9 @@ export class TransactionHelper implements OnModuleInit {
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
       return QuoteError.KYC_REQUIRED;
 
+    if ((isSell || isSwap) && user?.userData.kycLevel < KycLevel.LEVEL_30 && from.dexName === 'XMR')
+      return QuoteError.KYC_REQUIRED;
+
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
 
