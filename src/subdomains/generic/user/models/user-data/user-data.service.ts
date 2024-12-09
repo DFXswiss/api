@@ -213,7 +213,7 @@ export class UserDataService {
     return userData;
   }
 
-  async downloadUserData(userDataIds: number[]): Promise<string> {
+  async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
     const downloadTargets = Config.downloadTargets.reverse();
@@ -277,9 +277,7 @@ export class UserDataService {
 
     if (errorLog) zip.file('error_log.txt', errorLog);
 
-    const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
-
-    return zipContent.toString('base64');
+    return zip.generateAsync({ type: 'nodebuffer' });
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
