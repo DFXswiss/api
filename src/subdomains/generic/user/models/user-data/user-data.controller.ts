@@ -138,7 +138,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async downloadUserData(@Body() data: DownloadUserDataDto, @Res({ passthrough: true }) res): Promise<StreamableFile> {
     const zipContent = await this.userDataService.downloadUserData(data.userDataIds);
 
