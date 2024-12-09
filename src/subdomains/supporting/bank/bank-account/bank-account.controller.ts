@@ -81,15 +81,13 @@ export class BankAccountController {
   }
 
   private toDto(bankData: BankData): BankAccountDto {
-    return bankData.active
-      ? {
-          id: bankData.id,
-          iban: bankData.iban.split(';')[0],
-          label: bankData.label,
-          preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
-          sepaInstant: undefined,
-          active: true,
-        }
-      : undefined;
+    return {
+      id: bankData.id,
+      iban: bankData.iban.split(';')[0],
+      label: bankData.label,
+      preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
+      sepaInstant: undefined,
+      active: true,
+    };
   }
 }

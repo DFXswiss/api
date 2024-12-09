@@ -2,6 +2,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum BankDataType {
@@ -59,11 +60,11 @@ export class BankData extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  activate(): UpdateResult<BankData> {
+  activate(dto: CreateBankAccountDto): UpdateResult<BankData> {
     const update: Partial<BankData> = {
       active: true,
-      label: null,
-      preferredCurrency: null,
+      label: dto.label ?? null,
+      preferredCurrency: dto.preferredCurrency ?? null,
     };
 
     Object.assign(this, update);

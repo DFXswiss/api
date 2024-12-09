@@ -251,7 +251,7 @@ export class BankDataService {
     });
     if (existing) {
       if (userData.id === existing.userData.id) {
-        if (!existing.active) await this.bankDataRepo.update(...existing.activate());
+        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
         return existing;
       }
 
