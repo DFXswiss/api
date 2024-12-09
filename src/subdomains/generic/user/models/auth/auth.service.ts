@@ -97,8 +97,23 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
+  async authenticate(dto: CreateUserDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+
+    if (userData) {
+      if (existingUser) {
+        if (existingUser.userData.id === userDataId)
+          return { accessToken: this.generateUserToken(existingUser, userIp) };
+        throw new ConflictException('User already exists');
+      }
+
+      const newUser = await this.userService.createUser({ userDetails: dto, userIp, userData });
+      await this.userDataService.addNewUser(userData, newUser);
+
+      return { accessToken: this.generateUserToken(newUser, userIp) };
+    }
+
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
       : this.doSignUp(dto, userIp, false).catch((e) => {
@@ -127,13 +142,13 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser(
-      dto,
+    const user = await this.userService.createUser({
+      userDetails: dto,
       userIp,
-      ref?.origin,
+      userOrigin: ref?.origin,
       wallet,
-      dto.specialCode ?? dto.discountCode,
-    );
+      specialCode: dto.specialCode ?? dto.discountCode,
+    });
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
