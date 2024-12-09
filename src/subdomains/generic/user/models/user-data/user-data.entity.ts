@@ -7,6 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -18,6 +19,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
+import { KycIdentificationType } from './kyc-identification-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
@@ -55,12 +57,6 @@ export enum KycState {
 export enum KycType {
   DFX = 'DFX',
   LOCK = 'LOCK',
-}
-
-export enum KycIdentificationType {
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
-  MANUAL = 'Manual',
 }
 
 export enum LegalEntity {
@@ -115,83 +111,83 @@ export enum UserDataStatus {
 )
 export class UserData extends IEntity {
   @Column({ nullable: true, length: 256 })
-  accountType: AccountType;
+  accountType?: AccountType;
 
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
 
   @Column({ type: 'datetime2', nullable: true })
-  deactivationDate: Date;
+  deactivationDate?: Date;
 
   // --- PERSONAL DATA --- //
   @Column({ length: 256, nullable: true })
-  mail: string;
+  mail?: string;
 
   @Column({ length: 256, nullable: true })
-  firstname: string;
+  firstname?: string;
 
   @Column({ length: 256, nullable: true })
-  surname: string;
+  surname?: string;
 
   @Column({ length: 256, nullable: true })
-  verifiedName: string;
+  verifiedName?: string;
 
   @ManyToOne(() => Country, { eager: true, nullable: true })
-  verifiedCountry: Country;
+  verifiedCountry?: Country;
 
   @Column({ length: 256, nullable: true })
-  street: string;
+  street?: string;
 
   @Column({ length: 256, nullable: true })
-  houseNumber: string;
+  houseNumber?: string;
 
   @Column({ length: 256, nullable: true })
-  location: string;
+  location?: string;
 
   @Column({ length: 256, nullable: true })
-  zip: string;
+  zip?: string;
 
   @ManyToOne(() => Country, { eager: true })
   country: Country;
 
   @ManyToOne(() => Country, { eager: true, nullable: true })
-  nationality: Country;
+  nationality?: Country;
 
   @Column({ type: 'datetime2', nullable: true })
-  birthday: Date;
+  birthday?: Date;
 
   @Column({ length: 256, nullable: true })
-  organizationName: string;
+  organizationName?: string;
 
   @Column({ length: 256, nullable: true })
-  organizationStreet: string;
+  organizationStreet?: string;
 
   @Column({ length: 256, nullable: true })
-  organizationHouseNumber: string;
+  organizationHouseNumber?: string;
 
   @Column({ length: 256, nullable: true })
-  organizationLocation: string;
+  organizationLocation?: string;
 
   @Column({ length: 256, nullable: true })
-  organizationZip: string;
+  organizationZip?: string;
 
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
   @Column({ type: 'float', nullable: true })
-  totalVolumeChfAuditPeriod: number;
+  totalVolumeChfAuditPeriod?: number;
 
   @Column({ length: 256, nullable: true })
-  allBeneficialOwnersName: string;
+  allBeneficialOwnersName?: string;
 
   @Column({ length: 256, nullable: true })
-  allBeneficialOwnersDomicile: string;
+  allBeneficialOwnersDomicile?: string;
 
   @Column({ length: 256, nullable: true })
-  accountOpenerAuthorization: string;
+  accountOpenerAuthorization?: string;
 
   @Column({ length: 256, nullable: true })
-  phone: string;
+  phone?: string;
 
   @ManyToOne(() => Language, { eager: true, nullable: false })
   language: Language;
@@ -202,22 +198,22 @@ export class UserData extends IEntity {
   // --- KYC --- //
 
   @Column({ length: 256, nullable: true })
-  legalEntity: LegalEntity;
+  legalEntity?: LegalEntity;
 
   @Column({ length: 256, nullable: true })
-  signatoryPower: SignatoryPower;
+  signatoryPower?: SignatoryPower;
 
   @Column({ length: 256, nullable: true })
-  riskState: RiskState;
+  riskState?: RiskState;
 
   @Column({ nullable: true })
-  highRisk: boolean;
+  highRisk?: boolean;
 
   @Column({ nullable: true })
-  olkypayAllowed: boolean;
+  olkypayAllowed?: boolean;
 
   @Column({ nullable: true })
-  complexOrgStructure: boolean;
+  complexOrgStructure?: boolean;
 
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
@@ -226,7 +222,7 @@ export class UserData extends IEntity {
   kycFiles: KycFile[];
 
   @Column({ type: 'integer', nullable: true })
-  kycFileId: number;
+  kycFileId?: number;
 
   @Column({ default: KycLevel.LEVEL_0 })
   kycLevel: KycLevel;
@@ -237,69 +233,69 @@ export class UserData extends IEntity {
   kycHash: string;
 
   @Column({ length: 256, nullable: true })
-  kycType: KycType;
+  kycType?: KycType;
 
   @OneToMany(() => KycStep, (step) => step.userData)
   kycSteps: KycStep[];
 
   @Column({ type: 'float', nullable: true })
-  depositLimit: number;
+  depositLimit?: number;
 
   @Column({ type: 'datetime2', nullable: true })
-  letterSentDate: Date;
+  letterSentDate?: Date;
 
   @Column({ length: 256, nullable: true })
-  identificationType: KycIdentificationType;
+  identificationType?: KycIdentificationType;
 
   @Column({ nullable: true })
-  pep: boolean;
+  pep?: boolean;
 
   @Column({ length: 256, nullable: true })
-  bankTransactionVerification: CheckStatus;
+  bankTransactionVerification?: CheckStatus;
 
   @Column({ type: 'datetime2', nullable: true })
-  lastNameCheckDate: Date;
+  lastNameCheckDate?: Date;
 
   @Column({ length: 256, nullable: true })
-  identDocumentId: string;
+  identDocumentId?: string;
 
   @Column({ length: 256, nullable: true })
-  identDocumentType: string;
+  identDocumentType?: string;
 
   @Column({ length: 256, nullable: true })
-  kycClients: string; // semicolon separated wallet id's
+  kycClients?: string; // semicolon separated wallet id's
 
   // AML
   @Column({ type: 'datetime2', nullable: true })
-  amlListAddedDate: Date;
+  amlListAddedDate?: Date;
 
   @Column({ length: 256, nullable: true })
-  internalAmlNote: string;
+  internalAmlNote?: string;
 
   @Column({ length: 256, nullable: true })
-  amlAccountType: string;
+  amlAccountType?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  relatedUsers: string;
+  relatedUsers?: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
-  blackSquadRecipientMail: string;
+  blackSquadRecipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  blackSquadMailSendDate: Date;
+  blackSquadMailSendDate?: Date;
 
   // Fee / Discounts
   @Column({ length: 256, nullable: true })
-  individualFees: string; // semicolon separated id's
+  individualFees?: string; // semicolon separated id's
 
   // CT
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
-  apiKeyCT: string;
+  apiKeyCT?: string;
 
   @Column({ length: 256, nullable: true })
-  apiFilterCT: string;
+  apiFilterCT?: string;
 
   // Volumes
   @Column({ type: 'float', default: 0 })
@@ -322,22 +318,22 @@ export class UserData extends IEntity {
 
   // 2FA
   @Column({ nullable: true })
-  totpSecret: string;
+  totpSecret?: string;
 
   // Point of Sale
   @Column({ default: false })
   paymentLinksAllowed: boolean;
 
   @Column({ length: 256, nullable: true })
-  paymentLinksName: string;
+  paymentLinksName?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentLinksConfig: string; // PaymentLinkConfig
+  paymentLinksConfig?: string; // PaymentLinkConfig
 
   // References
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
-  accountOpener: UserData;
+  accountOpener?: UserData;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
@@ -549,7 +545,7 @@ export class UserData extends IEntity {
   }
 
   get paymentLinksConfigObj(): PaymentLinkConfig {
-    return JSON.parse(this.paymentLinksConfig ?? '{}');
+    return Object.assign({}, DefaultPaymentLinkConfig, JSON.parse(this.paymentLinksConfig ?? '{}'));
   }
 
   // --- KYC PROCESS --- //
@@ -607,15 +603,29 @@ export class UserData extends IEntity {
 
   checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
+
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');
+
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
+
     if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
+
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
+
     if (slave.kycLevel >= KycLevel.LEVEL_20 && this.accountType !== slave.accountType)
       throw new BadRequestException('Account type mismatch');
+  }
+
+  isMergePossibleWith(slave: UserData): boolean {
+    try {
+      this.checkIfMergePossibleWith(slave);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   get requiredKycFields(): string[] {

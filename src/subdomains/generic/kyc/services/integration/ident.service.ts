@@ -12,8 +12,8 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdNowResult } from '../../dto/ident-result.dto';
 import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
-import { ContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
+import { ContentType } from '../../enums/content-type.enum';
 import { KycStepName, KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()

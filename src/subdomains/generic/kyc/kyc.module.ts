@@ -76,6 +76,6 @@ import { TfaService } from './services/tfa.service';
     KycClientService,
     SumsubService,
   ],
-  exports: [KycDocumentService, NameCheckService, KycAdminService, KycLogService, KycNotificationService],
+  exports: [KycDocumentService, NameCheckService, TfaService, KycAdminService, KycLogService, KycNotificationService],
 })
 export class KycModule {}

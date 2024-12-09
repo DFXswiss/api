@@ -16,6 +16,9 @@ export class Country extends IEntity {
   @Column({ default: true })
   dfxEnable: boolean;
 
+  @Column({ default: false })
+  dfxOrganizationEnable: boolean;
+
   @Column({ default: true })
   lockEnable: boolean;
 
@@ -24,9 +27,6 @@ export class Country extends IEntity {
 
   @Column({ default: false })
   maerkiBaumannEnable: boolean;
-
-  @Column({ default: true })
-  checkoutEnable: boolean;
 
   @Column({ default: true })
   fatfEnable: boolean;
@@ -39,6 +39,15 @@ export class Country extends IEntity {
 
   @Column({ default: false })
   bankTransactionVerificationEnable: boolean;
+
+  @Column({ default: true })
+  bankEnable: boolean;
+
+  @Column({ default: true })
+  cryptoEnable: boolean;
+
+  @Column({ default: true })
+  checkoutEnable: boolean;
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {

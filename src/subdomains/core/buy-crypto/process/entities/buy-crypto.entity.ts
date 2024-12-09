@@ -49,175 +49,178 @@ export class BuyCrypto extends IEntity {
   // References
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  bankTx: BankTx;
+  bankTx?: BankTx;
 
   @OneToOne(() => CheckoutTx, { nullable: true })
   @JoinColumn()
-  checkoutTx: CheckoutTx;
+  checkoutTx?: CheckoutTx;
 
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
-  buy: Buy;
+  buy?: Buy;
 
   @OneToOne(() => CryptoInput, { nullable: true })
   @JoinColumn()
-  cryptoInput: CryptoInput;
+  cryptoInput?: CryptoInput;
 
   @ManyToOne(() => Swap, (cryptoRoute) => cryptoRoute.buyCryptos, { nullable: true })
-  cryptoRoute: Swap;
+  cryptoRoute?: Swap;
 
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
-  batch: BuyCryptoBatch;
+  batch?: BuyCryptoBatch;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  chargebackBankTx: BankTx;
+  chargebackBankTx?: BankTx;
 
   @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
   fee: BuyCryptoFee;
 
   @ManyToOne(() => BankData, { nullable: true })
-  bankData: BankData;
+  bankData?: BankData;
 
   // Mail
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailSendDate: Date;
+  mailSendDate?: Date;
 
   // Pricing
   @Column({ type: 'float', nullable: true })
-  inputAmount: number;
+  inputAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  inputAsset: string;
+  inputAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmount: number;
+  inputReferenceAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  inputReferenceAsset: string;
+  inputReferenceAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  amountInChf: number;
+  amountInChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInEur: number;
+  amountInEur?: number;
 
   // Ref
   @Column({ length: 256, nullable: true })
-  usedRef: string;
+  usedRef?: string;
 
   @Column({ type: 'float', nullable: true })
-  refProvision: number;
+  refProvision?: number;
 
   @Column({ type: 'float', nullable: true })
-  refFactor: number;
+  refFactor?: number;
 
   @Column({ length: 256, nullable: true })
-  amlResponsible: string;
+  amlResponsible?: string;
 
   // Check
   @Column({ length: 256, nullable: true })
-  amlCheck: CheckStatus;
+  amlCheck?: CheckStatus;
 
   @Column({ length: 256, nullable: true })
-  amlReason: AmlReason;
+  amlReason?: AmlReason;
 
   @Column({ nullable: true })
-  highRisk: boolean;
+  highRisk?: boolean;
 
   // Fee
   @Column({ length: 256, nullable: true })
-  usedFees: string; // Semicolon separated id's
+  usedFees?: string; // Semicolon separated id's
 
   @Column({ type: 'float', nullable: true })
-  percentFee: number;
+  percentFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  percentFeeAmount: number; //inputReferenceAsset
+  bankFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmount: number; //inputReferenceAsset
+  percentFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmountFiat: number; //inputReferenceAsset if FIAT else EUR
+  minFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmount: number; //inputReferenceAsset
+  minFeeAmountFiat?: number; //inputReferenceAsset if FIAT else EUR
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmountChf: number;
+  totalFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  absoluteFeeAmount: number; //inputReferenceAsset
+  totalFeeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  networkStartFeeAmount: number; //inputReferenceAsset
+  absoluteFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmountMinusFee: number;
+  networkStartFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  blockchainFee: number;
+  inputReferenceAmountMinusFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  paymentLinkFee: number;
+  blockchainFee?: number;
+
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee?: number;
 
   // Fail
   @Column({ type: 'datetime2', nullable: true })
-  chargebackDate: Date;
+  chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
-  chargebackRemittanceInfo: string;
+  chargebackRemittanceInfo?: string;
 
   @Column({ length: 256, nullable: true })
-  chargebackCryptoTxId: string;
+  chargebackCryptoTxId?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  chargebackAllowedDate: Date;
+  chargebackAllowedDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  chargebackAllowedDateUser: Date;
+  chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount: number;
+  chargebackAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  chargebackAllowedBy: string;
+  chargebackAllowedBy?: string;
 
   @Column({ length: 256, nullable: true })
-  chargebackIban: string;
+  chargebackIban?: string;
 
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
-  chargebackOutput: FiatOutput;
+  chargebackOutput?: FiatOutput;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  priceDefinitionAllowedDate: Date;
+  priceDefinitionAllowedDate?: Date;
 
   @Column({ type: 'float', nullable: true })
-  outputReferenceAmount: number;
+  outputReferenceAmount?: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  outputReferenceAsset: Asset;
+  outputReferenceAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  outputAmount: number;
+  outputAmount?: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  outputAsset: Asset;
+  outputAsset?: Asset;
 
   @Column({ length: 'MAX', nullable: true })
-  priceSteps: string;
+  priceSteps?: string;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
-  txId: string;
+  txId?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  outputDate: Date;
+  outputDate?: Date;
 
   @Column({ length: 256, default: BuyCryptoStatus.CREATED })
   status: BuyCryptoStatus;
@@ -226,14 +229,14 @@ export class BuyCrypto extends IEntity {
   isComplete: boolean;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
   transaction: Transaction;
 
   @Column({ length: 'MAX', nullable: true })
-  siftResponse: string;
+  siftResponse?: string;
 
   // --- ENTITY METHODS --- //
 
@@ -447,6 +450,7 @@ export class BuyCrypto extends IEntity {
             totalFeeAmount: fee.total,
             totalFeeAmountChf,
             blockchainFee: fee.network,
+            bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
@@ -486,8 +490,8 @@ export class BuyCrypto extends IEntity {
       last365dVolume,
       bankData,
       blacklist,
-      banks,
       ibanCountry,
+      banks,
     );
 
     Object.assign(this, update);

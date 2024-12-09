@@ -15,8 +15,8 @@ export class BscClient extends EvmClient {
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
-    // 30% additional cap
-    return super.getRecommendedGasPrice().then((p) => p.mul(15).div(12));
+    // 80% additional cap
+    return super.getRecommendedGasPrice().then((p) => p.mul(20).div(12));
   }
 
   async testSwap(
