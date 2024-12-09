@@ -37,23 +37,23 @@ export class LimitRequest extends IEntity {
   fundOrigin: FundOrigin;
 
   @Column({ length: 'MAX', nullable: true })
-  fundOriginText: string;
+  fundOriginText?: string;
 
   @Column({ length: 256, nullable: true })
-  decision: LimitRequestDecision;
+  decision?: LimitRequestDecision;
 
   @Column({ length: 256, nullable: true })
-  clerk: string;
+  clerk?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  edited: Date;
+  edited?: Date;
 
   //Mail
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailSendDate: Date;
+  mailSendDate?: Date;
 
   // References
 

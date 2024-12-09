@@ -54,34 +54,34 @@ export enum PayInType {
 @Index((i: CryptoInput) => [i.inTxId, i.asset, i.address.address, i.address.blockchain], { unique: true })
 export class CryptoInput extends IEntity {
   @Column({ nullable: true })
-  status: PayInStatus;
+  status?: PayInStatus;
 
   @Column({ length: 256 })
   inTxId: string;
 
   @Column({ type: 'integer', nullable: true })
-  txSequence: number;
+  txSequence?: number;
 
   @Column({ length: 256, nullable: true })
-  outTxId: string;
+  outTxId?: string;
 
   @Column({ length: 256, nullable: true })
-  returnTxId: string;
+  returnTxId?: string;
 
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailReturnSendDate: Date;
+  mailReturnSendDate?: Date;
 
   @Column({ nullable: true })
-  prepareTxId: string;
+  prepareTxId?: string;
 
   @Column({ length: 256, nullable: true })
-  txType: PayInType;
+  txType?: PayInType;
 
   @Column({ nullable: true })
-  action: PayInAction;
+  action?: PayInAction;
 
   @Column(() => BlockchainAddress)
   address: BlockchainAddress;
@@ -90,50 +90,50 @@ export class CryptoInput extends IEntity {
   destinationAddress: BlockchainAddress;
 
   @Column({ nullable: true, type: 'integer' })
-  blockHeight: number;
+  blockHeight?: number;
 
-  @Column({ nullable: false, type: 'float' })
+  @Column({ type: 'float' })
   amount: number;
 
   @Column({ nullable: true, type: 'float' })
-  chargebackAmount: number;
+  chargebackAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  forwardFeeAmount: number;
+  forwardFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  forwardFeeAmountChf: number;
+  forwardFeeAmountChf?: number;
 
   @ManyToOne(() => Asset, { nullable: true, eager: true })
-  asset: Asset;
+  asset?: Asset;
 
   @Column({ default: false })
   isConfirmed: boolean;
 
   @Column({ length: 256, nullable: true })
-  purpose: PayInPurpose;
+  purpose?: PayInPurpose;
 
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
-  route: DepositRouteType;
+  route?: DepositRouteType;
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
-  transaction: Transaction;
+  transaction?: Transaction;
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
-  buyFiat: BuyFiat;
+  buyFiat?: BuyFiat;
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
-  buyCrypto: BuyCrypto;
+  buyCrypto?: BuyCrypto;
 
   @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInputs, { nullable: true })
-  paymentLinkPayment: PaymentLinkPayment;
+  paymentLinkPayment?: PaymentLinkPayment;
 
   @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
-  paymentQuote: PaymentQuote;
+  paymentQuote?: PaymentQuote;
 
   @Column({ length: 'MAX', nullable: true })
-  senderAddresses: string;
+  senderAddresses?: string;
 
   //*** FACTORY METHODS ***//
 

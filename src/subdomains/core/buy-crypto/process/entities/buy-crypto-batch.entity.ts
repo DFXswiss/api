@@ -23,22 +23,22 @@ export class BuyCryptoBatch extends IEntity {
   transactions: BuyCrypto[];
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  outputReferenceAsset: Asset;
+  outputReferenceAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  outputReferenceAmount: number;
+  outputReferenceAmount?: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  outputAsset: Asset;
+  outputAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  outputAmount: number;
+  outputAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  status: BuyCryptoBatchStatus;
+  status?: BuyCryptoBatchStatus;
 
   @Column({ length: 256, nullable: true })
-  blockchain: Blockchain;
+  blockchain?: Blockchain;
 
   //*** FACTORY METHODS ***//
 
