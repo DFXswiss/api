@@ -182,12 +182,6 @@
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {
-        "identStarted": {
-            "title": "Online-Identifikation gestartet",
-            "salutation": "Online-Identifikation gestartet",
-            "line1": "Du hast den Online Ident Prozess bei DFX gestartet. Sollte es zu Unterbechungen kommen, kannst du den Prozess jederzeit mit diesem Link fortführen:<br>[url:{urlText}]",
-            "line2": "Sollte es zu technischen Problemen kommen, so steht dir alternativ unser Video Ident Service zur Verfügung. Dabei prüft ein Mitarbeiter deinen Ausweis manuell. Bitte beachte, dass dieser Service nur während den Öffnungszeiten zur Verfügung steht und deutlich höhere Kosten für DFX beinhaltet als der vollautomatische Prozess mit dem Button oben. Wir bitten dich daher diesen Link nur zu verwenden, wenn es mit dem Button oben ein technisches Problem gibt:<br>[url:Video Id Link]"
-        },
         "success": {
             "title": "Verifikation erfolgreich",
             "salutation": "Verifikation erfolgreich",
