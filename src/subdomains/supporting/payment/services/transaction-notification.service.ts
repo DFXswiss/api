@@ -3,7 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { In, IsNull } from 'typeorm';
 import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
@@ -51,7 +52,11 @@ export class TransactionNotificationService {
 
     for (const entity of entities) {
       try {
-        if (!entity.targetEntity || entity.targetEntity instanceof RefReward) continue;
+        if (
+          !entity.targetEntity ||
+          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat))
+        )
+          continue;
 
         if (entity.userData?.mail)
           await this.notificationService.sendMail({

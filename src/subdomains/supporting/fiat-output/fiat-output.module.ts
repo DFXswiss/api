@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
@@ -10,7 +10,7 @@ import { FiatOutputRepository } from '../fiat-output/fiat-output.repository';
 import { FiatOutputService } from '../fiat-output/fiat-output.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([FiatOutput]), SharedModule, BankTxModule],
+  imports: [TypeOrmModule.forFeature([FiatOutput]), SharedModule, forwardRef(() => BankTxModule)],
 
   controllers: [FiatOutputController],
   providers: [FiatOutputRepository, BuyFiatRepository, BuyCryptoRepository, FiatOutputService],

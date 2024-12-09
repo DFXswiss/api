@@ -15,6 +15,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -75,6 +76,7 @@ export class BankTxService {
     private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly olkyService: OlkypayService,
+    @Inject(forwardRef(() => BankTxReturnService))
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
@@ -175,6 +177,10 @@ export class BankTxService {
       },
     });
     if (!bankTx) throw new NotFoundException('BankTx not found');
+    return this.updateInternal(bankTx, dto);
+  }
+
+  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, userData?: UserData): Promise<BankTx> {
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -185,7 +191,7 @@ export class BankTxService {
           await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
-          await this.bankTxReturnService.create(bankTx);
+          bankTx.bankTxReturn = await this.bankTxReturnService.create(bankTx, userData);
           break;
         case BankTxType.BANK_TX_REPEAT:
           await this.bankTxRepeatService.create(bankTx);
