@@ -217,9 +217,10 @@
     },
     "account_merge": {
         "request": {
-            "title": "Confirm e-mail",
-            "salutation": "Confirm your e-mail",
-            "message": "Click on the following link to confirm your e-mail:<br>[url:{urlText}]"
+            "title": "Confirm mail",
+            "salutation": "Confirm your mail",
+            "message": "Click the following link to confirm your mail for another account:<br>[url:{urlText}]",
+            "closing": "If you have not entered your mail in another DFX account, please contact support immediately at [url:https://services.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Address added to account",

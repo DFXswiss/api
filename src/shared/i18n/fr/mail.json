@@ -219,7 +219,8 @@
         "request": {
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
-            "message": "Cliquez sur le lien ci-dessous pour confirmer votre e-mail:<br>[url:{urlText}]"
+            "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
+            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://services.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",
