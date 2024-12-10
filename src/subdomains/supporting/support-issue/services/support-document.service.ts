@@ -1,6 +1,6 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { AzureStorageService, Blob, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { ContentType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 
 export interface SupportFile extends Blob {
   userDataId: number;

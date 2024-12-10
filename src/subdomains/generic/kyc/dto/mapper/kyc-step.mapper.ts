@@ -1,12 +1,18 @@
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepStatus as EntityStatus } from '../../enums/kyc.enum';
-import { KycStepStatus as DtoStatus, KycStepBase, KycStepDto, KycStepSessionDto } from '../output/kyc-info.dto';
-import { KycResultDto } from '../output/kyc-result.dto';
+import { KycReasonMap } from '../kyc-error.enum';
+import {
+  KycStepStatus as DtoStatus,
+  KycStepBase,
+  KycStepDto,
+  KycStepReason,
+  KycStepSessionDto,
+} from '../output/kyc-info.dto';
 
 export class KycStepMapper {
   static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
     const dto: KycStepDto = {
-      ...KycStepMapper.toBase(kycStep),
+      ...KycStepMapper.toStepBase(kycStep),
       isCurrent: kycStep.id && kycStep.id === currentStep?.id,
     };
 
@@ -15,28 +21,29 @@ export class KycStepMapper {
 
   static toStepSession(kycStep: KycStep): KycStepSessionDto {
     const dto: KycStepSessionDto = {
-      ...KycStepMapper.toBase(kycStep),
+      ...KycStepMapper.toStepBase(kycStep),
       session: kycStep.sessionInfo,
     };
 
     return Object.assign(new KycStepSessionDto(), dto);
   }
 
-  static toKycResult(kycStep: KycStep): KycResultDto {
-    return { status: KycStepMapper.toStepStatus(kycStep.status) };
-  }
-
-  private static toBase(kycStep: KycStep): KycStepBase {
+  static toStepBase(kycStep: KycStep): KycStepBase {
     return {
       name: kycStep.name,
       type: kycStep.type ?? undefined,
       status: this.toStepStatus(kycStep.status),
+      reason: this.toStepReason(kycStep),
       sequenceNumber: kycStep.sequenceNumber,
     };
   }
 
   private static toStepStatus(entityStatus: EntityStatus): DtoStatus {
     return KycStepMapper.StepMap[entityStatus];
+  }
+
+  static toStepReason(kycStep: KycStep): KycStepReason {
+    return KycReasonMap[kycStep.comment];
   }
 
   private static StepMap: Record<EntityStatus, DtoStatus> = {

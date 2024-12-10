@@ -48,7 +48,7 @@
                 "transaction_button": "Vous pouvez effectuer l'action via le lien suivant:<br>[url:cliquez ici]"
             },
             "fiat": {
-                "title":"Remboursement des fonds",
+                "title": "Remboursement des fonds",
                 "salutation": "Vos fonds ont été retournés à votre banque"
             },
             "crypto": {
@@ -186,12 +186,6 @@
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
     "kyc": {
-        "identStarted": {
-            "title": "Identification en ligne",
-            "salutation": "Début de l'identification en ligne",
-            "line1": "Vous avez commencé le processus d'identification en ligne à DFX. En cas d'interruption, vous pouvez reprendre la procédure à tout moment en cliquant sur le lien suivant:<br>[url:{urlText}]",
-            "line2": "En cas de problème technique, vous pouvez également utiliser notre service d'identification vidéo. Un employé vérifiera manuellement votre carte d'identité. Veuillez noter que ce service n'est disponible que pendant les heures d'ouverture et qu'il entraîne des coûts nettement plus élevés pour DFX que le processus entièrement automatisé avec le bouton ci-dessus. Nous vous demandons donc de n'utiliser ce lien qu'en cas de problème technique avec le bouton ci-dessus:<br>[url:Video Id Link]"
-        },
         "success": {
             "title": "Vérification réussie",
             "salutation": "Vérification réussie",
@@ -229,7 +223,8 @@
         "request": {
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
-            "message": "Cliquez sur le lien ci-dessous pour confirmer votre e-mail:<br>[url:{urlText}]"
+            "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
+            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://services.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",
@@ -261,8 +256,14 @@
         "closing": "Thank you for your trust in us.<br>Oli"
     },
     "verification_code": {
-        "title": "Code de vérification",
-        "salutation": "Vous avez demandé un code de vérification 2FA",
+        "default": {
+            "title": "Code de vérification",
+            "salutation": "Vous avez demandé un code de vérification 2FA"
+        },
+        "email": {
+            "title": "Code de vérification par e-mail",
+            "salutation": "Vous avez demandé à changer votre adresse e-mail"
+        },
         "message": "Votre code de vérification est:<br>{code}",
         "closing": "Le code de vérification est valable pendant {expiration} minutes. Veuillez ne pas partager ce code de vérification avec d'autres personnes. Si vous n'avez pas demandé de code de vérification, veuillez contacter immédiatement le service d'assistance via [url:https://services.dfx.swiss/support]."
     }

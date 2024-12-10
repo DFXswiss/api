@@ -14,6 +14,7 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -49,6 +50,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly bankService: BankService,
   ) {}
 
   onModuleInit() {
@@ -229,6 +231,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
+        const bankIn = entity.bankTx ? await this.bankService.getBankByIban(entity.bankTx.accountIban) : undefined;
+
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           amountInChf,
@@ -237,6 +241,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           entity.outputAsset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
+          bankIn.name,
+          undefined,
           entity.user,
         );
 

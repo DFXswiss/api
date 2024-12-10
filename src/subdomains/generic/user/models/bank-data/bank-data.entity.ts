@@ -1,8 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum BankDataType {
@@ -23,48 +23,56 @@ export enum BankDataVerificationError {
 }
 
 @Entity()
-@Index((bankData: BankData) => [bankData.iban, bankData.userData], {
-  unique: true,
-  where: `type = '${BankDataType.USER}'`,
-})
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
-  name: string;
+  name?: string;
 
   @Column({ nullable: true })
-  approved: boolean;
+  approved?: boolean;
 
   @Column({ length: 256 })
   @Index({ unique: true, where: 'approved = 1' })
   iban: string;
 
   @Column({ length: 256, nullable: true })
-  type: BankDataType;
+  type?: BankDataType;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @Column({ nullable: true })
-  manualApproved: boolean;
+  manualApproved?: boolean;
 
   @Column({ length: 256, nullable: true })
-  label: string;
+  label?: string;
+
+  @Column({ default: true })
+  active: boolean;
 
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
-  preferredCurrency: Fiat;
+  preferredCurrency?: Fiat;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
-
-  @OneToMany(() => Buy, (buy) => buy.bankData)
-  buys: Buy[];
 
   @OneToMany(() => Sell, (sell) => sell.bankData)
   sells: Sell[];
 
   // --- ENTITY METHODS --- //
 
-  activate(): UpdateResult<BankData> {
+  activate(dto: CreateBankAccountDto): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
+      active: true,
+      label: dto.label ?? null,
+      preferredCurrency: dto.preferredCurrency ?? null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  allow(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
       approved: true,
       comment: 'Pass',
@@ -75,7 +83,7 @@ export class BankData extends IEntity {
     return [this.id, update];
   }
 
-  deactivate(comment?: string): UpdateResult<BankData> {
+  forbid(comment?: string): UpdateResult<BankData> {
     const update: Partial<BankData> = {
       approved: false,
       comment,

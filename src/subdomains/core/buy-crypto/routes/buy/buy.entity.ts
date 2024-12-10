@@ -1,11 +1,9 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Route } from 'src/subdomains/core/route/route.entity';
-import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../process/entities/buy-crypto.entity';
 
@@ -13,7 +11,7 @@ import { BuyCrypto } from '../../process/entities/buy-crypto.entity';
 @Index((buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
 export class Buy extends IEntity {
   @Column({ length: 256, nullable: true })
-  iban: string;
+  iban?: string;
 
   @Column({ length: 256, unique: true })
   bankUsage: string;
@@ -30,21 +28,15 @@ export class Buy extends IEntity {
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
-  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.buys, { nullable: true })
-  bankAccount?: BankAccount;
-
-  @ManyToOne(() => BankData, (bankData) => bankData.buys, { nullable: true })
-  bankData?: BankData;
-
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  asset: Asset;
+  asset?: Asset;
 
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
-  deposit: Deposit;
+  deposit?: Deposit;
 
   @OneToOne(() => Route, { eager: true, nullable: true })
   @JoinColumn()
-  route: Route;
+  route?: Route;
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
   buyCryptos: BuyCrypto[];

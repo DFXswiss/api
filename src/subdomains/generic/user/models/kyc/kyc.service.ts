@@ -11,7 +11,9 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { ContentType, FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import {
   Blank,
@@ -30,7 +32,6 @@ import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
-import { KycUserDataDto } from './dto/kyc-user-data.dto';
 
 @Injectable()
 export class KycService {
@@ -52,14 +53,6 @@ export class KycService {
     const user = await this.getUser(code, userDataId);
 
     return this.countryService.getCountriesByKycType(user.kycType);
-  }
-
-  async updateKycData(code: string, data: KycUserDataDto, userDataId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userDataId);
-    if (user.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
-
-    const updatedUser = await this.userDataService.updateKycData(user, data);
-    return this.createKycInfoBasedOn(updatedUser);
   }
 
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
@@ -197,7 +190,9 @@ export class KycService {
     const document = this.getFileFor(type, allDocuments);
     if (!document) throw new NotFoundException('File not found');
 
-    return this.documentService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+    return this.documentService
+      .downloadFile(FileCategory.USER, user.userData.id, document.type, document.name)
+      .then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //

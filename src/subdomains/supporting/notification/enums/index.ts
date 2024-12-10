@@ -36,7 +36,6 @@ export enum MailContext {
   KYC_CHANGED = 'KycChanged',
   KYC_FAILED = 'KycFailed',
   KYC_REMINDER = 'KycReminder',
-  IDENT_STARTED = 'IdentStarted',
   CUSTOM = 'Custom',
   REF_REWARD = 'RefReward',
   MONITORING = 'Monitoring',
@@ -47,4 +46,5 @@ export enum MailContext {
   UNASSIGNED_TX = 'UnassignedTx',
   SUPPORT_MESSAGE = 'SupportMessage',
   VERIFICATION_MAIL = 'VerificationMail',
+  EMAIL_VERIFICATION = 'EmailVerification',
 }
