@@ -15,6 +15,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -226,7 +227,11 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
-        const bankIn = entity.bankTx ? await this.bankService.getBankByIban(entity.bankTx.accountIban) : undefined;
+        const bankIn = entity.bankTx
+          ? await this.bankService.getBankByIban(entity.bankTx.accountIban).then((b) => b.name)
+          : entity.checkoutTx
+          ? CardBankName.CHECKOUT
+          : undefined;
 
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -236,7 +241,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           entity.outputAsset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
-          bankIn.name,
+          bankIn,
           undefined,
           entity.user,
         );
