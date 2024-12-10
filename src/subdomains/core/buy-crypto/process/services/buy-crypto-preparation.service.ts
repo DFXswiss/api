@@ -26,6 +26,7 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
 
@@ -49,6 +50,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly countryService: CountryService,
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankService: BankService,
   ) {}
 
@@ -182,6 +184,9 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
             await this.userDataService.triggerVideoIdent(entity.userData);
         }
+
+        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+          await this.buyCryptoNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);

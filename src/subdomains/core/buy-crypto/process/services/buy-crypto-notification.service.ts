@@ -119,6 +119,41 @@ export class BuyCryptoNotificationService {
     }
   }
 
+  async paymentProcessing(entity: BuyCrypto): Promise<void> {
+    try {
+      if (entity.userData.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context: MailContext.BUY_CRYPTO_PROCESSING,
+          input: {
+            userData: entity.userData,
+            title: `${MailTranslationKey.PROCESSING}.title`,
+            salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
+            suffix: [
+              {
+                key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                params: { url: entity.transaction.url },
+              },
+              {
+                key: `${MailTranslationKey.GENERAL}.link`,
+                params: { url: entity.transaction.url, urlText: entity.transaction.url },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              { key: `${MailTranslationKey.GENERAL}.support` },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: `${MailTranslationKey.GENERAL}.thanks` },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      }
+
+      await this.buyCryptoRepo.update(...entity.confirmSentMail());
+    } catch (e) {
+      this.logger.error(`Failed to send buy-crypto processing mail ${entity.id}:`, e);
+    }
+  }
+
   private async pendingBuyCrypto(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
       where: {
