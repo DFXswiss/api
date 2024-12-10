@@ -172,12 +172,14 @@ export class UserService {
     userData?: UserData;
   }): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
+    const userIsActive = userData?.status === UserDataStatus.ACTIVE;
 
     user.ip = userIp;
     user.ipCountry = this.geoLocationService.getCountry(userIp);
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
+    user.status = userIsActive ? UserStatus.ACTIVE : UserStatus.NA;
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
@@ -190,6 +192,7 @@ export class UserService {
         currency,
       }));
     user = await this.userRepo.save(user);
+    userIsActive && (await this.userRepo.setUserRef(user, userData.kycLevel));
 
     try {
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
