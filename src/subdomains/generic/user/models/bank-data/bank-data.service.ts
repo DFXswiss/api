@@ -93,12 +93,12 @@ export class BankDataService {
 
         if (existing) {
           const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
-          await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+          await this.bankDataRepo.update(...existing.forbid(existingError.join(';')));
         }
 
-        await this.bankDataRepo.update(...entity.activate());
+        await this.bankDataRepo.update(...entity.allow());
       } else {
-        await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
+        await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
     } catch (e) {
       this.logger.error(`Failed to verify bankData ${entity.id}:`, e);
@@ -250,7 +250,10 @@ export class BankDataService {
       relations: { userData: true },
     });
     if (existing) {
-      if (userData.id === existing.userData.id) return existing;
+      if (userData.id === existing.userData.id) {
+        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
+        return existing;
+      }
 
       if (sendMergeRequest)
         await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);

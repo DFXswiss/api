@@ -3,44 +3,44 @@ import { Column } from 'typeorm';
 
 export class Reward extends IEntity {
   @Column({ type: 'float', nullable: true })
-  inputAmount: number;
+  inputAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  inputAsset: string;
+  inputAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmount: number;
+  inputReferenceAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  inputReferenceAsset: string;
+  inputReferenceAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  outputReferenceAmount: number;
+  outputReferenceAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  outputReferenceAsset: string;
+  outputReferenceAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  outputAmount: number;
+  outputAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  outputAsset: string;
+  outputAsset?: string;
 
   @Column({ length: 256, nullable: true })
-  txId: string;
+  txId?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  outputDate: Date;
+  outputDate?: Date;
 
   @Column({ type: 'float', nullable: true })
-  amountInChf: number;
+  amountInChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInEur: number;
+  amountInEur?: number;
 
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailSendDate: Date;
+  mailSendDate?: Date;
 }

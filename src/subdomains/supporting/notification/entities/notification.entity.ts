@@ -17,7 +17,7 @@ export class Notification extends IEntity {
   context: MailContext;
 
   @Column({ length: 'MAX', nullable: true })
-  correlationId: string;
+  correlationId?: string;
 
   @Column({ length: 'MAX' })
   data: string;
@@ -29,16 +29,16 @@ export class Notification extends IEntity {
   isComplete: boolean;
 
   @Column({ length: 'MAX', nullable: true })
-  error: string;
+  error?: string;
 
   @Column({ default: false })
   suppressRecurring: boolean;
 
   @Column({ type: 'float', nullable: true })
-  debounce: number;
+  debounce?: number;
 
   @ManyToOne(() => UserData, { nullable: true })
-  userData: UserData;
+  userData?: UserData;
 
   isSuppressed(existingNotification: Notification): boolean {
     return (

@@ -18,47 +18,47 @@ export class PaymentLinkPayment extends IEntity {
   @Index({ unique: true, where: `status = '${PaymentLinkPaymentStatus.PENDING}'` })
   link: PaymentLink;
 
-  @Column({ length: 256, nullable: false, unique: true })
+  @Column({ length: 256, unique: true })
   uniqueId: string;
 
   @Column({ length: 256, nullable: true })
-  externalId: string;
+  externalId?: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: PaymentLinkPaymentStatus;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amount: number;
 
   @ManyToOne(() => Fiat, { nullable: false, eager: true })
   currency: Fiat;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   mode: PaymentLinkPaymentMode;
 
-  @Column({ type: 'datetime2', nullable: false })
+  @Column({ type: 'datetime2' })
   expiryDate: Date;
 
-  @Column({ nullable: false, default: 0 })
+  @Column({ default: 0 })
   txCount: number;
 
-  @Column({ nullable: false, default: false })
+  @Column({ default: false })
   isConfirmed: boolean;
 
   @Column({ length: 256, nullable: true })
-  deviceId: string;
+  deviceId?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  deviceCommand: string;
+  deviceCommand?: string;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
-  cryptoInputs: CryptoInput[];
+  cryptoInputs?: CryptoInput[];
 
   @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
-  activations: PaymentActivation[];
+  activations?: PaymentActivation[];
 
   @OneToMany(() => PaymentQuote, (quote) => quote.payment, { nullable: true })
-  quotes: PaymentQuote[];
+  quotes?: PaymentQuote[];
 
   // --- ENTITY METHODS --- //
 

@@ -28,14 +28,14 @@ export class Swap extends DepositRoute {
   user: User;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  asset: Asset;
+  asset?: Asset;
 
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
-  targetDeposit: Deposit;
+  targetDeposit?: Deposit;
 
   @OneToOne(() => Route, { eager: true, nullable: true })
   @JoinColumn()
-  route: Route;
+  route?: Route;
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoRoute)
   buyCryptos: BuyCrypto[];

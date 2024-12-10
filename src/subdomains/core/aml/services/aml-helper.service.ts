@@ -3,6 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -61,7 +62,8 @@ export class AmlHelperService {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
       if (!entity.userData.hasBankTxVerification) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
-      if (!entity.userData.letterSentDate) errors.push(AmlError.NO_LETTER);
+      if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
+        errors.push(AmlError.NO_LETTER);
       if (!entity.userData.amlListAddedDate) errors.push(AmlError.NO_AML_LIST);
       if (!entity.userData.kycFileId && (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT))
         errors.push(AmlError.NO_KYC_FILE_ID);
@@ -105,8 +107,7 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
-        if ((ibanCountry && !ibanCountry.bankEnable) || (nationality && !nationality.bankEnable))
-          errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+        if (nationality && !nationality.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
 
         if (
           blacklist.some((b) =>
@@ -146,8 +147,7 @@ export class AmlHelperService {
         if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
-        if ((ibanCountry && !ibanCountry.checkoutEnable) || (nationality && !nationality.checkoutEnable))
-          errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+        if (nationality && !nationality.checkoutEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (
           !bankData.manualApproved &&
           entity.checkoutTx.cardName &&
@@ -171,16 +171,14 @@ export class AmlHelperService {
         if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
-        if ((ibanCountry && !ibanCountry.cryptoEnable) || (nationality && !nationality.cryptoEnable))
-          errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+        if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
         }
       }
     } else {
       // buyFiat
-      if ((ibanCountry && !ibanCountry.cryptoEnable) || (nationality && !nationality.cryptoEnable))
-        errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+      if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);

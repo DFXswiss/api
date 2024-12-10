@@ -22,6 +22,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -378,6 +379,8 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    bankIn: CardBankName | IbanBankName,
+    bankOut: CardBankName | IbanBankName,
     from: Active,
     to: Active,
   ): Promise<InternalFeeDto> {
@@ -393,6 +396,8 @@ export class UserService {
       txVolume: undefined,
       specialCodes: [],
       allowCachedBlockchainFee: true,
+      bankIn,
+      bankOut,
     });
   }
 

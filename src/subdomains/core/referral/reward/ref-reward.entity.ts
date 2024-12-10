@@ -23,17 +23,17 @@ export class RefReward extends Reward {
   user: User;
 
   @Column({ length: 256, nullable: true })
-  targetAddress: string;
+  targetAddress?: string;
 
   @Column({ length: 256, nullable: true })
-  targetBlockchain: Blockchain;
+  targetBlockchain?: Blockchain;
 
   @Column({ nullable: true })
-  status: RewardStatus;
+  status?: RewardStatus;
 
   @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
-  transaction: Transaction;
+  transaction?: Transaction;
 
   //*** FACTORY METHODS ***//
 

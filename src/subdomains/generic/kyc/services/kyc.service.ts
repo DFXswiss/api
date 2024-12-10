@@ -683,7 +683,6 @@ export class KycService {
           kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
         }
 
-        if (!user.getStepsWith(KycStepName.IDENT).length) await this.kycNotificationService.sendIdentStartedMail(user);
         break;
 
       case KycStepName.DFX_APPROVAL:
@@ -847,7 +846,7 @@ export class KycService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true, kycSteps: true });
+    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true, kycSteps: { userData: true } });
   }
 
   private async getUserByTransactionOrThrow(
