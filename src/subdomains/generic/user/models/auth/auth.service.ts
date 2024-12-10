@@ -101,22 +101,13 @@ export class AuthService {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
 
-    if (userData) {
-      if (existingUser) {
-        if (existingUser.userData.id === userDataId)
-          return { accessToken: this.generateUserToken(existingUser, userIp) };
-        throw new ConflictException('User already exists');
-      }
-
-      const newUser = await this.userService.createUser({ userDetails: dto, userIp, userData });
-      await this.userDataService.addNewUser(userData, newUser);
-
-      return { accessToken: this.generateUserToken(newUser, userIp) };
+    if (userData && existingUser && existingUser.userData.id !== userDataId) {
+      throw new ConflictException('Address already linked to another account');
     }
 
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false).catch((e) => {
+      : this.doSignUp(dto, userIp, false, userData).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
           throw e;
         });
@@ -129,7 +120,12 @@ export class AuthService {
     return this.doSignUp(dto, userIp, isCustodial);
   }
 
-  private async doSignUp(dto: CreateUserDto, userIp: string, isCustodial: boolean) {
+  private async doSignUp(
+    dto: CreateUserDto,
+    userIp: string,
+    isCustodial: boolean,
+    userData?: UserData,
+  ): Promise<AuthResponseDto> {
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
       dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
@@ -148,6 +144,7 @@ export class AuthService {
       userOrigin: ref?.origin,
       wallet,
       specialCode: dto.specialCode ?? dto.discountCode,
+      userData,
     });
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
