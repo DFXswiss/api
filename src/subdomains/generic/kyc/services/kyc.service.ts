@@ -406,7 +406,7 @@ export class KycService {
       transactionId,
       { webhook: dto, data },
       result,
-      dto.reviewResult.rejectLabels,
+      dto.reviewResult?.rejectLabels,
     );
   }
 

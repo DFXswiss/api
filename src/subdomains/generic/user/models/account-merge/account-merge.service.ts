@@ -65,6 +65,8 @@ export class AccountMergeService {
             key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
             params: { url, urlText: url },
           },
+          { key: MailKey.SPACE, params: { value: '2' } },
+          { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.closing` },
           { key: MailKey.SPACE, params: { value: '4' } },
         ],
         suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
