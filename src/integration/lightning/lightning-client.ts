@@ -180,7 +180,8 @@ export class LightningClient {
   }
 
   async getLnurlDevice(id: string, params: any): Promise<any> {
-    const url = `${Config.blockchain.lightning.lnbits.apiUrl}/lnurldevice/api/v1/lnurl/${id}`;
+    const baseUrl = Config.blockchain.lightning.lnbits.lnurlpUrl.replace('/lnurlp', '');
+    const url = `${baseUrl}/lnurldevice/api/v1/lnurl/${id}`;
     return this.http.get(url, this.httpLnBitsConfig(params));
   }
 
