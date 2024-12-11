@@ -9,6 +9,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { SpecialExternalAccountType } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { CheckStatus } from '../aml/enums/check-status.enum';
@@ -17,7 +18,6 @@ import { Swap } from '../buy-crypto/routes/swap/swap.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import { ConfirmDto } from '../sell-crypto/route/dto/confirm.dto';
 import { Sell } from '../sell-crypto/route/sell.entity';
-import { SpecialExternalAccountType } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 
 export type RefundValidation = {
   refundIban?: string;
