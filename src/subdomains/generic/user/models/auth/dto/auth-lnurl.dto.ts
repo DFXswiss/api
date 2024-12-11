@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
-import { OptionalSignUpDto } from '../../user/dto/create-user.dto';
+import { OptionalSignUpDto } from './auth-credentials.dto';
 
 export class AuthLnurlSignupDto extends OptionalSignUpDto {
   @ApiProperty()
