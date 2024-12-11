@@ -3,50 +3,20 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IsNull, MoreThan } from 'typeorm';
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
 @Injectable()
 export class BankAccountService {
-  private readonly logger = new DfxLogger(BankAccountService);
-
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
     private readonly ibanService: IbanService,
     private readonly countryService: CountryService,
   ) {}
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async process() {
-    if (DisabledProcess(Process.BANK_ACCOUNT_DUPLICATE_SYNC)) return;
-
-    const entities = await this.bankAccountRepo.find({
-      where: { synced: IsNull() },
-      take: 5000,
-    });
-
-    for (const entity of entities) {
-      try {
-        const existing = await this.bankAccountRepo.findBy({ id: MoreThan(entity.id), iban: entity.iban });
-        if (existing.length) {
-          for (const duplicate of existing) {
-            await this.bankAccountRepo.delete({ id: duplicate.id });
-          }
-        }
-
-        await this.bankAccountRepo.update(entity.id, { synced: true });
-      } catch (e) {
-        this.logger.error(`Error in bankAccount duplicate remove ${entity.id}:`, e);
-        await this.bankAccountRepo.update(entity.id, { synced: false });
-      }
-    }
-  }
 
   async getBankAccountByKey(key: string, value: any): Promise<BankAccount> {
     return this.bankAccountRepo
@@ -90,31 +60,15 @@ export class BankAccountService {
 
   // --- HELPER METHODS --- //
 
-  async getOrCreateBankAccountInternal(iban: string, userData?: UserData): Promise<BankAccount> {
-    const bankAccounts = await this.bankAccountRepo.find({
-      where: { iban },
-      relations: { userData: true },
-    });
-
-    if (userData)
-      return (
-        bankAccounts.find((b) => b.userData?.id === userData.id) ??
-        (await this.createBankAccountInternal(iban, userData, bankAccounts[0]))
-      );
-
-    return bankAccounts.length ? bankAccounts[0] : this.createBankAccountInternal(iban);
+  async getOrCreateBankAccountInternal(iban: string): Promise<BankAccount> {
+    return this.bankAccountRepo.findOneBy({ iban }) ?? this.createBankAccountInternal(iban);
   }
 
-  private async createBankAccountInternal(
-    iban: string,
-    userData?: UserData,
-    copyFrom?: BankAccount,
-  ): Promise<BankAccount> {
-    if (!(await this.isValidIbanCountry(iban, userData?.kycType)))
+  private async createBankAccountInternal(iban: string, copyFrom?: BankAccount): Promise<BankAccount> {
+    if (!(await this.isValidIbanCountry(iban)))
       throw new BadRequestException('Iban country is currently not supported');
 
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
-    if (userData) bankAccount.userData = userData;
 
     return this.bankAccountRepo.save(bankAccount);
   }

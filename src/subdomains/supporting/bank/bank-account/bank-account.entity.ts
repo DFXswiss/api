@@ -1,7 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 
 export interface BankAccountInfos {
   result?: string;
@@ -29,22 +27,9 @@ export interface BankAccountInfos {
 }
 
 @Entity()
-@Index((account: BankAccount) => [account.iban, account.userData], { unique: true })
 export class BankAccount extends IEntity implements BankAccountInfos {
-  @Column({ length: 256 })
+  @Column({ length: 256, unique: true })
   iban: string;
-
-  @Column({ nullable: true })
-  synced?: boolean;
-
-  @Column({ length: 256, nullable: true })
-  label?: string;
-
-  @ManyToOne(() => UserData, (user) => user.bankAccounts, { nullable: true })
-  userData?: UserData;
-
-  @ManyToOne(() => Fiat, { nullable: true, eager: true })
-  preferredCurrency?: Fiat;
 
   @Column({ length: 256, nullable: true })
   result?: string;
@@ -111,7 +96,4 @@ export class BankAccount extends IEntity implements BankAccountInfos {
 
   @Column({ nullable: true })
   ibanWwwOccurrences?: number;
-
-  @Column({ default: true })
-  active: boolean;
 }

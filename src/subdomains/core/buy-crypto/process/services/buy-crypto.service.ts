@@ -420,7 +420,7 @@ export class BuyCryptoService {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban, buyCrypto.userData)))
+    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount)
