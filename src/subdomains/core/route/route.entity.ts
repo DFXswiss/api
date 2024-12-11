@@ -10,17 +10,17 @@ import { Sell } from '../sell-crypto/route/sell.entity';
 export class Route extends IEntity {
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'label IS NOT NULL' })
-  label: string;
+  label?: string;
 
   // References
   @OneToOne(() => Buy, (buy) => buy.route, { nullable: true })
-  buy: Buy;
+  buy?: Buy;
 
   @OneToOne(() => Sell, (sell) => sell.route, { nullable: true })
-  sell: Sell;
+  sell?: Sell;
 
   @OneToOne(() => Swap, (swap) => swap.route, { nullable: true })
-  swap: Swap;
+  swap?: Swap;
 
   // --- ENTITY METHODS --- //
 

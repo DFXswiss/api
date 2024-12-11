@@ -6,7 +6,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
@@ -14,7 +14,6 @@ import { BankAccountRepository } from './bank-account.repository';
 export class BankAccountService {
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
-    private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
     private readonly countryService: CountryService,
   ) {}
@@ -44,6 +43,17 @@ export class BankAccountService {
 
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
+      await this.reloadBankAccount(bankAccount);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(3600)
+  async reloadUncheckedBankAccounts(): Promise<void> {
+    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
+
+    const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull() });
+    for (const bankAccount of bankAccounts) {
       await this.reloadBankAccount(bankAccount);
     }
   }

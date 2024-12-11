@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active } from 'src/shared/models/active';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -20,8 +21,8 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
-import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -35,7 +36,7 @@ import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
@@ -57,6 +58,7 @@ export class UserService {
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
+    private readonly siftService: SiftService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -88,7 +90,10 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true, wallet: true } });
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: { userData: true, wallet: true },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -187,30 +192,47 @@ export class UserService {
     return user;
   }
 
-  async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
-    user.userData = update;
+    // update
+    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
 
-    return { user: await this.toDto(user, true), isKnownUser };
+    return this.toDto(user, true);
   }
 
-  async updateUser(
-    userDataId: number,
-    dto: UpdateUserDto,
-    userId?: number,
-  ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
+  async updateUser(userDataId: number, dto: UpdateUserDto, userId?: number): Promise<UserV2Dto> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
+    const update = await this.userDataService.updateUserSettings(userData, dto);
 
-    return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
+    return UserDtoMapper.mapUser(update, userId);
+  }
+
+  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+
+    await this.userDataService.updateUserMail(userData, dto, ip);
+  }
+
+  async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+
+    const user = await this.userDataService.verifyUserMail(userData, token);
+
+    return UserDtoMapper.mapUser(user, userId);
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
@@ -220,18 +242,18 @@ export class UserService {
     await this.userDataService.updateUserName(user.userData, dto);
   }
 
-  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
-    if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
-
-    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
-
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, {
-      mail: dto.mail,
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<UserDetailDto> {
+    const user = await this.userRepo.findOne({
+      where: { id },
+      relations: { userData: { users: true }, wallet: true },
     });
-    user.userData = update;
+    if (user.userData.kycLevel !== KycLevel.LEVEL_0 || (user.userData.mail && user.userData.mail !== dto.mail))
+      throw new BadRequestException('KYC already started, mail already set');
 
-    return { user: await this.toDto(user, true), isKnownUser };
+    user.userData = await this.userDataService.trySetUserMail(user.userData, dto.mail);
+    user.userData = await this.userDataService.updatePersonalData(user.userData, dto);
+
+    return this.toDto(user, true);
   }
 
   async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {
@@ -240,6 +262,9 @@ export class UserService {
 
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
+
+    if (update.status && update.status === UserStatus.BLOCKED)
+      await this.siftService.sendUserBlocked(user, update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
@@ -354,6 +379,8 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    bankIn: CardBankName | IbanBankName,
+    bankOut: CardBankName | IbanBankName,
     from: Active,
     to: Active,
   ): Promise<InternalFeeDto> {
@@ -369,6 +396,8 @@ export class UserService {
       txVolume: undefined,
       specialCodes: [],
       allowCachedBlockchainFee: true,
+      bankIn,
+      bankOut,
     });
   }
 

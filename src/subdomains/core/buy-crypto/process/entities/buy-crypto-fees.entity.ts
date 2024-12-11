@@ -14,31 +14,31 @@ export class BuyCryptoFee extends IEntity {
   feeReferenceAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
-  estimatePurchaseFeeAmount: number;
+  estimatePurchaseFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  estimatePurchaseFeePercent: number;
+  estimatePurchaseFeePercent?: number;
 
   @Column({ type: 'float', nullable: true })
-  estimatePayoutFeeAmount: number;
+  estimatePayoutFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  estimatePayoutFeePercent: number;
+  estimatePayoutFeePercent?: number;
 
   @Column({ type: 'float', nullable: true })
-  actualPurchaseFeeAmount: number;
+  actualPurchaseFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  actualPurchaseFeePercent: number;
+  actualPurchaseFeePercent?: number;
 
   @Column({ type: 'float', nullable: true })
-  actualPayoutFeeAmount: number;
+  actualPayoutFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  actualPayoutFeePercent: number;
+  actualPayoutFeePercent?: number;
 
   @Column({ type: 'float', nullable: true })
-  allowedTotalFeeAmount: number;
+  allowedTotalFeeAmount?: number;
 
   //*** FACTORY METHODS ***//
 

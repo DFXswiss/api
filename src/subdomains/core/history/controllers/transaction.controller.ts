@@ -47,6 +47,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
 import {
@@ -61,7 +62,7 @@ import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-c
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -101,6 +102,7 @@ export class TransactionController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly feeService: FeeService,
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
   // --- JOBS --- //
@@ -323,9 +325,12 @@ export class TransactionController {
 
     if (transaction.targetEntity instanceof BuyCrypto) {
       try {
+        const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
+
         refundTarget = transaction.targetEntity.checkoutTx
           ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
           : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
+            !multiAccountIbans.includes(transaction.targetEntity.bankTx?.iban) &&
             (await this.transactionUtilService.validateChargebackIban(transaction.targetEntity.bankTx.iban))
           ? transaction.targetEntity.bankTx.iban
           : transaction.targetEntity.chargebackIban;

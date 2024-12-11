@@ -28,7 +28,7 @@ export class PaymentActivation extends IEntity {
   paymentRequest: string;
 
   @Column({ length: 256, nullable: true })
-  paymentHash: string;
+  paymentHash?: string;
 
   @Column({ type: 'datetime2' })
   expiryDate: Date;
@@ -40,5 +40,5 @@ export class PaymentActivation extends IEntity {
   payment: PaymentLinkPayment;
 
   @ManyToOne(() => PaymentQuote, (q) => q.activations, { nullable: true })
-  quote: PaymentQuote;
+  quote?: PaymentQuote;
 }

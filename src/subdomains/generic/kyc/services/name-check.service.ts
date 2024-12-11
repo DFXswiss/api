@@ -145,7 +145,7 @@ export class NameCheckService implements OnModuleInit {
       bankData,
       riskEvaluationDate: existing?.riskEvaluationDate,
       riskEvaluation: existing?.riskEvaluation,
-      comment: [existing?.comment, comment].join(';'),
+      comment: existing?.comment ? [existing.comment, comment].join(';') : comment,
     });
 
     await this.nameCheckLogRepo.save(entity);

@@ -22,8 +22,8 @@ export class Log extends IEntity {
   message: string;
 
   @Column({ length: 256, nullable: true })
-  category: string;
+  category?: string;
 
   @Column({ nullable: true })
-  valid: boolean;
+  valid?: boolean;
 }

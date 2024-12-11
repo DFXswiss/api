@@ -14,6 +14,8 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -24,6 +26,7 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
 
@@ -47,6 +50,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly countryService: CountryService,
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly bankService: BankService,
   ) {}
 
   onModuleInit() {
@@ -180,6 +185,9 @@ export class BuyCryptoPreparationService implements OnModuleInit {
             await this.userDataService.triggerVideoIdent(entity.userData);
         }
 
+        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+          await this.buyCryptoNotificationService.paymentProcessing(entity);
+
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
 
@@ -224,6 +232,12 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
+        const bankIn = entity.bankTx
+          ? await this.bankService.getBankByIban(entity.bankTx.accountIban).then((b) => b.name)
+          : entity.checkoutTx
+          ? CardBankName.CHECKOUT
+          : undefined;
+
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           amountInChf,
@@ -232,6 +246,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           entity.outputAsset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
+          bankIn,
+          undefined,
           entity.user,
         );
 

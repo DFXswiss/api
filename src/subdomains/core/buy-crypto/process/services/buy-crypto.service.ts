@@ -37,7 +37,7 @@ import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checko
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction.dto';
+import { UpdateTransactionInternalDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction-internal.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -53,6 +53,7 @@ import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
@@ -85,6 +86,7 @@ export class BuyCryptoService {
     private readonly userDataService: UserDataService,
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -277,6 +279,9 @@ export class BuyCryptoService {
       isComplete: dto.isComplete,
     };
 
+    if (BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
+      await this.buyCryptoNotificationService.paymentProcessing(entity);
+
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
@@ -418,9 +423,8 @@ export class BuyCryptoService {
     if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    if (dto.chargebackAllowedDate && chargebackAmount) {
+    if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto });
-    }
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
@@ -589,7 +593,7 @@ export class BuyCryptoService {
 
   private async createEntity(
     entity: BuyCrypto,
-    dto: UpdateTransactionDto,
+    dto: UpdateTransactionInternalDto,
     request?: TransactionRequest,
   ): Promise<BuyCrypto> {
     entity.outputAsset = entity.outputReferenceAsset = entity.buy?.asset ?? entity.cryptoRoute.asset;

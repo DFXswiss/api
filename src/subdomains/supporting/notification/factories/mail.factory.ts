@@ -24,7 +24,6 @@ export enum MailTranslationKey {
   FIAT_CHARGEBACK = 'mail.payment.chargeback.fiat',
   REFERRAL = 'mail.referral',
   KYC = 'mail.kyc',
-  IDENT_STARTED = 'mail.kyc.identStarted',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
   KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
@@ -39,6 +38,7 @@ export enum MailTranslationKey {
   SUPPORT_MESSAGE = 'mail.support_message',
   VERIFICATION_CODE = 'mail.verification_code',
   CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
+  PROCESSING = 'mail.payment.processing',
 }
 
 export enum MailKey {

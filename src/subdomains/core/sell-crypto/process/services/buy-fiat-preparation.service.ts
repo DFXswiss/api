@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -9,6 +10,7 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -19,6 +21,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
@@ -38,6 +41,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly userService: UserService,
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
+    private readonly countryService: CountryService,
   ) {}
 
   onModuleInit() {
@@ -118,6 +123,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
+        const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
+
         // check if amlCheck changed (e.g. reset or refund)
         if (
           entity.amlCheck === CheckStatus.PENDING &&
@@ -135,6 +142,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
             last365dVolume,
             bankData,
             blacklist,
+            ibanCountry,
           ),
         );
 
@@ -145,6 +153,9 @@ export class BuyFiatPreparationService implements OnModuleInit {
           if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
             await this.userDataService.triggerVideoIdent(entity.userData);
         }
+
+        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+          await this.buyFiatNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
@@ -187,6 +198,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
           entity.outputAsset,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
+          undefined,
+          IbanBankName.MAERKI,
           entity.user,
         );
 

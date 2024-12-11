@@ -10,12 +10,14 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { CheckStatus } from '../aml/enums/check-status.enum';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { Swap } from '../buy-crypto/routes/swap/swap.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import { ConfirmDto } from '../sell-crypto/route/dto/confirm.dto';
 import { Sell } from '../sell-crypto/route/sell.entity';
+import { SpecialExternalAccountType } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 
 export type RefundValidation = {
   refundIban?: string;
@@ -30,6 +32,7 @@ export class TransactionUtilService {
     private readonly blockchainRegistry: BlockchainRegistryService,
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
   static validateRefund(entity: BuyCrypto | BuyFiat, dto: RefundValidation): void {
@@ -68,6 +71,35 @@ export class TransactionUtilService {
 
   async validateChargebackIban(iban: string): Promise<boolean> {
     const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban);
+    const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
+    const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
+
+    if (multiAccountIbans.includes(iban)) throw new BadRequestException('MultiAccountIban not allowed');
+    if (
+      blockedAccounts.some(
+        (b) =>
+          [
+            SpecialExternalAccountType.BANNED_IBAN,
+            SpecialExternalAccountType.BANNED_IBAN_BUY,
+            SpecialExternalAccountType.BANNED_IBAN_SELL,
+            SpecialExternalAccountType.BANNED_IBAN_AML,
+          ].includes(b.type) && b.value === iban,
+      )
+    )
+      throw new BadRequestException('Iban not allowed');
+    if (
+      blockedAccounts.some(
+        (b) =>
+          [
+            SpecialExternalAccountType.BANNED_IBAN,
+            SpecialExternalAccountType.BANNED_IBAN_BUY,
+            SpecialExternalAccountType.BANNED_IBAN_SELL,
+            SpecialExternalAccountType.BANNED_IBAN_AML,
+          ].includes(b.type) && b.value === bankAccount?.bic,
+      )
+    )
+      throw new BadRequestException('BIC not allowed');
+
     return (
       bankAccount &&
       (bankAccount.bic || iban.startsWith('CH') || iban.startsWith('LI')) &&
