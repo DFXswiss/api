@@ -86,6 +86,10 @@ export class LightningHelper {
     return `${Config.url()}/lnurlw/cb/${id}`;
   }
 
+  static createLnurldCallbackUrl(id: string, variable: string): string {
+    return `${Config.url()}/lnurld/cb/${id}/${variable}`;
+  }
+
   // --- LNURL --- //
   static encodeLnurl(str: string): string {
     return lnurlEncode(str).toUpperCase();
