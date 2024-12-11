@@ -459,7 +459,7 @@ export class BuyCrypto extends IEntity {
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
-            status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? null : undefined,
+            status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
           };
 
     Object.assign(this, update);
