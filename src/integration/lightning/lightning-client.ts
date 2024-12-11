@@ -179,12 +179,6 @@ export class LightningClient {
     };
   }
 
-  async getLnurlDevice(id: string, params: any): Promise<any> {
-    const baseUrl = Config.blockchain.lightning.lnbits.lnurlpUrl.replace('/lnurlp', '');
-    const url = `${baseUrl}/lnurldevice/api/v1/lnurl/${id}`;
-    return this.http.get(url, this.httpLnBitsConfig(params));
-  }
-
   // --- LNURLp REWRITE --- //
   async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
@@ -313,6 +307,23 @@ export class LightningClient {
       `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`,
       this.httpLnBitsConfig(),
     );
+  }
+
+  // --- LNURLd --- //
+
+  async getLnurlDevice(id: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    const url = `${this.getDeviceUrl()}/${id}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
+  async getLnurlDeviceCallback(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    const url = `${this.getDeviceUrl()}/cb/${id}/${variable}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
+  private getDeviceUrl(): string {
+    const baseUrl = Config.blockchain.lightning.lnbits.lnurlpUrl.replace('/lnurlp', '');
+    return `${baseUrl}/lnurldevice/api/v1/lnurl`;
   }
 
   // --- HELPER METHODS --- //

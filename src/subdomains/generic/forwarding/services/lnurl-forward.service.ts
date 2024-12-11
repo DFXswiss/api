@@ -129,7 +129,16 @@ export class LnUrlForwardService {
   }
 
   // --- LNURLd --- //
-  async lnurldForward(id: string, params: any): Promise<any> {
-    return this.client.getLnurlDevice(id, params);
+  async lnurldForward(deviceId: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    const withdrawRequest = await this.client.getLnurlDevice(deviceId, params);
+
+    const [paymentId, variable] = withdrawRequest.callback.split('/').slice(-2);
+    withdrawRequest.callback = LightningHelper.createLnurldCallbackUrl(paymentId, variable);
+
+    return withdrawRequest;
+  }
+
+  async lnurldCallbackForward(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    return this.client.getLnurlDeviceCallback(id, variable, params);
   }
 }
