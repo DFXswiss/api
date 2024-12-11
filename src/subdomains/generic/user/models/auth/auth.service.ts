@@ -21,7 +21,6 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -34,7 +33,7 @@ import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { SignInDto, SignUpDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
@@ -97,7 +96,7 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
+  async authenticate(dto: SignUpDto, userIp: string): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
@@ -107,14 +106,16 @@ export class AuthService {
         });
   }
 
-  async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signUp(dto: SignUpDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     if (existingUser) throw new ConflictException('User already exists');
 
     return this.doSignUp(dto, userIp, isCustodial);
   }
 
-  private async doSignUp(dto: CreateUserDto, userIp: string, isCustodial: boolean) {
+  private async doSignUp(dto: SignUpDto, userIp: string, isCustodial: boolean) {
+    this.verifyLogin(dto.filter, userIp);
+
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
       dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
@@ -138,7 +139,9 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signIn(dto: AuthCredentialsDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signIn(dto: SignInDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+    this.verifyLogin(dto.filter, userIp);
+
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
 
@@ -154,7 +157,14 @@ export class AuthService {
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
-  private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
+  private async verifyLogin(code: string, userIp: string): Promise<void> {
+    if (code === '1') {
+      const ipLog = await this.ipLogService.getIpLog(userIp);
+      if (ipLog.country !== 'CH') throw new BadRequestException('The country of IP address is not allowed');
+    }
+  }
+
+  private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new ConflictException('User is deactivated or blocked');
 
@@ -272,7 +282,7 @@ export class AuthService {
     }
   }
 
-  private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
+  private async companySignIn(dto: SignInDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
