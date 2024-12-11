@@ -21,6 +21,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
@@ -40,6 +41,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly userService: UserService,
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly countryService: CountryService,
   ) {}
 
@@ -151,6 +153,9 @@ export class BuyFiatPreparationService implements OnModuleInit {
           if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
             await this.userDataService.triggerVideoIdent(entity.userData);
         }
+
+        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+          await this.buyFiatNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);

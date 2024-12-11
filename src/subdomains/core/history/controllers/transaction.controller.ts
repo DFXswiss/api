@@ -331,10 +331,7 @@ export class TransactionController {
           ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
           : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
             !multiAccountIbans.includes(transaction.targetEntity.bankTx?.iban) &&
-            (await this.transactionUtilService.validateChargebackIban(
-              transaction.targetEntity.bankTx.iban,
-              transaction.userData,
-            ))
+            (await this.transactionUtilService.validateChargebackIban(transaction.targetEntity.bankTx.iban))
           ? transaction.targetEntity.bankTx.iban
           : transaction.targetEntity.chargebackIban;
       } catch (_) {

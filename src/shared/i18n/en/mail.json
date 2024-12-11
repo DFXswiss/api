@@ -37,6 +37,10 @@
             "title": "Payout paid out",
             "salutation": "Your payout has been sent to your bank account"
         },
+        "processing": {
+            "title": "Transaction is processed",
+            "salutation": "Your transaction will now be processed"
+        },
         "chargeback": {
             "unconfirmed": {
                 "title": "Action required",

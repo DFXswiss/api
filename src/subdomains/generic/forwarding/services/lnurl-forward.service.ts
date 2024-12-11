@@ -127,4 +127,9 @@ export class LnUrlForwardService {
   async lnurlwCallbackForward(id: string, params: any): Promise<LnurlwInvoiceDto> {
     return this.client.sendLnurlwInvoice(id, params);
   }
+
+  // --- LNURLd --- //
+  async lnurldForward(id: string, params: any): Promise<any> {
+    return this.client.getLnurlDevice(id, params);
+  }
 }

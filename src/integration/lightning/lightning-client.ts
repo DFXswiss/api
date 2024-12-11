@@ -179,6 +179,12 @@ export class LightningClient {
     };
   }
 
+  async getLnurlDevice(id: string, params: any): Promise<any> {
+    const baseUrl = Config.blockchain.lightning.lnbits.lnurlpUrl.replace('/lnurlp', '');
+    const url = `${baseUrl}/lnurldevice/api/v1/lnurl/${id}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
   // --- LNURLp REWRITE --- //
   async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
