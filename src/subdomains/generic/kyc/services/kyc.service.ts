@@ -415,7 +415,7 @@ export class KycService {
     transactionId: string,
     dto: IdNowResult | SumsubResult,
     result: IdentShortResult,
-    reason: IdNowReason[] | SumSubRejectionLabels[],
+    reason: (IdNowReason | SumSubRejectionLabels)[],
   ): Promise<void> {
     if (!transactionId.includes(Config.kyc.transactionPrefix)) {
       this.logger.verbose(`Received webhook call for a different system: ${transactionId}`);
@@ -447,9 +447,14 @@ export class KycService {
         break;
 
       case IdentShortResult.FAIL:
+        // retrigger personal data step, if data was wrong
+        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
+          await this.initiateStep(user, KycStepName.PERSONAL_DATA, undefined, true);
+
         await this.kycStepRepo.update(...kycStep.fail(dto));
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
         await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
+
         break;
 
       default:
@@ -486,7 +491,7 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
-  private getIdentReason(type: IdentType, reason: IdNowReason[] | SumSubRejectionLabels[]): string {
+  private getIdentReason(type: IdentType, reason: (IdNowReason | SumSubRejectionLabels)[]): string {
     return type === IdentType.ID_NOW
       ? getIdNowIdentReason(reason[0])
       : getSumSubReason(reason as SumSubRejectionLabels[]);
