@@ -1,6 +1,8 @@
 import { Inject, OnModuleInit } from '@nestjs/common';
 import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
 import { Config } from 'src/config/config';
+import { AlchemyTransactionDto } from 'src/integration/alchemy/dto/alchemy-transaction.dto';
+import { AlchemyTransactionMapper } from 'src/integration/alchemy/dto/alchemy-transaction.mapper';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
@@ -54,12 +56,17 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+
     const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
+    const transactions = AlchemyTransactionMapper.mapWebhookActivities(relevantTransactions);
 
-    const payInEntries = await this.mapWebhookTransactions(relevantTransactions);
+    const payInEntries = transactions.map((tx) => this.mapAlchemyTransaction(tx, supportedAssets)).filter((p) => p);
 
-    const log = this.createNewLogObject();
-    await this.createPayInsAndSave(payInEntries, log);
+    if (payInEntries.length) {
+      const log = this.createNewLogObject();
+      await this.createPayInsAndSave(payInEntries, log);
+    }
   }
 
   private filterWebhookTransactionsByRelevantAddresses(
@@ -72,30 +79,6 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     );
 
     return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.toAddress));
-  }
-
-  private async mapWebhookTransactions(transactions: AlchemyWebhookActivityDto[]): Promise<PayInEntry[]> {
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
-
-    return transactions.map((tx) => this.doMapWebhookTransaction(tx, supportedAssets)).filter((p) => p);
-  }
-
-  private doMapWebhookTransaction(
-    transaction: AlchemyWebhookActivityDto,
-    supportedAssets: Asset[],
-  ): PayInEntry | undefined {
-    const rawValue = transaction.rawContract.rawValue;
-    if (!rawValue || rawValue === '0x') return;
-
-    return {
-      senderAddresses: transaction.fromAddress,
-      receiverAddress: BlockchainAddress.create(transaction.toAddress, this.blockchain),
-      txId: transaction.hash,
-      txType: this.getTxType(transaction.toAddress),
-      blockHeight: Number(transaction.blockNum),
-      amount: EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals),
-      asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
-    };
   }
 
   // --- ASSET TRANSFERS --- //
@@ -112,23 +95,16 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+
     const relevantAssetTransfers = this.filterAssetTransfersByRelevantAddresses(
       fromAddresses,
       toAddresses,
       assetTransfers,
     );
+    const transactions = AlchemyTransactionMapper.mapAssetTransfers(relevantAssetTransfers);
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
-
-    const payInEntries = relevantAssetTransfers.map((tx) => ({
-      senderAddresses: tx.from,
-      receiverAddress: BlockchainAddress.create(tx.to, this.blockchain),
-      txId: tx.hash,
-      txType: this.getTxType(tx.to),
-      blockHeight: Number(tx.blockNum),
-      amount: EvmUtil.fromWeiAmount(tx.rawContract.value, Number(tx.rawContract.decimal)),
-      asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
-    }));
+    const payInEntries = transactions.map((tx) => this.mapAlchemyTransaction(tx, supportedAssets)).filter((p) => p);
 
     if (payInEntries.length) {
       const log = this.createNewLogObject();
@@ -147,8 +123,7 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
   }
 
   // --- HELPER METHODS --- //
-
-  protected async getPayInAddresses(): Promise<string[]> {
+  private async getPayInAddresses(): Promise<string[]> {
     const routes = await this.repos.depositRoute.find({
       where: { deposit: { blockchains: Like(`%${this.blockchain}%`) } },
       relations: ['deposit'],
@@ -160,13 +135,28 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
     return addresses;
   }
 
-  protected getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
-    return chainId
-      ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
-      : supportedAssets.find((a) => a.type === AssetType.COIN);
+  private mapAlchemyTransaction(transaction: AlchemyTransactionDto, supportedAssets: Asset[]): PayInEntry | undefined {
+    const rawValue = transaction.rawContract.rawValue;
+    if (!rawValue || rawValue === '0x') return;
+
+    return {
+      senderAddresses: transaction.fromAddress,
+      receiverAddress: BlockchainAddress.create(transaction.toAddress, this.blockchain),
+      txId: transaction.hash,
+      txType: this.getTxType(transaction.toAddress),
+      blockHeight: Number(transaction.blockNum),
+      amount: EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals),
+      asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
+    };
   }
 
   private getTxType(address: string): PayInType | undefined {
     return Util.equalsIgnoreCase(this.evmPaymentDepositAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
+  }
+
+  private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
+    return chainId
+      ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
+      : supportedAssets.find((a) => a.type === AssetType.COIN);
   }
 }
