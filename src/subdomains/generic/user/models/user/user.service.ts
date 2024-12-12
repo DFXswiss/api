@@ -179,7 +179,7 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
-    user.status = userIsActive ? UserStatus.ACTIVE : UserStatus.NA;
+    userIsActive && (user.status = UserStatus.ACTIVE);
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
