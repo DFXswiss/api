@@ -114,7 +114,7 @@ export class AuthService {
   }
 
   private async doSignUp(dto: SignUpDto, userIp: string, isCustodial: boolean) {
-    this.verifyLogin(dto.filter, userIp);
+    await this.verifyLogin(dto.filter, userIp);
 
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
@@ -140,7 +140,7 @@ export class AuthService {
   }
 
   async signIn(dto: SignInDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
-    this.verifyLogin(dto.filter, userIp);
+    await this.verifyLogin(dto.filter, userIp);
 
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
