@@ -114,8 +114,6 @@ export class AuthService {
   }
 
   private async doSignUp(dto: SignUpDto, userIp: string, isCustodial: boolean) {
-    await this.verifyLogin(dto.filter, userIp);
-
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
       dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
@@ -140,8 +138,6 @@ export class AuthService {
   }
 
   async signIn(dto: SignInDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
-    await this.verifyLogin(dto.filter, userIp);
-
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
 
@@ -155,13 +151,6 @@ export class AuthService {
       );
 
     return this.doSignIn(user, dto, userIp, isCustodial);
-  }
-
-  private async verifyLogin(code: string, userIp: string): Promise<void> {
-    if (code === '1') {
-      const ipLog = await this.ipLogService.getIpLog(userIp);
-      if (ipLog.country !== 'CH') throw new BadRequestException('The country of IP address is not allowed');
-    }
   }
 
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {

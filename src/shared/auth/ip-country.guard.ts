@@ -12,6 +12,9 @@ export class IpCountryGuard implements CanActivate {
     const ipLog = await this.ipLogService.create(ip, req.url, req.body?.address ?? req.user.address);
     if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
+    if (req.body?.region === '1' && ipLog.country !== 'CH')
+      throw new ForbiddenException('The country of IP address is not allowed');
+
     return ipLog.result;
   }
 }

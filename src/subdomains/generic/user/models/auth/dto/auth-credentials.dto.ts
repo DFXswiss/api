@@ -35,10 +35,10 @@ export class SignInDto {
   @IsString()
   specialCode?: string;
 
-  @ApiPropertyOptional({ description: 'IP filter' })
+  @ApiPropertyOptional({ description: 'IP region filter' })
   @IsOptional()
   @IsString()
-  filter?: string;
+  region?: string;
 }
 
 export class OptionalSignUpDto {
