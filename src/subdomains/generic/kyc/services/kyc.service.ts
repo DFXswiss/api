@@ -830,14 +830,14 @@ export class KycService {
   }
 
   private getNationalityErrors(entity: KycStep, nationality: Country): KycError[] {
-    const errors = [...this.getStepDefaultErrors(entity)];
+    const errors = this.getStepDefaultErrors(entity);
     if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
 
     return errors;
   }
 
   private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): KycError[] {
-    const errors = [...this.getStepDefaultErrors(entity)];
+    const errors = this.getStepDefaultErrors(entity);
     const nationalityStepResult = entity.userData
       .getStepsWith(KycStepName.NATIONALITY_DATA)
       .find((s) => s.isCompleted)
