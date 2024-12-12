@@ -59,20 +59,14 @@ export class KycInfoMapper {
   }
 
   private static sortSteps(steps: KycStep[]): KycStep[] {
-    const hasVideoIdent = steps.some(
-      (s) => s.name === KycStepName.IDENT && s.type === KycStepType.VIDEO && s.isCompleted,
-    );
+    const completedIdentSteps = steps.filter((s) => s.name === KycStepName.IDENT && s.isCompleted);
+    const fullIdentStep =
+      completedIdentSteps.find((s) => s.type === KycStepType.MANUAL) ?? steps.find((s) => s.type === KycStepType.VIDEO);
 
-    // group by step and get step with highest sequence number
     const groupedSteps = steps
-      .filter(
-        (s) =>
-          !(
-            hasVideoIdent &&
-            s.name === KycStepName.IDENT &&
-            [KycStepType.AUTO, KycStepType.SUMSUB_AUTO].includes(s.type)
-          ),
-      )
+      // hide all other ident steps, if full ident is completed
+      .filter((s) => !(s.name === KycStepName.IDENT && fullIdentStep && s.id !== fullIdentStep.id))
+      // group by step and get step with highest sequence number
       .reduce((map, step) => {
         const key = step.type
           ? `${step.name}-${step.type}`
@@ -80,6 +74,7 @@ export class KycInfoMapper {
 
         return map.set(key, (map.get(key) ?? []).concat(step));
       }, new Map<string, KycStep[]>());
+
     const visibleSteps = Array.from(groupedSteps.values()).map((steps) => Util.maxObj(steps, 'sequenceNumber'));
 
     return visibleSteps.sort((a, b) => {
