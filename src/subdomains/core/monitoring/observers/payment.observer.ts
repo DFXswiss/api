@@ -7,7 +7,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 
@@ -71,20 +71,21 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         ),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
         action: IsNull(),
-        status: Not(
-          In([
-            PayInStatus.FAILED,
-            PayInStatus.IGNORED,
-            PayInStatus.RETURNED,
-            PayInStatus.RETURN_CONFIRMED,
-            PayInStatus.FORWARDED,
-            PayInStatus.FORWARD_CONFIRMED,
-            PayInStatus.COMPLETED,
-          ]),
-        ),
+        status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURN_CONFIRMED])),
+        buyCrypto: IsNull(),
+        buyFiat: IsNull(),
       }),
       unconfirmedCryptoInputs: await this.repos.payIn.countBy({
-        status: In([PayInStatus.RETURNED, PayInStatus.FORWARDED]),
+        status: Not(
+          In([
+            PayInStatus.RETURN_CONFIRMED,
+            PayInStatus.FORWARD_CONFIRMED,
+            PayInStatus.COMPLETED,
+            PayInStatus.IGNORED,
+            PayInStatus.FAILED,
+          ]),
+        ),
+        action: In([PayInAction.FORWARD, PayInAction.RETURN]),
       }),
     };
   }
