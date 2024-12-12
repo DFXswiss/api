@@ -61,7 +61,7 @@ export class BankAccountService {
   // --- HELPER METHODS --- //
 
   async getOrCreateBankAccountInternal(iban: string): Promise<BankAccount> {
-    return (await this.bankAccountRepo.findOne({ where: { iban } })) ?? this.createBankAccountInternal(iban);
+    return (await this.bankAccountRepo.findOneBy({ iban })) ?? this.createBankAccountInternal(iban);
   }
 
   private async createBankAccountInternal(iban: string, copyFrom?: BankAccount): Promise<BankAccount> {
