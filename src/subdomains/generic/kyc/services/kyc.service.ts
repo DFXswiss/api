@@ -38,7 +38,13 @@ import {
   getIdentResult,
 } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
-import { KycContactData, KycFileData, KycManualIdentData, KycPersonalData } from '../dto/input/kyc-data.dto';
+import {
+  KycContactData,
+  KycFileData,
+  KycManualIdentData,
+  KycNationalityData,
+  KycPersonalData,
+} from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
 import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
@@ -121,8 +127,48 @@ export class KycService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock()
+  async reviewKycSteps(): Promise<void> {
+    if (DisabledProcess(Process.KYC)) return;
+
+    await this.reviewNationalityStep();
+    await this.reviewIdentSteps();
+  }
+
+  async reviewNationalityStep(): Promise<void> {
+    if (DisabledProcess(Process.KYC_NATIONALITY_REVIEW)) return;
+
+    const entities = await this.kycStepRepo.find({
+      where: {
+        name: KycStepName.NATIONALITY_DATA,
+        status: KycStepStatus.INTERNAL_REVIEW,
+      },
+      relations: { userData: { kycSteps: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        const result = entity.getResult<KycNationalityData>();
+        const nationality = await this.countryService.getCountry(result.nationality.id);
+        const errors = this.getNationalityErrors(entity, nationality);
+        const comment = errors.join(';');
+
+        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+          await this.kycStepRepo.update(...entity.ignored(comment));
+        } else if (errors.length > 0) {
+          await this.kycStepRepo.update(...entity.manualReview(comment));
+        } else {
+          await this.kycStepRepo.update(...entity.complete());
+        }
+
+        await this.createStepLog(entity.userData, entity);
+      } catch (e) {
+        this.logger.error(`Failed to auto review nationality step ${entity.id}:`, e);
+      }
+    }
+  }
+
   async reviewIdentSteps(): Promise<void> {
-    if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
+    if (DisabledProcess(Process.KYC_IDENT_REVIEW)) return;
 
     const entities = await this.kycStepRepo.find({
       where: {
@@ -142,11 +188,10 @@ export class KycService {
           : null;
 
         const errors = this.getIdentCheckErrors(entity, result, nationality);
-
-        entity.comment = errors.join(';');
+        const comment = errors.join(';');
 
         if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
-          entity.ignored();
+          entity.ignored(comment);
         } else if (
           errors.includes(KycError.VERIFIED_NAME_MISSING) &&
           errors.length === 1 &&
@@ -157,7 +202,7 @@ export class KycService {
         } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
         } else {
-          entity.manualReview();
+          entity.manualReview(comment);
         }
 
         await this.createStepLog(entity.userData, entity);
@@ -781,15 +826,27 @@ export class KycService {
     this.logger.error(`Missing ident data for userData ${userData.id}`);
   }
 
-  private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): KycError[] {
+  private getStepDefaultErrors(entity: KycStep): KycError[] {
     const errors = [];
+    if (entity.userData.status === UserDataStatus.MERGED) errors.push(KycError.USER_DATA_MERGED);
+    if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(KycError.USER_DATA_BLOCKED);
+
+    return errors;
+  }
+
+  private getNationalityErrors(entity: KycStep, nationality: Country): KycError[] {
+    const errors = this.getStepDefaultErrors(entity);
+    if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+
+    return errors;
+  }
+
+  private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): KycError[] {
+    const errors = this.getStepDefaultErrors(entity);
     const nationalityStepResult = entity.userData
       .getStepsWith(KycStepName.NATIONALITY_DATA)
       .find((s) => s.isCompleted)
       .getResult<{ nationality: IEntity }>();
-
-    if (entity.userData.status === UserDataStatus.MERGED) errors.push(KycError.USER_DATA_MERGED);
-    if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(KycError.USER_DATA_BLOCKED);
 
     if (!Util.isSameName(entity.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
     if (
