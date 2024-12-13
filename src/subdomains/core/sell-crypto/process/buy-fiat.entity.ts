@@ -273,7 +273,6 @@ export class BuyFiat extends IEntity {
 
   setFeeAndFiatReference(
     amountInEur: number,
-    amountInChf: number,
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
@@ -296,7 +295,6 @@ export class BuyFiat extends IEntity {
             bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
             amountInEur,
-            amountInChf,
             usedRef,
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,

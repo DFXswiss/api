@@ -206,7 +206,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
             eurPrice.convert(entity.inputAmount, 2),
-            amountInChf,
             fee,
             eurPrice.convert(fee.min, 2),
             chfPrice.convert(fee.total, 2),

@@ -263,7 +263,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            amountInChf,
             fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             referenceChfPrice.convert(fee.total, 2),
