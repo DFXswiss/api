@@ -373,21 +373,25 @@ export class BuyFiat extends IEntity {
     blacklist: SpecialExternalAccount[],
     ibanCountry: Country,
   ): UpdateResult<BuyFiat> {
-    const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
-      this,
-      inputAsset,
-      minVolume,
+    const update: Partial<BuyFiat> = {
+      ...AmlHelperService.getAmlResult(
+        this,
+        inputAsset,
+        minVolume,
+        amountInChf,
+        last24hVolume,
+        0,
+        last30dVolume,
+        last365dVolume,
+        bankData,
+        blacklist,
+        ibanCountry,
+      ),
       amountInChf,
-      last24hVolume,
-      0,
-      last30dVolume,
-      last365dVolume,
-      bankData,
-      blacklist,
-      ibanCountry,
-    );
+      amountInEur,
+    };
 
-    Object.assign(this, { ...update, amountInChf, amountInEur });
+    Object.assign(this, update);
 
     return [this.id, update];
   }

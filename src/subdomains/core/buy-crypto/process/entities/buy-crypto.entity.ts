@@ -477,22 +477,26 @@ export class BuyCrypto extends IEntity {
     banks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
-      this,
-      inputAsset,
-      minVolume,
+    const update: Partial<BuyCrypto> = {
+      ...AmlHelperService.getAmlResult(
+        this,
+        inputAsset,
+        minVolume,
+        amountInChf,
+        last24hVolume,
+        last7dCheckoutVolume,
+        last30dVolume,
+        last365dVolume,
+        bankData,
+        blacklist,
+        ibanCountry,
+        banks,
+      ),
       amountInChf,
-      last24hVolume,
-      last7dCheckoutVolume,
-      last30dVolume,
-      last365dVolume,
-      bankData,
-      blacklist,
-      ibanCountry,
-      banks,
-    );
+      amountInEur,
+    };
 
-    Object.assign(this, { ...update, amountInChf, amountInEur });
+    Object.assign(this, update);
 
     return [this.id, update];
   }
