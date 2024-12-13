@@ -495,7 +495,7 @@ export class BuyCrypto extends IEntity {
       banks,
     );
 
-    Object.assign(this, update);
+    Object.assign(this, { ...update, amountInChf });
 
     return [this.id, update];
   }
