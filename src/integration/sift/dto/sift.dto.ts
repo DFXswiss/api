@@ -52,6 +52,12 @@ export enum PaymentType {
   WIRE_DEBIT = '$wire_debit',
 }
 
+export enum SiftDecisionSource {
+  MANUAL_REVIEW = 'MANUAL_REVIEW',
+  AUTOMATED_RULE = 'AUTOMATED_RULE',
+  CHARGEBACK = 'CHARGEBACK',
+}
+
 export enum PaymentGateway {
   ABRA = '$abra',
   ACAPTURE = '$acapture',
@@ -751,6 +757,14 @@ export enum DeclineCategory {
   ADDITIONAL_VERIFICATION_REQUIRED = '$additional_verification_required',
   INVALID_VERIFICATION = '$invalid_verification',
   OTHER = '$other',
+}
+
+export interface SiftDecision {
+  decision_id: string;
+  source: SiftDecisionSource;
+  analyst: string;
+  description?: string;
+  time?: number;
 }
 
 export interface SiftBase {

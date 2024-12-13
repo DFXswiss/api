@@ -27,6 +27,7 @@ import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-hi
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
 
@@ -63,6 +64,7 @@ describe('BuyCryptoService', () => {
   let fiatOutputService: FiatOutputService;
   let userDataService: UserDataService;
   let transactionUtilService: TransactionUtilService;
+  let buyCryptoNotificationService: BuyCryptoNotificationService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -86,6 +88,7 @@ describe('BuyCryptoService', () => {
     fiatOutputService = createMock<FiatOutputService>();
     userDataService = createMock<UserDataService>();
     transactionUtilService = createMock<TransactionUtilService>();
+    buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -112,6 +115,7 @@ describe('BuyCryptoService', () => {
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: UserDataService, useValue: userDataService },
         { provide: TransactionUtilService, useValue: transactionUtilService },
+        { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
       ],
     }).compile();
 

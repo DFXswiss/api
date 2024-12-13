@@ -2,13 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -35,7 +34,6 @@ export enum SupportTable {
   BUY_CRYPTO = 'buyCrypto',
   BUY_FIAT = 'buyFiat',
   BANK_TX = 'bankTx',
-  BANK_ACCOUNT = 'bankAccount',
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
   BANK_DATA = 'bankData',
@@ -48,7 +46,6 @@ export class GsService {
     private readonly userService: UserService,
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
-    private readonly bankAccountService: BankAccountService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
@@ -281,8 +278,6 @@ export class GsService {
         return this.buyCryptoService.getBuyCryptoByKey(query.key, query.value).then((buyCrypto) => buyCrypto?.userData);
       case SupportTable.BUY_FIAT:
         return this.buyFiatService.getBuyFiatByKey(query.key, query.value).then((buyFiat) => buyFiat?.userData);
-      case SupportTable.BANK_ACCOUNT:
-        return this.bankAccountService.getBankAccountByKey(query.key, query.value).then((bankAcc) => bankAcc?.userData);
       case SupportTable.BANK_TX:
         return this.bankTxService
           .getBankTxByKey(query.key, query.value)

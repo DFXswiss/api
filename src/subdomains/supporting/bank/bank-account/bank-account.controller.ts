@@ -1,13 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiExcludeEndpoint,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -15,15 +8,19 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankAccount } from './bank-account.entity';
+import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
-import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { CreateIbanDto, IbanDto } from './dto/iban.dto';
+import { CreateBankAccountDto, CreateBankAccountInternalDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @ApiTags('Bank Account')
 @Controller('bankAccount')
 export class BankAccountController {
-  constructor(private readonly bankDataService: BankDataService) {}
+  constructor(
+    private readonly bankDataService: BankDataService,
+    private readonly bankAccountService: BankAccountService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -54,30 +51,17 @@ export class BankAccountController {
   }
 
   // --- IBAN --- //
-
-  @Get('iban')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiExcludeEndpoint()
-  @ApiOperation({ deprecated: true })
-  async getAllUserIban(@GetJwt() jwt: JwtPayload): Promise<IbanDto[]> {
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account).then((b) => this.toDtoList(b));
-
-    return bankDatas.map((bankData) => ({ iban: bankData.iban }));
-  }
-
   @Post('iban')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @ApiExcludeEndpoint()
-  @ApiOperation({ deprecated: true })
-  async addUserIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<IbanDto> {
-    return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => ({ iban: b.iban }));
+  async addBankAccountIban(@Body() dto: CreateBankAccountInternalDto): Promise<BankAccount> {
+    return this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
   }
 
   // --- DTO --- //
   private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
-    return bankDatas.map((b) => this.toDto(b));
+    return bankDatas.filter((b) => b.active).map((b) => this.toDto(b));
   }
 
   private toDto(bankData: BankData): BankAccountDto {
@@ -86,7 +70,7 @@ export class BankAccountController {
       iban: bankData.iban.split(';')[0],
       label: bankData.label,
       preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
-      sepaInstant: false,
+      sepaInstant: undefined,
       active: true,
     };
   }

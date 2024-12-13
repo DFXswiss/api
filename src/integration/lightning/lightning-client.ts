@@ -309,6 +309,23 @@ export class LightningClient {
     );
   }
 
+  // --- LNURLd --- //
+
+  async getLnurlDevice(id: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    const url = `${this.getDeviceUrl()}/${id}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
+  async getLnurlDeviceCallback(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    const url = `${this.getDeviceUrl()}/cb/${id}/${variable}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
+  private getDeviceUrl(): string {
+    const baseUrl = Config.blockchain.lightning.lnbits.lnurlpUrl.replace('/lnurlp', '');
+    return `${baseUrl}/lnurldevice/api/v1/lnurl`;
+  }
+
   // --- HELPER METHODS --- //
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {

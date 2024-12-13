@@ -25,6 +25,8 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MoreThan } from 'typeorm';
+import { BankService } from '../../bank/bank/bank.service';
+import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { InternalFeeDto } from '../dto/fee.dto';
@@ -52,6 +54,8 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 export interface FeeRequestBase {
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
+  bankIn: CardBankName | IbanBankName;
+  bankOut: CardBankName | IbanBankName;
   from: Active;
   to: Active;
   txVolume?: number;
@@ -77,6 +81,7 @@ export class FeeService implements OnModuleInit {
     private readonly blockchainFeeRepo: BlockchainFeeRepository,
     private readonly payoutService: PayoutService,
     private readonly pricingService: PricingService,
+    private readonly bankService: BankService,
   ) {}
 
   onModuleInit() {
@@ -145,6 +150,7 @@ export class FeeService implements OnModuleInit {
       fee.fiats = fiats.join(';');
     }
 
+    if (dto.bank) fee.bank = await this.bankService.getBankById(dto.bank.id);
     if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
 
     if (dto.createSpecialCode) {
@@ -291,6 +297,8 @@ export class FeeService implements OnModuleInit {
         fees: [specialFee],
         rate: specialFee.rate,
         fixed: specialFee.fixed ?? 0,
+        bankRate: 0,
+        bankFixed: 0,
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -306,6 +314,8 @@ export class FeeService implements OnModuleInit {
         fees: [customFee],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
+        bankRate: 0,
+        bankFixed: 0,
         payoutRefBonus: customFee.payoutRefBonus,
         network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -327,6 +337,11 @@ export class FeeService implements OnModuleInit {
     // get addition fees
     const additiveFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
 
+    // get bank fees
+    const bankFees = fees.filter((fee) => fee.type === FeeType.BANK);
+    const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
+    const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
+
     const combinedExtraFeeRate = Util.sumObjValue(additiveFees, 'rate') - (discountFee?.rate ?? 0);
     const combinedExtraFixedFee = Util.sumObjValue(additiveFees, 'fixed') - (discountFee?.fixed ?? 0);
 
@@ -337,6 +352,8 @@ export class FeeService implements OnModuleInit {
         fees: [baseFee],
         rate: baseFee.rate,
         fixed: baseFee.fixed,
+        bankRate: combinedBankFeeRate,
+        bankFixed: combinedBankFixedFee,
         payoutRefBonus: true,
         network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -346,6 +363,8 @@ export class FeeService implements OnModuleInit {
       fees: [baseFee, discountFee, ...additiveFees].filter((e) => e != null),
       rate: baseFee.rate + combinedExtraFeeRate,
       fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0),
+      bankRate: combinedBankFeeRate,
+      bankFixed: combinedBankFixedFee,
       payoutRefBonus:
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
@@ -390,7 +409,8 @@ export class FeeService implements OnModuleInit {
       fees.filter(
         (f) =>
           [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT].includes(f.type) && !f.specialCode) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.BANK].includes(f.type) &&
+            !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||
           (f.wallet && f.wallet.id === wallet?.id),

@@ -41,14 +41,14 @@ export class KycStep extends IEntity {
   result?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
   logs: StepLog;
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
-  reminderSentDate: Date;
+  reminderSentDate?: Date;
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {
@@ -212,9 +212,10 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  ignored(): UpdateResult<KycStep> {
+  ignored(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.IGNORED,
+      comment,
     };
 
     Object.assign(this, update);
@@ -254,9 +255,10 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  manualReview(): UpdateResult<KycStep> {
+  manualReview(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.MANUAL_REVIEW,
+      comment,
     };
 
     Object.assign(this, update);
