@@ -390,7 +390,7 @@ export class BuyFiat extends IEntity {
       ibanCountry,
     );
 
-    Object.assign(this, update);
+    Object.assign(this, { ...update, amountInChf });
 
     return [this.id, update];
   }
