@@ -92,6 +92,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         );
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
@@ -136,7 +137,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
           ...entity.amlCheckAndFillUp(
             inputReferenceCurrency,
             minVolume,
-            referenceChfPrice.convert(entity.inputReferenceAmount),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             last24hVolume,
             last30dVolume,
             last365dVolume,
@@ -204,13 +206,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         );
 
         await this.buyFiatRepo.update(
-          ...entity.setFeeAndFiatReference(
-            eurPrice.convert(entity.inputAmount, 2),
-            amountInChf,
-            fee,
-            eurPrice.convert(fee.min, 2),
-            chfPrice.convert(fee.total, 2),
-          ),
+          ...entity.setFeeAndFiatReference(fee, eurPrice.convert(fee.min, 2), chfPrice.convert(fee.total, 2)),
         );
 
         if (entity.amlCheck === CheckStatus.FAIL) return;

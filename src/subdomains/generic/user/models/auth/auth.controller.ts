@@ -33,10 +33,10 @@ export class AuthController {
   ) {}
 
   @Post()
-  @UseGuards(IpCountryGuard)
+  @UseGuards(IpCountryGuard, OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  authenticate(@Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
-    return this.authService.authenticate(dto, ip);
+  authenticate(@GetJwt() jwt: JwtPayload, @Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+    return this.authService.authenticate(dto, ip, jwt?.account);
   }
 
   @Post('signUp')

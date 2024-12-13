@@ -106,6 +106,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         );
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
@@ -165,7 +166,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           ...entity.amlCheckAndFillUp(
             inputCurrency,
             minVolume,
-            referenceChfPrice.convert(entity.inputReferenceAmount),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             last24hVolume,
             last7dCheckoutVolume,
             last30dVolume,
@@ -262,8 +264,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            amountInChf,
             fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             referenceChfPrice.convert(fee.total, 2),
