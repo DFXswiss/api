@@ -17,10 +17,6 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  async getIpLog(ip: string): Promise<IpLog> {
-    return this.ipLogRepo.findOneBy({ ip });
-  }
-
   async create(ip: string, url: string, address: string): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
     const ipLog = this.ipLogRepo.create({
