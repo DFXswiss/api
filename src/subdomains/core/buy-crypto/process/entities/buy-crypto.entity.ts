@@ -429,7 +429,6 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeAndFiatReference(
-    amountInEur: number,
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
@@ -451,7 +450,6 @@ export class BuyCrypto extends IEntity {
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
-            amountInEur,
             usedRef,
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
@@ -468,6 +466,7 @@ export class BuyCrypto extends IEntity {
   amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
+    amountInEur: number,
     amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
@@ -493,7 +492,7 @@ export class BuyCrypto extends IEntity {
       banks,
     );
 
-    Object.assign(this, { ...update, amountInChf });
+    Object.assign(this, { ...update, amountInChf, amountInEur });
 
     return [this.id, update];
   }
