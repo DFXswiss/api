@@ -137,8 +137,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
           ...entity.amlCheckAndFillUp(
             inputReferenceCurrency,
             minVolume,
-            referenceEurPrice.convert(entity.inputReferenceAmount),
-            referenceChfPrice.convert(entity.inputReferenceAmount),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             last24hVolume,
             last30dVolume,
             last365dVolume,
