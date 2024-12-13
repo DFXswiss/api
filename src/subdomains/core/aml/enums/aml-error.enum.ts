@@ -25,7 +25,7 @@ export enum AmlError {
   NO_VERIFIED_NAME = 'NoVerifiedName',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
   IBAN_COUNTRY_FATF_NOT_ALLOWED = 'IbanCountryFatfNotAllowed',
-  CHECKOUT_COUNTRY_NOT_ALLOWED = 'CheckoutCountryNotAllowed',
+  TX_COUNTRY_NOT_ALLOWED = 'TxCountryNotAllowed',
   NO_BANK_TX_VERIFICATION = 'NoBankTxVerification',
   NO_LETTER = 'NoLetter',
   NO_AML_LIST = 'NoAmlList',
@@ -126,7 +126,7 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
-  [AmlError.CHECKOUT_COUNTRY_NOT_ALLOWED]: {
+  [AmlError.TX_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,

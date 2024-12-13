@@ -12,6 +12,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { CustodyProvider } from '../custody-provider/custody-provider.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -41,16 +42,19 @@ export class User extends IEntity {
   address: string;
 
   @Column({ length: 256, nullable: true })
-  addressType: UserAddressType;
+  addressType?: UserAddressType;
 
   @Column({ length: 'MAX', nullable: true })
-  signature: string;
+  signature?: string;
 
   @Column({ length: 256, nullable: true })
-  label: string;
+  label?: string;
 
   @ManyToOne(() => Wallet)
   wallet: Wallet;
+
+  @ManyToOne(() => CustodyProvider)
+  custodyProvider: CustodyProvider;
 
   @Column({ length: 256, default: '000-000' })
   usedRef: string;
@@ -65,17 +69,17 @@ export class User extends IEntity {
   ip: string;
 
   @Column({ length: 256, nullable: true })
-  ipCountry: string;
+  ipCountry?: string;
 
   @Column({ length: 256, nullable: true })
-  origin: string;
+  origin?: string;
 
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
-  apiKeyCT: string;
+  apiKeyCT?: string;
 
   @Column({ length: 256, nullable: true })
-  apiFilterCT: string;
+  apiFilterCT?: string;
 
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF
@@ -96,10 +100,10 @@ export class User extends IEntity {
   cryptoVolume: number; // CHF
 
   @Column({ nullable: true })
-  approved: boolean;
+  approved?: boolean;
 
   @Column({ type: 'datetime2', nullable: true })
-  deactivationDate: Date;
+  deactivationDate?: Date;
 
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
@@ -119,7 +123,7 @@ export class User extends IEntity {
   // --- REF --- //
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'ref IS NOT NULL' })
-  ref: string;
+  ref?: string;
 
   @Column({ type: 'float', default: 0.25 })
   refFeePercent: number;
@@ -130,7 +134,7 @@ export class User extends IEntity {
   @Column({ type: 'float', default: 0 })
   refCredit: number; // EUR
 
-  @Column({ type: 'float', nullable: false, default: 0 })
+  @Column({ type: 'float', default: 0 })
   paidRefCredit: number; // EUR
 
   @OneToMany(() => RefReward, (reward) => reward.user)
@@ -143,7 +147,7 @@ export class User extends IEntity {
   transactions: Transaction[];
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   //*** FACTORY METHODS ***//
   deleteUser(reason: string): UpdateResult<User> {

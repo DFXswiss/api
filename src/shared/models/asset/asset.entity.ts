@@ -22,10 +22,10 @@ export enum AssetCategory {
 @Index((asset: Asset) => [asset.dexName, asset.type, asset.blockchain], { unique: true })
 export class Asset extends IEntity {
   @Column({ nullable: true })
-  chainId: string;
+  chainId?: string;
 
   @Column({ type: 'int', nullable: true })
-  decimals: number;
+  decimals?: number;
 
   @Column({ length: 256 })
   name: string;
@@ -34,19 +34,19 @@ export class Asset extends IEntity {
   uniqueName: string;
 
   @Column({ length: 256, nullable: true })
-  description: string;
+  description?: string;
 
   @Column({ length: 256 })
   type: AssetType;
 
-  @Column({ length: 256, nullable: false, default: AssetCategory.PUBLIC })
+  @Column({ length: 256, default: AssetCategory.PUBLIC })
   category: AssetCategory;
 
   @Column({ nullable: true, length: 256 })
-  sellCommand: string;
+  sellCommand?: string;
 
   @Column({ nullable: true, length: 256 })
-  dexName: string;
+  dexName?: string;
 
   @Column({ default: true })
   buyable: boolean;
@@ -79,16 +79,16 @@ export class Asset extends IEntity {
   comingSoon: boolean;
 
   @Column({ nullable: true })
-  sortOrder: number;
+  sortOrder?: number;
 
   @Column({ type: 'float', nullable: true })
-  approxPriceUsd: number;
+  approxPriceUsd?: number;
 
   @Column({ type: 'float', nullable: true })
-  approxPriceChf: number;
+  approxPriceChf?: number;
 
   @Column({ length: 256, nullable: true })
-  financialType: string;
+  financialType?: string;
 
   @Column({ default: AmlRule.DEFAULT })
   amlRuleFrom: AmlRule;

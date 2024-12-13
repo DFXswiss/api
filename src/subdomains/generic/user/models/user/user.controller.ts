@@ -1,15 +1,16 @@
-import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
-  ApiAcceptedResponse,
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -26,19 +27,14 @@ import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
+import { VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
-
-const AccountExistsResponse = {
-  type: UserDetailDto,
-  description:
-    'There is already a verified account with the same mail address, a mail confirmation request has been sent',
-};
 
 @ApiTags('User')
 @Controller('user')
@@ -73,17 +69,9 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
-  @ApiAcceptedResponse(AccountExistsResponse)
   @ApiOperation({ deprecated: true })
-  async updateUserV1(
-    @GetJwt() jwt: JwtPayload,
-    @Body() newUser: UpdateUserDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser);
-    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
-
-    return user;
+  async updateUserV1(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserDetailDto> {
+    return this.userService.updateUserV1(jwt.user, newUser);
   }
 
   @Put('discountCodes')
@@ -132,16 +120,10 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: UserDetailDto })
-  @ApiAcceptedResponse(AccountExistsResponse)
-  async updateKycData(
-    @GetJwt() jwt: JwtPayload,
-    @Body() data: KycInputDataDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserData(jwt.user, data);
-    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
-
-    return user;
+  @ApiBadRequestResponse({ description: 'KYC already started' })
+  @ApiConflictResponse({ description: 'Account already exists' })
+  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycInputDataDto): Promise<UserDetailDto> {
+    return this.userService.updateUserData(jwt.user, data);
   }
 
   @Delete()
@@ -234,16 +216,31 @@ export class UserV2Controller {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: UserV2Dto })
-  @ApiAcceptedResponse(AccountExistsResponse)
-  async updateUser(
-    @GetJwt() jwt: JwtPayload,
-    @Body() newUser: UpdateUserDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<UserV2Dto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, jwt.user);
-    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+  async updateUser(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserV2Dto> {
+    return this.userService.updateUser(jwt.account, newUser, jwt.user);
+  }
 
-    return user;
+  @Put('mail')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ description: 'Verification code sent' })
+  @ApiForbiddenResponse({ description: 'Missing 2FA' })
+  @ApiConflictResponse({ description: 'Account already exists' })
+  async updateUserMail(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newMail: UpdateUserMailDto,
+    @RealIP() ip: string,
+  ): Promise<void> {
+    return this.userService.updateUserMail(jwt.account, newMail, ip);
+  }
+
+  @Post('mail/verify')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiCreatedResponse({ description: 'Email verification successful' })
+  @ApiForbiddenResponse({ description: 'Invalid or expired mail verification token' })
+  async verifyMail(@GetJwt() jwt: JwtPayload, @Body() dto: VerifyMailDto): Promise<UserV2Dto> {
+    return this.userService.verifyMail(jwt.account, dto.token, jwt.user);
   }
 
   @Put('addresses/:address')
