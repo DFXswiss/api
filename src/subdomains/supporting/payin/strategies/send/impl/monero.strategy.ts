@@ -43,9 +43,13 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
         try {
           this.designateSend(payIn, type);
 
-          const { targetFee } = await this.getEstimatedFee(payIn.asset, payIn.amount, payIn.destinationAddress.address);
+          const { referenceFee } = await this.getEstimatedFee(
+            payIn.asset,
+            payIn.amount,
+            payIn.destinationAddress.address,
+          );
 
-          CryptoInput.verifyEstimatedFee(targetFee, payIn.blockchainFee, payIn.amount);
+          CryptoInput.verifyEstimatedFee(referenceFee, payIn.blockchainFee, payIn.amount);
 
           const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
