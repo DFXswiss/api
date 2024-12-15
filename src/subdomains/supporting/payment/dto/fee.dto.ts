@@ -32,9 +32,10 @@ export class FeeDto extends BaseFeeDto {
 export class InternalFeeDto extends BaseFeeDto {
   fees: Fee[];
   payoutRefBonus: boolean;
-  chargebackRate: number;
-  chargebackFixed: number;
-  chargebackNetwork: number;
   bankRate: number; // bank fee rate
   bankFixed: number; // bank fixed fee
+}
+
+export class InternalChargebackFeeDto extends BaseFeeDto {
+  fees: Fee[];
 }

@@ -29,7 +29,7 @@ import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { InternalFeeDto } from '../dto/fee.dto';
+import { InternalChargebackFeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
@@ -53,11 +53,11 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 
 export interface FeeRequestBase {
   paymentMethodIn: PaymentMethod;
-  paymentMethodOut: PaymentMethod;
+  paymentMethodOut?: PaymentMethod;
   bankIn: CardBankName | IbanBankName;
-  bankOut: CardBankName | IbanBankName;
+  bankOut?: CardBankName | IbanBankName;
   from: Active;
-  to: Active;
+  to?: Active;
   txVolume?: number;
   specialCodes: string[];
   allowCachedBlockchainFee: boolean;
@@ -212,6 +212,17 @@ export class FeeService implements OnModuleInit {
     return fee;
   }
 
+  async getChargebackFee(request: UserFeeRequest): Promise<InternalChargebackFeeDto> {
+    const userFees = await this.getValidFees(request);
+
+    try {
+      return await this.calculateChargebackFee(userFees, request.from, request.allowCachedBlockchainFee);
+    } catch (e) {
+      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      throw e;
+    }
+  }
+
   async getUserFee(request: UserFeeRequest): Promise<InternalFeeDto> {
     const userFees = await this.getValidFees(request);
 
@@ -282,14 +293,9 @@ export class FeeService implements OnModuleInit {
     allowCachedBlockchainFee: boolean,
     userDataId?: number,
   ): Promise<InternalFeeDto> {
-    const blockchainFeeIn = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
-    const blockchainFee = blockchainFeeIn + (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
-
-    // get chargeback fees
-    const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
-
-    const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
-    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
+    const blockchainFee =
+      (await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee)) +
+      (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -302,9 +308,6 @@ export class FeeService implements OnModuleInit {
         fees: [specialFee],
         rate: specialFee.rate,
         fixed: specialFee.fixed ?? 0,
-        chargebackRate: combinedChargebackFeeRate,
-        chargebackFixed: combinedChargebackFixedFee,
-        chargebackNetwork: blockchainFeeIn,
         bankRate: 0,
         bankFixed: 0,
         payoutRefBonus: specialFee.payoutRefBonus,
@@ -322,9 +325,6 @@ export class FeeService implements OnModuleInit {
         fees: [customFee],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
-        chargebackRate: combinedChargebackFeeRate,
-        chargebackFixed: combinedChargebackFixedFee,
-        chargebackNetwork: blockchainFeeIn,
         bankRate: 0,
         bankFixed: 0,
         payoutRefBonus: customFee.payoutRefBonus,
@@ -363,9 +363,6 @@ export class FeeService implements OnModuleInit {
         fees: [baseFee],
         rate: baseFee.rate,
         fixed: baseFee.fixed,
-        chargebackRate: combinedChargebackFeeRate,
-        chargebackFixed: combinedChargebackFixedFee,
-        chargebackNetwork: blockchainFeeIn,
         bankRate: combinedBankFeeRate,
         bankFixed: combinedBankFixedFee,
         payoutRefBonus: true,
@@ -377,9 +374,6 @@ export class FeeService implements OnModuleInit {
       fees: [baseFee, discountFee, ...additiveFees].filter((e) => e != null),
       rate: baseFee.rate + combinedExtraFeeRate,
       fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0),
-      chargebackRate: combinedChargebackFeeRate,
-      chargebackFixed: combinedChargebackFixedFee,
-      chargebackNetwork: blockchainFeeIn,
       bankRate: combinedBankFeeRate,
       bankFixed: combinedBankFixedFee,
       payoutRefBonus:
@@ -396,6 +390,29 @@ export class FeeService implements OnModuleInit {
         ),
         Config.maxBlockchainFee,
       ),
+    };
+  }
+
+  private async calculateChargebackFee(
+    fees: Fee[],
+    from: Active,
+    allowCachedBlockchainFee: boolean,
+  ): Promise<InternalChargebackFeeDto> {
+    const blockchainFee = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
+
+    // get chargeback fees
+    const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
+    const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
+
+    const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
+    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
+
+    if (!chargebackFees) throw new InternalServerErrorException('Chargeback fee is missing');
+    return {
+      fees: chargebackFees,
+      rate: combinedChargebackFeeRate,
+      fixed: combinedChargebackFixedFee ?? 0,
+      network: Math.min(chargebackMinFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
     };
   }
 
