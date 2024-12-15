@@ -128,12 +128,11 @@ export class BankDataService {
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
-    return this.createBankData(userData, dto);
+    return this.createVerifyBankData(userData, dto);
   }
 
-  async createBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
-    const bankData = this.bankDataRepo.create({ ...dto, userData });
-    await this.bankDataRepo.save(bankData);
+  async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
+    const bankData = await this.createBankDataInternal(userData, dto);
 
     if (!DisabledProcess(Process.BANK_DATA_VERIFICATION)) await this.verifyBankData(bankData);
 
@@ -144,10 +143,19 @@ export class BankDataService {
     return userData;
   }
 
+  async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
+    const bankData = this.bankDataRepo.create({ ...dto, userData });
+    return this.bankDataRepo.save(bankData);
+  }
+
   async updateBankData(id: number, dto: UpdateBankDataDto): Promise<BankData> {
     const bankData = await this.bankDataRepo.findOneBy({ id });
     if (!bankData) throw new NotFoundException('Bank data not found');
 
+    return this.updateBankDataInternal(bankData, dto);
+  }
+
+  async updateBankDataInternal(bankData: BankData, dto: UpdateBankDataDto): Promise<BankData> {
     if (dto.approved) {
       const activeBankData = await this.bankDataRepo.findOneBy({
         id: Not(bankData.id),
@@ -160,6 +168,11 @@ export class BankDataService {
     if (dto.preferredCurrency) {
       dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
+    }
+
+    if (bankData.type !== BankDataType.USER) {
+      dto.label = null;
+      dto.preferredCurrency = null;
     }
 
     return this.bankDataRepo.save({ ...bankData, ...dto });
@@ -219,11 +232,22 @@ export class BankDataService {
   }
 
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
-    const bankData = await this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
-    if (!bankData) throw new NotFoundException('Bank account not found');
-    if (bankData.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
+    const entity = await this.bankDataRepo.findOne({
+      where: { id },
+      relations: { userData: true },
+    });
+    if (!entity) throw new NotFoundException('Bank account not found');
+    if (entity.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
-    return this.updateBankData(id, dto);
+    const bankData =
+      entity.type === BankDataType.USER || dto.active != null
+        ? entity
+        : (await this.bankDataRepo.findOne({
+            where: { userData: { id: userDataId }, iban: entity.iban },
+            relations: { userData: true },
+          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+
+    return this.updateBankDataInternal(bankData, dto);
   }
 
   async createIbanForUser(

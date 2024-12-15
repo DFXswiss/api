@@ -82,7 +82,7 @@ export class BuyFiatService {
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
       if (!bankData && sell.userData.completeName)
-        await this.bankDataService.createBankData(sell.userData, {
+        await this.bankDataService.createVerifyBankData(sell.userData, {
           name: sell.userData.completeName,
           iban: sell.iban,
           type: BankDataType.BANK_OUT,

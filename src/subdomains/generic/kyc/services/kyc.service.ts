@@ -813,7 +813,7 @@ export class KycService {
         });
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-          await this.bankDataService.createBankData(kycStep.userData, {
+          await this.bankDataService.createVerifyBankData(kycStep.userData, {
             name: kycStep.userName,
             iban: `Ident${kycStep.identDocumentId}`,
             type: BankDataType.IDENT,
