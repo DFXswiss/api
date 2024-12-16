@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Headers, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -21,7 +22,7 @@ export class AlchemyController {
 
   @Post('addressWebhook')
   @ApiExcludeEndpoint()
-  async addressWebhook(@Headers('X-Alchemy-Signature') alchemySignature: string, @Req() req: any): Promise<void> {
+  async addressWebhook(@Headers('X-Alchemy-Signature') alchemySignature: string, @Req() req: Request): Promise<void> {
     const dto = JSON.parse(req.body) as AlchemyWebhookDto;
 
     if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto.webhookId, req.body)) {
