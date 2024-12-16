@@ -1,14 +1,22 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/utils/util';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
+import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { PaymentLinkPayRequestDto, PaymentLinkPaymentErrorResponseDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -25,6 +33,7 @@ export class PaymentLinkService {
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
+    private readonly userDataService: UserDataService,
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
   ) {}
@@ -141,8 +150,8 @@ export class PaymentLinkService {
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
 
-    const country = dto.recipient?.address?.country
-      ? await this.countryService.getCountryWithSymbol(dto.recipient?.address?.country)
+    const country = dto.config?.recipient?.address?.country
+      ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
       : undefined;
 
     const paymentLink = this.paymentLinkRepo.create({
@@ -151,16 +160,17 @@ export class PaymentLinkService {
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
       webhookUrl: dto.webhookUrl,
-      name: dto.recipient?.name,
-      street: dto.recipient?.address?.street,
-      houseNumber: dto.recipient?.address?.houseNumber,
-      zip: dto.recipient?.address?.zip,
-      city: dto.recipient?.address?.city,
+      name: dto.config?.recipient?.name,
+      street: dto.config?.recipient?.address?.street,
+      houseNumber: dto.config?.recipient?.address?.houseNumber,
+      zip: dto.config?.recipient?.address?.zip,
+      city: dto.config?.recipient?.address?.city,
       country: country,
-      phone: dto.recipient?.phone,
-      mail: dto.recipient?.mail,
-      website: dto.recipient?.website,
+      phone: dto.config?.recipient?.phone,
+      mail: dto.config?.recipient?.mail,
+      website: dto.config?.recipient?.website,
       payments: [],
+      config: JSON.stringify(dto.config),
     });
 
     await this.paymentLinkRepo.save(paymentLink);
@@ -171,12 +181,24 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
-  async createPaymentLinkPayRequest(
+  async createPayRequestWithCompletionCheck(
+    uniqueId: string,
+    standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
+  ): Promise<PaymentLinkPayRequestDto> {
+    const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(uniqueId);
+
+    if (mostRecentPayment.status === PaymentLinkPaymentStatus.COMPLETED)
+      throw new ConflictException(await this.paymentCompleteErrorResponse(uniqueId, standardParam));
+
+    return this.createPayRequest(uniqueId, standardParam);
+  }
+
+  async createPayRequest(
     uniqueId: string,
     standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
   ): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.waitForPendingPayment(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
+    if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentErrorResponse(uniqueId, standardParam));
 
     const { standards, displayQr } = pendingPayment.link.configObj;
     const usedStandard = pendingPayment.link.getMatchingStandard(standardParam);
@@ -223,10 +245,38 @@ export class PaymentLinkService {
     );
   }
 
-  private async noPendingPaymentResponse(
+  private async noPendingPaymentErrorResponse(
     uniqueId: string,
     standardParam: PaymentStandard,
-  ): Promise<PaymentLinkPaymentNotFoundDto | string> {
+  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
+    const response = await this.createDefaultErrorResponse(uniqueId, standardParam);
+    if (typeof response === 'string') return response;
+
+    response.statusCode = new NotFoundException().getStatus();
+    response.message = 'No pending payment found';
+    response.error = 'Not Found';
+
+    return response;
+  }
+
+  private async paymentCompleteErrorResponse(
+    uniqueId: string,
+    standardParam: PaymentStandard,
+  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
+    const response = await this.createDefaultErrorResponse(uniqueId, standardParam);
+    if (typeof response === 'string') return response;
+
+    response.statusCode = new ConflictException().getStatus();
+    response.message = 'Payment complete';
+    response.error = 'Conflict';
+
+    return response;
+  }
+
+  private async createDefaultErrorResponse(
+    uniqueId: string,
+    standardParam: PaymentStandard,
+  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { uniqueId, status: PaymentLinkStatus.ACTIVE },
       relations: { route: { user: { userData: true } } },
@@ -238,15 +288,14 @@ export class PaymentLinkService {
     const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
     return {
-      statusCode: new NotFoundException().getStatus(),
-      message: 'No pending payment found',
-      error: 'Not Found',
-
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
       recipient: paymentLink.recipient,
+      statusCode: undefined,
+      message: undefined,
+      error: undefined,
     };
   }
 
@@ -259,8 +308,8 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    const { status, webhookUrl, recipient } = dto;
-    const { name, address, phone, mail, website } = recipient ?? {};
+    const { status, webhookUrl, config } = dto;
+    const { name, address, phone, mail, website } = config.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
     const updatePaymentLink: Partial<PaymentLink> = {
@@ -274,6 +323,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
+      config: JSON.stringify({ ...JSON.parse(paymentLink.config), ...config }),
     };
 
     if (country === null) {
@@ -298,6 +348,20 @@ export class PaymentLinkService {
     }
 
     return this.updatePaymentLinkInternal(entity, dto);
+  }
+
+  async getUserPaymentLinksConfig(userDataId: number): Promise<PaymentLinkConfigDto> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
+    if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+
+    return userData.paymentLinksConfigObj;
+  }
+
+  async updateUserPaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinkConfigDto): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
+    if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+
+    await this.userDataService.updatePaymentLinksConfig(userData, dto);
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {

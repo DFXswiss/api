@@ -21,6 +21,7 @@ import {
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
+  FrankencoinPositionGraphDto,
   FrankencoinSwapDto,
   FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
@@ -65,7 +66,8 @@ export class FrankencoinService implements OnModuleInit {
 
     const logMessage: FrankencoinLogDto = {
       swap: await this.getSwap(),
-      positions: await this.getPositions(),
+      positionV1s: await this.getPositionV1s(),
+      positionV2s: await this.getPositionV2s(),
       poolShares: await this.getFPS(),
       totalSupply: await this.getTotalSupply(),
       totalValueLocked: await this.getTvl(),
@@ -100,10 +102,18 @@ export class FrankencoinService implements OnModuleInit {
     };
   }
 
-  async getPositions(): Promise<FrankencoinPositionDto[]> {
-    const positionsResult: FrankencoinPositionDto[] = [];
+  async getPositionV1s(): Promise<FrankencoinPositionDto[]> {
+    const positions = await this.client.getPositionV1s();
+    return this.getPositions(positions);
+  }
 
-    const positions = await this.client.getPositions();
+  async getPositionV2s(): Promise<FrankencoinPositionDto[]> {
+    const positions = await this.client.getPositionV2s();
+    return this.getPositions(positions);
+  }
+
+  private async getPositions(positions: FrankencoinPositionGraphDto[]): Promise<FrankencoinPositionDto[]> {
+    const positionsResult: FrankencoinPositionDto[] = [];
 
     for (const position of positions) {
       try {
@@ -155,8 +165,12 @@ export class FrankencoinService implements OnModuleInit {
     return positionsResult;
   }
 
-  async getChallenges(): Promise<FrankencoinChallengeGraphDto[]> {
-    return this.client.getChallenges();
+  async getChallengeV1s(): Promise<FrankencoinChallengeGraphDto[]> {
+    return this.client.getChallengeV1s();
+  }
+
+  async getChallengeV2s(): Promise<FrankencoinChallengeGraphDto[]> {
+    return this.client.getChallengeV2s();
   }
 
   async getFPS(): Promise<FrankencoinPoolSharesDto> {

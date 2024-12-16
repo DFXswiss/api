@@ -5,12 +5,13 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { SpecialExternalAccountType } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { CheckStatus } from '../aml/enums/check-status.enum';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { Swap } from '../buy-crypto/routes/swap/swap.entity';
@@ -31,6 +32,7 @@ export class TransactionUtilService {
     private readonly blockchainRegistry: BlockchainRegistryService,
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
   static validateRefund(entity: BuyCrypto | BuyFiat, dto: RefundValidation): void {
@@ -67,8 +69,37 @@ export class TransactionUtilService {
       throw new BadRequestException('You can not refund more than the input amount');
   }
 
-  async validateChargebackIban(iban: string, userData: UserData): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, userData);
+  async validateChargebackIban(iban: string): Promise<boolean> {
+    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban);
+    const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
+    const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
+
+    if (multiAccountIbans.includes(iban)) throw new BadRequestException('MultiAccountIban not allowed');
+    if (
+      blockedAccounts.some(
+        (b) =>
+          [
+            SpecialExternalAccountType.BANNED_IBAN,
+            SpecialExternalAccountType.BANNED_IBAN_BUY,
+            SpecialExternalAccountType.BANNED_IBAN_SELL,
+            SpecialExternalAccountType.BANNED_IBAN_AML,
+          ].includes(b.type) && b.value === iban,
+      )
+    )
+      throw new BadRequestException('Iban not allowed');
+    if (
+      blockedAccounts.some(
+        (b) =>
+          [
+            SpecialExternalAccountType.BANNED_IBAN,
+            SpecialExternalAccountType.BANNED_IBAN_BUY,
+            SpecialExternalAccountType.BANNED_IBAN_SELL,
+            SpecialExternalAccountType.BANNED_IBAN_AML,
+          ].includes(b.type) && b.value === bankAccount?.bic,
+      )
+    )
+      throw new BadRequestException('BIC not allowed');
+
     return (
       bankAccount &&
       (bankAccount.bic || iban.startsWith('CH') || iban.startsWith('LI')) &&

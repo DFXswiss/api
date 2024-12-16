@@ -17,6 +17,7 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
+import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
@@ -100,6 +101,27 @@ export class PaymentLinkController {
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
+  // -- CONFIG --- //
+
+  @Get('config')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: PaymentLinkConfigDto })
+  async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkConfigDto> {
+    return this.paymentLinkService.getUserPaymentLinksConfig(jwt.account);
+  }
+
+  @Put('config')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse()
+  async updateUserPaymentLinksConfig(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: UpdatePaymentLinkConfigDto,
+  ): Promise<void> {
+    return this.paymentLinkService.updateUserPaymentLinksConfig(jwt.account, dto);
+  }
+
   // --- PAYMENT --- //
 
   @Get('payment')
@@ -123,7 +145,7 @@ export class PaymentLinkController {
     dto.externalId ??= `${dto.message}/${dto.amount}${dto.currency ?? ''}`;
 
     const link = await this.paymentLinkService.createInvoice(dto);
-    return this.paymentLinkService.createPaymentLinkPayRequest(link.uniqueId, dto.standard);
+    return this.paymentLinkService.createPayRequestWithCompletionCheck(link.uniqueId, dto.standard);
   }
 
   @Post('payment')

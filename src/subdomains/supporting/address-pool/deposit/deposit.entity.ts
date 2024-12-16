@@ -13,7 +13,7 @@ export class Deposit extends IEntity {
   address: string;
 
   @OneToOne(() => DepositRoute, (route) => route.deposit, { nullable: true })
-  route: DepositRoute;
+  route?: DepositRoute;
 
   @Column({ length: 256 })
   blockchains: string; // semicolon separated

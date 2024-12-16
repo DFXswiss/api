@@ -5,10 +5,10 @@ import { SignatoryState, UserDataRelationState } from './dto/user-data-relation.
 
 @Entity()
 export class UserDataRelation extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   relation: UserDataRelationState;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   signatory: SignatoryState;
 
   // --- REFERENCES --- //

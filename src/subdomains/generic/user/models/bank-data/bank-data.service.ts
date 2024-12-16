@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -99,12 +93,12 @@ export class BankDataService {
 
         if (existing) {
           const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
-          await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+          await this.bankDataRepo.update(...existing.forbid(existingError.join(';')));
         }
 
-        await this.bankDataRepo.update(...entity.activate());
+        await this.bankDataRepo.update(...entity.allow());
       } else {
-        await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
+        await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
     } catch (e) {
       this.logger.error(`Failed to verify bankData ${entity.id}:`, e);
@@ -248,28 +242,24 @@ export class BankDataService {
     if (userData.status === UserDataStatus.KYC_ONLY)
       throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
 
-    const existing = await this.bankDataRepo.findOne({
-      where: [
-        { iban: dto.iban, approved: true, type },
-        { iban: dto.iban, approved: IsNull(), type },
-      ],
-      relations: { userData: true },
-    });
+    const existing = await this.bankDataRepo
+      .find({
+        where: [
+          { iban: dto.iban, approved: true, type },
+          { iban: dto.iban, approved: IsNull(), type },
+        ],
+        relations: { userData: true },
+      })
+      .then((b) => b.find((b) => b.userData.id === userDataId) ?? b[0]);
+
     if (existing) {
-      if (userData.id === existing.userData.id) return existing;
+      if (userData.id === existing.userData.id) {
+        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
+        return existing;
+      }
 
-      if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
-        throw new ForbiddenException('IBAN already in use');
-
-      if (!sendMergeRequest) throw new ConflictException(`IBAN already exists: ${existing.id}`);
-
-      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(
-        existing.userData,
-        userData,
-        MergeReason.IBAN,
-        false,
-      );
-      throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
+      if (sendMergeRequest)
+        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);
     }
 
     if (dto.preferredCurrency) {

@@ -236,6 +236,10 @@ export class TransactionDtoMapper {
 
     return {
       rate: entity.percentFee,
+      bank:
+        entity.bankFeeAmount != null
+          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       fixed:
         entity.absoluteFeeAmount != null
           ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
@@ -266,9 +270,11 @@ export const RefRewardStatusMapper: {
 } = {
   [RewardStatus.CREATED]: TransactionState.CREATED,
   [RewardStatus.PREPARED]: TransactionState.CREATED,
+  [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
   [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
   [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
   [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 
