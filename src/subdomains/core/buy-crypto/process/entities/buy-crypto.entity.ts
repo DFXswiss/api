@@ -429,8 +429,6 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeAndFiatReference(
-    amountInEur: number,
-    amountInChf: number,
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
@@ -452,13 +450,12 @@ export class BuyCrypto extends IEntity {
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
-            amountInEur,
-            amountInChf,
             usedRef,
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
+            status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
           };
 
     Object.assign(this, update);
@@ -469,6 +466,7 @@ export class BuyCrypto extends IEntity {
   amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
+    amountInEur: number,
     amountInChf: number,
     last24hVolume: number,
     last7dCheckoutVolume: number,
@@ -479,20 +477,24 @@ export class BuyCrypto extends IEntity {
     banks: Bank[],
     ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
-      this,
-      inputAsset,
-      minVolume,
+    const update: Partial<BuyCrypto> = {
+      ...AmlHelperService.getAmlResult(
+        this,
+        inputAsset,
+        minVolume,
+        amountInChf,
+        last24hVolume,
+        last7dCheckoutVolume,
+        last30dVolume,
+        last365dVolume,
+        bankData,
+        blacklist,
+        ibanCountry,
+        banks,
+      ),
       amountInChf,
-      last24hVolume,
-      last7dCheckoutVolume,
-      last30dVolume,
-      last365dVolume,
-      bankData,
-      blacklist,
-      ibanCountry,
-      banks,
-    );
+      amountInEur,
+    };
 
     Object.assign(this, update);
 

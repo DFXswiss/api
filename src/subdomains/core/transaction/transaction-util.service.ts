@@ -5,7 +5,6 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -70,8 +69,8 @@ export class TransactionUtilService {
       throw new BadRequestException('You can not refund more than the input amount');
   }
 
-  async validateChargebackIban(iban: string, userData: UserData): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, userData);
+  async validateChargebackIban(iban: string): Promise<boolean> {
+    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban);
     const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
     const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 

@@ -21,7 +21,8 @@ export enum Process {
   MONITORING = 'Monitoring',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
-  AUTO_IDENT_KYC = 'AutoIdentKyc',
+  KYC_IDENT_REVIEW = 'KycIdentReview',
+  KYC_NATIONALITY_REVIEW = 'KycNationalityReview',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
@@ -52,7 +53,6 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
-  BANK_ACCOUNT_DUPLICATE_SYNC = 'BankAccountDuplicateSync',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

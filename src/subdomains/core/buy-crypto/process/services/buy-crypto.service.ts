@@ -53,6 +53,7 @@ import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
@@ -85,6 +86,7 @@ export class BuyCryptoService {
     private readonly userDataService: UserDataService,
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -277,6 +279,9 @@ export class BuyCryptoService {
       isComplete: dto.isComplete,
     };
 
+    if (BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
+      await this.buyCryptoNotificationService.paymentProcessing(entity);
+
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
@@ -415,7 +420,7 @@ export class BuyCryptoService {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban, buyCrypto.userData)))
+    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount)

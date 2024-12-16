@@ -41,7 +41,7 @@ export class LnUrlForwardService {
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
-      return this.paymentLinkService.createPaymentLinkPayRequest(id, Util.toEnum(PaymentStandard, params.standard));
+      return this.paymentLinkService.createPayRequest(id, Util.toEnum(PaymentStandard, params.standard));
     }
 
     return this.createLnurlpPayRequest(id);
@@ -126,5 +126,19 @@ export class LnUrlForwardService {
 
   async lnurlwCallbackForward(id: string, params: any): Promise<LnurlwInvoiceDto> {
     return this.client.sendLnurlwInvoice(id, params);
+  }
+
+  // --- LNURLd --- //
+  async lnurldForward(deviceId: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    const withdrawRequest = await this.client.getLnurlDevice(deviceId, params);
+
+    const [paymentId, variable] = withdrawRequest.callback.split('/').slice(-2);
+    withdrawRequest.callback = LightningHelper.createLnurldCallbackUrl(paymentId, variable);
+
+    return withdrawRequest;
+  }
+
+  async lnurldCallbackForward(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    return this.client.getLnurlDeviceCallback(id, variable, params);
   }
 }

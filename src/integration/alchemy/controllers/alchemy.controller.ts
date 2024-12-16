@@ -25,11 +25,12 @@ export class AlchemyController {
     @Headers('X-Alchemy-Signature') alchemySignature: string,
     @Body() dto: AlchemyWebhookDto,
   ): Promise<void> {
-    if (this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto)) {
-      this.alchemyWebhookService.processAddressWebhook(dto);
+    if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto)) {
+      this.logger.warn(`Received Alchemy webhook with invalid signature '${alchemySignature}': ${JSON.stringify(dto)}`);
+      throw new BadRequestException('Invalid signature');
     }
 
-    throw new BadRequestException('Invalid signature');
+    return this.alchemyWebhookService.processAddressWebhook(dto);
   }
 
   @Post('syncTransactions')

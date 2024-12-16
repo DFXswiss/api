@@ -272,8 +272,6 @@ export class BuyFiat extends IEntity {
   }
 
   setFeeAndFiatReference(
-    amountInEur: number,
-    amountInChf: number,
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
@@ -295,8 +293,6 @@ export class BuyFiat extends IEntity {
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
-            amountInEur,
-            amountInChf,
             usedRef,
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
@@ -368,6 +364,7 @@ export class BuyFiat extends IEntity {
   amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
+    amountInEur: number,
     amountInChf: number,
     last24hVolume: number,
     last30dVolume: number,
@@ -376,19 +373,23 @@ export class BuyFiat extends IEntity {
     blacklist: SpecialExternalAccount[],
     ibanCountry: Country,
   ): UpdateResult<BuyFiat> {
-    const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
-      this,
-      inputAsset,
-      minVolume,
+    const update: Partial<BuyFiat> = {
+      ...AmlHelperService.getAmlResult(
+        this,
+        inputAsset,
+        minVolume,
+        amountInChf,
+        last24hVolume,
+        0,
+        last30dVolume,
+        last365dVolume,
+        bankData,
+        blacklist,
+        ibanCountry,
+      ),
       amountInChf,
-      last24hVolume,
-      0,
-      last30dVolume,
-      last365dVolume,
-      bankData,
-      blacklist,
-      ibanCountry,
-    );
+      amountInEur,
+    };
 
     Object.assign(this, update);
 

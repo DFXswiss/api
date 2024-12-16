@@ -118,7 +118,12 @@ export class SumsubService {
     );
   }
 
-  private async callApi<T>(url: string, method: Method = 'GET', data: any, responseType?: ResponseType): Promise<T> {
+  private async callApi<T>(
+    url: string,
+    method: Method = 'GET',
+    data: any = {},
+    responseType?: ResponseType,
+  ): Promise<T> {
     return this.request<T>(url, method, JSON.stringify(data), responseType).catch((e: HttpError) => {
       this.logger.verbose(`Error during sum sub request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
       throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });

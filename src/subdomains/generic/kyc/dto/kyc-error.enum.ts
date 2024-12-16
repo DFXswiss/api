@@ -7,8 +7,10 @@ export enum KycError {
   USER_DATA_BLOCKED = 'UserDataBlocked',
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
+  REVERSED_NAMES = 'ReversedNames',
   NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
   NATIONALITY_MISSING = 'NationalityMissing',
+  NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
@@ -28,6 +30,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.LAST_NAME_NOT_MATCHING]: 'Your last name is not matching',
   [KycError.NATIONALITY_NOT_MATCHING]: 'Your nationality is not matching',
   [KycError.NATIONALITY_MISSING]: 'Nationality is missing',
+  [KycError.NATIONALITY_NOT_ALLOWED]: 'Nationality is not allowed',
   [KycError.INVALID_DOCUMENT_TYPE]: 'Your document type is invalid',
   [KycError.IDENTIFICATION_NUMBER_MISSING]: 'Your identification number is missing',
   [KycError.INVALID_RESULT]: 'Unknown error',
@@ -36,6 +39,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your last name does not match your account name',
   [KycError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your organization name does not match your account name',
   [KycError.COUNTRY_NOT_ALLOWED]: 'Your country is not allowed for KYC',
+  [KycError.REVERSED_NAMES]: 'The names in your account are reversed',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
