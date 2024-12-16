@@ -731,11 +731,6 @@ export abstract class EvmClient extends BlockchainClient {
     return Math.max(blockchainNonce, cachedNonce);
   }
 
-  async getConfirmations(txHash: string): Promise<number> {
-    const transaction = await this.provider.getTransaction(txHash);
-    return transaction.confirmations;
-  }
-
   private async getHistory<T>(
     direction: Direction,
     walletAddress: string,

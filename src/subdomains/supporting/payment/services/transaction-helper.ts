@@ -156,7 +156,7 @@ export class TransactionHelper implements OnModuleInit {
       payIn.asset.name,
       direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
     );
-    return spec?.minConfirmations ? spec.minConfirmations : 1;
+    return spec?.minConfirmations ?? 0;
   }
 
   // --- TARGET ESTIMATION --- //

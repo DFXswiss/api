@@ -32,7 +32,7 @@ export class TransactionSpecification extends IEntity {
 
     spec.minVolume = 0;
     spec.minFee = 0;
-    spec.minConfirmations = 1;
+    spec.minConfirmations = 0;
 
     return spec;
   }
