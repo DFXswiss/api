@@ -250,17 +250,17 @@ export class BankDataService {
       }
 
       return this.updateBankDataInternal(entity, dto);
-    } else {
-      const bankData =
-        entity.type === BankDataType.USER
-          ? entity
-          : (await this.bankDataRepo.findOne({
-              where: { userData: { id: userDataId }, iban: entity.iban },
-              relations: { userData: true },
-            })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
-
-      return this.updateBankDataInternal(bankData, dto);
     }
+
+    const bankData =
+      entity.type === BankDataType.USER
+        ? entity
+        : (await this.bankDataRepo.findOne({
+            where: { userData: { id: userDataId }, iban: entity.iban },
+            relations: { userData: true },
+          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+
+    return this.updateBankDataInternal(bankData, dto);
   }
 
   async createIbanForUser(
