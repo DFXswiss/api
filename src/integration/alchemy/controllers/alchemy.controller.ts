@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Headers, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -23,9 +23,12 @@ export class AlchemyController {
   @ApiExcludeEndpoint()
   async addressWebhook(
     @Headers('X-Alchemy-Signature') alchemySignature: string,
-    @Body() dto: AlchemyWebhookDto,
+    @Req() req: Request,
+    @Body() body: any,
   ): Promise<void> {
-    if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto)) {
+    const dto = JSON.parse(body) as AlchemyWebhookDto;
+
+    if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto.webhookId, req.body)) {
       this.logger.warn(`Received Alchemy webhook with invalid signature '${alchemySignature}': ${JSON.stringify(dto)}`);
       throw new BadRequestException('Invalid signature');
     }

@@ -33,6 +33,7 @@ async function bootstrap() {
   app.use(cors());
 
   app.use('/v2/kyc/ident/sumsub', raw({ type: 'application/json', limit: '10mb' }));
+  app.use('/v1/alchemy/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
   app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
