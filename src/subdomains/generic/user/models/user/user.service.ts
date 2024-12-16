@@ -27,11 +27,11 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
+import { SignUpDto } from '../auth/dto/auth-credentials.dto';
 import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
@@ -165,7 +165,7 @@ export class UserService {
     specialCode,
     userData,
   }: {
-    userDetails: CreateUserDto;
+    userDetails: SignUpDto;
     userIp: string;
     userOrigin?: string;
     wallet?: Wallet;

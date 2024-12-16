@@ -66,6 +66,10 @@ export class Configuration {
     },
   };
 
+  loginCountries = {
+    '1': ['CH'],
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 

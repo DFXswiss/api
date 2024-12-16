@@ -8,13 +8,12 @@ import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AlbySignupDto } from '../user/dto/alby.dto';
 import { UserRepository } from '../user/user.repository';
 import { AuthAlbyService } from './auth-alby.service';
 import { AuthService } from './auth.service';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { SignInDto, SignUpDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
@@ -36,7 +35,7 @@ export class AuthController {
   @Post()
   @UseGuards(IpCountryGuard, OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  authenticate(@GetJwt() jwt: JwtPayload, @Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+  authenticate(@GetJwt() jwt: JwtPayload, @Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.authenticate(dto, ip, jwt?.account);
   }
 
@@ -44,14 +43,14 @@ export class AuthController {
   @UseGuards(RateLimitGuard, IpCountryGuard)
   @Throttle(20, 864000)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+  signUp(@Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
   }
 
   @Post('signIn')
   @UseGuards(IpCountryGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  signIn(@Body() credentials: AuthCredentialsDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+  signIn(@Body() credentials: SignInDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials, ip);
   }
 

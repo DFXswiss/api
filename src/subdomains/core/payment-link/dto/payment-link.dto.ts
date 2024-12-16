@@ -51,7 +51,7 @@ export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
   transferAmounts: TransferAmount[];
 }
 
-export interface PaymentLinkPaymentNotFoundDto extends PaymentLinkRequestDto, ErrorDto {}
+export interface PaymentLinkPaymentErrorResponseDto extends PaymentLinkRequestDto, ErrorDto {}
 
 export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;

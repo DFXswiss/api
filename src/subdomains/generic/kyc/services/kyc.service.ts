@@ -190,6 +190,14 @@ export class KycService {
         const errors = this.getIdentCheckErrors(entity, result, nationality);
         const comment = errors.join(';');
 
+        if (errors.includes(KycError.REVERSED_NAMES)) {
+          await this.userDataService.updateUserDataInternal(entity.userData, {
+            firstname: entity.userData.surname,
+            surname: entity.userData.firstname,
+          });
+          continue;
+        }
+
         if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
           entity.ignored(comment);
         } else if (
@@ -854,6 +862,13 @@ export class KycService {
       !Util.isSameName(entity.userData.surname, data.birthname)
     )
       errors.push(KycError.LAST_NAME_NOT_MATCHING);
+
+    if (
+      (Util.isSameName(entity.userData.firstname, data.lastname) ||
+        Util.isSameName(entity.userData.firstname, data.birthname)) &&
+      Util.isSameName(entity.userData.surname, data.firstname)
+    )
+      errors.push(KycError.REVERSED_NAMES);
 
     if (!nationality) {
       errors.push(KycError.NATIONALITY_MISSING);
