@@ -239,15 +239,28 @@ export class BankDataService {
     if (!entity) throw new NotFoundException('Bank account not found');
     if (entity.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
-    const bankData =
-      entity.type === BankDataType.USER || dto.active === false
-        ? entity
-        : (await this.bankDataRepo.findOne({
-            where: { userData: { id: userDataId }, iban: entity.iban },
-            relations: { userData: true },
-          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+    if (dto.active === false) {
+      const bankDatas = await this.bankDataRepo.find({
+        where: { id: Not(entity.id), iban: entity.iban, userData: { id: userDataId } },
+        relations: { userData: true },
+      });
 
-    return this.updateBankDataInternal(bankData, dto);
+      for (const bankData of bankDatas) {
+        await this.updateBankDataInternal(bankData, dto);
+      }
+
+      return this.updateBankDataInternal(entity, dto);
+    } else {
+      const bankData =
+        entity.type === BankDataType.USER
+          ? entity
+          : (await this.bankDataRepo.findOne({
+              where: { userData: { id: userDataId }, iban: entity.iban },
+              relations: { userData: true },
+            })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+
+      return this.updateBankDataInternal(bankData, dto);
+    }
   }
 
   async createIbanForUser(
