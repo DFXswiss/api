@@ -27,9 +27,6 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
-    // const uniqueBankDatas = Array.from(
-    //   new Map(bankDatas.map((item) => [item.iban, item])).values()
-    // );
     return this.bankDataService.getValidBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
   }
 
@@ -64,10 +61,8 @@ export class BankAccountController {
 
   // --- DTO --- //
   private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
-    const t = Array.from(new Map(bankDatas.map((item) => [item.iban, item])).values());
-    return bankDatas
-      .filter((b) => b.active && Array.from(new Map(bankDatas.map((item) => [item.iban, item])).values()))
-      .map((b) => this.toDto(b));
+    const uniqueBankDatas = Array.from(new Map(bankDatas.map((item) => [item.iban, item])).values());
+    return uniqueBankDatas.filter((b) => b.active).map((b) => this.toDto(b));
   }
 
   private toDto(bankData: BankData): BankAccountDto {
