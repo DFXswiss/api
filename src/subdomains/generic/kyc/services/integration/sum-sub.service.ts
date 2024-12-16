@@ -10,26 +10,31 @@ import { IdentDocument } from '../../dto/ident.dto';
 import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
+import { KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class SumsubService {
   private readonly logger = new DfxLogger(SumsubService);
 
   private readonly baseUrl = `https://api.sumsub.com`;
-  private readonly kycLevel = 'CH-Standard';
+  private readonly kycLevelOnline = 'CH-Standard';
+  private readonly kycLevelVideo = 'CH-Standard-Video';
+
   private static readonly algoMap: { [key: string]: string } = {
     HMAC_SHA1_HEX: 'sha1',
     HMAC_SHA256_HEX: 'sha256',
     HMAC_SHA512_HEX: 'sha512',
   };
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly http: HttpService) {
+    this.initiateIdent(undefined, { transactionId: 'Test12345' } as KycStep);
+  }
 
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    await this.createApplicant(kycStep.transactionId, user);
-    return this.generateAccessToken(kycStep.transactionId).then((r) => r.token);
+    await this.createApplicant(kycStep.transactionId, user, KycStepType.SUMSUB_VIDEO);
+    return this.generateAccessToken(kycStep.transactionId, KycStepType.SUMSUB_VIDEO).then((r) => r.token);
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -73,43 +78,47 @@ export class SumsubService {
   }
 
   // --- HELPER METHODS --- //
-  private async createApplicant(transactionId: string, user: UserData): Promise<void> {
+  private async createApplicant(transactionId: string, user: UserData, kycStepType: KycStepType): Promise<void> {
     const data = {
       externalUserId: transactionId,
       type: ApplicantType.INDIVIDUAL,
       fixedInfo: {
-        firstName: user.firstname,
-        lastName: user.surname,
-        country: user.country?.symbol3,
-        dob: user.birthday && Util.isoDate(user.birthday),
-        nationality: user.nationality?.symbol3,
+        firstName: 'Daniel',
+        lastName: 'Klaiber',
+        country: 'DEU',
+        dob: '12.12.2012',
+        nationality: 'DEU',
         addresses: [
           {
-            street: user.street + (user.houseNumber ? ` ${user.houseNumber}` : ''),
-            postCode: user.zip,
-            town: user.location,
-            country: user.country?.symbol3,
+            street: 'Test',
+            postCode: '71701',
+            town: 'Schwieberdingen',
+            country: 'DEU',
           },
         ],
       },
     };
-    await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', data);
+    await this.callApi<{ id: string }>(
+      `/resources/applicants?levelName=${
+        kycStepType == KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
+      }`,
+      'POST',
+      data,
+    );
   }
 
-  private async generateAccessToken(transactionId: string): Promise<{ token: string }> {
+  private async generateAccessToken(transactionId: string, kycStepType: KycStepType): Promise<{ token: string }> {
     const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
     return this.callApi<{ token: string }>(
-      `/resources/accessTokens?userId=${transactionId}&levelName=${this.kycLevel}&ttlInSecs=${expirySecs}`,
+      `/resources/accessTokens?userId=${transactionId}&levelName=${
+        kycStepType == KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
+      }&ttlInSecs=${expirySecs}`,
+      undefined,
       'POST',
     );
   }
 
-  private async callApi<T>(
-    url: string,
-    method: Method = 'GET',
-    data: any = {},
-    responseType?: ResponseType,
-  ): Promise<T> {
+  private async callApi<T>(url: string, method: Method = 'GET', data: any, responseType?: ResponseType): Promise<T> {
     return this.request<T>(url, method, JSON.stringify(data), responseType).catch((e: HttpError) => {
       this.logger.verbose(`Error during sum sub request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
       throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });

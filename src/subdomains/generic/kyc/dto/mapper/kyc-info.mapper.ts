@@ -60,7 +60,10 @@ export class KycInfoMapper {
 
   private static sortSteps(steps: KycStep[]): KycStep[] {
     const hasVideoIdent = steps.some(
-      (s) => s.name === KycStepName.IDENT && s.type === KycStepType.VIDEO && s.isCompleted,
+      (s) =>
+        s.name === KycStepName.IDENT &&
+        (s.type === KycStepType.VIDEO || s.type === KycStepType.SUMSUB_VIDEO) &&
+        s.isCompleted,
     );
 
     // group by step and get step with highest sequence number

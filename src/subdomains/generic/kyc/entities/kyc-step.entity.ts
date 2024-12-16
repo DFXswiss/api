@@ -363,7 +363,7 @@ export class KycStep extends IEntity {
   }
 
   get isSumsub(): boolean {
-    return this.type === KycStepType.SUMSUB_AUTO;
+    return this.type === KycStepType.SUMSUB_AUTO || this.type === KycStepType.SUMSUB_VIDEO;
   }
 
   get isManual(): boolean {

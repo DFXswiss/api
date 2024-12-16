@@ -172,7 +172,7 @@ export class KycService {
 
   async syncIdentStep(kycStep: KycStep): Promise<void> {
     if (!kycStep.isInReview) throw new BadRequestException(`Invalid KYC step status ${kycStep.status}`);
-    if (kycStep.type === KycStepType.SUMSUB_AUTO)
+    if (kycStep.type === KycStepType.SUMSUB_AUTO || kycStep.type === KycStepType.SUMSUB_VIDEO)
       throw new BadRequestException('Ident step sync is only available for IDnow');
 
     const result = await this.identService.getResult(kycStep);
@@ -628,7 +628,9 @@ export class KycService {
           nextStep: {
             name: nextStep,
             type:
-              lastTry?.type === KycStepType.VIDEO ? KycStepType.VIDEO : await this.userDataService.getIdentMethod(user),
+              lastTry?.type === KycStepType.VIDEO || lastTry?.type === KycStepType.SUMSUB_VIDEO
+                ? lastTry?.type
+                : await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
         };
