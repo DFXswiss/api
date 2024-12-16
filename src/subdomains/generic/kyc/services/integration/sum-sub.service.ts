@@ -26,9 +26,7 @@ export class SumsubService {
     HMAC_SHA512_HEX: 'sha512',
   };
 
-  constructor(private readonly http: HttpService) {
-    this.initiateIdent(undefined, { transactionId: 'Test12345' } as KycStep);
-  }
+  constructor(private readonly http: HttpService) {}
 
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
