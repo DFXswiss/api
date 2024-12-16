@@ -21,12 +21,8 @@ export class AlchemyController {
 
   @Post('addressWebhook')
   @ApiExcludeEndpoint()
-  async addressWebhook(
-    @Headers('X-Alchemy-Signature') alchemySignature: string,
-    @Req() req: Request,
-    @Body() body: any,
-  ): Promise<void> {
-    const dto = JSON.parse(body) as AlchemyWebhookDto;
+  async addressWebhook(@Headers('X-Alchemy-Signature') alchemySignature: string, @Req() req: any): Promise<void> {
+    const dto = JSON.parse(req.body) as AlchemyWebhookDto;
 
     if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto.webhookId, req.body)) {
       this.logger.warn(`Received Alchemy webhook with invalid signature '${alchemySignature}': ${JSON.stringify(dto)}`);
