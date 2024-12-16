@@ -242,13 +242,16 @@ export class BankDataService {
     if (userData.status === UserDataStatus.KYC_ONLY)
       throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
 
-    const existing = await this.bankDataRepo.findOne({
-      where: [
-        { iban: dto.iban, approved: true, type },
-        { iban: dto.iban, approved: IsNull(), type },
-      ],
-      relations: { userData: true },
-    });
+    const existing = await this.bankDataRepo
+      .find({
+        where: [
+          { iban: dto.iban, approved: true, type },
+          { iban: dto.iban, approved: IsNull(), type },
+        ],
+        relations: { userData: true },
+      })
+      .then((b) => b.find((b) => b.userData.id === userDataId) ?? b[0]);
+
     if (existing) {
       if (userData.id === existing.userData.id) {
         if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
