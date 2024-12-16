@@ -240,7 +240,7 @@ export class BankDataService {
     if (entity.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
     const bankData =
-      entity.type === BankDataType.USER || dto.active != null
+      entity.type === BankDataType.USER || dto.active === false
         ? entity
         : (await this.bankDataRepo.findOne({
             where: { userData: { id: userDataId }, iban: entity.iban },
