@@ -1,4 +1,7 @@
 // --- PARAMETERS --- //
+@description('Deployment environment')
+param env string
+
 @description('Azure Location/Region')
 param location string = resourceGroup().location
 
@@ -20,7 +23,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-03-01' existing = {
 }
 
 // --- RESOURCES --- //
-resource subnetNsg 'Microsoft.Network/networkSecurityGroups@2024-03-01' = {
+resource subnetNsg 'Microsoft.Network/networkSecurityGroups@2024-03-01' = if (env != 'loc') {
   name: caNsgName
   location: location
   tags: tags
@@ -29,14 +32,14 @@ resource subnetNsg 'Microsoft.Network/networkSecurityGroups@2024-03-01' = {
   }
 }
 
+var networkSecurityGroup = (env != 'loc' ? { id: subnetNsg.id } : null)
+
 resource subnet 'Microsoft.Network/virtualNetworks/subnets@2024-03-01' = {
   parent: vnet
   name: subnetName
   properties: {
     addressPrefix: '10.0.10.0/23'
-    networkSecurityGroup: {
-      id: subnetNsg.id
-    }
+    networkSecurityGroup: networkSecurityGroup
     privateLinkServiceNetworkPolicies: 'Disabled'
     delegations: [
       {

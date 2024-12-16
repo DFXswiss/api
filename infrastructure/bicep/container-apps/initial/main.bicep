@@ -22,6 +22,7 @@ var logAnalyticsWorkspaceName = 'log-${compName}-${apiName}-${env}'
 module network './modules/network.bicep' = {
   name: 'network'
   params: {
+    env: env
     vnetName: vnetName
     caNsgName: caNsgName
     subnetName: subnetName
@@ -32,6 +33,7 @@ module network './modules/network.bicep' = {
 module containerAppsEnv './modules/containerAppsEnv.bicep' = {
   name: 'containerAppsEnv'
   params: {
+    env: env
     environmentName: environmentName
     logAnalyticsWorkspaceName: logAnalyticsWorkspaceName
     mcResourceGroupName: mcResourceGroupName

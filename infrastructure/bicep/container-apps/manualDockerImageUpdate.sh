@@ -15,15 +15,23 @@ fi
 
 APP=$1
 
-# 2. Parameter "loc": Local environment
-# 2. Parameter "dev": Development environment
-# 2. Parameter "prd": Production environment
-if [[ ! $2 =~ ^("loc"|"dev"|"prd")$ ]]; then
-  echo "Missing 2. parameter: 'loc' or 'dev' or 'prd' expected ..."
+# 2. Parameter Name of the docker image + revision
+if [[ ! $2 ]]; then
+  echo "Missing 2. parameter: Name of the docker image expected ..."
   exit
 fi
 
-ENV=$2
+IMAGE_NAME=$2
+
+# 3. Parameter "loc": Local environment
+# 3. Parameter "dev": Development environment
+# 3. Parameter "prd": Production environment
+if [[ ! $3 =~ ^("loc"|"dev"|"prd")$ ]]; then
+  echo "Missing 3. parameter: 'loc' or 'dev' or 'prd' expected ..."
+  exit
+fi
+
+ENV=$3
 
 # Global variables
 COMP_NAME="dfx"
@@ -31,13 +39,15 @@ API_NAME="api"
 
 RESOURCE_GROUP="rg-${COMP_NAME}-${API_NAME}-${ENV}"
 CONTAINERAPP_NAME="ca-${COMP_NAME}-${APP}-${ENV}"
-IMAGE_NAME="dfxswiss/deuro-dapp:beta"
+DEPLOY_INFO="manual-`date +%s`"
 
 echo "Resource Group:     ${RESOURCE_GROUP}"
 echo "Container App Name: ${CONTAINERAPP_NAME}"
 echo "Image Name:         ${IMAGE_NAME}"
+echo "Deploy Info:        ${DEPLOY_INFO}"
 
 az containerapp update \
-    --name $CONTAINERAPP_NAME \
     --resource-group $RESOURCE_GROUP \
-    --image $IMAGE_NAME
+    --name $CONTAINERAPP_NAME \
+    --image $IMAGE_NAME \
+    --set-env-vars DEPLOY_INFO=$DEPLOY_INFO

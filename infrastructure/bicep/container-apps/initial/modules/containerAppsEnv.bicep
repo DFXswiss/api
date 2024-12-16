@@ -1,4 +1,7 @@
 // --- PARAMETERS --- //
+@description('Deployment environment')
+param env string
+
 @description('Azure Location/Region')
 param location string = resourceGroup().location
 
@@ -18,9 +21,19 @@ param infrastructureSubnetId string
 param tags object = {}
 
 // --- EXISTING RESOURCES --- //
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (env != 'loc') {
   name: logAnalyticsWorkspaceName
 }
+
+var appLogsConfiguration = (env != 'loc'
+  ? {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
+  : {})
 
 // --- RESOURCES --- //
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
@@ -28,16 +41,10 @@ resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   location: location
   tags: tags
   properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
+    appLogsConfiguration: appLogsConfiguration
     vnetConfiguration: {
       infrastructureSubnetId: infrastructureSubnetId
-      internal: true
+      internal: env != 'loc' ? true : false
     }
     zoneRedundant: false
     infrastructureResourceGroup: mcResourceGroupName

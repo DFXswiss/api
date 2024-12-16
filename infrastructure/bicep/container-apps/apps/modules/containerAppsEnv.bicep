@@ -11,17 +11,19 @@ param storageAccountName string
 @description('Name of the file share')
 param fileShareName string
 
+param withStorage bool
+
 // --- EXISTING RESOURCES --- //
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: environmentName
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = if (withStorage) {
   name: storageAccountName
 }
 
 // --- RESOURCES --- //
-resource environmentStorages 'Microsoft.App/managedEnvironments/storages@2024-03-01' = {
+resource environmentStorages 'Microsoft.App/managedEnvironments/storages@2024-03-01' = if (withStorage) {
   parent: environment
   name: environmentStorageName
   properties: {

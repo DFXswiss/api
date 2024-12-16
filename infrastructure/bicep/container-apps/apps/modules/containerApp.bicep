@@ -8,8 +8,11 @@ param appName string
 @description('Id of the Container Apps Environment')
 param containerAppsEnvironmentId string
 
-@description('Container Image')
+@description('Container image')
 param containerImage string
+
+@description('Container mount path')
+param containerMountPath string
 
 @description('Name of the storage')
 param storageName string
@@ -20,17 +23,40 @@ param containerCPU string
 @description('Container memory resource')
 param containerMemory string
 
-@description('Container environment: PORT')
-param containerEnvPort string
+@description('Container minimal replicas')
+param containerMinReplicas int
 
-@description('Container environment: PONDER_PROFILE')
-param containerEnvPonderProfile string
+@description('Container maximal replicas')
+param containerMaxReplicas int
 
-@description('Container environment: RPC_URL_MAINNET')
-param containerEnvRpcUrlMainnet string
+@description('Environment of the container app')
+param containerEnv array
 
 @description('Tags to be applied to all resources')
 param tags object = {}
+
+param withStorage bool
+
+// --- VARIABLES --- //
+var volumes = (withStorage
+  ? [
+      {
+        name: 'volume'
+        storageType: 'AzureFile'
+        storageName: storageName
+        mountOptions: 'nobrl,cache=none'
+      }
+    ]
+  : [])
+
+var volumeMounts = (withStorage
+  ? [
+      {
+        volumeName: 'volume'
+        mountPath: containerMountPath
+      }
+    ]
+  : [])
 
 // --- RESOURCES --- //
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
@@ -44,20 +70,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: int(containerEnvPort)
+        targetPort: 3000
         transport: 'auto'
         allowInsecure: false
       }
     }
     template: {
-      volumes: [
-        {
-          name: 'volume'
-          storageType: 'AzureFile'
-          storageName: storageName
-          mountOptions: 'nobrl,cache=none'
-        }
-      ]
+      volumes: volumes
       containers: [
         {
           name: 'app'
@@ -79,31 +98,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           //              initialDelaySeconds: 10
           //            }
           //          ]
-          env: [
-            {
-              name: 'PORT'
-              value: containerEnvPort
-            }
-            {
-              name: 'PONDER_PROFILE'
-              value: containerEnvPonderProfile
-            }
-            {
-              name: 'RPC_URL_MAINNET'
-              value: containerEnvRpcUrlMainnet
-            }
-          ]
-          volumeMounts: [
-            {
-              volumeName: 'volume'
-              mountPath: '/app/.ponder'
-            }
-          ]
+          env: containerEnv
+          volumeMounts: volumeMounts
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: 1
+        minReplicas: containerMinReplicas
+        maxReplicas: containerMaxReplicas
       }
     }
   }
