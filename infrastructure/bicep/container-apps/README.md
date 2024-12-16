@@ -3,42 +3,30 @@
 ## Initial Setup
 
 1. Change the directory to `initial`
-1. Run script `deploy.sh`
+1. Run script `deploy.sh` with the first parameter `[ENV]`
 
-- Setup of a new network security group resource
+- Setup of a new network security group resource if needed
 - Setup of a new subnet for the container apps
 - Setup of a new container apps environment
 
-## dEURO Ponder App Setup
+## Container App Setup
 
-1. Change the directory to `ponder`
-1. Check the parameter definitions in `parameters/[loc|dev|prd].json`
-1. Run script `deploy.sh` with the first parameter `[fcp|dep]` and the second parameter `[loc|dev|prd]`
+1. Change the directory to `apps`
+1. Check the parameter definitions in `parameters/[ENV]-[APP].json`
+1. Run script `deploy.sh` and select the environment and the container app
 
-- Setup of a new fileshare for the container app
-- Setup of a new storage in the existing container apps environment
+- Setup of a new fileshare for the container app if needed
+- Setup of a new storage in the existing container apps environment if needed
 - Setup of a new container app
 
-## dEURO API Setup
+### Container Apps
 
-1. Change the directory to `api`
-1. Check the parameter definitions in `parameters/[loc|dev|prd].json`
-1. Run script `deploy.sh` with the first parameter `[loc|dev|prd]`
+Container Apps are:
 
-- Setup of a new fileshare for the container app
-- Setup of a new storage in the existing container apps environment
-- Setup of a new container app
-
-## dEURO dApp Setup
-
-1. Change the directory to `dapp`
-1. Check the parameter definitions in `parameters/[loc|dev|prd].json`
-1. Run script `deploy.sh` with the first parameter `[loc|dev|prd]`
-1. Copy the `[ENV].env` file to the container app fileshare root as `.env` and update the content
-
-- Setup of a new fileshare for the container app
-- Setup of a new storage in the existing container apps environment
-- Setup of a new container app
+- fcp: Frankencoin Ponder
+- dep: dEuro Ponder
+- dea: dEuro API
+- ded: dEuro dApp
 
 ## Front Door Setup
 
