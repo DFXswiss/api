@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "containerImage": {
-      "value": "dfxswiss/deuro-api:test"
+      "value": "dfxswiss/deuro-api:latest"
     },
     "containerMountPath": {
       "value": "/app/.api"
@@ -32,11 +32,11 @@
         },
         {
           "name": "CONFIG_APP_URL",
-          "value": "https://ca-dfx-ded-loc.lemoncoast-6fe5d331.westeurope.azurecontainerapps.io"
+          "value": "https://app.deuro.com"
         },
         {
           "name": "CONFIG_INDEXER_URL",
-          "value": "https://ca-dfx-dep-loc.lemoncoast-6fe5d331.westeurope.azurecontainerapps.io"
+          "value": "https://ponder.deuro.com"
         },
         {
           "name": "COINGECKO_API_KEY",
