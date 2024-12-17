@@ -240,14 +240,14 @@ export class BankDataService {
     if (entity.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
     if (dto.active === false) {
-      const bankDatas = await this.bankDataRepo.find({
-        where: { id: Not(entity.id), iban: entity.iban, userData: { id: userDataId } },
-        relations: { userData: true },
-      });
-
-      for (const bankData of bankDatas) {
-        await this.updateBankDataInternal(bankData, dto);
-      }
+      await this.bankDataRepo
+        .createQueryBuilder()
+        .update('bank_data')
+        .set({ active: false })
+        .where('bank_data.userDataId = :userDataId', { userDataId })
+        .andWhere('bank_data.id != :id', { id: entity.id })
+        .andWhere('bank_data.iban = :iban', { iban: entity.iban })
+        .execute();
 
       return this.updateBankDataInternal(entity, dto);
     }
