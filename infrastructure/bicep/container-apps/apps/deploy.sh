@@ -20,11 +20,11 @@ selectOption() {
   shift
   options=("$@")
 
-  selection=$(select opt in "${options[@]}" "quit"; do 
+  select opt in "${options[@]}" "quit"; do 
       case "$REPLY" in
-      *) echo $opt; break;;
+      *) selection="${opt}"; break ;;
       esac
-  done)
+  done
 
   if [[ ! $selection || $selection == "quit" ]]; then exit -1; fi
   echo "${selection}"
