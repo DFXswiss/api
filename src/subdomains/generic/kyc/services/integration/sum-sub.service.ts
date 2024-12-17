@@ -81,21 +81,23 @@ export class SumsubService {
       externalUserId: transactionId,
       type: ApplicantType.INDIVIDUAL,
       fixedInfo: {
-        firstName: 'Daniel',
-        lastName: 'Klaiber',
-        country: 'DEU',
-        dob: '12.12.2012',
-        nationality: 'DEU',
+        firstName: user.firstname,
+        lastName: user.surname,
+        country: user.country?.symbol3,
+        dob: user.birthday && Util.isoDate(user.birthday),
+        nationality: user.nationality?.symbol3,
+
         addresses: [
           {
-            street: 'Test',
-            postCode: '71701',
-            town: 'Schwieberdingen',
-            country: 'DEU',
+            street: user.street + (user.houseNumber ? ` ${user.houseNumber}` : ''),
+            postCode: user.zip,
+            town: user.location,
+            country: user.country?.symbol3,
           },
         ],
       },
     };
+
     await this.callApi<{ id: string }>(
       `/resources/applicants?levelName=${
         kycStepType == KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
