@@ -21,19 +21,9 @@ param infrastructureSubnetId string
 param tags object = {}
 
 // --- EXISTING RESOURCES --- //
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (env != 'loc') {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   name: logAnalyticsWorkspaceName
 }
-
-var appLogsConfiguration = (env != 'loc'
-  ? {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
-  : {})
 
 // --- RESOURCES --- //
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
@@ -41,7 +31,13 @@ resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   location: location
   tags: tags
   properties: {
-    appLogsConfiguration: appLogsConfiguration
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
     vnetConfiguration: {
       infrastructureSubnetId: infrastructureSubnetId
       internal: env != 'loc' ? true : false
