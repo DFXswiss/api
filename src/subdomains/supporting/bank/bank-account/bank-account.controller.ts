@@ -61,7 +61,8 @@ export class BankAccountController {
 
   // --- DTO --- //
   private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
-    return bankDatas.filter((b) => b.active).map((b) => this.toDto(b));
+    const uniqueBankDatas = Array.from(new Map(bankDatas.map((item) => [item.iban, item])).values());
+    return uniqueBankDatas.filter((b) => b.active).map((b) => this.toDto(b));
   }
 
   private toDto(bankData: BankData): BankAccountDto {
