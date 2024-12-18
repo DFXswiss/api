@@ -268,6 +268,12 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate?: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  amlListExpiredDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  amlListReactivatedDate?: Date;
+
   @Column({ length: 256, nullable: true })
   internalAmlNote?: string;
 

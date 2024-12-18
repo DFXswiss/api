@@ -545,9 +545,18 @@ export class TransactionHelper implements OnModuleInit {
     kycLimitChf: number,
     user?: User,
   ): QuoteError | undefined {
+    const nationality = user?.userData.nationality;
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+
+    if (
+      nationality &&
+      ((isBuy && !nationality.bankEnable) ||
+        (paymentMethodIn === FiatPaymentMethod.CARD && !nationality.checkoutEnable) ||
+        ((isSell || isSwap) && !nationality.cryptoEnable))
+    )
+      return QuoteError.NATIONALITY_NOT_ALLOWED;
 
     // KYC checks
     if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
