@@ -73,8 +73,6 @@ export class BankAccountController {
       iban: bankData.iban.split(';')[0],
       label: bankData.label,
       preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
-      sepaInstant: undefined,
-      active: true,
     };
   }
 }

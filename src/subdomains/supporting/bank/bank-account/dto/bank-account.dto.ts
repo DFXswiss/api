@@ -13,10 +13,4 @@ export class BankAccountDto {
 
   @ApiPropertyOptional()
   label: string;
-
-  @ApiProperty({ deprecated: true })
-  sepaInstant: boolean;
-
-  @ApiProperty({ deprecated: true })
-  active: boolean;
 }
