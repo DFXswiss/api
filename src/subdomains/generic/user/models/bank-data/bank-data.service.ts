@@ -176,7 +176,7 @@ export class BankDataService {
     }
 
     if (bankData.default) {
-      this.bankDataRepo.clearDefault(bankData.userData.id);
+      this.bankDataRepo.clearDefault(bankData.userData);
     }
 
     return this.bankDataRepo.save({ ...bankData, ...dto });
@@ -295,7 +295,7 @@ export class BankDataService {
 
     if (existing) {
       if (userData.id === existing.userData.id) {
-        if (!existing.active) await this.bankDataRepo.updateAsDefault(...existing.activate(dto));
+        if (!existing.active) await this.bankDataRepo.updateWithDefault(...existing.activate(dto));
         return existing;
       }
 
@@ -320,7 +320,7 @@ export class BankDataService {
       default: dto.default,
     });
 
-    return this.bankDataRepo.saveAsDefault(bankData);
+    return this.bankDataRepo.saveWithDefault(bankData);
   }
 
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
