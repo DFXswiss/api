@@ -999,6 +999,6 @@ export class KycService {
       }
     }
 
-    return log.join('/n');
+    return log.join('\n');
   }
 }
