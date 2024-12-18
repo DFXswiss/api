@@ -20,4 +20,9 @@ export class UpdateBankAccountDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  default?: boolean;
 }
