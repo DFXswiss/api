@@ -175,6 +175,10 @@ export class BankDataService {
       dto.preferredCurrency = null;
     }
 
+    if (bankData.default) {
+      this.bankDataRepo.clearDefault(bankData.userData.id);
+    }
+
     return this.bankDataRepo.save({ ...bankData, ...dto });
   }
 
@@ -243,7 +247,7 @@ export class BankDataService {
       await this.bankDataRepo
         .createQueryBuilder()
         .update('bank_data')
-        .set({ active: false })
+        .set({ active: false, default: false })
         .where('bank_data.userDataId = :userDataId', { userDataId })
         .andWhere('bank_data.id != :id', { id: entity.id })
         .andWhere('bank_data.iban = :iban', { iban: entity.iban })
@@ -291,7 +295,7 @@ export class BankDataService {
 
     if (existing) {
       if (userData.id === existing.userData.id) {
-        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
+        if (!existing.active) await this.bankDataRepo.updateAsDefault(...existing.activate(dto));
         return existing;
       }
 
@@ -313,9 +317,10 @@ export class BankDataService {
       type: BankDataType.USER,
       label: dto.label,
       preferredCurrency: dto.preferredCurrency,
+      default: dto.default,
     });
 
-    return this.bankDataRepo.save(bankData);
+    return this.bankDataRepo.saveAsDefault(bankData);
   }
 
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
