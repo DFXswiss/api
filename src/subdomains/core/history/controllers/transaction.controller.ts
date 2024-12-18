@@ -334,7 +334,7 @@ export class TransactionController {
 
       const refundTarget =
         IbanTools.validateIBAN(transaction.bankTx?.iban).valid &&
-        (await this.transactionUtilService.validateChargebackIban(transaction.bankTx.iban, userData))
+        (await this.transactionUtilService.validateChargebackIban(transaction.bankTx.iban))
           ? transaction.bankTx.iban
           : transaction.targetEntity?.chargebackIban;
 

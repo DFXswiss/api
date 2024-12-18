@@ -78,7 +78,7 @@ export class BankTxReturnService {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban, bankTxReturn.userData)))
+    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
