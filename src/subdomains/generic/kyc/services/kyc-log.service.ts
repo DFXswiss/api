@@ -50,6 +50,8 @@ export class KycLogService {
   }
 
   async createMailChangeLog(user: UserData, oldMail: string, newMail: string) {
+    if (oldMail === newMail) return;
+
     const entity = this.mailChangeLogRepo.create({
       result: `${oldMail} -> ${newMail}`,
       userData: user,

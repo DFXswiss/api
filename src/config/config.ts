@@ -3,6 +3,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
+import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -13,6 +14,7 @@ import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
@@ -62,6 +64,10 @@ export class Configuration {
         language: specific?.language ?? this.defaults.language,
       };
     },
+  };
+
+  loginCountries = {
+    '1': ['CH'],
   };
 
   defaultVolumeDecimal = 2;
@@ -404,6 +410,7 @@ export class Configuration {
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
+      gasPrice: process.env.BSC_GAS_PRICE,
     },
     lightning: {
       lnbits: {
@@ -581,7 +588,7 @@ export class Configuration {
       prefixes: (userData: UserData) => [
         `user/${userData.id}/Identification`,
         `spider/${userData.id}/online-identification`,
-        `spider/${userData.id}/video-identification`,
+        `spider/${userData.id}/video_identification`,
       ],
       fileTypes: [ContentType.PDF],
     },
@@ -590,7 +597,7 @@ export class Configuration {
       prefixes: (userData: UserData) => {
         switch (userData.identificationType) {
           case KycIdentificationType.VIDEO_ID:
-            return [`user/${userData.id}/Identification`];
+            return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
           case KycIdentificationType.ONLINE_ID:
             return [`user/${userData.id}/UserNotes`];
           default:
@@ -598,10 +605,15 @@ export class Configuration {
         }
       },
       filter: (file: KycFile, userData: UserData) =>
-        (userData.identificationType === KycIdentificationType.VIDEO_ID && file.contentType === ContentType.MP3) ||
+        (userData.identificationType === KycIdentificationType.VIDEO_ID &&
+          file.contentType.startsWith(ContentType.MP3)) ||
         (userData.identificationType === KycIdentificationType.ONLINE_ID &&
           file.name.includes('bankTransactionVerify') &&
-          file.contentType === ContentType.PDF),
+          file.contentType.startsWith(ContentType.PDF)),
+      handleFileNotFound: (zip: JSZip, userData: UserData) =>
+        userData.identificationType === KycIdentificationType.MANUAL
+          ? zip.file('03_nicht_benötigt_aufgrund_manueller_identifikation.txt', '')
+          : false,
     },
     {
       folderName: '04_Identifizierungsformular',
@@ -628,6 +640,26 @@ export class Configuration {
       filter: (file: KycFile, userData: UserData) =>
         (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
         (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+    },
+    {
+      folderName: '08_Onboardingdokument',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.toLowerCase().includes('onboarding'),
+    },
+    {
+      folderName: '09_Blockchain Check',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('blockchainAddressAnalyse'),
+    },
+    {
+      folderName: '10_Überprüfung der Wohnsitzadresse',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (file.category === FileCategory.USER && file.name.includes('postversand')) ||
+        (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
     },
   ];
 

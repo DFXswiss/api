@@ -93,12 +93,12 @@ export class BankDataService {
 
         if (existing) {
           const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
-          await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+          await this.bankDataRepo.update(...existing.forbid(existingError.join(';')));
         }
 
-        await this.bankDataRepo.update(...entity.activate());
+        await this.bankDataRepo.update(...entity.allow());
       } else {
-        await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
+        await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
     } catch (e) {
       this.logger.error(`Failed to verify bankData ${entity.id}:`, e);
@@ -128,12 +128,11 @@ export class BankDataService {
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
-    return this.createBankData(userData, dto);
+    return this.createVerifyBankData(userData, dto);
   }
 
-  async createBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
-    const bankData = this.bankDataRepo.create({ ...dto, userData });
-    await this.bankDataRepo.save(bankData);
+  async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
+    const bankData = await this.createBankDataInternal(userData, dto);
 
     if (!DisabledProcess(Process.BANK_DATA_VERIFICATION)) await this.verifyBankData(bankData);
 
@@ -144,10 +143,19 @@ export class BankDataService {
     return userData;
   }
 
+  async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
+    const bankData = this.bankDataRepo.create({ ...dto, userData });
+    return this.bankDataRepo.save(bankData);
+  }
+
   async updateBankData(id: number, dto: UpdateBankDataDto): Promise<BankData> {
     const bankData = await this.bankDataRepo.findOneBy({ id });
     if (!bankData) throw new NotFoundException('Bank data not found');
 
+    return this.updateBankDataInternal(bankData, dto);
+  }
+
+  async updateBankDataInternal(bankData: BankData, dto: UpdateBankDataDto): Promise<BankData> {
     if (dto.approved) {
       const activeBankData = await this.bankDataRepo.findOneBy({
         id: Not(bankData.id),
@@ -160,6 +168,11 @@ export class BankDataService {
     if (dto.preferredCurrency) {
       dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
+    }
+
+    if (bankData.type !== BankDataType.USER) {
+      dto.label = null;
+      dto.preferredCurrency = null;
     }
 
     return this.bankDataRepo.save({ ...bankData, ...dto });
@@ -219,11 +232,35 @@ export class BankDataService {
   }
 
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
-    const bankData = await this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
-    if (!bankData) throw new NotFoundException('Bank account not found');
-    if (bankData.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
+    const entity = await this.bankDataRepo.findOne({
+      where: { id },
+      relations: { userData: true },
+    });
+    if (!entity) throw new NotFoundException('Bank account not found');
+    if (entity.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
-    return this.updateBankData(id, dto);
+    if (dto.active === false) {
+      await this.bankDataRepo
+        .createQueryBuilder()
+        .update('bank_data')
+        .set({ active: false })
+        .where('bank_data.userDataId = :userDataId', { userDataId })
+        .andWhere('bank_data.id != :id', { id: entity.id })
+        .andWhere('bank_data.iban = :iban', { iban: entity.iban })
+        .execute();
+
+      return this.updateBankDataInternal(entity, dto);
+    }
+
+    const bankData =
+      entity.type === BankDataType.USER
+        ? entity
+        : (await this.bankDataRepo.findOne({
+            where: { userData: { id: userDataId }, iban: entity.iban },
+            relations: { userData: true },
+          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+
+    return this.updateBankDataInternal(bankData, dto);
   }
 
   async createIbanForUser(
@@ -242,18 +279,24 @@ export class BankDataService {
     if (userData.status === UserDataStatus.KYC_ONLY)
       throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
 
-    const existing = await this.bankDataRepo.findOne({
-      where: [
-        { iban: dto.iban, approved: true, type },
-        { iban: dto.iban, approved: IsNull(), type },
-      ],
-      relations: { userData: true },
-    });
+    const existing = await this.bankDataRepo
+      .find({
+        where: [
+          { iban: dto.iban, approved: true, type },
+          { iban: dto.iban, approved: IsNull(), type },
+        ],
+        relations: { userData: true },
+      })
+      .then((b) => b.find((b) => b.userData.id === userDataId) ?? b[0]);
+
     if (existing) {
-      if (userData.id === existing.userData.id) return existing;
+      if (userData.id === existing.userData.id) {
+        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
+        return existing;
+      }
 
       if (sendMergeRequest)
-        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN, false);
+        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);
     }
 
     if (dto.preferredCurrency) {

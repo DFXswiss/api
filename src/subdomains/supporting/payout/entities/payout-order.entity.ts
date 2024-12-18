@@ -25,32 +25,32 @@ export enum PayoutOrderStatus {
 @Entity()
 @Index((p: PayoutOrder) => [p.context, p.correlationId], { unique: true })
 export class PayoutOrder extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   context: PayoutOrderContext;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   correlationId: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   chain: Blockchain;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  asset: Asset;
+  asset?: Asset;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amount: number;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   destinationAddress: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: PayoutOrderStatus;
 
   @Column({ length: 256, nullable: true })
-  transferTxId: string;
+  transferTxId?: string;
 
   @Column({ length: 256, nullable: true })
-  payoutTxId: string;
+  payoutTxId?: string;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   preparationFeeAsset?: Asset;

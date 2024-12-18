@@ -263,9 +263,9 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
-  if (dto.type == SumSubWebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
-  if (dto.type == SumSubWebhookType.APPLICANT_REVIEWED)
-    return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+  if (dto.type === SumSubWebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
+  if (dto.type === SumSubWebhookType.APPLICANT_REVIEWED)
+    return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
 }
 
 export function getSumSubReason(reasons: SumSubRejectionLabels[]): string {

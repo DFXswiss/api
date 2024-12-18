@@ -11,7 +11,7 @@ import { BuyCrypto } from '../../process/entities/buy-crypto.entity';
 @Index((buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
 export class Buy extends IEntity {
   @Column({ length: 256, nullable: true })
-  iban: string;
+  iban?: string;
 
   @Column({ length: 256, unique: true })
   bankUsage: string;
@@ -29,14 +29,14 @@ export class Buy extends IEntity {
   user: User;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  asset: Asset;
+  asset?: Asset;
 
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
-  deposit: Deposit;
+  deposit?: Deposit;
 
   @OneToOne(() => Route, { eager: true, nullable: true })
   @JoinColumn()
-  route: Route;
+  route?: Route;
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
   buyCryptos: BuyCrypto[];
