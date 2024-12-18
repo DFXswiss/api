@@ -32,9 +32,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -73,24 +71,17 @@ import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
+import { RefundDataDto } from '../dto/refund-data.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
 import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 import { ExportType, HistoryService } from '../services/history.service';
 
-interface TransactionRefundData {
-  expiryDate: Date;
-  feeAmount: number;
-  refundAmount: number;
-  refundAsset: AssetDto | FiatDto;
-  refundTarget: string;
-}
-
 @ApiTags('Transaction')
 @Controller('transaction')
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
-  private readonly refundList = new Map<number, TransactionRefundData>();
+  private readonly refundList = new Map<number, RefundDataDto>();
 
   constructor(
     private readonly historyService: HistoryService,
@@ -293,8 +284,7 @@ export class TransactionController {
   @Get(':id/refund')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiExcludeEndpoint()
-  async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<TransactionRefundData> {
+  async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: true,
       bankTxReturn: true,
@@ -361,11 +351,17 @@ export class TransactionController {
     if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
       throw new BadRequestException('You cannot refund payment transactions');
 
-    const feeAmount = transaction.targetEntity.cryptoInput
+    const networkFeeAmount = transaction.targetEntity.cryptoInput
       ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
       : 0;
 
-    if (feeAmount >= transaction.targetEntity.inputAmount)
+    const bankFeeAmount = transaction.targetEntity.cryptoInput
+      ? 0
+      : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
+
+    const totalFeeAmount = networkFeeAmount + bankFeeAmount;
+
+    if (totalFeeAmount >= transaction.targetEntity.inputAmount)
       throw new BadRequestException('Transaction fee is too expensive');
 
     const refundAsset = transaction.targetEntity.cryptoInput?.asset
@@ -392,13 +388,16 @@ export class TransactionController {
       refundTarget = transaction.targetEntity.chargebackAddress;
     }
 
-    const refundData = {
+    const refundData: RefundDataDto = {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       refundAmount: Util.roundReadable(
-        transaction.targetEntity.inputAmount - feeAmount,
+        transaction.targetEntity.inputAmount - totalFeeAmount,
         !transaction.targetEntity.cryptoInput,
       ),
-      feeAmount: Util.roundReadable(feeAmount, !transaction.targetEntity.cryptoInput),
+      fee: {
+        network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
+        bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
+      },
       refundAsset,
       refundTarget,
     };
@@ -411,7 +410,6 @@ export class TransactionController {
   @Put(':id/refund')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiExcludeEndpoint()
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -479,7 +477,7 @@ export class TransactionController {
 
   // --- HELPER METHODS --- //
 
-  private isRefundDataValid(refundData: TransactionRefundData): boolean {
+  private isRefundDataValid(refundData: RefundDataDto): boolean {
     return Util.secondsDiff(refundData.expiryDate) <= 0;
   }
 
