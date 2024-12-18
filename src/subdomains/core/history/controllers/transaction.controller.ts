@@ -296,6 +296,8 @@ export class TransactionController {
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
 
+    let refundData: RefundDataDto;
+
     // Unassigned transaction
     if (
       !(transaction.targetEntity instanceof BuyFiat) &&
@@ -303,6 +305,7 @@ export class TransactionController {
     ) {
       if (!transaction.bankTx || !BankTxTypeUnassigned(transaction.bankTx.type))
         throw new NotFoundException('Transaction not found');
+
       const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
       if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
         throw new ForbiddenException('You can only refund your own transaction');
@@ -310,97 +313,86 @@ export class TransactionController {
       if (transaction.targetEntity?.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
 
-      const forexFee = transaction.bankTx.txCurrency === transaction.bankTx.currency ? 0 : Config.bank.forexFee;
-      const forexFeeAmount = (transaction.bankTx.amount + transaction.bankTx.chargeAmount) * forexFee;
-      const feeAmount = 0 + forexFeeAmount;
-
-      const userData = await this.userDataService.getUserData(jwt.account);
+      const bankFeeAmount = transaction.bankTx.chargeAmount;
 
       const inputAmount = transaction.bankTx.amount + transaction.bankTx.chargeAmount;
 
-      if (feeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
+      if (bankFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
       const refundAsset = FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.bankTx.currency));
 
-      const refundTarget =
-        IbanTools.validateIBAN(transaction.bankTx?.iban).valid &&
-        (await this.transactionUtilService.validateChargebackIban(transaction.bankTx.iban))
-          ? transaction.bankTx.iban
-          : transaction.targetEntity?.chargebackIban;
+      const refundTarget = (await this.validateIban(transaction.bankTx?.iban))
+        ? transaction.bankTx.iban
+        : transaction.targetEntity?.chargebackIban;
 
-      const refundData = {
+      refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-        refundAmount: Util.roundReadable(inputAmount - feeAmount, true),
-        feeAmount: Util.roundReadable(feeAmount, true),
+        refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, true),
+        fee: {
+          network: 0,
+          bank: Util.roundReadable(bankFeeAmount, true),
+        },
         refundAsset,
         refundTarget,
       };
-
-      this.refundList.set(transaction.id, refundData);
-
-      return refundData;
-    }
-
-    // Assigned transaction
-    if (jwt.account !== transaction.userData.id)
-      throw new ForbiddenException('You can only refund your own transaction');
-    if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.targetEntity.amlCheck))
-      throw new BadRequestException('You can only refund failed or pending transactions');
-    if (transaction.targetEntity.chargebackAmount)
-      throw new BadRequestException('You can only refund a transaction once');
-    if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
-      throw new BadRequestException('You cannot refund payment transactions');
-
-    const networkFeeAmount = transaction.targetEntity.cryptoInput
-      ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
-      : 0;
-
-    const bankFeeAmount = transaction.targetEntity.cryptoInput
-      ? 0
-      : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
-
-    const totalFeeAmount = networkFeeAmount + bankFeeAmount;
-
-    if (totalFeeAmount >= transaction.targetEntity.inputAmount)
-      throw new BadRequestException('Transaction fee is too expensive');
-
-    const refundAsset = transaction.targetEntity.cryptoInput?.asset
-      ? AssetDtoMapper.toDto(transaction.targetEntity.cryptoInput?.asset)
-      : FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
-
-    let refundTarget = null;
-
-    if (transaction.targetEntity instanceof BuyCrypto) {
-      try {
-        const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
-
-        refundTarget = transaction.targetEntity.checkoutTx
-          ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
-          : IbanTools.validateIBAN(transaction.targetEntity.bankTx?.iban).valid &&
-            !multiAccountIbans.includes(transaction.targetEntity.bankTx?.iban) &&
-            (await this.transactionUtilService.validateChargebackIban(transaction.targetEntity.bankTx.iban))
-          ? transaction.targetEntity.bankTx.iban
-          : transaction.targetEntity.chargebackIban;
-      } catch (_) {
-        refundTarget = transaction.targetEntity.chargebackIban;
-      }
     } else {
-      refundTarget = transaction.targetEntity.chargebackAddress;
-    }
+      // Assigned transaction
+      if (jwt.account !== transaction.userData.id)
+        throw new ForbiddenException('You can only refund your own transaction');
+      if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.targetEntity.amlCheck))
+        throw new BadRequestException('You can only refund failed or pending transactions');
+      if (transaction.targetEntity.chargebackAmount)
+        throw new BadRequestException('You can only refund a transaction once');
+      if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
+        throw new BadRequestException('You cannot refund payment transactions');
 
-    const refundData: RefundDataDto = {
-      expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-      refundAmount: Util.roundReadable(
-        transaction.targetEntity.inputAmount - totalFeeAmount,
-        !transaction.targetEntity.cryptoInput,
-      ),
-      fee: {
-        network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
-        bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
-      },
-      refundAsset,
-      refundTarget,
-    };
+      const networkFeeAmount = transaction.targetEntity.cryptoInput
+        ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
+        : 0;
+
+      const bankFeeAmount = transaction.targetEntity.cryptoInput
+        ? 0
+        : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
+
+      const totalFeeAmount = networkFeeAmount + bankFeeAmount;
+
+      if (totalFeeAmount >= transaction.targetEntity.inputAmount)
+        throw new BadRequestException('Transaction fee is too expensive');
+
+      const refundAsset = transaction.targetEntity.cryptoInput?.asset
+        ? AssetDtoMapper.toDto(transaction.targetEntity.cryptoInput?.asset)
+        : FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
+
+      let refundTarget = null;
+
+      if (transaction.targetEntity instanceof BuyCrypto) {
+        try {
+          refundTarget = transaction.targetEntity.checkoutTx
+            ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
+            : (await this.validateIban(transaction.targetEntity.bankTx?.iban))
+            ? transaction.targetEntity.bankTx.iban
+            : transaction.targetEntity.chargebackIban;
+        } catch (_) {
+          refundTarget = transaction.targetEntity.chargebackIban;
+        }
+      } else {
+        refundTarget = transaction.targetEntity.chargebackAddress;
+      }
+
+      refundData = {
+        expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+        refundAmount: Util.roundReadable(
+          transaction.targetEntity.inputAmount - totalFeeAmount,
+          !transaction.targetEntity.cryptoInput,
+        ),
+        fee: {
+          network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
+          bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
+        },
+        refundAsset,
+        refundTarget,
+      };
+    }
 
     this.refundList.set(transaction.id, refundData);
 
@@ -476,6 +468,17 @@ export class TransactionController {
   }
 
   // --- HELPER METHODS --- //
+
+  private async validateIban(iban: string): Promise<boolean> {
+    if (!iban) return false;
+
+    const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
+    return (
+      IbanTools.validateIBAN(iban).valid &&
+      !multiAccountIbans.includes(iban) &&
+      (await this.transactionUtilService.validateChargebackIban(iban))
+    );
+  }
 
   private isRefundDataValid(refundData: RefundDataDto): boolean {
     return Util.secondsDiff(refundData.expiryDate) <= 0;
