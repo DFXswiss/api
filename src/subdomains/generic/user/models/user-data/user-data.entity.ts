@@ -13,6 +13,7 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
@@ -348,6 +349,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
+
+  @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
+  bankTxReturns: BankTxReturn[];
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.userData)
   supportIssues: SupportIssue[];

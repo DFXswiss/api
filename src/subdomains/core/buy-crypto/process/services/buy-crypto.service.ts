@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
@@ -95,7 +96,7 @@ export class BuyCryptoService {
 
     const buy = await this.getBuy(buyId);
 
-    const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
+    const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : Config.bank.forexFee;
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
