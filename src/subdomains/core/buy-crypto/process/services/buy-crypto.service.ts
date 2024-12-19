@@ -105,7 +105,7 @@ export class BuyCryptoService {
         const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
         const bankDataName = bankTx.bankDataName(multiAccounts);
         if (bankDataName)
-          await this.bankDataService.createBankData(buy.userData, {
+          await this.bankDataService.createVerifyBankData(buy.userData, {
             name: bankDataName,
             iban: bankTx.senderAccount,
             type: BankDataType.BANK_IN,
@@ -143,7 +143,7 @@ export class BuyCryptoService {
       );
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.userData, {
+        await this.bankDataService.createVerifyBankData(buy.userData, {
           name: checkoutTx.cardName ?? buy.userData.completeName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,

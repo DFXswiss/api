@@ -410,6 +410,7 @@ export class Configuration {
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
+      gasPrice: process.env.BSC_GAS_PRICE,
     },
     lightning: {
       lnbits: {

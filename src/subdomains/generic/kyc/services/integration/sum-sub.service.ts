@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import * as crypto from 'crypto';
+import { Request } from 'express';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';

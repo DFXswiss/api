@@ -146,6 +146,16 @@ export class UpdateUserDataDto {
   amlListAddedDate?: Date;
 
   @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  amlListExpiredDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  amlListReactivatedDate?: Date;
+
+  @IsOptional()
   @IsEnum(KycIdentificationType)
   identificationType?: KycIdentificationType;
 

@@ -818,6 +818,8 @@ export class UserDataService {
     if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
+      master.amlListExpiredDate = slave.amlListExpiredDate;
+      master.amlListReactivatedDate = slave.amlListReactivatedDate;
       master.kycFileId = slave.kycFileId;
     }
     if (
@@ -833,6 +835,8 @@ export class UserDataService {
       status: UserDataStatus.MERGED,
       firstname: `${MergedPrefix}${master.id}`,
       amlListAddedDate: null,
+      amlListExpiredDate: null,
+      amlListReactivatedDate: null,
       kycFileId: null,
     });
 
