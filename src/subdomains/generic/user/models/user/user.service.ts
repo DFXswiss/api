@@ -174,7 +174,9 @@ export class UserService {
   }): Promise<User> {
     if ([UserDataStatus.BLOCKED, UserDataStatus.MERGED].includes(userData?.status))
       throw new BadRequestException('UserData merged or blocked');
-    if (userData.status === UserDataStatus.KYC_ONLY) userData.status = UserDataStatus.NA;
+
+    if (userData?.status === UserDataStatus.KYC_ONLY)
+      await this.userDataRepo.update(userData.id, { status: UserDataStatus.NA });
 
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
     const userIsActive = userData?.status === UserDataStatus.ACTIVE;
@@ -197,7 +199,7 @@ export class UserService {
         currency,
       }));
     user = await this.userRepo.save(user);
-    userIsActive && (await this.userRepo.setUserRef(user, userData.kycLevel));
+    userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));
 
     try {
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
