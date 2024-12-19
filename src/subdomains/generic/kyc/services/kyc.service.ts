@@ -186,8 +186,9 @@ export class KycService {
         const nationality = result.nationality
           ? await this.countryService.getCountryWithSymbol(result.nationality)
           : null;
+        const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const errors = this.getIdentCheckErrors(entity, result, nationality);
+        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality);
         const comment = errors.join(';');
 
         if (errors.includes(KycError.REVERSED_NAMES)) {
@@ -198,7 +199,10 @@ export class KycService {
           continue;
         }
 
-        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+        if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
+          await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
+          continue;
+        } else if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
           entity.ignored(comment);
         } else if (
           errors.includes(KycError.VERIFIED_NAME_MISSING) &&
@@ -849,24 +853,26 @@ export class KycService {
     return errors;
   }
 
-  private getIdentCheckErrors(entity: KycStep, data: IdentResultData, nationality?: Country): KycError[] {
-    const errors = this.getStepDefaultErrors(entity);
-    const nationalityStepResult = entity.userData
-      .getStepsWith(KycStepName.NATIONALITY_DATA)
-      .find((s) => s.isCompleted)
-      .getResult<{ nationality: IEntity }>();
+  private getIdentCheckErrors(
+    identStep: KycStep,
+    nationalityStep: KycStep,
+    data: IdentResultData,
+    nationality?: Country,
+  ): KycError[] {
+    const errors = this.getStepDefaultErrors(identStep);
+    const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
-    if (!Util.isSameName(entity.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
+    if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
     if (
-      !Util.isSameName(entity.userData.surname, data.lastname) &&
-      !Util.isSameName(entity.userData.surname, data.birthname)
+      !Util.isSameName(identStep.userData.surname, data.lastname) &&
+      !Util.isSameName(identStep.userData.surname, data.birthname)
     )
       errors.push(KycError.LAST_NAME_NOT_MATCHING);
 
     if (
-      (Util.isSameName(entity.userData.firstname, data.lastname) ||
-        Util.isSameName(entity.userData.firstname, data.birthname)) &&
-      Util.isSameName(entity.userData.surname, data.firstname)
+      (Util.isSameName(identStep.userData.firstname, data.lastname) ||
+        Util.isSameName(identStep.userData.firstname, data.birthname)) &&
+      Util.isSameName(identStep.userData.surname, data.firstname)
     )
       errors.push(KycError.REVERSED_NAMES);
 
@@ -882,16 +888,16 @@ export class KycService {
 
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
-    const userCountry = entity.userData.verifiedCountry ?? entity.userData.country;
-    if (entity.userData.accountType === AccountType.PERSONAL) {
+    const userCountry = identStep.userData.verifiedCountry ?? identStep.userData.country;
+    if (identStep.userData.accountType === AccountType.PERSONAL) {
       if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
-      if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
+      if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
-      } else if (entity.userData.verifiedName) {
-        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
+      } else if (identStep.userData.verifiedName) {
+        if (!Util.includesSameName(identStep.userData.verifiedName, identStep.userData.firstname))
           errors.push(KycError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
-        if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
+        if (!Util.includesSameName(identStep.userData.verifiedName, identStep.userData.surname))
           errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
