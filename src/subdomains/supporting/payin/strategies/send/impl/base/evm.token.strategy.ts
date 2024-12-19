@@ -19,7 +19,7 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     const prepareTxIds = [...new Set(payInGroup.payIns.map((p) => p.prepareTxId))];
 
     for (const txId of prepareTxIds) {
-      result.push(await this.payInEvmService.checkTransactionCompletion(txId));
+      result.push(await this.payInEvmService.checkTransactionCompletion(txId, 0));
     }
 
     return result.every((tsStatus) => !!tsStatus);

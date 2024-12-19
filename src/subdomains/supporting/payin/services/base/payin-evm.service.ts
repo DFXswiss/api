@@ -29,8 +29,8 @@ export abstract class PayInEvmService {
     return this.#client.sendTokenFromAccount(account, addressTo, tokenName, amount, feeLimit);
   }
 
-  async checkTransactionCompletion(txHash: string): Promise<boolean> {
-    return this.#client.isTxComplete(txHash);
+  async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
+    return this.#client.isTxComplete(txHash, minConfirmations);
   }
 
   async getHistory(
