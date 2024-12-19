@@ -39,6 +39,14 @@ export class FrankencoinClient {
             zchf
             collateral
             price
+            collateralSymbol
+            collateralBalance
+            collateralDecimals
+            limitForClones
+            availableForClones
+            minted
+            reserveContribution
+            expiration
           }
         }
       }
@@ -61,6 +69,14 @@ export class FrankencoinClient {
             zchf
             collateral
             price
+            collateralSymbol
+            collateralBalance
+            collateralDecimals
+            limitForClones
+            availableForClones
+            minted
+            reserveContribution
+            expiration
           }
         }
       }

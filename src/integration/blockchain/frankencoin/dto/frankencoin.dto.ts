@@ -5,6 +5,14 @@ export interface FrankencoinPositionGraphDto {
   zchf: string;
   collateral: string;
   price: string;
+  collateralSymbol: string;
+  collateralBalance: string;
+  collateralDecimals: number;
+  limitForClones: string;
+  availableForClones: string;
+  minted: string;
+  reserveContribution: number;
+  expiration: string;
 }
 
 export interface FrankencoinChallengeGraphDto {

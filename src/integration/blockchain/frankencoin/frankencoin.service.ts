@@ -117,25 +117,12 @@ export class FrankencoinService implements OnModuleInit {
 
     for (const position of positions) {
       try {
-        const collateralContract = this.client.getErc20Contract(position.collateral);
-
-        const symbol = await collateralContract.symbol();
-        const decimals = await collateralContract.decimals();
-        const positionBalance = await collateralContract.balanceOf(position.position);
-
-        const positionContract = this.client.getPositionContract(position.position);
         const frankencoinContract = this.client.getFrankencoinContract(position.zchf);
 
-        const price = await positionContract.price();
-        const limitForClones = await positionContract.limitForClones();
-        const minted = await positionContract.minted();
-        const reserveContribution = await positionContract.reserveContribution();
         const calculateAssignedReserve = await frankencoinContract.calculateAssignedReserve(
-          minted,
-          Number(reserveContribution),
+          position.minted,
+          position.reserveContribution,
         );
-        const limit = await positionContract.limit();
-        const expiration = await positionContract.expiration();
 
         positionsResult.push({
           address: {
@@ -145,16 +132,16 @@ export class FrankencoinService implements OnModuleInit {
             owner: position.owner,
           },
           collateral: {
-            symbol: symbol,
-            amount: EvmUtil.fromWeiAmount(positionBalance, decimals),
+            symbol: position.collateralSymbol,
+            amount: EvmUtil.fromWeiAmount(position.collateralBalance, position.collateralDecimals),
           },
           details: {
-            availableAmount: EvmUtil.fromWeiAmount(limitForClones),
-            totalBorrowed: EvmUtil.fromWeiAmount(minted),
-            liquidationPrice: EvmUtil.fromWeiAmount(price, 36 - decimals),
+            availableAmount: EvmUtil.fromWeiAmount(position.availableForClones),
+            totalBorrowed: EvmUtil.fromWeiAmount(position.minted),
+            liquidationPrice: EvmUtil.fromWeiAmount(position.price, 36 - position.collateralDecimals),
             retainedReserve: EvmUtil.fromWeiAmount(calculateAssignedReserve),
-            limit: EvmUtil.fromWeiAmount(limit),
-            expirationDate: new Date(Number(expiration) * 1000),
+            limit: EvmUtil.fromWeiAmount(position.limitForClones),
+            expirationDate: new Date(Number(position.expiration) * 1000),
           },
         });
       } catch (e) {
