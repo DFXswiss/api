@@ -295,7 +295,7 @@ export class BankDataService {
         return existing;
       }
 
-      if (sendMergeRequest)
+      if (sendMergeRequest && existing.userData.mail)
         await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);
     }
 

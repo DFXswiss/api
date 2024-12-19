@@ -406,9 +406,11 @@ export class UserDataService {
   // --- MAIL UPDATE --- //
 
   async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
-    await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
+    if (userData.mail == null) await this.trySetUserMail(userData, dto.mail);
 
     await this.checkMail(userData, dto.mail);
+
+    await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
     const secret = Util.randomId().toString().slice(0, 6);

@@ -43,6 +43,7 @@ export class AccountMergeService {
       })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
 
     const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
+    if (!receiver.mail) return false;
 
     const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
     const url = this.buildConfirmationUrl(request.code);

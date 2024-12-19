@@ -25,7 +25,7 @@ export class TransactionService {
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
-    if (dto instanceof UpdateTransactionInternalDto) {
+    if (!(dto instanceof UpdateTransactionDto)) {
       entity.externalId = dto.request?.externalTransactionId;
 
       if (dto.resetMailSendDate) entity.mailSendDate = null;
