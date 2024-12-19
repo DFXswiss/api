@@ -18,7 +18,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { LessThan } from 'typeorm';
+import { Between, In, LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -189,6 +189,14 @@ export class KycService {
 
         const errors = this.getIdentCheckErrors(entity, result, nationality);
         const comment = errors.join(';');
+
+        if (errors.includes(KycError.REVERSED_NAMES)) {
+          await this.userDataService.updateUserDataInternal(entity.userData, {
+            firstname: entity.userData.surname,
+            surname: entity.userData.firstname,
+          });
+          continue;
+        }
 
         if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
           entity.ignored(comment);
@@ -813,7 +821,7 @@ export class KycService {
         });
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-          await this.bankDataService.createBankData(kycStep.userData, {
+          await this.bankDataService.createVerifyBankData(kycStep.userData, {
             name: kycStep.userName,
             iban: `Ident${kycStep.identDocumentId}`,
             type: BankDataType.IDENT,
@@ -854,6 +862,13 @@ export class KycService {
       !Util.isSameName(entity.userData.surname, data.birthname)
     )
       errors.push(KycError.LAST_NAME_NOT_MATCHING);
+
+    if (
+      (Util.isSameName(entity.userData.firstname, data.lastname) ||
+        Util.isSameName(entity.userData.firstname, data.birthname)) &&
+      Util.isSameName(entity.userData.surname, data.firstname)
+    )
+      errors.push(KycError.REVERSED_NAMES);
 
     if (!nationality) {
       errors.push(KycError.NATIONALITY_MISSING);
@@ -955,5 +970,35 @@ export class KycService {
         kycStep,
       );
     }
+  }
+
+  async syncIdentFiles(from: number, to: number): Promise<string> {
+    const completedIdentSteps = await this.kycStepRepo.find({
+      where: {
+        id: Between(from, to),
+        name: KycStepName.IDENT,
+        type: In([KycStepType.AUTO, KycStepType.VIDEO]),
+        status: KycStepStatus.COMPLETED,
+      },
+      relations: { userData: true },
+    });
+
+    const log = [];
+
+    for (const step of completedIdentSteps) {
+      try {
+        const userFiles = await this.documentService.listUserFiles(step.userData.id);
+        if (userFiles.some((f) => f.type === FileType.IDENTIFICATION && f.name.includes(step.transactionId))) {
+          log.push(`${step.userData.id} OK`);
+        } else {
+          log.push(`${step.userData.id} SYNC`);
+          // await this.downloadIdentDocuments(step.userData, step);}
+        }
+      } catch (e) {
+        log.push(`${step.userData.id} ERROR: ${e.message}`);
+      }
+    }
+
+    return log.join('\n');
   }
 }

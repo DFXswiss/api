@@ -1,4 +1,5 @@
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { Config } from 'src/config/config';
 import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-router02.abi.json';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
@@ -15,8 +16,10 @@ export class BscClient extends EvmClient {
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
-    // 80% additional cap
-    return super.getRecommendedGasPrice().then((p) => p.mul(20).div(12));
+    return Config.blockchain.bsc.gasPrice
+      ? EthersNumber.from(Config.blockchain.bsc.gasPrice)
+      : // 80% additional cap
+        super.getRecommendedGasPrice().then((p) => p.mul(20).div(12));
   }
 
   async testSwap(

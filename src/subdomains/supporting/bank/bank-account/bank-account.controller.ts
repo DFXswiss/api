@@ -61,7 +61,10 @@ export class BankAccountController {
 
   // --- DTO --- //
   private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
-    return bankDatas.filter((b) => b.active).map((b) => this.toDto(b));
+    const uniqueActiveBankDatas = Array.from(
+      new Map(bankDatas.filter((b) => b.active).map((item) => [item.iban, item])).values(),
+    );
+    return uniqueActiveBankDatas.map((b) => this.toDto(b));
   }
 
   private toDto(bankData: BankData): BankAccountDto {
@@ -70,8 +73,6 @@ export class BankAccountController {
       iban: bankData.iban.split(';')[0],
       label: bankData.label,
       preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
-      sepaInstant: undefined,
-      active: true,
     };
   }
 }

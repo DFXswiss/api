@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerImage": {
+      "value": "dfxswiss/deuro-api:test"
+    },
+    "containerMountPath": {
+      "value": "/app/.api"
+    },
+    "containerCPU": {
+      "value": "0.5"
+    },
+    "containerMemory": {
+      "value": "1Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "CONFIG_CHAIN",
+          "value": "ethereum"
+        },
+        {
+          "name": "CONFIG_APP_URL",
+          "value": "https://ca-dfx-ded-loc.lemoncoast-6fe5d331.westeurope.azurecontainerapps.io"
+        },
+        {
+          "name": "CONFIG_INDEXER_URL",
+          "value": "https://ca-dfx-dep-loc.lemoncoast-6fe5d331.westeurope.azurecontainerapps.io"
+        },
+        {
+          "name": "COINGECKO_API_KEY",
+          "value": "[API-KEY]"
+        },
+        {
+          "name": "RPC_URL_MAINNET",
+          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
+        },
+        {
+          "name": "RPC_URL_POLYGON",
+          "value": "https://polygon-mainnet.g.alchemy.com/v2/[API-KEY]"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "value": "[API-KEY]"
+        },
+        {
+          "name": "TELEGRAM_GROUPS_JSON",
+          "value": "/app/.api/telegram.groups.json"
+        }
+      ]
+    }
+  }
+}

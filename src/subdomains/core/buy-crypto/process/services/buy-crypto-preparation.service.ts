@@ -166,8 +166,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           ...entity.amlCheckAndFillUp(
             inputCurrency,
             minVolume,
-            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             last24hVolume,
             last7dCheckoutVolume,
             last30dVolume,
