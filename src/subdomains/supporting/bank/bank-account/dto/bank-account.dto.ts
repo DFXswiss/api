@@ -13,4 +13,7 @@ export class BankAccountDto {
 
   @ApiPropertyOptional()
   label: string;
+
+  @ApiProperty()
+  default: boolean;
 }
