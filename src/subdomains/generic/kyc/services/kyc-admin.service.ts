@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
@@ -21,7 +20,6 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
-    private readonly mailFactory: MailFactory,
   ) {}
 
   async getKycSteps(userDataId: number): Promise<KycStep[]> {
@@ -44,19 +42,8 @@ export class KycAdminService {
 
       case KycStepName.IDENT:
         if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
-        if (kycStep.isFailed) {
-          const reasons = `<ul>${kycStep.comment
-            ?.split(';')
-            .map(
-              (c) =>
-                `<li>${this.mailFactory.translate(
-                  MailFactory.parseMailKey(MailTranslationKey.KYC_FAILED_REASONS, c),
-                  kycStep.userData.language.symbol,
-                )}</li>`,
-            )
-            .join('')}</ul>`;
-          await this.kycNotificationService.identFailed(kycStep.userData, reasons);
-        }
+        if (kycStep.isFailed)
+          await this.kycNotificationService.identFailed(kycStep.userData, this.kycService.getMailFailedReason(kycStep));
 
         break;
     }

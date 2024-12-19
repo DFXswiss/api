@@ -18,6 +18,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { Between, In, IsNull, LessThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
@@ -97,6 +98,7 @@ export class KycService {
     private readonly accountMergeService: AccountMergeService,
     private readonly webhookService: WebhookService,
     private readonly sumsubService: SumsubService,
+    private readonly mailFactory: MailFactory,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -197,12 +199,15 @@ export class KycService {
             surname: entity.userData.firstname,
           });
           continue;
+        } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
+          await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
+          if (errors.length === 1) {
+            await this.kycNotificationService.identFailed(entity.userData, this.getMailFailedReason(entity));
+            continue;
+          }
         }
 
-        if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
-          await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
-          continue;
-        } else if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
           entity.ignored(comment);
         } else if (
           errors.includes(KycError.VERIFIED_NAME_MISSING) &&
@@ -273,6 +278,19 @@ export class KycService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+  }
+
+  public getMailFailedReason(kycStep: KycStep): string {
+    return `<ul>${kycStep.comment
+      ?.split(';')
+      .map(
+        (c) =>
+          `<li>${this.mailFactory.translate(
+            MailFactory.parseMailKey(MailTranslationKey.KYC_FAILED_REASONS, c),
+            kycStep.userData.language.symbol,
+          )}</li>`,
+      )
+      .join('')}</ul>`;
   }
 
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
