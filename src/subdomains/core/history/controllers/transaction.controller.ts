@@ -42,6 +42,7 @@ import {
   BankTxTypeUnassigned,
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -94,6 +95,7 @@ export class TransactionController {
     private readonly feeService: FeeService,
     private readonly transactionUtilService: TransactionUtilService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
+    private readonly bankService: BankService,
   ) {}
 
   // --- JOBS --- //
@@ -300,15 +302,34 @@ export class TransactionController {
     if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
       throw new BadRequestException('You cannot refund payment transactions');
 
-    const networkFeeAmount = transaction.targetEntity.cryptoInput
-      ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
-      : 0;
+    const inputCurrency =
+      transaction.targetEntity.cryptoInput?.asset ??
+      (await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
+
+    const bankIn = transaction.targetEntity.cryptoInput
+      ? undefined
+      : await this.bankService.getBankByIban(transaction.targetEntity.bankTx.accountIban).then((b) => b.name);
+
+    const chargebackFee = await this.feeService.getChargebackFee({
+      from: inputCurrency,
+      paymentMethodIn: transaction.targetEntity.paymentMethodIn,
+      bankIn,
+      specialCodes: [],
+      allowCachedBlockchainFee: false,
+      user: transaction.user,
+    });
 
     const bankFeeAmount = transaction.targetEntity.cryptoInput
       ? 0
       : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
 
-    const totalFeeAmount = networkFeeAmount + bankFeeAmount;
+    const networkFeeAmount = transaction.targetEntity.cryptoInput ? chargebackFee.network : 0;
+
+    const totalFeeAmount =
+      transaction.targetEntity.inputAmount * chargebackFee.rate +
+      chargebackFee.fixed +
+      networkFeeAmount +
+      bankFeeAmount;
 
     if (totalFeeAmount >= transaction.targetEntity.inputAmount)
       throw new BadRequestException('Transaction fee is too expensive');
