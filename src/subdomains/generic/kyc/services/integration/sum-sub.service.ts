@@ -18,7 +18,7 @@ export class SumsubService {
   private readonly logger = new DfxLogger(SumsubService);
 
   private readonly baseUrl = `https://api.sumsub.com`;
-  private readonly kycLevelOnline = 'CH-Standard';
+  private readonly kycLevelAuto = 'CH-Standard';
   private readonly kycLevelVideo = 'CH-Standard-Video';
 
   private static readonly algoMap: { [key: string]: string } = {
@@ -101,7 +101,7 @@ export class SumsubService {
 
     await this.callApi<{ id: string }>(
       `/resources/applicants?levelName=${
-        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
+        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelAuto : this.kycLevelVideo
       }`,
       'POST',
       data,
@@ -112,7 +112,7 @@ export class SumsubService {
     const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
     return this.callApi<{ token: string }>(
       `/resources/accessTokens?userId=${transactionId}&levelName=${
-        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
+        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelAuto : this.kycLevelVideo
       }&ttlInSecs=${expirySecs}`,
       undefined,
       'POST',
