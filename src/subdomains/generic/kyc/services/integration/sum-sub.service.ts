@@ -31,8 +31,8 @@ export class SumsubService {
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    await this.createApplicant(kycStep.transactionId, user, KycStepType.SUMSUB_VIDEO);
-    return this.generateAccessToken(kycStep.transactionId, KycStepType.SUMSUB_VIDEO).then((r) => r.token);
+    await this.createApplicant(kycStep.transactionId, user, kycStep.type);
+    return this.generateAccessToken(kycStep.transactionId, kycStep.type).then((r) => r.token);
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -100,7 +100,7 @@ export class SumsubService {
 
     await this.callApi<{ id: string }>(
       `/resources/applicants?levelName=${
-        kycStepType == KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
+        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
       }`,
       'POST',
       data,
@@ -111,7 +111,7 @@ export class SumsubService {
     const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
     return this.callApi<{ token: string }>(
       `/resources/accessTokens?userId=${transactionId}&levelName=${
-        kycStepType == KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
+        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelOnline : this.kycLevelVideo
       }&ttlInSecs=${expirySecs}`,
       undefined,
       'POST',
