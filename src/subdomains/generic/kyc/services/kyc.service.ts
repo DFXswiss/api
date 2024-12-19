@@ -18,7 +18,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { Between, In, LessThan } from 'typeorm';
+import { Between, In, IsNull, LessThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -972,13 +972,14 @@ export class KycService {
     }
   }
 
-  async syncIdentFiles(from: number, to: number): Promise<string> {
+  async syncIdentFiles(from: number, to: number, doSync: boolean): Promise<string> {
     const completedIdentSteps = await this.kycStepRepo.find({
       where: {
         id: Between(from, to),
         name: KycStepName.IDENT,
         type: In([KycStepType.AUTO, KycStepType.VIDEO]),
         status: KycStepStatus.COMPLETED,
+        transactionId: Not(IsNull()),
       },
       relations: { userData: true },
     });
@@ -986,16 +987,18 @@ export class KycService {
     const log = [];
 
     for (const step of completedIdentSteps) {
+      const id = `${step.id} - ${step.userData.id}`;
+
       try {
         const userFiles = await this.documentService.listUserFiles(step.userData.id);
         if (userFiles.some((f) => f.type === FileType.IDENTIFICATION && f.name.includes(step.transactionId))) {
-          log.push(`${step.userData.id} OK`);
+          log.push(`${id} OK`);
         } else {
-          log.push(`${step.userData.id} SYNC`);
-          // await this.downloadIdentDocuments(step.userData, step);}
+          if (doSync) await this.downloadIdentDocuments(step.userData, step);
+          log.push(`${id} SYNC${doSync ? ' DONE' : ''}`);
         }
       } catch (e) {
-        log.push(`${step.userData.id} ERROR: ${e.message}`);
+        log.push(`${id} SYNC ERROR: ${e.message}`);
       }
     }
 
