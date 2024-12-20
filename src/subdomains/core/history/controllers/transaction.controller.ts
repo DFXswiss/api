@@ -424,6 +424,11 @@ export class TransactionController {
       throw new NotFoundException('Transaction not found');
     if (transaction.targetEntity && jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
+    if (!transaction.targetEntity) {
+      const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
+      if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
+        throw new ForbiddenException('You can only refund your own transaction');
+    }
 
     const refundData = this.refundList.get(transaction.id);
     if (!refundData) throw new BadRequestException('Request refund data first');
