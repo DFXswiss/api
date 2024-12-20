@@ -202,7 +202,10 @@ export class KycService {
         } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
           await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
           if (errors.length === 1) {
-            await this.kycNotificationService.identFailed(entity.userData, this.getMailFailedReason(entity));
+            await this.kycNotificationService.identFailed(
+              entity.userData,
+              this.getMailFailedReason(comment, entity.userData.language.symbol),
+            );
             continue;
           }
         }
@@ -280,14 +283,14 @@ export class KycService {
     );
   }
 
-  public getMailFailedReason(kycStep: KycStep): string {
-    return `<ul>${kycStep.comment
+  public getMailFailedReason(comment: string, language: string): string {
+    return `<ul>${comment
       ?.split(';')
       .map(
         (c) =>
           `<li>${this.mailFactory.translate(
             MailFactory.parseMailKey(MailTranslationKey.KYC_FAILED_REASONS, c),
-            kycStep.userData.language.symbol,
+            language,
           )}</li>`,
       )
       .join('')}</ul>`;

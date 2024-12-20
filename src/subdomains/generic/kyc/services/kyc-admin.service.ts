@@ -43,7 +43,10 @@ export class KycAdminService {
       case KycStepName.IDENT:
         if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
         if (kycStep.isFailed)
-          await this.kycNotificationService.identFailed(kycStep.userData, this.kycService.getMailFailedReason(kycStep));
+          await this.kycNotificationService.identFailed(
+            kycStep.userData,
+            this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol),
+          );
 
         break;
     }
