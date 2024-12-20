@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -29,13 +29,5 @@ export class BankDataController {
   async doNameCheck(@Param('id') id: string): Promise<RiskStatus> {
     const bankData = await this.bankDataService.getBankData(+id);
     return this.nameCheckService.refreshRiskStatus(bankData);
-  }
-
-  @Delete(':id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async deleteBankData(@Param('id') id: string): Promise<void> {
-    return this.bankDataService.deleteBankData(+id);
   }
 }

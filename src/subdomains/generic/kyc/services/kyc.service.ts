@@ -909,7 +909,8 @@ export class KycService {
 
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
-    const userCountry = identStep.userData.verifiedCountry ?? identStep.userData.country;
+    const userCountry =
+    identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
       if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
