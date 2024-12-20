@@ -157,8 +157,8 @@ export class Transaction extends IEntity {
     }
   }
 
-  get targetEntity(): BuyCrypto | BuyFiat | RefReward | undefined {
-    return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? undefined;
+  get targetEntity(): BuyCrypto | BuyFiat | RefReward | BankTxReturn | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? this.bankTxReturn ?? undefined;
   }
 
   get userData(): UserData {
