@@ -882,7 +882,8 @@ export class KycService {
 
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
-    const userCountry = entity.userData.verifiedCountry ?? entity.userData.country;
+    const userCountry =
+      entity.userData.organizationCountry ?? entity.userData.verifiedCountry ?? entity.userData.country;
     if (entity.userData.accountType === AccountType.PERSONAL) {
       if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
