@@ -408,7 +408,7 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      bankTx: true,
+      bankTx: { transaction: true },
       bankTxReturn: true,
       user: { userData: true },
       buyCrypto: {

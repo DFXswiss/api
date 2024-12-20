@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
-import { BankTxRefund } from 'src/subdomains/core/history/dto/refund-internal.dto';
+import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IsNull } from 'typeorm';
@@ -64,6 +64,22 @@ export class BankTxReturnService {
     return this.bankTxReturnRepo.find({
       where: { chargebackBankTx: { id: IsNull() } },
       relations: { chargebackBankTx: true, bankTx: true },
+    });
+  }
+
+  async refundBankTxReturn(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
+    const bankTxReturn = await this.bankTxReturnRepo.findOne({
+      where: { id: buyCryptoId },
+      relations: { transaction: { user: { userData: true } }, bankTx: true },
+    });
+
+    if (!bankTxReturn) throw new NotFoundException('BankTxReturn not found');
+
+    return this.refundBankTx(bankTxReturn, {
+      refundIban: dto.refundIban,
+      chargebackAmount: dto.chargebackAmount,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
     });
   }
 
