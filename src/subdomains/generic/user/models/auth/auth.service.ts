@@ -21,7 +21,6 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -34,7 +33,7 @@ import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { SignInDto, SignUpDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
@@ -97,24 +96,35 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
+  async authenticate(dto: SignUpDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+
+    if (userData && existingUser && existingUser.userData.id !== userDataId) {
+      throw new ConflictException('Address already linked to another account');
+    }
+
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false).catch((e) => {
+      : this.doSignUp(dto, userIp, false, userData).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
           throw e;
         });
   }
 
-  async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signUp(dto: SignUpDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     if (existingUser) throw new ConflictException('User already exists');
 
     return this.doSignUp(dto, userIp, isCustodial);
   }
 
-  private async doSignUp(dto: CreateUserDto, userIp: string, isCustodial: boolean) {
+  private async doSignUp(
+    dto: SignUpDto,
+    userIp: string,
+    isCustodial: boolean,
+    userData?: UserData,
+  ): Promise<AuthResponseDto> {
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
       dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
@@ -127,18 +137,19 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser(
-      dto,
+    const user = await this.userService.createUser({
+      userDetails: dto,
       userIp,
-      ref?.origin,
+      userOrigin: ref?.origin,
       wallet,
-      dto.specialCode ?? dto.discountCode,
-    );
+      specialCode: dto.specialCode ?? dto.discountCode,
+      userData,
+    });
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signIn(dto: AuthCredentialsDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signIn(dto: SignInDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
 
@@ -154,7 +165,7 @@ export class AuthService {
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
-  private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
+  private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new ConflictException('User is deactivated or blocked');
 
@@ -274,7 +285,7 @@ export class AuthService {
     }
   }
 
-  private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
+  private async companySignIn(dto: SignInDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 

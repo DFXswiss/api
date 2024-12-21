@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
@@ -95,7 +96,7 @@ export class BuyCryptoService {
 
     const buy = await this.getBuy(buyId);
 
-    const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
+    const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : Config.bank.forexFee;
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
@@ -105,7 +106,7 @@ export class BuyCryptoService {
         const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
         const bankDataName = bankTx.bankDataName(multiAccounts);
         if (bankDataName)
-          await this.bankDataService.createBankData(buy.userData, {
+          await this.bankDataService.createVerifyBankData(buy.userData, {
             name: bankDataName,
             iban: bankTx.senderAccount,
             type: BankDataType.BANK_IN,
@@ -143,7 +144,7 @@ export class BuyCryptoService {
       );
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.userData, {
+        await this.bankDataService.createVerifyBankData(buy.userData, {
           name: checkoutTx.cardName ?? buy.userData.completeName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,

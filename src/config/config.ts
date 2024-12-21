@@ -66,6 +66,10 @@ export class Configuration {
     },
   };
 
+  loginCountries = {
+    '1': ['CH'],
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 
@@ -406,6 +410,7 @@ export class Configuration {
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
+      gasPrice: process.env.BSC_GAS_PRICE,
     },
     lightning: {
       lnbits: {
@@ -521,6 +526,7 @@ export class Configuration {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
     },
+    forexFee: 0.02,
   };
 
   giroCode = {

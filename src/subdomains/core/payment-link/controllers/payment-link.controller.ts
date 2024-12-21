@@ -145,7 +145,7 @@ export class PaymentLinkController {
     dto.externalId ??= `${dto.message}/${dto.amount}${dto.currency ?? ''}`;
 
     const link = await this.paymentLinkService.createInvoice(dto);
-    return this.paymentLinkService.createPaymentLinkPayRequest(link.uniqueId, dto.standard);
+    return this.paymentLinkService.createPayRequestWithCompletionCheck(link.uniqueId, dto.standard);
   }
 
   @Post('payment')

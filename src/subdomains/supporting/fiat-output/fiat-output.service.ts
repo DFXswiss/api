@@ -8,6 +8,7 @@ import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repo
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { IsNull, Not } from 'typeorm';
+import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from '../payin/entities/crypto-input.entity';
@@ -51,11 +52,13 @@ export class FiatOutputService {
   }
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
-    if (dto.buyCryptoId || dto.buyFiatId) {
+    if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId) {
       const existing = await this.fiatOutputRepo.exists({
         where: dto.buyCryptoId
           ? { buyCrypto: { id: dto.buyCryptoId }, type: dto.type }
-          : { buyFiats: { id: dto.buyFiatId }, type: dto.type },
+          : dto.buyFiatId
+          ? { buyFiats: { id: dto.buyFiatId }, type: dto.type }
+          : { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type },
       });
       if (existing) throw new BadRequestException('FiatOutput already exists');
     }
@@ -82,9 +85,9 @@ export class FiatOutputService {
 
   async createInternal(
     type: string,
-    { buyCrypto, buyFiats }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[] },
+    { buyCrypto, buyFiats, bankTxReturn }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[]; bankTxReturn?: BankTxReturn },
   ): Promise<FiatOutput> {
-    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats });
+    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn });
 
     return this.fiatOutputRepo.save(entity);
   }

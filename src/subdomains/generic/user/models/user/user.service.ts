@@ -27,11 +27,11 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { SignUpDto } from '../auth/dto/auth-credentials.dto';
+import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
@@ -157,31 +157,50 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
-  async createUser(
-    { address, signature, usedRef }: CreateUserDto,
-    userIp: string,
-    userOrigin?: string,
-    wallet?: Wallet,
-    specialCode?: string,
-  ): Promise<User> {
+  async createUser({
+    userDetails: { address, signature, usedRef },
+    userIp,
+    userOrigin,
+    wallet,
+    specialCode,
+    userData,
+  }: {
+    userDetails: SignUpDto;
+    userIp: string;
+    userOrigin?: string;
+    wallet?: Wallet;
+    specialCode?: string;
+    userData?: UserData;
+  }): Promise<User> {
+    if ([UserDataStatus.BLOCKED, UserDataStatus.MERGED].includes(userData?.status))
+      throw new BadRequestException('UserData merged or blocked');
+
+    if (userData?.status === UserDataStatus.KYC_ONLY)
+      await this.userDataRepo.update(userData.id, { status: UserDataStatus.NA });
+
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
+    const userIsActive = userData?.status === UserDataStatus.ACTIVE;
 
     user.ip = userIp;
     user.ipCountry = this.geoLocationService.getCountry(userIp);
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
+    userIsActive && (user.status = UserStatus.ACTIVE);
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
-    user.userData = await this.userDataService.createUserData({
-      kycType: user.wallet.customKyc ?? KycType.DFX,
-      language,
-      currency,
-      wallet: user.wallet,
-    });
+    user.userData =
+      userData ??
+      (await this.userDataService.createUserData({
+        kycType: user.wallet.customKyc ?? KycType.DFX,
+        language,
+        currency,
+        wallet: user.wallet,
+      }));
     user = await this.userRepo.save(user);
+    userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));
 
     try {
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);

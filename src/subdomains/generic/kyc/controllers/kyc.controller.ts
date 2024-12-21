@@ -26,7 +26,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';

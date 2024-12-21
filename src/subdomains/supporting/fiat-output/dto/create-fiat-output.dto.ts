@@ -10,6 +10,10 @@ export class CreateFiatOutputDto {
   @IsNumber()
   buyCryptoId?: number;
 
+  @IsOptional()
+  @IsNumber()
+  bankTxReturnId?: number;
+
   @IsNotEmpty()
   @IsString()
   type: string;

@@ -16,7 +16,7 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
-import { PaymentLinkPayRequestDto, PaymentLinkPaymentNotFoundDto } from '../dto/payment-link.dto';
+import { PaymentLinkPayRequestDto, PaymentLinkPaymentErrorResponseDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -181,12 +181,24 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
-  async createPaymentLinkPayRequest(
+  async createPayRequestWithCompletionCheck(
+    uniqueId: string,
+    standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
+  ): Promise<PaymentLinkPayRequestDto> {
+    const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(uniqueId);
+
+    if (mostRecentPayment.status === PaymentLinkPaymentStatus.COMPLETED)
+      throw new ConflictException(await this.paymentCompleteErrorResponse(uniqueId, standardParam));
+
+    return this.createPayRequest(uniqueId, standardParam);
+  }
+
+  async createPayRequest(
     uniqueId: string,
     standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
   ): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.waitForPendingPayment(uniqueId);
-    if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentResponse(uniqueId, standardParam));
+    if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentErrorResponse(uniqueId, standardParam));
 
     const { standards, displayQr } = pendingPayment.link.configObj;
     const usedStandard = pendingPayment.link.getMatchingStandard(standardParam);
@@ -233,10 +245,38 @@ export class PaymentLinkService {
     );
   }
 
-  private async noPendingPaymentResponse(
+  private async noPendingPaymentErrorResponse(
     uniqueId: string,
     standardParam: PaymentStandard,
-  ): Promise<PaymentLinkPaymentNotFoundDto | string> {
+  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
+    const response = await this.createDefaultErrorResponse(uniqueId, standardParam);
+    if (typeof response === 'string') return response;
+
+    response.statusCode = new NotFoundException().getStatus();
+    response.message = 'No pending payment found';
+    response.error = 'Not Found';
+
+    return response;
+  }
+
+  private async paymentCompleteErrorResponse(
+    uniqueId: string,
+    standardParam: PaymentStandard,
+  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
+    const response = await this.createDefaultErrorResponse(uniqueId, standardParam);
+    if (typeof response === 'string') return response;
+
+    response.statusCode = new ConflictException().getStatus();
+    response.message = 'Payment complete';
+    response.error = 'Conflict';
+
+    return response;
+  }
+
+  private async createDefaultErrorResponse(
+    uniqueId: string,
+    standardParam: PaymentStandard,
+  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { uniqueId, status: PaymentLinkStatus.ACTIVE },
       relations: { route: { user: { userData: true } } },
@@ -248,15 +288,14 @@ export class PaymentLinkService {
     const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
     return {
-      statusCode: new NotFoundException().getStatus(),
-      message: 'No pending payment found',
-      error: 'Not Found',
-
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
       recipient: paymentLink.recipient,
+      statusCode: undefined,
+      message: undefined,
+      error: undefined,
     };
   }
 

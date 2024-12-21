@@ -72,8 +72,8 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       unhandledCryptoInputs: await this.repos.payIn.countBy({
         action: IsNull(),
         status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURN_CONFIRMED])),
-        buyCrypto: IsNull(),
-        buyFiat: IsNull(),
+        buyCrypto: { id: IsNull() },
+        buyFiat: { id: IsNull() },
       }),
       unconfirmedCryptoInputs: await this.repos.payIn.countBy({
         status: Not(
