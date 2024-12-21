@@ -206,6 +206,7 @@ export class AuthService {
         mail: dto.mail,
         language: dto.language ?? language,
         status: UserDataStatus.KYC_ONLY,
+        wallet: await this.walletService.getDefault(),
       }));
 
     // create random key
@@ -226,7 +227,8 @@ export class AuthService {
       type: MailType.USER,
       context: MailContext.LOGIN,
       input: {
-        userData: userData,
+        userData,
+        wallet: userData.wallet,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
         suffix: [

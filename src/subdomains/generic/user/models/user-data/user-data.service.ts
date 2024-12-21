@@ -140,7 +140,7 @@ export class UserDataService {
         mail,
         status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
       },
-      relations: { users: true },
+      relations: { users: true, wallet: true },
     });
   }
 
@@ -175,7 +175,7 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
+      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
@@ -729,6 +729,7 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
+          wallet: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -740,6 +741,7 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
+          wallet: true,
         },
       }),
     ]);

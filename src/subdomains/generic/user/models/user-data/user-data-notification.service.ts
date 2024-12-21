@@ -36,6 +36,7 @@ export class UserDataNotificationService {
             context: MailContext.ADDED_ADDRESS,
             input: {
               userData: master,
+              wallet: master.wallet,
               title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
               salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
               prefix: [
@@ -74,6 +75,7 @@ export class UserDataNotificationService {
           context: MailContext.CHANGED_MAIL,
           input: {
             userData: master,
+            wallet: master.wallet,
             title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
             prefix: [
@@ -98,6 +100,7 @@ export class UserDataNotificationService {
         context: MailContext.CHANGED_MAIL,
         input: {
           userData: slave,
+          wallet: slave.wallet,
           title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
           salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
           prefix: [

@@ -44,7 +44,7 @@ export class TransactionNotificationService {
       relations: {
         buyCrypto: true,
         buyFiat: true,
-        user: { userData: true },
+        user: { userData: true, wallet: true },
       },
     });
     if (entities.length === 0) return;
@@ -59,6 +59,7 @@ export class TransactionNotificationService {
             context: entity.mailContext,
             input: {
               userData: entity.userData,
+              wallet: entity.user.wallet,
               title: `${entity.targetEntity.inputMailTranslationKey}.title`,
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
               suffix: [
@@ -89,7 +90,7 @@ export class TransactionNotificationService {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
         mailSendDate: IsNull(),
       },
-      relations: { bankTx: true },
+      relations: { bankTx: true, user: { wallet: true } },
     });
     if (entities.length === 0) return;
 
@@ -104,6 +105,7 @@ export class TransactionNotificationService {
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
+              wallet: entity.user.wallet,
               title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
               salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
               suffix: [
