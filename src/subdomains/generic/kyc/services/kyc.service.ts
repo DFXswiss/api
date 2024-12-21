@@ -516,7 +516,11 @@ export class KycService {
         break;
 
       case IdentShortResult.REVIEW:
-        await this.kycStepRepo.update(...kycStep.externalReview(dto));
+        if (
+          ![KycStepStatus.INTERNAL_REVIEW, KycStepStatus.MANUAL_REVIEW].includes(kycStep.status) &&
+          kycStep.getResult() !== dto
+        )
+          await this.kycStepRepo.update(...kycStep.externalReview(dto));
         break;
 
       case IdentShortResult.SUCCESS:
@@ -910,7 +914,7 @@ export class KycService {
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
     const userCountry =
-    identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
+      identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
       if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
