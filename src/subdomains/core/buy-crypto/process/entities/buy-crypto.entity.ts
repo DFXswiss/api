@@ -584,6 +584,10 @@ export class BuyCrypto extends IEntity {
     return MailTranslationKey.CRYPTO_CHARGEBACK;
   }
 
+  get chargebackBankFee(): number {
+    return this.bankTx ? this.inputAmount - this.bankTx.amount : 0;
+  }
+
   get user(): User {
     return this.transaction.user;
   }

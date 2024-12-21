@@ -72,7 +72,7 @@ export class Fee extends IEntity {
   wallet?: Wallet;
 
   @ManyToOne(() => Bank, { nullable: true, eager: true })
-  bank: Bank;
+  bank?: Bank;
 
   // Volume columns
 

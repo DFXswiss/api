@@ -48,6 +48,7 @@ export interface FeeRequest extends FeeRequestBase {
 
 export interface OptionalFeeRequest extends FeeRequestBase {
   user?: User;
+  userData?: UserData;
   accountType?: AccountType;
 }
 
@@ -212,7 +213,7 @@ export class FeeService implements OnModuleInit {
     return fee;
   }
 
-  async getChargebackFee(request: UserFeeRequest): Promise<InternalChargebackFeeDto> {
+  async getChargebackFee(request: OptionalFeeRequest): Promise<InternalChargebackFeeDto> {
     const userFees = await this.getValidFees(request);
 
     try {
@@ -433,11 +434,15 @@ export class FeeService implements OnModuleInit {
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
-    const accountType = request.user?.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
+    const accountType =
+      request.user?.userData?.accountType ??
+      request.userData?.accountType ??
+      request.accountType ??
+      AccountType.PERSONAL;
     const wallet = request.user?.wallet;
-    const userDataId = request.user?.userData?.id;
+    const userDataId = request.user?.userData?.id ?? request.userData?.id;
 
-    const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
+    const discountFeeIds = request.user?.userData?.individualFeeList ?? request.userData?.individualFeeList ?? [];
 
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
@@ -456,7 +461,7 @@ export class FeeService implements OnModuleInit {
     // remove ExpiredFee
     userFees
       .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired(userDataId))
-      .forEach((fee) => this.userDataService.removeFee(request.user.userData, fee.id));
+      .forEach((fee) => this.userDataService.removeFee(request.user?.userData ?? request.userData, fee.id));
 
     return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet, userDataId }));
   }

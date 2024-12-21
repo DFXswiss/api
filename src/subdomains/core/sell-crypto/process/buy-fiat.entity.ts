@@ -463,6 +463,10 @@ export class BuyFiat extends IEntity {
     return this.totalFeeAmountChf;
   }
 
+  get chargebackBankFee(): number {
+    return 0;
+  }
+
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
       exchangeRate: Util.roundReadable(
