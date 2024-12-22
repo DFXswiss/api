@@ -504,6 +504,7 @@ export class KycService {
 
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
+    if (!kycStep.isInProgress && !kycStep.isInReview) return;
 
     switch (result) {
       case IdentShortResult.CANCEL:
