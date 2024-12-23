@@ -298,7 +298,7 @@ export class CryptoInput extends IEntity {
     return this.action === PayInAction.RETURN ? this.chargebackAmount : this.amount;
   }
 
-  get blockchainFee(): number {
+  get maxForwardFee(): number {
     return this.buyCrypto?.blockchainFee ?? this.buyFiat?.blockchainFee;
   }
 

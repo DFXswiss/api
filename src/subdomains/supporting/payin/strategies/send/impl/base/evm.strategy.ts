@@ -47,13 +47,13 @@ export abstract class EvmStrategy extends SendStrategy {
           const totalAmount = this.getTotalGroupAmount(payInGroup, type);
           const blockchainFee = this.getTotalGroupFeeAmount(payInGroup);
 
-          const { nativeFee, referenceFee } = await this.getEstimatedFee(
+          const { nativeFee, inputAssetFee } = await this.getEstimatedFee(
             payInGroup.asset,
             totalAmount,
             this.getForwardAddress().address,
           );
 
-          CryptoInput.verifyEstimatedFee(referenceFee, blockchainFee, totalAmount);
+          CryptoInput.verifyEstimatedFee(inputAssetFee, blockchainFee, totalAmount);
 
           /**
            * @note
@@ -196,6 +196,6 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private getTotalGroupFeeAmount(payInGroup: SendGroup): number {
-    return Util.sum(payInGroup.payIns.map((p) => p.blockchainFee));
+    return Util.sum(payInGroup.payIns.map((p) => p.maxForwardFee));
   }
 }

@@ -114,13 +114,13 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     asset: Asset,
     amount: number,
     targetAddress: string,
-  ): Promise<{ nativeFee: number; referenceFee: number }> {
+  ): Promise<{ nativeFee: number; inputAssetFee: number }> {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
-    const referenceFee = nativeFee.amount
+    const inputAssetFee = nativeFee.amount
       ? await this.getFeeReferenceAmount(nativeFee.asset, nativeFee.amount, asset)
       : 0;
 
-    return { nativeFee: nativeFee.amount, referenceFee };
+    return { nativeFee: nativeFee.amount, inputAssetFee };
   }
 
   private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Active): Promise<number> {
