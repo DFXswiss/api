@@ -29,7 +29,7 @@ export class AccountMerge extends IEntity {
   expiration: Date;
 
   @Column({ length: 256, nullable: true })
-  reason: MergeReason;
+  reason?: MergeReason;
 
   static create(master: UserData, slave: UserData, reason: MergeReason): AccountMerge {
     const entity = new AccountMerge();

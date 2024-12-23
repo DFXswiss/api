@@ -116,8 +116,7 @@ export abstract class DexEvmService implements PurchaseDexService {
         ? await this.#client.getNativeCoinBalance()
         : await this.#client.getTokenBalance(asset);
 
-    // adding a small cap to pendingAmount in case testSwap results got slightly outdated by the moment current check is done
-    return availableAmount - pendingAmount * 1.05;
+    return availableAmount - pendingAmount;
   }
 
   private async getPendingAmount(asset: string): Promise<number> {

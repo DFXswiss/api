@@ -7,6 +7,7 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   KycRequiredReason,
+  LimitExceededReason,
   TransactionDetailDto,
   TransactionDto,
   TransactionReason,
@@ -236,6 +237,10 @@ export class TransactionDtoMapper {
 
     return {
       rate: entity.percentFee,
+      bank:
+        entity.bankFeeAmount != null
+          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       fixed:
         entity.absoluteFeeAmount != null
           ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
@@ -266,9 +271,11 @@ export const RefRewardStatusMapper: {
 } = {
   [RewardStatus.CREATED]: TransactionState.CREATED,
   [RewardStatus.PREPARED]: TransactionState.CREATED,
+  [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
   [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
   [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
   [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 
@@ -290,6 +297,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
+        if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
         return { state: TransactionState.AML_PENDING, reason };
 
@@ -319,6 +327,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
+        if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
         return { state: TransactionState.AML_PENDING, reason };
 

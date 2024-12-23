@@ -50,39 +50,39 @@ export class PriceRule extends IEntity {
 
   // check 1
   @Column({ nullable: true })
-  check1Source: string; // {src}:{param}
+  check1Source?: string; // {src}:{param}
 
   @Column({ nullable: true })
-  check1Asset: string;
+  check1Asset?: string;
 
   @Column({ nullable: true })
-  check1Reference: string;
+  check1Reference?: string;
 
   @Column({ type: 'float', nullable: true })
-  check1Limit: number;
+  check1Limit?: number;
 
   // check 2
   @Column({ nullable: true })
-  check2Source: string; // {src}:{param}
+  check2Source?: string; // {src}:{param}
 
   @Column({ nullable: true })
-  check2Asset: string;
+  check2Asset?: string;
 
   @Column({ nullable: true })
-  check2Reference: string;
+  check2Reference?: string;
 
   @Column({ type: 'float', nullable: true })
-  check2Limit: number;
+  check2Limit?: number;
 
   // price
   @Column({ type: 'float', nullable: true })
-  currentPrice: number;
+  currentPrice?: number;
 
   @Column({ type: 'integer' })
   priceValiditySeconds: number;
 
   @Column({ type: 'datetime2', nullable: true })
-  priceTimestamp: Date;
+  priceTimestamp?: Date;
 
   // getters
   get shouldUpdate(): boolean {

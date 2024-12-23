@@ -1,15 +1,16 @@
 import { Injectable, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import * as crypto from 'crypto';
+import { Request } from 'express';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
-import { ContentType } from '../../dto/kyc-file.dto';
 import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
+import { ContentType } from '../../enums/content-type.enum';
 
 @Injectable()
 export class SumsubService {

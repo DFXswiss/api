@@ -3,6 +3,8 @@ import { Blob } from 'src/integration/infrastructure/azure-storage.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
 import { KycStep } from '../entities/kyc-step.entity';
+import { ContentType } from '../enums/content-type.enum';
+import { FileCategory } from '../enums/file-category.enum';
 
 export enum FileType {
   NAME_CHECK = 'NameCheck',
@@ -17,25 +19,15 @@ export enum FileType {
   AUTHORITY = 'Authority',
 }
 
-export enum ContentType {
-  PNG = 'image/png',
-  JPEG = 'image/jpeg',
-  JPG = 'image/jpg',
-  JSON = 'application/json',
-  PDF = 'application/pdf',
-  TEXT = 'text/plain',
-  XML = 'text/xml',
-  ZIP = 'application/zip',
-  MP3 = 'audio/mpeg',
-}
-
 export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
 
 export interface KycFile extends Blob {
+  category: FileCategory;
   type: FileType;
   contentType: ContentType;
+  path?: string;
 }
 
 export class CreateKycFileDto {

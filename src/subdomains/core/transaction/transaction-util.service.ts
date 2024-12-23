@@ -1,12 +1,19 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CryptoInput, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -31,13 +38,14 @@ export class TransactionUtilService {
   constructor(
     private readonly assetService: AssetService,
     private readonly blockchainRegistry: BlockchainRegistryService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
-  static validateRefund(entity: BuyCrypto | BuyFiat, dto: RefundValidation): void {
-    if (entity.cryptoInput) {
+  static validateRefund(entity: BuyCrypto | BuyFiat | BankTxReturn, dto: RefundValidation): void {
+    if (!(entity instanceof BankTxReturn) && entity.cryptoInput) {
       if (!dto.refundUser) throw new NotFoundException('Your refund user was not found');
       if (entity.userData.id !== dto.refundUser.userData.id)
         throw new ForbiddenException('You can only refund to your own addresses');
@@ -61,17 +69,25 @@ export class TransactionUtilService {
       entity.chargebackAllowedDate ||
       entity.chargebackDate ||
       (entity instanceof BuyFiat && entity.chargebackTxId) ||
-      (entity instanceof BuyCrypto && (entity.chargebackCryptoTxId || entity.chargebackBankTx))
+      (entity instanceof BuyCrypto && (entity.chargebackCryptoTxId || entity.chargebackBankTx)) ||
+      (entity instanceof BankTxReturn && (entity.chargebackRemittanceInfo || entity.chargebackBankTx))
     )
       throw new BadRequestException('Transaction is already returned');
+
+    if (entity instanceof BankTxReturn) {
+      if (dto.chargebackAmount && dto.chargebackAmount > entity.bankTx.amount)
+        throw new BadRequestException('You can not refund more than the input amount');
+      return;
+    }
+
     if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(entity.amlCheck) || entity.outputAmount)
       throw new BadRequestException('Only failed or pending transactions are refundable');
     if (dto.chargebackAmount && dto.chargebackAmount > entity.inputAmount)
       throw new BadRequestException('You can not refund more than the input amount');
   }
 
-  async validateChargebackIban(iban: string, userData: UserData): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, userData);
+  async validateChargebackIban(iban: string): Promise<boolean> {
+    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban);
     const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
     const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 
