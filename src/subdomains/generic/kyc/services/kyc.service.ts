@@ -504,7 +504,10 @@ export class KycService {
 
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
-    if (!kycStep.isInProgress && !kycStep.isInReview) return;
+    if (!kycStep.isInProgress && !kycStep.isInReview) {
+      this.logger.verbose(`Received kyc webhook call dropped: ${kycStep.id}`);
+      return;
+    }
 
     switch (result) {
       case IdentShortResult.CANCEL:
@@ -517,10 +520,7 @@ export class KycService {
         break;
 
       case IdentShortResult.REVIEW:
-        if (
-          ![KycStepStatus.INTERNAL_REVIEW, KycStepStatus.MANUAL_REVIEW].includes(kycStep.status) &&
-          kycStep.getResult() !== dto
-        )
+        if (![KycStepStatus.INTERNAL_REVIEW, KycStepStatus.MANUAL_REVIEW].includes(kycStep.status))
           await this.kycStepRepo.update(...kycStep.externalReview(dto));
         break;
 
