@@ -47,5 +47,4 @@ export enum MailContext {
   SUPPORT_MESSAGE = 'SupportMessage',
   VERIFICATION_MAIL = 'VerificationMail',
   EMAIL_VERIFICATION = 'EmailVerification',
-  IDENT_STARTED = 'IDENT_STARTED',
 }
