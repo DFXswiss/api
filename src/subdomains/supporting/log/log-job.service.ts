@@ -239,12 +239,10 @@ export class LogJobService {
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SIC) International' &&
-          k.address === 'Maerki Baumann' 
+          k.address === 'Maerki Baumann',
       ),
       recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiChfBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.CREDIT 
+        (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
       ),
     );
     const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
@@ -252,39 +250,33 @@ export class LogJobService {
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SEPA) International' &&
-          k.address === 'Maerki Baumann & Co. AG' 
+          k.address === 'Maerki Baumann & Co. AG',
       ),
       recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiEurBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.CREDIT 
+        (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
       ),
     );
 
     const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiChfBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.DEBIT 
+        (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
       ),
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.DEPOSIT &&
           k.method === 'Bank Frick (SIC) International' &&
-          k.address === 'MAEBCHZZXXX' 
+          k.address === 'MAEBCHZZXXX',
       ),
     );
     const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiEurBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.DEBIT 
+        (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
       ),
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.DEPOSIT &&
           k.method === 'Bank Frick (SEPA) International' &&
-          k.address === 'MAEBCHZZXXX' 
+          k.address === 'MAEBCHZZXXX',
       ),
     );
 
@@ -625,33 +617,23 @@ export class LogJobService {
     const filteredSenderTx = senderTx.filter((s) => s.created > before21Days);
     const filteredReceiverTx = receiverTx.filter((r) => r.created > before14Days);
 
-    if (receiverTx.length && !filteredReceiverTx.length) return { sender: [], receiver: [] };
-    if (!filteredReceiverTx?.length) return { sender: filteredSenderTx, receiver: filteredReceiverTx };
-    let receiverIndex = 0;
-    let senderPair = undefined;
-
-    if (filteredSenderTx.length > 1)
-      filteredSenderTx[0] instanceof BankTx
-        ? filteredSenderTx.sort((a, b) => a.id - b.id)
-        : filteredSenderTx.sort((a, b) => b.id - a.id);
-    if (filteredReceiverTx.length > 1) filteredReceiverTx.sort((a, b) => a.id - b.id);
-
-    do {
-      const receiverAmount =
-        filteredReceiverTx[receiverIndex] instanceof BankTx
-          ? (filteredReceiverTx[receiverIndex] as BankTx).instructedAmount
-          : filteredReceiverTx[receiverIndex].amount;
-
-      senderPair = filteredSenderTx.find((s) =>
-        s instanceof BankTx
-          ? s.instructedAmount === receiverAmount &&
-            filteredReceiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
-            filteredReceiverTx[receiverIndex].created > s.created
-          : s.amount === receiverAmount && filteredReceiverTx[receiverIndex].created > s.created,
+    if (!filteredSenderTx.length) return { receiver: [], sender: [] };
+    if (!filteredReceiverTx?.length) {
+      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(
+        filteredSenderTx,
+        receiverTx.filter((r) => r.created > before21Days),
       );
 
-      if (!senderPair) receiverIndex++;
-    } while (!senderPair && filteredReceiverTx.length > receiverIndex);
+      return {
+        sender: filteredSenderTx,
+        receiver:
+          rawReceiverIndex != null
+            ? receiverTx.filter((r) => r.id >= receiverTx[rawReceiverIndex]?.id)
+            : filteredReceiverTx,
+      };
+    }
+
+    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filteredSenderTx, filteredReceiverTx);
 
     if (filteredSenderTx[0] instanceof BankTx) {
       this.logger.verbose(
@@ -673,6 +655,40 @@ export class LogJobService {
         (a, b) => a.id - b.id,
       ),
     };
+  }
+
+  private findSenderReceiverPair(
+    senderTx: (BankTx | ExchangeTx)[],
+    receiverTx: (BankTx | ExchangeTx)[] | undefined,
+  ): { senderPair: BankTx | ExchangeTx; receiverIndex: number } {
+    if (!receiverTx.length) return { receiverIndex: undefined, senderPair: undefined };
+
+    if (senderTx.length > 1)
+      senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+    if (receiverTx.length > 1) receiverTx.sort((a, b) => a.id - b.id);
+
+    let receiverIndex = 0;
+
+    do {
+      const receiverAmount =
+        receiverTx[receiverIndex] instanceof BankTx
+          ? (receiverTx[receiverIndex] as BankTx).instructedAmount
+          : receiverTx[receiverIndex].amount;
+
+      const senderPair = senderTx.find((s) =>
+        s instanceof BankTx
+          ? s.instructedAmount === receiverAmount &&
+            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
+            receiverTx[receiverIndex].created > s.created
+          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
+      );
+
+      if (!senderPair) {
+        receiverIndex++;
+      } else {
+        return { senderPair, receiverIndex };
+      }
+    } while (receiverTx.length > receiverIndex);
   }
 
   private async getCustomBalances(
