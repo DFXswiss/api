@@ -233,25 +233,18 @@ export class LogJobService {
       ExchangeTxType.WITHDRAWAL,
     ]);
 
-    const before14Days = Util.daysBefore(14);
-    const before21Days = Util.daysBefore(21);
-
-    before14Days.setHours(0, 0, 0, 0);
-
     // sender and receiver data
     const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SIC) International' &&
-          k.address === 'Maerki Baumann' &&
-          k.created > before21Days,
+          k.address === 'Maerki Baumann' 
       ),
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiChfBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-          b.created > before14Days,
+          b.creditDebitIndicator === BankTxIndicator.CREDIT 
       ),
     );
     const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
@@ -259,14 +252,12 @@ export class LogJobService {
         (k) =>
           k.type === ExchangeTxType.WITHDRAWAL &&
           k.method === 'Bank Frick (SEPA) International' &&
-          k.address === 'Maerki Baumann & Co. AG' &&
-          k.created > before21Days,
+          k.address === 'Maerki Baumann & Co. AG' 
       ),
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiEurBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-          b.created > before14Days,
+          b.creditDebitIndicator === BankTxIndicator.CREDIT 
       ),
     );
 
@@ -274,30 +265,26 @@ export class LogJobService {
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiChfBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > before21Days,
+          b.creditDebitIndicator === BankTxIndicator.DEBIT 
       ),
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.DEPOSIT &&
           k.method === 'Bank Frick (SIC) International' &&
-          k.address === 'MAEBCHZZXXX' &&
-          k.created > before14Days,
+          k.address === 'MAEBCHZZXXX' 
       ),
     );
     const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       recentKrakenBankTx.filter(
         (b) =>
           b.accountIban === maerkiEurBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > before21Days,
+          b.creditDebitIndicator === BankTxIndicator.DEBIT 
       ),
       recentKrakenExchangeTx.filter(
         (k) =>
           k.type === ExchangeTxType.DEPOSIT &&
           k.method === 'Bank Frick (SEPA) International' &&
-          k.address === 'MAEBCHZZXXX' &&
-          k.created > before14Days,
+          k.address === 'MAEBCHZZXXX' 
       ),
     );
 
@@ -630,48 +617,61 @@ export class LogJobService {
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
-    if (!receiverTx?.length) return { sender: senderTx, receiver: receiverTx };
+    const before14Days = Util.daysBefore(14);
+    const before21Days = Util.daysBefore(21);
+
+    before14Days.setHours(0, 0, 0, 0);
+
+    const filteredSenderTx = senderTx.filter((s) => s.created > before21Days);
+    const filteredReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+
+    if (receiverTx.length && !filteredReceiverTx.length) return { sender: [], receiver: [] };
+    if (!filteredReceiverTx?.length) return { sender: filteredSenderTx, receiver: filteredReceiverTx };
     let receiverIndex = 0;
     let senderPair = undefined;
 
-    if (senderTx.length > 1)
-      senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
-    if (receiverTx.length > 1) receiverTx.sort((a, b) => a.id - b.id);
+    if (filteredSenderTx.length > 1)
+      filteredSenderTx[0] instanceof BankTx
+        ? filteredSenderTx.sort((a, b) => a.id - b.id)
+        : filteredSenderTx.sort((a, b) => b.id - a.id);
+    if (filteredReceiverTx.length > 1) filteredReceiverTx.sort((a, b) => a.id - b.id);
 
     do {
       const receiverAmount =
-        receiverTx[receiverIndex] instanceof BankTx
-          ? (receiverTx[receiverIndex] as BankTx).instructedAmount
-          : receiverTx[receiverIndex].amount;
+        filteredReceiverTx[receiverIndex] instanceof BankTx
+          ? (filteredReceiverTx[receiverIndex] as BankTx).instructedAmount
+          : filteredReceiverTx[receiverIndex].amount;
 
-      senderPair = senderTx.find((s) =>
+      senderPair = filteredSenderTx.find((s) =>
         s instanceof BankTx
           ? s.instructedAmount === receiverAmount &&
-            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
-            receiverTx[receiverIndex].created > s.created
-          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
+            filteredReceiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
+            filteredReceiverTx[receiverIndex].created > s.created
+          : s.amount === receiverAmount && filteredReceiverTx[receiverIndex].created > s.created,
       );
 
       if (!senderPair) receiverIndex++;
-    } while (!senderPair && receiverTx.length > receiverIndex);
+    } while (!senderPair && filteredReceiverTx.length > receiverIndex);
 
-    if (senderTx[0] instanceof BankTx) {
+    if (filteredSenderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${receiverTx?.[receiverIndex]?.id}/${receiverTx?.[
+        `FinanceLog receiverTxId/date: ${filteredReceiverTx?.[receiverIndex]?.id}/${filteredReceiverTx?.[
           receiverIndex
         ]?.created.toDateString()}; senderTx[0] id/date: ${
-          senderTx[0]?.id
-        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
+          filteredSenderTx[0]?.id
+        }/${filteredSenderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
           senderPair && senderPair instanceof BankTx
             ? senderPair.valueDate.toDateString()
             : senderPair?.created.toDateString()
-        }; senderTx length: ${senderTx.length}`,
+        }; senderTx length: ${filteredSenderTx.length}`,
       );
     }
 
     return {
-      receiver: receiverTx.filter((r) => r.id >= receiverTx[receiverIndex]?.id ?? 0),
-      sender: (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id),
+      receiver: filteredReceiverTx.filter((r) => r.id >= filteredReceiverTx[receiverIndex]?.id ?? 0),
+      sender: (senderPair ? filteredSenderTx.filter((s) => s.id >= senderPair.id) : filteredSenderTx).sort(
+        (a, b) => a.id - b.id,
+      ),
     };
   }
 
