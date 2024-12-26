@@ -689,6 +689,8 @@ export class LogJobService {
         return { senderPair, receiverIndex };
       }
     } while (receiverTx.length > receiverIndex);
+
+    return { receiverIndex: undefined, senderPair: undefined };
   }
 
   private async getCustomBalances(
