@@ -614,44 +614,42 @@ export class LogJobService {
 
     before14Days.setHours(0, 0, 0, 0);
 
-    const filteredSenderTx = senderTx.filter((s) => s.created > before21Days);
-    const filteredReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+    const filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
+    const filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
 
-    if (!filteredSenderTx.length) return { receiver: [], sender: [] };
-    if (!filteredReceiverTx?.length) {
-      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(
-        filteredSenderTx,
-        receiverTx.filter((r) => r.created > before21Days),
-      );
+    if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
+    if (!filtered14ReceiverTx?.length) {
+      const filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
+      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
 
       return {
-        sender: filteredSenderTx,
+        sender: filtered21SenderTx,
         receiver:
           rawReceiverIndex != null
-            ? receiverTx.filter((r) => r.id >= receiverTx[rawReceiverIndex]?.id)
-            : filteredReceiverTx,
+            ? filtered21ReceiverTx.filter((r) => r.id >= filtered21ReceiverTx[rawReceiverIndex]?.id)
+            : filtered14ReceiverTx,
       };
     }
 
-    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filteredSenderTx, filteredReceiverTx);
+    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx);
 
-    if (filteredSenderTx[0] instanceof BankTx) {
+    if (filtered21SenderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${filteredReceiverTx?.[receiverIndex]?.id}/${filteredReceiverTx?.[
+        `FinanceLog receiverTxId/date: ${filtered14ReceiverTx?.[receiverIndex]?.id}/${filtered14ReceiverTx?.[
           receiverIndex
         ]?.created.toDateString()}; senderTx[0] id/date: ${
-          filteredSenderTx[0]?.id
-        }/${filteredSenderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
+          filtered21SenderTx[0]?.id
+        }/${filtered21SenderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
           senderPair && senderPair instanceof BankTx
             ? senderPair.valueDate.toDateString()
             : senderPair?.created.toDateString()
-        }; senderTx length: ${filteredSenderTx.length}`,
+        }; senderTx length: ${filtered21SenderTx.length}`,
       );
     }
 
     return {
-      receiver: filteredReceiverTx.filter((r) => r.id >= filteredReceiverTx[receiverIndex]?.id ?? 0),
-      sender: (senderPair ? filteredSenderTx.filter((s) => s.id >= senderPair.id) : filteredSenderTx).sort(
+      receiver: filtered14ReceiverTx.filter((r) => r.id >= filtered14ReceiverTx[receiverIndex]?.id ?? 0),
+      sender: (senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx).sort(
         (a, b) => a.id - b.id,
       ),
     };
