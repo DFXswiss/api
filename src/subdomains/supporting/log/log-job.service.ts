@@ -605,7 +605,7 @@ export class LogJobService {
     );
   }
 
-  private filterSenderPendingList(
+  public filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
