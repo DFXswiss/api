@@ -1,17 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -22,12 +26,15 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
-export class BuyCryptoPreparationService {
+export class BuyCryptoPreparationService implements OnModuleInit {
   private readonly logger = new DfxLogger(BuyCryptoPreparationService);
+  private chf: Fiat;
+  private eur: Fiat;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -42,7 +49,15 @@ export class BuyCryptoPreparationService {
     private readonly siftService: SiftService,
     private readonly countryService: CountryService,
     private readonly payInService: PayInService,
+    private readonly userDataService: UserDataService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly bankService: BankService,
   ) {}
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
+  }
 
   async doAmlCheck(): Promise<void> {
     const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
@@ -81,7 +96,17 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
-        const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, inputReferenceCurrency, false);
+        const isPayment = Boolean(entity.cryptoInput?.isPayment);
+        const minVolume = await this.transactionHelper.getMinVolume(
+          inputCurrency,
+          entity.outputAsset,
+          inputReferenceCurrency,
+          false,
+          isPayment,
+        );
+
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
@@ -92,13 +117,14 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+        const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.checkoutTx ? entity.inputReferenceAmount : 0,
           inputReferenceCurrency,
           false,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
           entity.userData.users,
+          'checkoutTx',
         );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
@@ -119,7 +145,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
+        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
         const ibanCountry =
@@ -129,23 +155,40 @@ export class BuyCryptoPreparationService {
               )
             : undefined;
 
+        // check if amlCheck changed (e.g. reset or refund)
+        if (
+          entity.amlCheck === CheckStatus.PENDING &&
+          (await this.buyCryptoRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
+        )
+          continue;
+
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
+            inputCurrency,
             minVolume,
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             last24hVolume,
-            last7dVolume,
+            last7dCheckoutVolume,
             last30dVolume,
             last365dVolume,
             bankData,
             blacklist,
-            instantBanks,
+            banks,
             ibanCountry,
           ),
         );
 
-        if (entity.cryptoInput) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+        if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
-        if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
+        if (amlCheckBefore !== entity.amlCheck) {
+          await this.buyCryptoWebhookService.triggerWebhook(entity);
+          if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+            await this.userDataService.triggerVideoIdent(entity.userData);
+        }
+
+        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+          await this.buyCryptoNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
@@ -177,10 +220,6 @@ export class BuyCryptoPreparationService {
       },
     });
 
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
     for (const entity of entities) {
       try {
         const isFirstRun = !entity.percentFee;
@@ -190,10 +229,16 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
+
+        const bankIn = entity.bankTx
+          ? await this.bankService.getBankByIban(entity.bankTx.accountIban).then((b) => b.name)
+          : entity.checkoutTx
+          ? CardBankName.CHECKOUT
+          : undefined;
 
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -203,6 +248,8 @@ export class BuyCryptoPreparationService {
           entity.outputAsset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
+          bankIn,
+          undefined,
           entity.user,
         );
 
@@ -217,8 +264,6 @@ export class BuyCryptoPreparationService {
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            amountInChf,
             fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             referenceChfPrice.convert(fee.total, 2),

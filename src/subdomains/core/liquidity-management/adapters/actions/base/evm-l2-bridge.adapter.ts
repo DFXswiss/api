@@ -91,9 +91,9 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       amount,
     } = order;
 
-    const { type, dexName } = l2Asset;
+    const { type, name } = l2Asset;
 
-    const l1Asset = await this.assetService.getAssetByQuery({ dexName, type, blockchain: Blockchain.ETHEREUM });
+    const l1Asset = await this.assetService.getAssetByQuery({ name, type, blockchain: Blockchain.ETHEREUM });
     if (!l1Asset) {
       throw new Error(
         `EvmL2BridgeAdapter.deposit() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
@@ -107,7 +107,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         : await this.l1Client.getTokenBalance(l1Asset);
     if (l1Liquidity < amount)
       throw new OrderNotProcessableException(
-        `Not enough liquidity on L1 blockchain (requested ${amount} ${dexName}, available ${l1Liquidity} ${dexName})`,
+        `Not enough liquidity on L1 blockchain (requested ${amount} ${name}, available ${l1Liquidity} ${name})`,
       );
 
     switch (type) {
@@ -138,7 +138,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       amount,
     } = order;
 
-    const { type, dexName } = l2Asset;
+    const { type, name } = l2Asset;
 
     switch (type) {
       case AssetType.COIN: {
@@ -146,7 +146,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       }
 
       case AssetType.TOKEN: {
-        const l1Asset = await this.assetService.getAssetByQuery({ dexName, type, blockchain: Blockchain.ETHEREUM });
+        const l1Asset = await this.assetService.getAssetByQuery({ name, type, blockchain: Blockchain.ETHEREUM });
 
         if (!l1Asset) {
           throw new Error(

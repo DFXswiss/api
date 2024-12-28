@@ -1,17 +1,10 @@
 import { IEntity } from 'src/shared/models/entity';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { WebhookType } from '../../services/webhook/dto/webhook.dto';
-import { KycStatus, KycType } from '../user-data/user-data.entity';
-
-export enum AmlRule {
-  DEFAULT = 0, // default
-  RULE_1 = 1, // IP Check
-  RULE_2 = 2, // KycLevel 30
-  RULE_3 = 3, // KycLevel 50
-  RULE_4 = 4, // UserData maxWeeklyVolume
-  RULE_5 = 5, // No suspiciousMail check
-}
+import { KycType } from '../user-data/user-data.entity';
 
 export interface WebhookConfig {
   payment: WebhookConfigOption;
@@ -29,40 +22,43 @@ export enum WebhookConfigOption {
 export class Wallet extends IEntity {
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'address IS NOT NULL' })
-  address: string;
+  address?: string;
 
   @Column({ length: 256, nullable: true })
-  name: string;
+  name?: string;
 
   @Column({ length: 256, nullable: true })
-  displayName: string;
+  displayName?: string;
 
   @Column({ length: 256, nullable: true })
-  masterKey: string;
+  masterKey?: string;
 
   @Column({ default: false })
   isKycClient: boolean;
 
+  @Column({ default: false })
+  usesDummyAddresses: boolean;
+
   @Column({ nullable: true })
-  customKyc: KycType;
+  customKyc?: KycType;
 
   @OneToMany(() => User, (user) => user.wallet)
   users: User[];
 
   @Column({ length: 256, nullable: true })
-  identMethod?: KycStatus;
+  identMethod?: KycStepType;
 
   @Column({ length: 256, nullable: true })
-  apiUrl: string;
+  apiUrl?: string;
 
   @Column({ length: 256, nullable: true })
-  apiKey: string;
+  apiKey?: string;
 
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
 
   @Column({ length: 'MAX', nullable: true })
-  webhookConfig: string; // JSON string
+  webhookConfig?: string; // JSON string
 
   get webhookConfigObject(): WebhookConfig | undefined {
     return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;

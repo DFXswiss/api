@@ -21,11 +21,13 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -47,6 +49,8 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 @ApiTags('Buy')
 @Controller('buy')
 export class BuyController {
+  private readonly logger = new DfxLogger(BuyController);
+
   constructor(
     private readonly buyService: BuyService,
     private readonly userService: UserService,
@@ -94,7 +98,7 @@ export class BuyController {
       asset,
       targetAmount,
       paymentMethod,
-      discountCode,
+      specialCode,
     } = await this.paymentInfoService.buyCheck(dto);
 
     const {
@@ -120,7 +124,7 @@ export class BuyController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
-      discountCode ? [discountCode] : [],
+      specialCode ? [specialCode] : [],
     );
 
     return {
@@ -149,15 +153,33 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
+    const times = [Date.now()];
+
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
 
-    return Util.retry(
+    times.push(Date.now());
+
+    const buy = await Util.retry(
       () => this.buyService.createBuy(jwt.user, jwt.address, dto, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    ).then((buy) => this.toPaymentInfoDto(jwt.user, buy, dto));
+    );
+
+    times.push(Date.now());
+
+    const infos = await this.toPaymentInfoDto(jwt.user, buy, dto);
+
+    times.push(Date.now());
+
+    const total = Util.round((Date.now() - times[0]) / 1000, 3);
+    if (total > 1) {
+      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
+      this.logger.verbose(`Buy info${dto.exactPrice ? ' exact' : ''} request times: ${timesString} (total ${total})`);
+    }
+
+    return infos;
   }
 
   @Put('/paymentInfos/:id/invoice')
@@ -225,6 +247,8 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
+      IbanBankName.MAERKI,
+      undefined,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,
     );
@@ -235,7 +259,7 @@ export class BuyController {
       iban: buy.iban,
       volume: buy.volume,
       annualVolume: buy.annualVolume,
-      bankUsage: buy.bankUsage,
+      bankUsage: buy.active ? buy.bankUsage : undefined,
       asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
@@ -275,7 +299,6 @@ export class BuyController {
     const bankInfo = await this.getBankInfo({
       amount: amount,
       currency: dto.currency.name,
-      bankAccount: buy.bankAccount,
       paymentMethod: dto.paymentMethod,
       userData: user.userData,
     });
@@ -306,12 +329,12 @@ export class BuyController {
       error,
       // bank info
       ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
-      remittanceInfo: buy.bankUsage,
+      sepaInstant: bankInfo.sepaInstant,
+      remittanceInfo: buy.active ? buy.bankUsage : undefined,
       paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto) : undefined,
       // card info
       paymentLink:
-        isValid && dto.paymentMethod === FiatPaymentMethod.CARD
+        isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
           ? await this.checkoutService.createPaymentLink(
               buy.bankUsage,
               amount,

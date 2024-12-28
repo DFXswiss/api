@@ -28,10 +28,10 @@ export class FrankencoinClient {
     return this.http.get<number>(`${Config.blockchain.frankencoin.zchfTvlUrl}`);
   }
 
-  async getPositions(): Promise<FrankencoinPositionGraphDto[]> {
+  async getPositionV1s(): Promise<FrankencoinPositionGraphDto[]> {
     const document = gql`
       {
-        positions {
+        positionV1s {
           items {
             id
             position
@@ -39,21 +39,59 @@ export class FrankencoinClient {
             zchf
             collateral
             price
+            collateralSymbol
+            collateralBalance
+            collateralDecimals
+            limitForClones
+            availableForClones
+            minted
+            reserveContribution
+            expiration
           }
         }
       }
     `;
 
-    return request<{ positions: { items: [FrankencoinPositionGraphDto] } }>(
+    return request<{ positionV1s: { items: [FrankencoinPositionGraphDto] } }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
-    ).then((r) => r.positions.items);
+    ).then((r) => r.positionV1s.items);
   }
 
-  async getChallenges(): Promise<FrankencoinChallengeGraphDto[]> {
+  async getPositionV2s(): Promise<FrankencoinPositionGraphDto[]> {
     const document = gql`
       {
-        challenges(orderBy: "status") {
+        positionV2s {
+          items {
+            id
+            position
+            owner
+            zchf
+            collateral
+            price
+            collateralSymbol
+            collateralBalance
+            collateralDecimals
+            limitForClones
+            availableForClones
+            minted
+            reserveContribution
+            expiration
+          }
+        }
+      }
+    `;
+
+    return request<{ positionV2s: { items: [FrankencoinPositionGraphDto] } }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.positionV2s.items);
+  }
+
+  async getChallengeV1s(): Promise<FrankencoinChallengeGraphDto[]> {
+    const document = gql`
+      {
+        challengeV1s(orderBy: "status") {
           items {
             id
             challenger
@@ -71,10 +109,37 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ challenges: { items: [FrankencoinChallengeGraphDto] } }>(
+    return request<{ challengeV1s: { items: [FrankencoinChallengeGraphDto] } }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
-    ).then((r) => r.challenges.items);
+    ).then((r) => r.challengeV1s.items);
+  }
+
+  async getChallengeV2s(): Promise<FrankencoinChallengeGraphDto[]> {
+    const document = gql`
+      {
+        challengeV2s(orderBy: "status") {
+          items {
+            id
+            challenger
+            position
+            start
+            duration
+            size
+            filledSize
+            acquiredCollateral
+            number
+            bid
+            status
+          }
+        }
+      }
+    `;
+
+    return request<{ challengeV2s: { items: [FrankencoinChallengeGraphDto] } }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.challengeV2s.items);
   }
 
   async getFPS(zchfAddress: string): Promise<FrankencoinFpsGraphDto> {

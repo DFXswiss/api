@@ -1,31 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
-import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Injectable()
 export class BankAccountService {
   constructor(
     private readonly bankAccountRepo: BankAccountRepository,
-    private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
-    private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
   ) {}
-
-  async getUserBankAccounts(userDataId: number): Promise<BankAccount[]> {
-    return this.bankAccountRepo.findBy({ userData: { id: userDataId } });
-  }
 
   async getBankAccountByKey(key: string, value: any): Promise<BankAccount> {
     return this.bankAccountRepo
@@ -43,24 +34,6 @@ export class BankAccountService {
       .getOne();
   }
 
-  async createBankAccount(userDataId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { kycType } = await this.userDataService.getUserData(userDataId);
-
-    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
-
-    return this.updateEntity(dto, bankAccount);
-  }
-
-  async updateBankAccount(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
-    const bankAccount = await this.bankAccountRepo.findOne({
-      where: { id, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
-    if (!bankAccount) throw new NotFoundException('BankAccount not found');
-
-    return this.updateEntity(dto, bankAccount);
-  }
-
   // --- INTERNAL METHODS --- //
 
   @Cron(CronExpression.EVERY_WEEK)
@@ -74,55 +47,33 @@ export class BankAccountService {
     }
   }
 
-  async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
-    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
-    return this.getOrCreateBankAccountInternal(iban, userDataId, kycType);
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(3600)
+  async reloadUncheckedBankAccounts(): Promise<void> {
+    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
+
+    const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull() });
+    for (const bankAccount of bankAccounts) {
+      await this.reloadBankAccount(bankAccount);
+    }
   }
 
   // --- HELPER METHODS --- //
-  private async updateEntity(
-    dto: CreateBankAccountDto | UpdateBankAccountDto,
-    bankAccount: BankAccount,
-  ): Promise<BankAccount> {
-    Object.assign(bankAccount, dto);
 
-    // check currency
-    if (dto.preferredCurrency) {
-      bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
-      if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
-    }
-
-    return this.bankAccountRepo.save(bankAccount);
+  async getOrCreateBankAccountInternal(iban: string): Promise<BankAccount> {
+    return (await this.bankAccountRepo.findOneBy({ iban })) ?? this.createBankAccountInternal(iban);
   }
 
-  async getOrCreateBankAccountInternal(iban: string, userDataId: number, kycType: KycType): Promise<BankAccount> {
-    const bankAccounts = await this.bankAccountRepo.find({
-      where: { iban },
-      relations: ['userData'],
-    });
-
-    return (
-      bankAccounts.find((b) => b.userData.id === userDataId) ??
-      (await this.createBankAccountInternal(iban, userDataId, kycType, bankAccounts[0]))
-    );
-  }
-
-  private async createBankAccountInternal(
-    iban: string,
-    userDataId: number,
-    kycType: KycType,
-    copyFrom?: BankAccount,
-  ): Promise<BankAccount> {
-    if (!(await this.isValidIbanCountry(iban, kycType)))
+  private async createBankAccountInternal(iban: string, copyFrom?: BankAccount): Promise<BankAccount> {
+    if (!(await this.isValidIbanCountry(iban)))
       throw new BadRequestException('Iban country is currently not supported');
 
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
-    bankAccount.userData = { id: userDataId } as UserData;
 
     return this.bankAccountRepo.save(bankAccount);
   }
 
-  private async isValidIbanCountry(iban: string, kycType: KycType): Promise<boolean> {
+  private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
     const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
 
     return ibanCountry.isEnabled(kycType);

@@ -2,11 +2,12 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { Active, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   KycRequiredReason,
+  LimitExceededReason,
   TransactionDetailDto,
   TransactionDto,
   TransactionReason,
@@ -65,7 +66,16 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
-      date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
+      outputDate: buyCrypto.outputDate,
+      chargebackAmount: buyCrypto.chargebackAmount,
+      chargebackTarget: buyCrypto.chargebackIban,
+      chargebackTxId: buyCrypto.chargebackRemittanceInfo ?? buyCrypto.chargebackCryptoTxId,
+      chargebackTxUrl:
+        buyCrypto.chargebackCryptoTxId && buyCrypto.cryptoInput
+          ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.chargebackCryptoTxId)
+          : null,
+      chargebackDate: buyCrypto.chargebackDate,
+      date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
     };
 
@@ -101,6 +111,7 @@ export class TransactionDtoMapper {
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
+      outputDate: buyFiat.outputDate,
       priceSteps: buyFiat.priceStepsObject,
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
@@ -116,7 +127,14 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
-      date: buyFiat.outputDate ?? buyFiat.cryptoReturnDate ?? buyFiat.updated,
+      chargebackAmount: buyFiat.chargebackAmount,
+      chargebackTarget: buyFiat.chargebackAddress,
+      chargebackTxId: buyFiat.chargebackTxId,
+      chargebackTxUrl: buyFiat.chargebackTxId
+        ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.chargebackTxId)
+        : null,
+      chargebackDate: buyFiat.chargebackDate,
+      date: buyFiat.transaction.created,
       externalTransactionId: buyFiat.transaction.externalId,
     };
 
@@ -156,6 +174,7 @@ export class TransactionDtoMapper {
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
+      outputDate: refReward.outputDate,
       priceSteps: null,
       feeAmount: null,
       feeAsset: null,
@@ -164,7 +183,12 @@ export class TransactionDtoMapper {
       inputTxUrl: null,
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
-      date: refReward.outputDate ?? refReward.updated,
+      chargebackAmount: undefined,
+      chargebackTarget: undefined,
+      chargebackTxId: undefined,
+      chargebackTxUrl: undefined,
+      chargebackDate: undefined,
+      date: refReward.transaction.created,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -195,7 +219,12 @@ export class TransactionDtoMapper {
       inputPaymentMethod: FiatPaymentMethod.BANK,
       inputTxId: null,
       inputTxUrl: null,
-      date: tx.created,
+      chargebackAmount: undefined,
+      chargebackTarget: undefined,
+      chargebackTxId: undefined,
+      chargebackTxUrl: undefined,
+      chargebackDate: undefined,
+      date: tx.transaction.created,
     };
   }
 
@@ -208,6 +237,10 @@ export class TransactionDtoMapper {
 
     return {
       rate: entity.percentFee,
+      bank:
+        entity.bankFeeAmount != null
+          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       fixed:
         entity.absoluteFeeAmount != null
           ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
@@ -238,15 +271,18 @@ export const RefRewardStatusMapper: {
 } = {
   [RewardStatus.CREATED]: TransactionState.CREATED,
   [RewardStatus.PREPARED]: TransactionState.CREATED,
+  [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
   [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
   [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
   [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 
 function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   state: TransactionState;
   reason: TransactionReason;
+  chargebackTxId?: string;
 } {
   if (entity instanceof RefReward) {
     return { state: RefRewardStatusMapper[entity.status], reason: null };
@@ -261,12 +297,18 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
+        if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
         return { state: TransactionState.AML_PENDING, reason };
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
-        return { state: TransactionState.FAILED, reason };
+        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
+        return {
+          state: TransactionState.FAILED,
+          reason,
+          chargebackTxId: entity.chargebackCryptoTxId ?? entity.chargebackRemittanceInfo,
+        };
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
@@ -285,12 +327,14 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
+        if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
         return { state: TransactionState.AML_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.cryptoReturnDate) return { state: TransactionState.RETURNED, reason };
-        return { state: TransactionState.FAILED, reason };
+        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
+        return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };

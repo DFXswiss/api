@@ -3,23 +3,27 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
+import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, In } from 'typeorm';
+import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
+import { CryptoInputRefund, RefundInternalDto } from '../../../history/dto/refund-internal.dto';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { SellHistoryDto } from '../../route/dto/sell-history.dto';
 import { Sell } from '../../route/sell.entity';
@@ -28,6 +32,7 @@ import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
+import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
 @Injectable()
 export class BuyFiatService {
@@ -47,7 +52,10 @@ export class BuyFiatService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
+    private readonly userDataService: UserDataService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -59,10 +67,12 @@ export class BuyFiatService {
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
       transaction: { id: cryptoInput.transaction.id },
+      outputAsset: sell.fiat,
+      outputReferenceAsset: sell.fiat,
     });
 
     // transaction
-    request = await this.getTxRequest(entity, request);
+    request = await this.getAndCompleteTxRequest(entity, request);
     entity.transaction = await this.transactionService.update(entity.transaction.id, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
@@ -71,8 +81,8 @@ export class BuyFiatService {
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
-      if (!bankData)
-        await this.bankDataService.createBankData(sell.userData, {
+      if (!bankData && sell.userData.completeName)
+        await this.bankDataService.createVerifyBankData(sell.userData, {
           name: sell.userData.completeName,
           iban: sell.iban,
           type: BankDataType.BANK_OUT,
@@ -84,21 +94,6 @@ export class BuyFiatService {
     await this.triggerWebhook(entity);
 
     return entity;
-  }
-
-  private async getTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
-    if (request) {
-      await this.transactionRequestService.complete(request.id);
-    } else {
-      request = await this.transactionRequestService.findAndComplete(
-        entity.inputAmount,
-        entity.sell.id,
-        entity.cryptoInput.asset.id,
-        entity.sell.fiat.id,
-      );
-    }
-
-    return request;
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -147,13 +142,14 @@ export class BuyFiatService {
 
     if (dto.bankDataActive != null && (update.bankData || entity.bankData))
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        active: dto.bankDataActive,
+        approved: dto.bankDataActive,
       });
 
     Util.removeNullFields(entity);
 
     const forceUpdate: Partial<BuyFiat> = {
-      ...(BuyFiatEditableAmlCheck.includes(entity.amlCheck) &&
+      ...((BuyFiatEditableAmlCheck.includes(entity.amlCheck) ||
+        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
       !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
@@ -161,9 +157,13 @@ export class BuyFiatService {
       isComplete: dto.isComplete,
       comment: update.comment,
     };
+    if (BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
+      await this.buyFiatNotificationService.paymentProcessing(entity);
+
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
-    if (dto.amlCheck) await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+    if (dto.amlCheck) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
+    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
@@ -175,7 +175,7 @@ export class BuyFiatService {
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
-      dto.cryptoReturnDate
+      dto.chargebackDate
     )
       await this.triggerWebhook(entity);
 
@@ -204,6 +204,10 @@ export class BuyFiatService {
       .getOne();
   }
 
+  async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  }
+
   async triggerWebhookManual(id: number): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id },
@@ -224,6 +228,57 @@ export class BuyFiatService {
 
     // TODO add fiatFiatUpdate here
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
+  }
+
+  async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {
+    const buyFiat = await this.buyFiatRepo.findOne({
+      where: { id: buyFiatId },
+      relations: {
+        cryptoInput: { route: { user: true }, transaction: true },
+        transaction: { user: { userData: true } },
+      },
+    });
+    if (!buyFiat) throw new NotFoundException('BuyFiat not found');
+
+    await this.refundBuyFiatInternal(buyFiat, {
+      refundUserId: dto.refundUser?.id,
+      chargebackAmount: dto.chargebackAmount,
+      chargebackAllowedDate: dto.chargebackAllowedDate,
+      chargebackAllowedBy: dto.chargebackAllowedBy,
+    });
+  }
+
+  async refundBuyFiatInternal(buyFiat: BuyFiat, dto: CryptoInputRefund): Promise<void> {
+    if (!dto.refundUserAddress && !dto.refundUserId && !buyFiat.chargebackAddress)
+      throw new BadRequestException('You have to define a chargebackAddress');
+
+    const refundUser = dto.refundUserId
+      ? await this.userService.getUser(dto.refundUserId, { userData: true, wallet: true })
+      : await this.userService.getUserByAddress(dto.refundUserAddress ?? buyFiat.chargebackAddress, {
+          userData: true,
+          wallet: true,
+        });
+
+    const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
+
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
+
+    if (dto.chargebackAllowedDate && chargebackAmount)
+      await this.payInService.returnPayIn(
+        buyFiat.cryptoInput,
+        refundUser.address ?? buyFiat.chargebackAddress,
+        chargebackAmount,
+      );
+
+    await this.buyFiatRepo.update(
+      ...buyFiat.chargebackFillUp(
+        refundUser.address ?? buyFiat.chargebackAddress,
+        chargebackAmount,
+        dto.chargebackAllowedDate,
+        dto.chargebackAllowedDateUser,
+        dto.chargebackAllowedBy,
+      ),
+    );
   }
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
@@ -306,7 +361,29 @@ export class BuyFiatService {
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
 
+  async getPendingTransactions(): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: { isComplete: false },
+      relations: { cryptoInput: true, sell: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
+
+  private async getAndCompleteTxRequest(entity: BuyFiat, request?: TransactionRequest): Promise<TransactionRequest> {
+    if (request) {
+      await this.transactionRequestService.complete(request.id);
+    } else {
+      request = await this.transactionRequestService.findAndComplete(
+        entity.inputAmount,
+        entity.sell.id,
+        entity.cryptoInput.asset.id,
+        entity.sell.fiat.id,
+      );
+    }
+
+    return request;
+  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {

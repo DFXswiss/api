@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { CustomCronExpression } from 'src/shared/utils/cron';
 import { Lock } from 'src/shared/utils/lock';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
@@ -33,17 +33,20 @@ export class LiquidityManagementPipelineService {
 
   //*** JOBS ***//
 
-  @Cron(CustomCronExpression.EVERY_MINUTE_AT_30_SECONDS)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async processPipelines() {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     await this.checkRunningOrders();
-
     await this.startNewPipelines();
-    await this.checkRunningPipelines();
 
-    await this.startNewOrders();
+    let hasWaitingOrders = true;
+    for (let i = 0; i < 5 && hasWaitingOrders; i++) {
+      await this.checkRunningPipelines();
+
+      hasWaitingOrders = await this.startNewOrders();
+    }
   }
 
   //*** PUBLIC API ***//
@@ -63,6 +66,16 @@ export class LiquidityManagementPipelineService {
   async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
     return this.orderRepo.findBy({
       status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+    });
+  }
+
+  async getPendingExchangeTx(): Promise<LiquidityManagementOrder[]> {
+    return this.orderRepo.findBy({
+      status: LiquidityManagementOrderStatus.IN_PROGRESS,
+      action: {
+        system: In(Object.values(ExchangeName)),
+        command: In(['withdraw', 'deposit', 'transfer']),
+      },
     });
   }
 
@@ -105,8 +118,8 @@ export class LiquidityManagementPipelineService {
           order: { id: 'DESC' },
         });
 
-        if (lastOrder?.action.id === pipeline.currentAction.id) {
-          // check running order
+        // check running order
+        if (lastOrder) {
           if (
             lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
             lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
@@ -120,19 +133,26 @@ export class LiquidityManagementPipelineService {
               continue;
             }
 
-            if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
+            if (
+              [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
+                pipeline.status,
+              )
+            ) {
               await this.handlePipelineFail(pipeline, lastOrder);
               continue;
             }
-
-            this.logger.verbose(
-              `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
-            );
+          } else {
+            // order still running
+            continue;
           }
-        } else {
-          // start new order
-          await this.placeLiquidityOrder(pipeline, lastOrder);
         }
+
+        // start new order
+        this.logger.verbose(
+          `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
+        );
+
+        await this.placeLiquidityOrder(pipeline, lastOrder);
       } catch (e) {
         this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);
         continue;
@@ -150,7 +170,9 @@ export class LiquidityManagementPipelineService {
     await this.orderRepo.save(order);
   }
 
-  private async startNewOrders(): Promise<void> {
+  private async startNewOrders(): Promise<boolean> {
+    let hasFinishedOrders = false;
+
     const newOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.CREATED });
 
     for (const order of newOrders) {
@@ -170,9 +192,13 @@ export class LiquidityManagementPipelineService {
           await this.orderRepo.save(order);
         }
 
+        hasFinishedOrders = true;
+
         this.logger.warn(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
+
+    return hasFinishedOrders;
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
@@ -226,7 +252,7 @@ export class LiquidityManagementPipelineService {
 
     const [successMessage, mailRequest] = this.generateSuccessMessage(pipeline);
 
-    await this.notificationService.sendMail(mailRequest);
+    if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
 
     this.logger.verbose(successMessage);
   }
@@ -243,7 +269,7 @@ export class LiquidityManagementPipelineService {
 
     this.logger.error(errorMessage);
 
-    await this.notificationService.sendMail(mailRequest);
+    if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
   }
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
@@ -267,14 +293,21 @@ export class LiquidityManagementPipelineService {
     order: LiquidityManagementOrder,
   ): [string, MailRequest] {
     const { id, type, targetAmount, rule } = pipeline;
-    const errorMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${rule.id}) failed. Pipeline ID: ${id}`;
+    const errorMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${
+      rule.id
+    }) ${pipeline.status.toLowerCase()}. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
       context: MailContext.LIQUIDITY_MANAGEMENT,
       input: {
         subject: 'Liquidity management pipeline FAIL',
-        errors: [errorMessage, `Error: ${order.errorMessage}`],
+        errors: [
+          errorMessage,
+          pipeline.status === LiquidityManagementPipelineStatus.FAILED
+            ? `Error: ${order.errorMessage}`
+            : 'Maximum order count reached',
+        ],
       },
     };
 

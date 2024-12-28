@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 
 interface Transaction {
   idCtp: number;
@@ -56,7 +56,7 @@ export class OlkypayService {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
     try {
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(7));
       if (!transactions) return [];
 
       return transactions.map((t) => this.parseTransaction(t, accountIban));

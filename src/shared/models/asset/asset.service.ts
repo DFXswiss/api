@@ -2,12 +2,12 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Util } from 'src/shared/utils/util';
-import { FindOptionsWhere, In, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 
 export interface AssetQuery {
-  dexName: string;
+  name: string;
   blockchain: Blockchain;
   type: AssetType;
 }
@@ -37,20 +37,12 @@ export class AssetService {
     return this.assetRepo.findCachedBy(JSON.stringify(search), search);
   }
 
-  async getActiveAssets(): Promise<Asset[]> {
-    return this.assetRepo.findBy([
-      { buyable: true },
-      { sellable: true },
-      { instantBuyable: true },
-      { instantSellable: true },
-      { cardBuyable: true },
-      { cardSellable: true },
-      { paymentEnabled: true },
-    ]);
+  async getPricedAssets(): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy('priced', { priceRule: Not(IsNull()) });
   }
 
   async getPaymentAssets(): Promise<Asset[]> {
-    return this.assetRepo.findBy({ paymentEnabled: true });
+    return this.assetRepo.findCachedBy('payment', { paymentEnabled: true });
   }
 
   async getAssetById(id: number): Promise<Asset> {
@@ -66,7 +58,7 @@ export class AssetService {
   }
 
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
-    return this.assetRepo.findOneCachedBy(`${query.dexName}-${query.blockchain}-${query.type}`, query);
+    return this.assetRepo.findOneCachedBy(`${query.name}-${query.blockchain}-${query.type}`, query);
   }
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
@@ -98,8 +90,8 @@ export class AssetService {
 
   //*** UTILITY METHODS ***//
 
-  getByQuerySync(assets: Asset[], { dexName, blockchain, type }: AssetQuery): Asset | undefined {
-    return assets.find((a) => a.dexName === dexName && a.blockchain === blockchain && a.type === type);
+  getByQuerySync(assets: Asset[], { name, blockchain, type }: AssetQuery): Asset | undefined {
+    return assets.find((a) => a.name === name && a.blockchain === blockchain && a.type === type);
   }
 
   getByChainIdSync(assets: Asset[], blockchain: Blockchain, chainId: string): Asset | undefined {
@@ -108,25 +100,9 @@ export class AssetService {
     );
   }
 
-  async getDfiCoin(): Promise<Asset> {
-    return this.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
-  }
-
-  async getDfiToken(): Promise<Asset> {
-    return this.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.TOKEN,
-    });
-  }
-
   async getEthCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'ETH',
+      name: 'ETH',
       blockchain: Blockchain.ETHEREUM,
       type: AssetType.COIN,
     });
@@ -134,7 +110,7 @@ export class AssetService {
 
   async getBnbCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'BNB',
+      name: 'BNB',
       blockchain: Blockchain.BINANCE_SMART_CHAIN,
       type: AssetType.COIN,
     });
@@ -142,7 +118,7 @@ export class AssetService {
 
   async getArbitrumCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'ETH',
+      name: 'ETH',
       blockchain: Blockchain.ARBITRUM,
       type: AssetType.COIN,
     });
@@ -150,7 +126,7 @@ export class AssetService {
 
   async getOptimismCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'ETH',
+      name: 'ETH',
       blockchain: Blockchain.OPTIMISM,
       type: AssetType.COIN,
     });
@@ -158,7 +134,7 @@ export class AssetService {
 
   async getPolygonCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'MATIC',
+      name: 'POL',
       blockchain: Blockchain.POLYGON,
       type: AssetType.COIN,
     });
@@ -166,7 +142,7 @@ export class AssetService {
 
   async getBaseCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'ETH',
+      name: 'ETH',
       blockchain: Blockchain.BASE,
       type: AssetType.COIN,
     });
@@ -174,7 +150,7 @@ export class AssetService {
 
   async getBtcCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'BTC',
+      name: 'BTC',
       blockchain: Blockchain.BITCOIN,
       type: AssetType.COIN,
     });
@@ -182,7 +158,7 @@ export class AssetService {
 
   async getLightningCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'BTC',
+      name: 'BTC',
       blockchain: Blockchain.LIGHTNING,
       type: AssetType.COIN,
     });
@@ -190,7 +166,7 @@ export class AssetService {
 
   async getMoneroCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      dexName: 'XMR',
+      name: 'XMR',
       blockchain: Blockchain.MONERO,
       type: AssetType.COIN,
     });

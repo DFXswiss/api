@@ -8,16 +8,16 @@ export class UpdateBankAccountDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  label: string;
+  label?: string;
 
   @ApiPropertyOptional({ type: EntityDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)
-  preferredCurrency: Fiat;
+  preferredCurrency?: Fiat;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  active = true;
+  active?: boolean;
 }

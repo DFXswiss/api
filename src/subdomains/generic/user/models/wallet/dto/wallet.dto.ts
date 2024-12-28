@@ -1,6 +1,7 @@
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
-import { KycStatus, KycType } from '../../user-data/user-data.entity';
-import { AmlRule } from '../wallet.entity';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycType } from '../../user-data/user-data.entity';
 
 export class WalletDto {
   @IsOptional()
@@ -17,6 +18,10 @@ export class WalletDto {
 
   @IsOptional()
   @IsString()
+  displayName: string;
+
+  @IsOptional()
+  @IsString()
   masterKey: string;
 
   @IsOptional()
@@ -28,8 +33,8 @@ export class WalletDto {
   customKyc: KycType;
 
   @IsOptional()
-  @IsEnum(KycStatus)
-  identMethod?: KycStatus;
+  @IsEnum(KycStepType)
+  identMethod?: KycStepType;
 
   @IsOptional()
   @IsString()

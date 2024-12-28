@@ -1,12 +1,8 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -14,10 +10,14 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
+import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
@@ -33,6 +33,9 @@ export class BankDataService {
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly accountMergeService: AccountMergeService,
     private readonly nameCheckService: NameCheckService,
+    private readonly fiatService: FiatService,
+    private readonly countryService: CountryService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -46,12 +49,11 @@ export class BankDataService {
     const search: FindOptionsWhere<BankData> = {
       type: Not(In([BankDataType.IDENT, BankDataType.USER])),
       comment: IsNull(),
-      userData: { verifiedName: Not(IsNull()) },
     };
     const entities = await this.bankDataRepo.find({
       where: [
-        { ...search, active: false },
-        { ...search, active: IsNull() },
+        { ...search, approved: false },
+        { ...search, approved: IsNull() },
       ],
       relations: { userData: true },
     });
@@ -62,22 +64,21 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) {
-      if (!entity.userData.verifiedName && entity.userData.accountType === AccountType.PERSONAL)
+    try {
+      if (
+        !entity.userData.verifiedName &&
+        (entity.userData.accountType === AccountType.PERSONAL || entity.type === BankDataType.BANK_IN)
+      )
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       if (entity.type === BankDataType.IDENT) await this.nameCheckService.closeAndRefreshRiskStatus(entity);
 
-      return;
-    }
-    try {
+      if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
+
       const existing = await this.bankDataRepo.findOne({
-        where: { iban: entity.iban, active: true },
+        where: { iban: entity.iban, approved: true },
         relations: { userData: true },
       });
-
-      if (!entity.userData.verifiedName && entity.type === BankDataType.BANK_IN)
-        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
@@ -92,12 +93,12 @@ export class BankDataService {
 
         if (existing) {
           const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
-          await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+          await this.bankDataRepo.update(...existing.forbid(existingError.join(';')));
         }
 
-        await this.bankDataRepo.update(...entity.activate());
+        await this.bankDataRepo.update(...entity.allow());
       } else {
-        await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
+        await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
     } catch (e) {
       this.logger.error(`Failed to verify bankData ${entity.id}:`, e);
@@ -123,16 +124,15 @@ export class BankDataService {
   }
 
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: { bankDatas: true } });
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
-    return this.createBankData(userData, dto);
+    return this.createVerifyBankData(userData, dto);
   }
 
-  async createBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
-    const bankData = this.bankDataRepo.create({ ...dto, userData });
-    await this.bankDataRepo.save(bankData);
+  async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
+    const bankData = await this.createBankDataInternal(userData, dto);
 
     if (!DisabledProcess(Process.BANK_DATA_VERIFICATION)) await this.verifyBankData(bankData);
 
@@ -143,24 +143,39 @@ export class BankDataService {
     return userData;
   }
 
+  async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
+    const bankData = this.bankDataRepo.create({ ...dto, userData });
+    return this.bankDataRepo.save(bankData);
+  }
+
   async updateBankData(id: number, dto: UpdateBankDataDto): Promise<BankData> {
     const bankData = await this.bankDataRepo.findOneBy({ id });
     if (!bankData) throw new NotFoundException('Bank data not found');
 
-    if (dto.active) {
+    return this.updateBankDataInternal(bankData, dto);
+  }
+
+  async updateBankDataInternal(bankData: BankData, dto: UpdateBankDataDto): Promise<BankData> {
+    if (dto.approved) {
       const activeBankData = await this.bankDataRepo.findOneBy({
         id: Not(bankData.id),
         iban: bankData.iban,
-        active: true,
+        approved: true,
       });
       if (activeBankData) throw new BadRequestException('Active bankData with same iban found');
     }
 
-    return this.bankDataRepo.save({ ...bankData, ...dto });
-  }
+    if (dto.preferredCurrency) {
+      dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
+      if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
+    }
 
-  async deleteBankData(id: number): Promise<void> {
-    await this.bankDataRepo.delete(id);
+    if (bankData.type !== BankDataType.USER) {
+      dto.label = null;
+      dto.preferredCurrency = null;
+    }
+
+    return this.bankDataRepo.save({ ...bankData, ...dto });
   }
 
   async getBankData(id: number): Promise<BankData> {
@@ -189,59 +204,119 @@ export class BankDataService {
         where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
         relations: { userData: true },
       })
-      .then((b) => b.filter((b) => b.active)[0] ?? b[0]);
+      .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
   }
 
-  async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
-    return this.bankDataRepo.find({
-      where: [
-        { userData: { id: userDataId }, active: true },
-        { userData: { id: userDataId }, active: IsNull() },
-      ],
-      relations: { userData: true },
-    });
+  async existsUserBankDataWithIban(iban: string): Promise<boolean> {
+    return this.bankDataRepo.existsBy({ iban, type: BankDataType.USER });
+  }
+
+  async getValidBankDatasForUser(userDataId: number, ibansOnly = true): Promise<BankData[]> {
+    return this.bankDataRepo
+      .find({
+        where: [
+          { userData: { id: userDataId }, approved: true },
+          { userData: { id: userDataId }, approved: IsNull() },
+        ],
+        relations: { userData: true },
+      })
+      .then((l) => (ibansOnly ? l.filter((b) => IbanTools.validateIBAN(b.iban).valid) : l));
   }
 
   async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
-  async getIbansForUser(userDataId: number): Promise<string[]> {
-    const bankDatas = await this.getBankDatasForUser(userDataId);
-
-    return Array.from(
-      new Set(bankDatas.map((b) => b.iban.split(';')[0]).filter((b) => IbanTools.validateIBAN(b).valid)),
-    );
-  }
-
-  async createIbanForUser(userDataId: number, iban: string): Promise<void> {
-    const multiIbans = await this.specialAccountService.getMultiAccountIbans();
-    if (multiIbans.includes(iban)) throw new BadRequestException('Multi-account IBANs not allowed');
-
-    const existing = await this.bankDataRepo.findOne({
-      where: [
-        { iban, active: true },
-        { iban, active: IsNull() },
-      ],
+  async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
+    const entity = await this.bankDataRepo.findOne({
+      where: { id },
       relations: { userData: true },
     });
-    if (existing) {
-      const userData = await this.userDataRepo.findOneBy({ id: userDataId });
-      if (userData.id === existing.userData.id) return;
+    if (!entity) throw new NotFoundException('Bank account not found');
+    if (entity.userData.id !== userDataId) throw new BadRequestException('You can only update your own bank account');
 
-      if (userData.verifiedName && !Util.isSameName(userData.verifiedName, existing.userData.verifiedName))
-        throw new ForbiddenException('IBAN already in use');
+    if (dto.active === false) {
+      await this.bankDataRepo
+        .createQueryBuilder()
+        .update('bank_data')
+        .set({ active: false })
+        .where('bank_data.userDataId = :userDataId', { userDataId })
+        .andWhere('bank_data.id != :id', { id: entity.id })
+        .andWhere('bank_data.iban = :iban', { iban: entity.iban })
+        .execute();
 
-      const sentMergeRequest = await this.accountMergeService.sendMergeRequest(existing.userData, userData);
-      throw new ConflictException(`IBAN already exists${sentMergeRequest ? ' - account merge request sent' : ''}`);
+      return this.updateBankDataInternal(entity, dto);
     }
+
+    const bankData =
+      entity.type === BankDataType.USER
+        ? entity
+        : (await this.bankDataRepo.findOne({
+            where: { userData: { id: userDataId }, iban: entity.iban },
+            relations: { userData: true },
+          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+
+    return this.updateBankDataInternal(bankData, dto);
+  }
+
+  async createIbanForUser(
+    userDataId: number,
+    dto: CreateBankAccountDto,
+    sendMergeRequest = true,
+    type?: BankDataType,
+  ): Promise<BankData> {
+    const multiIbans = await this.specialAccountService.getMultiAccountIbans();
+    if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
+
+    if (!(await this.isValidIbanCountry(dto.iban)))
+      throw new BadRequestException('IBAN country is currently not supported');
+
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (userData.status === UserDataStatus.KYC_ONLY)
+      throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
+
+    const existing = await this.bankDataRepo
+      .find({
+        where: [
+          { iban: dto.iban, approved: true, type },
+          { iban: dto.iban, approved: IsNull(), type },
+        ],
+        relations: { userData: true },
+      })
+      .then((b) => b.find((b) => b.userData.id === userDataId) ?? b[0]);
+
+    if (existing) {
+      if (userData.id === existing.userData.id) {
+        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
+        return existing;
+      }
+
+      if (sendMergeRequest && existing.userData.mail)
+        await this.accountMergeService.sendMergeRequest(existing.userData, userData, MergeReason.IBAN);
+    }
+
+    if (dto.preferredCurrency) {
+      dto.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
+      if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
+    }
+
+    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },
-      iban,
-      active: null,
+      iban: dto.iban,
+      approved: null,
       type: BankDataType.USER,
+      label: dto.label,
+      preferredCurrency: dto.preferredCurrency,
     });
-    await this.bankDataRepo.save(bankData);
+
+    return this.bankDataRepo.save(bankData);
+  }
+
+  private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
+    const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
+
+    return ibanCountry.isEnabled(kycType);
   }
 }

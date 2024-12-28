@@ -18,9 +18,11 @@ export enum TransactionState {
   PROCESSING = 'Processing',
   AML_PENDING = 'AmlPending',
   KYC_REQUIRED = 'KycRequired',
+  LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
+  RETURN_PENDING = 'ReturnPending',
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
 }
@@ -46,15 +48,18 @@ export enum TransactionReason {
   CHF_ABROAD_NOT_ALLOWED = 'ChfAbroadNotAllowed',
   ASSET_KYC_NEEDED = 'AssetKycNeeded',
   CARD_NAME_MISMATCH = 'CardNameMismatch',
+  USER_DELETED = 'UserDeleted',
+  VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
+  MISSING_LIQUIDITY = 'MissingLiquidity',
 }
 
 export const KycRequiredReason = [
-  TransactionReason.DAILY_LIMIT_EXCEEDED,
-  TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   TransactionReason.INSTANT_PAYMENT,
   TransactionReason.SANCTION_SUSPICION,
   TransactionReason.FRAUD_SUSPICION,
 ];
+
+export const LimitExceededReason = [TransactionReason.DAILY_LIMIT_EXCEEDED, TransactionReason.ANNUAL_LIMIT_EXCEEDED];
 
 export const TransactionReasonMapper: {
   [key in AmlReason]: TransactionReason;
@@ -62,7 +67,9 @@ export const TransactionReasonMapper: {
   [AmlReason.NA]: null,
   [AmlReason.MANUAL_CHECK]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
-  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DELETED]: TransactionReason.USER_DELETED,
   [AmlReason.DAILY_LIMIT]: TransactionReason.DAILY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
@@ -84,6 +91,8 @@ export const TransactionReasonMapper: {
   [AmlReason.CHF_ABROAD_TX]: TransactionReason.CHF_ABROAD_NOT_ALLOWED,
   [AmlReason.ASSET_KYC_NEEDED]: TransactionReason.ASSET_KYC_NEEDED,
   [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
+  [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
+  [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
 };
 
 export class UnassignedTransactionDto {
@@ -120,6 +129,21 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional()
   inputTxUrl?: string;
 
+  @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
+  chargebackTarget?: string;
+
+  @ApiPropertyOptional({ description: 'Chargeback amount in input asset' })
+  chargebackAmount?: number;
+
+  @ApiPropertyOptional()
+  chargebackTxId?: string;
+
+  @ApiPropertyOptional()
+  chargebackTxUrl?: string;
+
+  @ApiPropertyOptional({ type: Date })
+  chargebackDate?: Date;
+
   @ApiProperty({ type: Date })
   date: Date;
 }
@@ -154,6 +178,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   outputTxUrl?: string;
+
+  @ApiPropertyOptional({ type: Date })
+  outputDate?: Date;
 
   @ApiPropertyOptional()
   priceSteps?: PriceStep[];

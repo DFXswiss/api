@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { In } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
-import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BankTx, BankTxType } from '../bank-tx/entities/bank-tx.entity';
+import { BankTxRepository } from '../bank-tx/repositories/bank-tx.repository';
 import { BankTxRepeat } from './bank-tx-repeat.entity';
 import { BankTxRepeatRepository } from './bank-tx-repeat.repository';
 import { UpdateBankTxRepeatDto } from './dto/update-bank-tx-repeat.dto';
@@ -85,6 +85,13 @@ export class BankTxRepeatService {
       where: { userId: In(userIds) },
       relations: ['bankTx', 'sourceBankTx', 'chargebackBankTx'],
       order: { id: 'DESC' },
+    });
+  }
+
+  async getPendingTx(): Promise<BankTxRepeat[]> {
+    return this.bankTxRepeatRepo.find({
+      where: { chargebackBankTx: { id: IsNull() } },
+      relations: { chargebackBankTx: true, bankTx: true },
     });
   }
 }

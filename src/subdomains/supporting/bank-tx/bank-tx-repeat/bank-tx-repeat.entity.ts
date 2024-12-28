@@ -1,7 +1,9 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { BankService } from '../../bank/bank/bank.service';
 import { Transaction } from '../../payment/entities/transaction.entity';
-import { BankTx } from '../bank-tx/bank-tx.entity';
+import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
 @Entity()
 export class BankTxRepeat extends IEntity {
@@ -11,28 +13,45 @@ export class BankTxRepeat extends IEntity {
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  sourceBankTx: BankTx;
+  sourceBankTx?: BankTx;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  chargebackBankTx: BankTx;
+  chargebackBankTx?: BankTx;
 
   @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
-  transaction: Transaction;
+  transaction?: Transaction;
 
   @Column({ type: 'integer', nullable: true })
-  userId: number;
+  userId?: number;
 
   @Column({ length: 256, nullable: true })
-  info: string;
+  info?: string;
 
   @Column({ type: 'float', nullable: true })
-  amountInChf: number;
+  amountInChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInEur: number;
+  amountInEur?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInUsd: number;
+  amountInUsd?: number;
+
+  //*** METHODS ***//
+
+  pendingInputAmount(asset: Asset): number {
+    switch (asset.blockchain as string) {
+      case 'MaerkiBaumann':
+      case 'Olkypay':
+        return BankService.isBankMatching(asset, this.bankTx.accountIban) ? this.bankTx.amount : 0;
+
+      default:
+        return 0;
+    }
+  }
+
+  pendingOutputAmount(_: Asset): number {
+    return 0;
+  }
 }

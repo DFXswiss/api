@@ -1,8 +1,7 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -12,14 +11,16 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
+import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
@@ -28,11 +29,6 @@ import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/
 import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
-
-export enum ValidationError {
-  PAY_IN_TOO_SMALL = 'PayInTooSmall',
-  PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
-}
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -47,9 +43,10 @@ export class TransactionHelper implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
+    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
   ) {}
 
   onModuleInit() {
@@ -64,35 +61,61 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async validateInput(from: Active, amount: number): Promise<true | ValidationError> {
+  async validateInput(payIn: CryptoInput): Promise<boolean> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(from, from, true);
-    if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
-
-    // check sellable
-    if (!from.sellable) return ValidationError.PAY_IN_NOT_SELLABLE;
+    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, true, payIn.isPayment);
+    if (payIn.amount < minVolume * 0.5) return false;
 
     return true;
   }
 
-  async getMinVolumeIn(from: Active, fromReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
+  async getMinVolumeIn(
+    from: Active,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
 
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
       .then((p) => p.invert());
-    return this.convert(spec.minVolume, price, isFiat(from));
+    return this.convert(minVolume, price, isFiat(from));
   }
 
-  async getMinVolumeOut(to: Active, toReference: Active, allowExpiredPrice: boolean): Promise<number> {
-    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
+  async getMinVolumeOut(
+    to: Active,
+    toReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment
+      ? Config.payment.minVolume
+      : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
     const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
-    return this.convert(spec.minVolume, price, isFiat(to));
+    return this.convert(minVolume, price, isFiat(to));
+  }
+
+  async getMinVolume(
+    from: Active,
+    to: Active,
+    fromReference: Active,
+    allowExpiredPrice: boolean,
+    isPayment: boolean,
+  ): Promise<number> {
+    const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
+
+    const price = await this.pricingService
+      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .then((p) => p.invert());
+    return this.convert(minVolume, price, isFiat(from));
   }
 
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
-    return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
+    return this.feeService.getBlockchainFeeInChf(asset, allowCachedBlockchainFee);
   }
 
   getMinSpecs(from: Active, to: Active): TxMinSpec {
@@ -136,30 +159,45 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    bankIn: CardBankName | IbanBankName | undefined,
+    bankOut: CardBankName | IbanBankName | undefined,
     user: User,
   ): Promise<InternalFeeDto & FeeDto> {
     // get fee
     const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(user, paymentMethodIn, paymentMethodOut, from, to, inputAmountChf, [], false),
+      this.getTxFee(user, paymentMethodIn, paymentMethodOut, bankIn, bankOut, from, to, inputAmountChf, [], false),
       this.getNetworkStartFee(to, false, user),
     ]);
 
     // get specs
     const minSpecs = this.getMinSpecs(from, to);
     const specs: TxSpec = {
-      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network, networkStart: networkStartFee },
+      fee: {
+        min: minSpecs.minFee,
+        fixed: fee.fixed,
+        network: fee.network,
+        networkStart: networkStartFee,
+        bankFixed: fee.bankFixed,
+      },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, false);
 
-    const { dfx, total } = this.calculateTotalFee(inputReferenceAmount, fee.rate, sourceSpecs, isFiat(from));
+    const { dfx, bank, total } = this.calculateTotalFee(
+      inputReferenceAmount,
+      fee.rate,
+      fee.bankRate,
+      sourceSpecs,
+      isFiat(from),
+    );
 
     return {
       ...fee,
       ...sourceSpecs.fee,
       total,
       dfx,
+      bank,
     };
   }
 
@@ -172,7 +210,7 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     allowExpiredPrice: boolean,
     user?: User,
-    discountCodes: string[] = [],
+    specialCodes: string[] = [],
   ): Promise<TransactionDetails> {
     const txAsset = targetAmount ? to : from;
     const txAmount = targetAmount ?? sourceAmount;
@@ -180,9 +218,23 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, this.chf, true);
     const txAmountChf = chfPrice.convert(txAmount);
 
+    const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
+    const bankOut = this.getDefaultBankByPaymentMethod(paymentMethodOut);
+
     // get fee
     const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(user, paymentMethodIn, paymentMethodOut, from, to, txAmountChf, discountCodes, true),
+      this.getTxFee(
+        user,
+        paymentMethodIn,
+        paymentMethodOut,
+        bankIn,
+        bankOut,
+        from,
+        to,
+        txAmountChf,
+        specialCodes,
+        true,
+      ),
       this.getNetworkStartFee(to, allowExpiredPrice, user),
     ]);
 
@@ -204,7 +256,13 @@ export class TransactionHelper implements OnModuleInit {
 
     // target estimation
     const extendedSpecs: TxSpec = {
-      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee, networkStart: networkStartFee },
+      fee: {
+        network: fee.network,
+        fixed: fee.fixed,
+        min: specs.minFee,
+        networkStart: networkStartFee,
+        bankFixed: fee.bankFixed,
+      },
       volume: {
         min: specs.minVolume,
         max: error === QuoteError.LIMIT_EXCEEDED ? kycLimit : Math.min(kycLimit, defaultLimit),
@@ -218,6 +276,7 @@ export class TransactionHelper implements OnModuleInit {
       sourceAmount,
       targetAmount,
       fee.rate,
+      fee.bankRate,
       sourceSpecs,
       targetSpecs,
       from,
@@ -240,24 +299,31 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number,
     from: Active,
     allowExpiredPrice: boolean,
-    dateFrom: Date,
-    dateTo: Date,
+    dateFrom?: Date,
+    dateTo?: Date,
     users?: User[],
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
     if (!users?.length) return price.convert(inputAmount);
 
-    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users);
+    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, type);
 
     return price.convert(inputAmount) + previousVolume;
   }
 
-  async getVolumeSince(dateFrom: Date, dateTo: Date, users: User[]): Promise<number> {
+  async getVolumeSince(
+    dateFrom: Date,
+    dateTo: Date,
+    users: User[],
+    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
       dateFrom,
       dateTo,
+      type,
     );
     const buyFiatVolume = await this.buyFiatService.getUserVolume(
       users.map((u) => u.id),
@@ -280,9 +346,9 @@ export class TransactionHelper implements OnModuleInit {
       return 0;
 
     try {
-      const evmClient = this.evmRegistryService.getClient(to.blockchain);
+      const client = this.blockchainRegistryService.getClient(to.blockchain);
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
-        evmClient.getNativeCoinBalanceForAddress(user.address),
+        client.getNativeCoinBalanceForAddress(user.address),
       );
 
       return userBalance < Config.networkStartBalanceLimit ? Config.networkStartFee : 0;
@@ -296,20 +362,24 @@ export class TransactionHelper implements OnModuleInit {
     user: User | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    bankIn: CardBankName | IbanBankName,
+    bankOut: CardBankName | IbanBankName,
     from: Active,
     to: Active,
     txVolumeChf: number,
-    discountCodes: string[],
+    specialCodes: string[],
     allowCachedBlockchainFee: boolean,
   ): Promise<InternalFeeDto> {
     const feeRequest: UserFeeRequest = {
       user,
       paymentMethodIn,
       paymentMethodOut,
+      bankIn,
+      bankOut,
       from,
       to,
       txVolume: txVolumeChf,
-      discountCodes,
+      specialCodes,
       allowCachedBlockchainFee,
     };
 
@@ -320,6 +390,7 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number | undefined,
     outputAmount: number | undefined,
     feeRate: number,
+    bankFeeRate: number,
     sourceSpecs: TxSpec,
     targetSpecs: TxSpec,
     from: Active,
@@ -330,12 +401,13 @@ export class TransactionHelper implements OnModuleInit {
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
-    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, sourceSpecs, isFiat(from));
+    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, bankFeeRate, sourceSpecs, isFiat(from));
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
       dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
       total: this.convert(sourceFees.total, price, isFiat(to)),
+      bank: this.convert(sourceFees.bank, price, isFiat(to)),
     };
 
     return {
@@ -368,6 +440,19 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
+  private getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
+    switch (paymentMethod) {
+      case FiatPaymentMethod.BANK:
+        return IbanBankName.MAERKI;
+      case FiatPaymentMethod.CARD:
+        return CardBankName.CHECKOUT;
+      case FiatPaymentMethod.INSTANT:
+        return IbanBankName.OLKY;
+      default:
+        return undefined;
+    }
+  }
+
   private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
 
@@ -375,6 +460,7 @@ export class TransactionHelper implements OnModuleInit {
       fee: {
         min: this.convert(fee.min, price, isFiat(from)),
         fixed: this.convert(fee.fixed, price, isFiat(from)),
+        bankFixed: this.convert(fee.bankFixed, price, isFiat(from)),
         network: this.convert(fee.network, price, isFiat(from)),
         networkStart: fee.networkStart != null ? this.convert(fee.networkStart, price, isFiat(from)) : undefined,
       },
@@ -392,6 +478,7 @@ export class TransactionHelper implements OnModuleInit {
       fee: {
         min: this.convert(fee.min, price, isFiat(to)),
         fixed: this.convert(fee.fixed, price, isFiat(to)),
+        bankFixed: this.convert(fee.bankFixed, price, isFiat(to)),
         network: this.convert(fee.network, price, isFiat(to)),
         networkStart: fee.networkStart != null ? this.convert(fee.networkStart, price, isFiat(to)) : undefined,
       },
@@ -405,13 +492,19 @@ export class TransactionHelper implements OnModuleInit {
   private calculateTotalFee(
     amount: number,
     rate: number,
-    { fee: { fixed, min, network, networkStart } }: TxSpec,
+    bankRate: number,
+    { fee: { fixed, min, network, networkStart, bankFixed } }: TxSpec,
     isFiat: boolean,
-  ): { dfx: number; total: number } {
+  ): { dfx: number; bank: number; total: number } {
+    const bank = amount * bankRate + bankFixed;
     const dfx = Math.max(amount * rate + fixed, min);
-    const total = dfx + network + (networkStart ?? 0);
+    const total = dfx + bank + network + (networkStart ?? 0);
 
-    return { dfx: Util.roundReadable(dfx, isFiat), total: Util.roundReadable(total, isFiat) };
+    return {
+      dfx: Util.roundReadable(dfx, isFiat),
+      bank: Util.roundReadable(bank, isFiat),
+      total: Util.roundReadable(total, isFiat),
+    };
   }
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
@@ -452,25 +545,30 @@ export class TransactionHelper implements OnModuleInit {
     kycLimitChf: number,
     user?: User,
   ): QuoteError | undefined {
+    const nationality = user?.userData.nationality;
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
 
+    if (
+      nationality &&
+      ((isBuy && !nationality.bankEnable) ||
+        (paymentMethodIn === FiatPaymentMethod.CARD && !nationality.checkoutEnable) ||
+        ((isSell || isSwap) && !nationality.cryptoEnable))
+    )
+      return QuoteError.NATIONALITY_NOT_ALLOWED;
+
     // KYC checks
-    if (isBuy) {
-      if (
-        ((user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_2 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-          (user?.status === UserStatus.NA &&
-            user?.wallet.amlRule === AmlRule.RULE_3 &&
-            user?.userData.kycLevel < KycLevel.LEVEL_50)) &&
-        to.blockchain !== Blockchain.LIGHTNING
-      )
-        return QuoteError.KYC_REQUIRED;
-    }
+    if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
+      return QuoteError.KYC_REQUIRED;
+
+    if (isBuy && AmlHelperService.amlRuleUserCheck([user?.wallet.amlRule], user, paymentMethodIn))
+      return QuoteError.KYC_REQUIRED;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
+      return QuoteError.KYC_REQUIRED;
+
+    if ((isSell || isSwap) && user?.userData.kycLevel < KycLevel.LEVEL_30 && from.dexName === 'XMR')
       return QuoteError.KYC_REQUIRED;
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)

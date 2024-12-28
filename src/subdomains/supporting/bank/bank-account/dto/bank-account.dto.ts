@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 
 export class BankAccountDto {
   @ApiProperty()
@@ -8,15 +8,9 @@ export class BankAccountDto {
   @ApiProperty()
   iban: string;
 
-  @ApiPropertyOptional({ type: Fiat })
-  preferredCurrency: Fiat;
+  @ApiPropertyOptional({ type: FiatDto })
+  preferredCurrency: FiatDto;
 
   @ApiPropertyOptional()
   label: string;
-
-  @ApiProperty()
-  sepaInstant: boolean;
-
-  @ApiProperty()
-  active: boolean;
 }

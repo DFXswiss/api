@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -53,7 +54,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
         if (isComplete) {
           order.complete();
-          order.recordPayoutFee(await this.feeAsset(), payoutFee);
+
+          const feeAsset = await this.feeAsset();
+          const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+          order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);
         }

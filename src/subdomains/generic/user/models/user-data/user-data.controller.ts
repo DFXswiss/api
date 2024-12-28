@@ -1,14 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { Util } from 'src/shared/utils/util';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserData, UserDataStatus } from './user-data.entity';
@@ -23,7 +25,7 @@ export class UserDataController {
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
     private readonly feeService: FeeService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly kycLogService: KycLogService,
   ) {}
 
@@ -64,7 +66,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async mergeUserData(@Param('id') masterId: string, @Query('id') slaveId: string): Promise<void> {
-    return this.userDataService.mergeUserData(+masterId, +slaveId, true);
+    return this.userDataService.mergeUserData(+masterId, +slaveId, undefined, true);
   }
 
   @Put(':id/volumes')
@@ -110,12 +112,16 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
-    const url = await this.storageService.uploadFile(
-      +id,
+    const userData = await this.userDataService.getUserData(+id);
+
+    const url = await this.documentService.uploadUserFile(
+      userData,
       dto.documentType,
       dto.originalName,
       Buffer.from(dto.data, 'base64'),
       dto.contentType,
+      true,
+      undefined,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),
@@ -126,5 +132,27 @@ export class UserDataController {
     if (dto.kycLogId != null) await this.kycLogService.updateLogPdfUrl(dto.kycLogId, url);
 
     return url;
+  }
+
+  @Post('download')
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: StreamableFile })
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async downloadUserData(@Body() data: DownloadUserDataDto, @Res({ passthrough: true }) res): Promise<StreamableFile> {
+    const zipContent = await this.userDataService.downloadUserData(data.userDataIds);
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="DFX_export_${this.formatDate()}.zip"`,
+    });
+
+    return new StreamableFile(zipContent);
+  }
+
+  // --- HELPER METHODS --- //
+
+  private formatDate(date: Date = new Date()): string {
+    return Util.isoDateTime(date).split('-').join('');
   }
 }

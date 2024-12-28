@@ -1,24 +1,25 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
-import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { UpdateResult } from 'src/shared/models/entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
+import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
 
 @Injectable()
 export class KycAdminService {
+  private readonly logger = new DfxLogger(KycAdminService);
+
   constructor(
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
-    @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
     private readonly kycService: KycService,
+    private readonly kycNotificationService: KycNotificationService,
   ) {}
 
   async getKycSteps(userDataId: number): Promise<KycStep[]> {
@@ -32,26 +33,48 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
-    kycStep.update(dto.status, dto.result);
+    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
 
-    if (kycStep.name === KycStepName.IDENT && kycStep.isCompleted) {
-      kycStep.userData = await this.kycService.completeIdent(kycStep.getResult<IdentResultDto>(), kycStep.userData);
+    switch (kycStep.name) {
+      case KycStepName.COMMERCIAL_REGISTER:
+        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+        break;
 
-      if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-        await this.bankDataService.createBankData(kycStep.userData, {
-          name: kycStep.userName,
-          iban: `Ident${kycStep.identDocumentId}`,
-          type: BankDataType.IDENT,
-        });
+      case KycStepName.IDENT:
+        if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
+        if (kycStep.isFailed)
+          await this.kycNotificationService.identFailed(
+            kycStep.userData,
+            this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol),
+          );
+
+        break;
     }
+  }
 
-    await this.kycStepRepo.save(kycStep);
+  async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
+    await this.kycStepRepo.update(...dto);
+  }
+
+  async syncIdentStep(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    await this.kycService.syncIdentStep(kycStep);
   }
 
   async resetKyc(userData: UserData): Promise<void> {
     for (const kycStep of userData.kycSteps) {
       if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
         await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
+    }
+  }
+
+  async triggerVideoIdentInternal(userData: UserData): Promise<void> {
+    try {
+      await this.kycService.getOrCreateStepInternal(userData.kycHash, KycStepName.IDENT, KycStepType.VIDEO);
+    } catch (e) {
+      this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
     }
   }
 

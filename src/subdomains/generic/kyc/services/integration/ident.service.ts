@@ -10,10 +10,10 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IdNowResult } from '../../dto/ident-result.dto';
 import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
-import { IdentResultDto } from '../../dto/input/ident-result.dto';
-import { ContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
+import { ContentType } from '../../enums/content-type.enum';
 import { KycStepName, KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
@@ -50,8 +50,8 @@ export class IdentService {
     ).then((r) => r.id);
   }
 
-  async getResult(kycStep: KycStep): Promise<IdentResultDto> {
-    return this.callApi<IdentResultDto>(`identifications/${kycStep.transactionId}`, kycStep.type, 'GET');
+  async getResult(kycStep: KycStep): Promise<IdNowResult> {
+    return this.callApi<IdNowResult>(`identifications/${kycStep.transactionId}`, kycStep.type, 'GET');
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -97,7 +97,7 @@ export class IdentService {
   // --- HELPER METHODS --- //
 
   private fileName(transactionId: string, contentType: string): string {
-    return `${Util.isoDate(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
+    return `${Util.isoDateTime(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
   }
 
   private async getDocument(

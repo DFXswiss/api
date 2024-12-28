@@ -5,82 +5,95 @@
 1. Do deployment: `az deployment group create -g rg-dfx-api-{env} -f infrastructure/bicep/dfx-api.bicep -p infrastructure/bicep/parameters/{env}.json`
 1. Loc: remove unused resources (API app service + plan, app insights)
 
-# BTC Node Setup
+# VM
 
-1. Connect to BTC node: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
-1. Create scripts (`setupBTC.sh` and `startBTC.sh` from `infrastructure/scripts/btc`) and make them executable (`chmod +x {file}`)
-1. Execute setup script: `sudo ./setupBTC.sh`
-1. Copy content of config file (`infrastructure/config/btc/{env}.conf`) to virtual machine (`.bitcoin/bitcoin.conf`)
-1. Start the bitcoin node: `./startBTC.sh`
+1. Connect to VM: `ssh {user}@vm-{user}-{type}-{env}.westeurope.cloudapp.azure.com`
 
-# Lightning Setup
+# Docker Setup (dockerd)
 
-Connect to Lightning node: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
+1. Copy script `infrastructure/scripts/setupDocker.sh` to virtual machine `~/setupDocker.sh`
+1. Execute script: `sudo ./setupDocker.sh`
+1. Copy script `infrastructure/scripts/setupEnv.sh` to virtual machine `~/setupEnv.sh`
+1. Execute script: `./setupEnv.sh`
+1. Copy script `infrastructure/config/docker/docker-compose.sh` to virtual machine `~/docker-compose.sh`
+1. Copy file `infrastructure/config/docker/docker-compose-bitcoin.yml` to virtual machine `~/docker-compose-bitcoin.yml`
+1. Copy file `infrastructure/config/docker/docker-compose-monero.yml` to virtual machine `~/docker-compose-monero.yml`
+1. Copy file `infrastructure/config/docker/docker-compose-frankencoin.yml` to virtual machine `~/docker-compose-frankencoin.yml`
+1. Execute Docker Compose (see [below](#docker-compose)) after all other setup steps are done:
+   1. [Bitcoin Node Setup](#bitcoin-node-setup-bitcoind)
+   1. [Lightning Node Setup](#lightning-node-setup-lnd)
+   1. [LNbits Setup](#lnbits-setup)
+   1. [ThunderHub Setup](#thunderhub-setup)
+   1. [NGINX Setup](#nginx-setup)
 
-1. Install tools: `sudo apt install net-tools pass gnupg -y`
-1. Setup pass
-   1. Create GPG key: `gpg --full-generate-key` (use default values)
-   1. Get the key ID with: `gpg --list-secret-keys --keyid-format=long`
-   1. Init pass: `pass init [GPG ID]`
+# Bitcoin Node Setup (bitcoind)
 
-## Lightning Node (LND)
+1. Copy content of config file `infrastructure/config/btc/bitcoin.conf` to virtual machine `~/volumes/bitcoin/bitcoin.conf`
+1. `bitcoin.conf`: Replace `[RPC_AUTH]` and `[WALLET]`
+1. Actions after first startup via Docker Compose (see [below](#bitcoin-setup-after-first-startup))
 
-- https://github.com/lightningnetwork/lnd/blob/master/docs/INSTALL.md
-- https://docs.lightning.engineering/lightning-network-tools/lnd/run-lnd
+# Lightning Node Setup (lnd)
 
-1. Connect to Lightning node: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
-1. Create scripts (`setupLND.sh` and `startLND.sh` from `infrastructure/scripts/lightning/lnd`) and make them executable (`chmod +x {file}`)
-1. Execute setup script: `sudo ./setupLND.sh`
-1. Copy content of config file (`infrastructure/config/lightning/lnd/{env}.conf`) to virtual machine (`.lnd/lnd.conf`) and replace the missing settings (in square brackets)
-1. Create a wallet, if lnd is run for the first time (see [below](#wallet-creation))
-1. Start the lightning node: `./startLND.sh`
+1. Copy content of config file `infrastructure/config/lightning/lnd/lnd.conf` to virtual machine `~/volumes/lightning/lnd.conf`
+1. `lnd.conf`: Replace `[PRIVATE_IP]`, `[ENVIRONMENT]`, `[ALIAS]`, `[PEER]`, `[RPC_USER]` and `[RPC_PASSWORD]`
+1. Adapt `addpeer` values for the current environment (peer info can be found here: https://mempool.space/de/lightning)
+1. Copy content of config file `infrastructure/config/lightning/lnd/pwd.txt` to virtual machine `~/volumes/lightning/pwd.txt`
+1. `pwd.txt`: Replace `[PASSWORD]` with empty text for the very first startup
+1. Actions after first startup via Docker Compose (see [below](#lightning-setup-after-first-startup))
 
-### Wallet Creation
+# LNbits Setup
 
-1. Start lnd without wallet: `/home/dfx/.lnd/lnd-linux-amd64-v0.16.2-beta/lnd --bitcoin.mainnet &`
-1. Create a new wallet with: `/home/dfx/.lnd/lncli create`. Add a new wallet password, write the displayed 24 word seed down and keep it in a safe place
-1. Stop lnd with: `/home/dfx/.lnd/lncli stop`
-1. Store the wallet password in the `pass` tool: `pass insert lnd/my-wallet-password`
+1. Copy content of config file `infrastructure/config/lightning/lnbits/lnbits.env` to virtual machine `~/volumes/lnbits/.env`
+1. `.env`: Replace `[ADMIN_USERS]` with empty text for the very first startup
+1. Actions after first startup via Docker Compose (see [below](#lnbits-setup-after-first-startup))
 
-### Self-Signed Certificate
+# ThunderHub Setup
 
-During first-time startup, LND is creating a self-signed TLS certificate in its root directory (`tls.key`, `tls.cert`). This self-signed certificate is also used for LNbits and ThunderHub.
+1. Copy content of config file `infrastructure/config/lightning/thunderhub/thunderhub.env` to virtual machine `~/volumes/thunderhub/.env`
+1. Copy content of config file `infrastructure/config/lightning/thunderhub/accounts.yml` to virtual machine `~/volumes/thunderhub/accounts.yml`
+1. `accounts.yml`: Replace `[NAME]` and `[PASSWORD]`
 
-If a new self-signed certificate is to be created, the Lightning Node must be stopped and the existing certificate deleted. After restarting the node, a new self-signed certificate will be created automatically by the node.
+# NGINX Setup
 
-## LNbits
+1. Copy content of config file `infrastructure/config/nginx/default.conf` to virtual machine `~/volumes/nginx/default.conf`
 
-- https://github.com/lnbits/lnbits/blob/main/docs/guide/installation.md
+# Docker Compose
 
-1. Connect to LNbits: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
-1. Create scripts (`setupLNbits.sh` and `startLNbits.sh` from `infrastructure/scripts/lightning/lnbits`) and make them executable (`chmod +x {file}`)
-1. Execute setup script: `./setupLNbits.sh`
-1. Copy content of config file (`infrastructure/config/lightning/lnbits/{env}.env`) to virtual machine (`lnbits/.env`)
-1. Create logs folder: `mkdir lnbits/logs`
-1. Start LNbits: `./startLNbits.sh`
-1. Open the web frontend, create a wallet and store the generated user ID in a save place
-1. Add the generated user ID to the config file (`[ALLOWED_USERS]`)
-1. Restart LNbits (use `kill` to stop it)
-1. Install and enable LNURLp extension
+The complete Bitcoin Blockchain data is loaded after the very first startup of the bitcoin node. Therefore it is recommended to copy already available blockchain data to the `~/volumes/bitcoin/...` directory.
 
-The self-signed certificate of the LND is used to provide HTTPS access via the given port number.
+The complete Lightning data is synchonized after the very first startup of the lightning node. This may take some time.
 
-## ThunderHub
+After Docker Compose is successfully executed for the very first time, the following actions must be performed manually:
 
-- https://docs.thunderhub.io/setup
-- https://docs.thunderhub.io/installation
+## Bitcoin: Setup after first startup
 
-1. Connect to ThunderHub: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
-1. Create scripts (`setupThunderHub.sh` and `startThunderHub.sh` from `infrastructure/scripts/lightning/thunderhub`) and make them executable (`chmod +x {file}`)
-1. Execute setup script: `./setupThunderHub.sh`
-1. Copy content of config file (`infrastructure/config/lightning/thunderhub/{env}.env`) to virtual machine (`thunderhub/.env`)
-1. Create folders: `mkdir thunderhub/logs .thunderhub`
-1. Copy content of accounts file (`infrastructure/config/lightning/thunderhub/accounts-{env}.yaml`) to virtual machine (`.thunderhub/accounts.yaml`) and replace the missing settings (in square brackets)
-1. Start ThunderHub: `./startThunderHub.sh`
+1. Create a Bitcoin Wallet (if needed)
+1. Create a Bitcoin Address (if needed)
+1. Send funds to the Bitcoin Address (if needed)
 
-The `main.ts` file of the ThunderHub server must be adapted before starting to use the self-signed certificate of the LND.
+## Lightning: Setup after first startup
 
-To change the passwords in the `accounts-{env}.yaml` file, ThunderHub must be stopped. Then the new passwords can be written in plain text to the yaml file. After restarting ThunderHub, the passwords will be encrypted automatically.
+1. Create a Lightning Wallet with a secure password
+1. Set the password in the `~/volumes/lightning/pwd.txt` file
+1. Create a Bitcoin Address (needed to open a channel)
+1. Send funds to the Bitcoin Address (needed to open a channel)
+1. Open the channels
+
+## LNbits: Setup after first startup
+
+1. Open a Browser and connect to LNbits at: https://vm-{user}-{type}-{env}.westeurope.cloudapp.azure.com
+1. Find the User Id in the URL
+1. Set the value of the `LNBITS_ADMIN_USERS` in the config file `~/volumes/lnbits/.env` to the User Id
+
+# Infrastructure Update
+
+## Backup
+
+1. Run Script `runBackup.sh` before the update. This will backup all dynamic Bitcoin, Lightning, LNbits, ThunderHub, Monero and Frankencoin data created from the different docker images - except the large blockchain data.
+
+## Update
+
+Detailed Update Information can be found at: `https://docs.google.com/document/d/1WtpatYIxTcd-9E029Zu_4gLhd3H5MAfhytX3x-kUkwM`
 
 ## Docker Setup (dockerd)
 
@@ -88,8 +101,6 @@ To change the passwords in the `accounts-{env}.yaml` file, ThunderHub must be st
 1. Execute script: `sudo ./setupDocker.sh`
 1. Copy script `infrastructure/scripts/setupEnv.sh` to virtual machine `~/setupEnv.sh`
 1. Execute script: `./setupEnv.sh`
-1. Copy file `infrastructure/config/docker/docker-compose-monero.yml` to virtual machine `~/docker-compose-monero.yml`
-1. Execute Docker Compose with `~/docker-compose-monero.yml`
 
 ## Monero (RPC)
 
@@ -124,3 +135,27 @@ To change the passwords in the `accounts-{env}.yaml` file, ThunderHub must be st
    - '--rpc-ssl-certificate=/home/monero/.bitmonero/cert.pem'
 
 1. Run docker compose `docker compose -f docker-compose-monero.yml up -d`
+
+## Frankencoin (Ponder)
+
+1. Login to VM
+1. Run docker compose `docker compose -f docker-compose-frankencoin.yml up -d`
+
+## Docker compose to start or stop all container
+
+### Start all container
+
+1. Execute script: `sudo ./docker-compose.sh` - all `bitcoin/lightning`, `monero` and `frankencoin` containers are started
+
+   - bitcoin-lightning-bitcoind-1
+   - bitcoin-lightning-lnd-1
+   - bitcoin-lightning-lnbits-1
+   - bitcoin-lightning-thunderhub-1
+   - bitcoin-lightning-nginx-1
+   - monero-monerod-1
+   - monero-monero-rpc-1
+   - frankencoin-mainnet-ponder-1
+
+### Stop all container
+
+1. Execute command `docker compose stop`

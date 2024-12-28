@@ -1,10 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
@@ -13,12 +14,13 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
+  private readonly logger = new DfxLogger(BuyService);
   private cache: { id: number; bankUsage: string }[] = undefined;
 
   constructor(
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
-    private readonly bankAccountService: BankAccountService,
+    private readonly routeService: RouteService,
   ) {}
 
   // --- VOLUMES --- //
@@ -82,12 +84,11 @@ export class BuyService {
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
-        ...(dto.iban ? { iban: dto.iban } : {}),
         asset: { id: dto.asset.id },
         deposit: IsNull(),
         user: { id: userId },
       },
-      relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
+      relations: { deposit: true, user: { userData: true } },
     });
 
     if (existing) {
@@ -99,19 +100,18 @@ export class BuyService {
         await this.buyRepo.save(existing);
       }
 
-      // remove bank account info, if no IBAN was provided
-      if (existing.bankAccount && !dto.iban) delete existing.bankAccount;
-
       return existing;
     }
 
+    const user = await this.userService.getUser(userId, { userData: true });
+
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = await this.userService.getUser(userId, { userData: true });
-    if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+    buy.user = user;
+    buy.route = await this.routeService.createRoute({ buy });
 
     // create hash
-    const hash = Util.createHash(userAddress + buy.asset.uniqueName + (buy.iban ?? '')).toUpperCase();
+    const hash = Util.createHash(userAddress + buy.asset.id + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
@@ -122,8 +122,12 @@ export class BuyService {
     return entity;
   }
 
+  async getBuyWithoutRoute(): Promise<Buy[]> {
+    return this.buyRepo.findBy({ route: { id: IsNull() } });
+  }
+
   async getUserBuys(userId: number): Promise<Buy[]> {
-    return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
+    return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true }, active: true });
   }
 
   async getUserDataBuys(userDataId: number): Promise<Buy[]> {

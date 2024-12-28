@@ -1,13 +1,8 @@
-export enum LiquidityManagementContext {
-  DEFICHAIN = 'DeFiChain',
-  ETHEREUM = 'Ethereum',
-  BINANCE_SMART_CHAIN = 'BinanceSmartChain',
-  BITCOIN = 'Bitcoin',
-  ARBITRUM = 'Arbitrum',
-  OPTIMISM = 'Optimism',
-  BINANCE = 'Binance',
-  BANK = 'Bank',
-}
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+
+export type LiquidityManagementContext = Blockchain | ExchangeName | IbanBankName | CardBankName;
 
 export enum LiquidityManagementSystem {
   CAKE = 'Cake',
@@ -18,6 +13,7 @@ export enum LiquidityManagementSystem {
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
   POLYGON_L2_BRIDGE = 'PolygonL2Bridge',
   BASE_L2_BRIDGE = 'BaseL2Bridge',
+  LIQUIDITY_PIPELINE = 'LiquidityPipeline',
 }
 
 export enum LiquidityManagementRuleStatus {
@@ -25,6 +21,7 @@ export enum LiquidityManagementRuleStatus {
   INACTIVE = 'Inactive',
   PAUSED = 'Paused',
   PROCESSING = 'Processing',
+  DISABLED = 'Disabled',
 }
 
 export enum LiquidityManagementOrderStatus {

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerImage": {
+      "value": "dfxswiss/deuro-ponder:test"
+    },
+    "containerMountPath": {
+      "value": "/app/.ponder"
+    },  
+    "containerCPU": {
+      "value": "0.5"
+    },
+    "containerMemory": {
+      "value": "1Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "PONDER_PROFILE",
+          "value": "mainnet"
+        },
+        {
+          "name": "RPC_URL_MAINNET",
+          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
+        }
+      ]
+    }
+  }
+}

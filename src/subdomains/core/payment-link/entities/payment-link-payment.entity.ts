@@ -1,52 +1,64 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import {
-  PaymentLinkPaymentMode,
-  PaymentLinkPaymentStatus,
-  TransferInfo,
-  TransferMethod,
-} from '../dto/payment-link.dto';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus } from '../enums';
 import { PaymentActivation } from './payment-activation.entity';
 import { PaymentLink } from './payment-link.entity';
+import { PaymentQuote } from './payment-quote.entity';
+
+export interface PaymentDevice {
+  id: string;
+  command: string;
+}
 
 @Entity()
 export class PaymentLinkPayment extends IEntity {
-  @ManyToOne(() => PaymentLink, (p) => p.payments)
+  @ManyToOne(() => PaymentLink, (p) => p.payments, { nullable: false })
   @Index({ unique: true, where: `status = '${PaymentLinkPaymentStatus.PENDING}'` })
   link: PaymentLink;
 
-  @Column({ length: 256, nullable: false, unique: true })
+  @Column({ length: 256, unique: true })
   uniqueId: string;
 
   @Column({ length: 256, nullable: true })
-  externalId: string;
+  externalId?: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: PaymentLinkPaymentStatus;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amount: number;
 
   @ManyToOne(() => Fiat, { nullable: false, eager: true })
   currency: Fiat;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   mode: PaymentLinkPaymentMode;
 
-  @Column({ type: 'datetime2', nullable: false })
+  @Column({ type: 'datetime2' })
   expiryDate: Date;
 
-  @Column({ length: 'MAX' })
-  transferAmounts: string;
+  @Column({ default: 0 })
+  txCount: number;
 
-  @OneToOne(() => CryptoInput, { nullable: true })
-  @JoinColumn()
-  cryptoInput: CryptoInput;
+  @Column({ default: false })
+  isConfirmed: boolean;
 
-  @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true, eager: true })
-  activations: PaymentActivation[];
+  @Column({ length: 256, nullable: true })
+  deviceId?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  deviceCommand?: string;
+
+  @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })
+  cryptoInputs?: CryptoInput[];
+
+  @OneToMany(() => PaymentActivation, (activation) => activation.payment, { nullable: true })
+  activations?: PaymentActivation[];
+
+  @OneToMany(() => PaymentQuote, (quote) => quote.payment, { nullable: true })
+  quotes?: PaymentQuote[];
 
   // --- ENTITY METHODS --- //
 
@@ -68,19 +80,19 @@ export class PaymentLinkPayment extends IEntity {
     return this;
   }
 
-  get transferInfo(): TransferInfo[] {
-    return JSON.parse(this.transferAmounts);
-  }
-
-  getTransferInfoFor(method: TransferMethod, asset: string): TransferInfo | undefined {
-    return this.transferInfo.find((i) => i.method === method && i.asset === asset);
-  }
-
   get metaId(): string {
     return this.externalId ?? `${this.id}`;
   }
 
-  get requestMemo(): string {
-    return `Payment ${this.metaId} to ${this.link.metaId}`;
+  get displayName(): string {
+    return this.link.displayName(this.metaId);
+  }
+
+  get memo(): string {
+    return `${this.displayName} - ${this.currency.name} ${this.amount}`;
+  }
+
+  get device(): PaymentDevice | undefined {
+    return this.deviceId && this.deviceCommand ? { id: this.deviceId, command: this.deviceCommand } : undefined;
   }
 }

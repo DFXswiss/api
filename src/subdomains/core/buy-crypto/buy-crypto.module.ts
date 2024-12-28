@@ -19,7 +19,9 @@ import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { AmlModule } from '../aml/aml.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
+import { RouteModule } from '../route/route.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
+import { TransactionUtilModule } from '../transaction/transaction-util.module';
 import { BuyCryptoController } from './process/buy-crypto.controller';
 import { BuyCryptoBatch } from './process/entities/buy-crypto-batch.entity';
 import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
@@ -67,6 +69,8 @@ import { SwapService } from './routes/swap/swap.service';
     FiatPayInModule,
     SiftModule,
     FiatOutputModule,
+    TransactionUtilModule,
+    RouteModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [
@@ -90,6 +94,6 @@ import { SwapService } from './routes/swap/swap.service';
     BuyCryptoPreparationService,
     BuyCryptoJobService,
   ],
-  exports: [BuyController, SwapController, BuyCryptoService, BuyService, BuyCryptoWebhookService],
+  exports: [BuyController, SwapController, BuyCryptoService, BuyService, BuyCryptoWebhookService, SwapService],
 })
 export class BuyCryptoModule {}

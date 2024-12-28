@@ -2,13 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
-import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -16,8 +15,8 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { File } from '../kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
+import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
@@ -35,7 +34,6 @@ export enum SupportTable {
   BUY_CRYPTO = 'buyCrypto',
   BUY_FIAT = 'buyFiat',
   BANK_TX = 'bankTx',
-  BANK_ACCOUNT = 'bankAccount',
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
   BANK_DATA = 'bankData',
@@ -48,7 +46,6 @@ export class GsService {
     private readonly userService: UserService,
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
-    private readonly bankAccountService: BankAccountService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
@@ -57,7 +54,7 @@ export class GsService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly dataSource: DataSource,
-    private readonly documentStorageService: DocumentStorageService,
+    private readonly kycDocumentService: KycDocumentService,
     private readonly transactionService: TransactionService,
     private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
@@ -67,10 +64,34 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
-    const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
+    const additionalSelect = Array.from(
+      new Set([
+        ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
+        ...(query.select
+          ?.filter((s) => s.includes('['))
+          .map((s) => [`${s.split('[')[0]}.id`, `${s.split('[')[0]}${s.split(']')[1]}`])
+          .flat() || []),
+      ]),
+    );
+
+    let data = await this.getRawDbData({
+      ...query,
+      select: [
+        ...(query.select?.filter((s) => !s.includes('-') && !s.includes('documents') && !s.includes('[')) ?? []),
+        ...additionalSelect,
+      ],
+    });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);
+
+    if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
+
+    if (query.select?.some((s) => s.includes('['))) data = this.getArrayData(data, query.select, query.table);
+
+    additionalSelect.forEach((key) => {
+      if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
+    });
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -90,7 +111,7 @@ export class GsService {
     const userIds = userData.users.map((u) => u.id);
     const refCodes = userData.users.map((u) => u.ref);
 
-    const { supportIssues, supportMessages } = await this.supportIssueService.getUserSupportTickets(userData.id);
+    const { supportIssues, supportMessages } = await this.supportIssueService.getUserIssues(userData.id);
 
     return {
       userData,
@@ -112,6 +133,72 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
+  private setJsonData(data: any[], selects: string[]): void {
+    const jsonSelects = selects.filter((s) => s.includes('-') && !s.includes('documents'));
+
+    for (const select of jsonSelects) {
+      const [field, jsonPath] = select.split('-');
+
+      data.map((d) => {
+        const parsedJsonData = this.getParsedJsonData(d[field], jsonPath);
+
+        d[select] =
+          typeof parsedJsonData === 'object' && parsedJsonData !== null
+            ? JSON.stringify(parsedJsonData)
+            : parsedJsonData;
+
+        return d;
+      });
+    }
+  }
+
+  private getArrayData(data: any[], selects: string[], table: string): any[] {
+    const arraySelects = selects.filter((s) => s.includes('['));
+    const parentIds = Array.from(new Set(data.map((d) => d[`${table}_id`])));
+
+    return parentIds.map((nd) => {
+      const entities = data.filter((d) => d[`${table}_id`] === nd);
+
+      const selectedData = arraySelects.reduce((prev, curr) => {
+        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(curr);
+        const searchIndex = index === 'max' ? entities.length - 1 : +index;
+
+        entities.sort((e1, e2) => e1[`${field}_id`] - e2[`${field}_id`]);
+
+        return {
+          ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => !key.startsWith(`${field}_`))),
+          ...prev,
+          [`${curr}`]: entities[searchIndex]?.[`${field}_${prop}`],
+        };
+      }, {});
+
+      return selectedData;
+    });
+  }
+
+  private getParsedJsonData(jsonString: string, jsonPath: string) {
+    try {
+      const jsonValue = JSON.parse(jsonString);
+
+      const parsedJsonData = jsonPath.split('.').reduce((o, k) => {
+        if (o) {
+          if (Array.isArray(o) && k.includes('=')) {
+            const [key, value] = k.split('=');
+            return o.find((e) => e[key]?.toString() === value?.toString());
+          }
+
+          return o[k];
+        }
+      }, jsonValue);
+
+      if (parsedJsonData == jsonValue) return null;
+
+      return parsedJsonData;
+    } catch {
+      return null;
+    }
+  }
+
   private async setUserDataDocs(data: UserData[], select: string[], sorting: 'ASC' | 'DESC'): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
     const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
@@ -122,7 +209,7 @@ export class GsService {
 
       const docs = Util.sort(
         commonPathPrefix
-          ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+          ? await this.kycDocumentService.listFilesByPrefix(commonPathPrefix)
           : await this.getAllUserDocuments(userDataId, userData.accountType),
         'created',
         sorting,
@@ -135,13 +222,11 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<File[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFile[]> {
     return [
-      ...(await this.documentStorageService.listUserFiles(userDataId)),
-      ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-      ...(accountType !== AccountType.PERSONAL
-        ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-        : []),
+      ...(await this.kycDocumentService.listUserFiles(userDataId)),
+      ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
+      ...(accountType !== AccountType.PERSONAL ? await this.kycDocumentService.listSpiderFiles(userDataId, true) : []),
     ];
   }
 
@@ -164,7 +249,7 @@ export class GsService {
       .where(`${query.table}.id >= :id`, { id: query.min })
       .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
 
-    if (query.select) request.select(query.select);
+    if (query.select.length) request.select(query.select);
 
     for (const where of query.where) {
       request.andWhere(where[0], where[1]);
@@ -193,8 +278,6 @@ export class GsService {
         return this.buyCryptoService.getBuyCryptoByKey(query.key, query.value).then((buyCrypto) => buyCrypto?.userData);
       case SupportTable.BUY_FIAT:
         return this.buyFiatService.getBuyFiatByKey(query.key, query.value).then((buyFiat) => buyFiat?.userData);
-      case SupportTable.BANK_ACCOUNT:
-        return this.bankAccountService.getBankAccountByKey(query.key, query.value).then((bankAcc) => bankAcc?.userData);
       case SupportTable.BANK_TX:
         return this.bankTxService
           .getBankTxByKey(query.key, query.value)
@@ -204,7 +287,7 @@ export class GsService {
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
-          .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
+          .then((fiatOutput) => fiatOutput?.buyFiats[0].sell.user.userData);
       case SupportTable.TRANSACTION:
         return this.transactionService
           .getTransactionByKey(query.key, query.value)

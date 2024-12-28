@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsDate,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -13,6 +14,7 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { GenderType, IdentDocumentType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
 import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
@@ -142,4 +144,64 @@ export class KycFileData {
   @IsNotEmpty()
   @IsString()
   fileName: string;
+}
+
+export class KycManualIdentData {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  firstName: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  lastName: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Transform(Util.trim)
+  birthName: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsDate()
+  @Type(() => Date)
+  birthday: Date;
+
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  nationality: Country;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Transform(Util.trim)
+  birthplace: string;
+
+  @ApiPropertyOptional({ enum: GenderType })
+  @IsOptional()
+  @IsEnum(GenderType)
+  gender: GenderType;
+
+  @ApiProperty({ enum: IdentDocumentType })
+  @IsNotEmpty()
+  @IsEnum(IdentDocumentType)
+  documentType: IdentDocumentType;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.trim)
+  documentNumber: string;
+
+  @ApiProperty({ type: KycFileData })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => KycFileData)
+  document: KycFileData;
 }

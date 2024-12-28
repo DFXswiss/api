@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { In } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
@@ -35,7 +35,7 @@ export class LiquidityManagementService {
   async verifyRules() {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
-    const rules = await this.ruleRepo.find();
+    const rules = await this.ruleRepo.findBy({ status: Not(LiquidityManagementRuleStatus.DISABLED) });
     const balances = await this.balanceService.refreshBalances(rules);
 
     for (const rule of rules) {
@@ -105,7 +105,10 @@ export class LiquidityManagementService {
       const result = rule.verify(balance);
 
       if (result.deficit || result.redundancy) {
-        if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
+        if (!this.ruleActivations.has(rule.id)) {
+          this.ruleActivations.set(rule.id, new Date());
+          this.logger.info(`Rule ${rule.id} activated: ${result.deficit} deficit, ${result.redundancy} redundancy`);
+        }
 
         // execute rule 30 minutes after activation
         const delay = await this.settingService.get('lmActivationDelay', '30');

@@ -1,13 +1,13 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
-import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
+import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 
 @Entity()
 export class LiquidityManagementPipeline extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: LiquidityManagementPipelineStatus;
 
   @ManyToOne(() => LiquidityManagementRule, { eager: true, nullable: false })
@@ -17,22 +17,22 @@ export class LiquidityManagementPipeline extends IEntity {
   })
   rule: LiquidityManagementRule;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: LiquidityOptimizationType;
 
   @Column({ type: 'float', nullable: true })
-  targetAmount: number;
+  targetAmount?: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
-  currentAction: LiquidityManagementAction;
+  currentAction?: LiquidityManagementAction;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
-  previousAction: LiquidityManagementAction;
+  previousAction?: LiquidityManagementAction;
 
   @Column({ type: 'int', nullable: true })
-  ordersProcessed: number;
+  ordersProcessed?: number;
 
   //*** FACTORY METHODS ***//
 
@@ -61,7 +61,7 @@ export class LiquidityManagementPipeline extends IEntity {
     this.previousAction = Object.assign(new LiquidityManagementAction(), this.currentAction);
     this.ordersProcessed++;
 
-    if (this.ordersProcessed >= 50) {
+    if (this.ordersProcessed >= 15) {
       this.currentAction = null;
       this.status = LiquidityManagementPipelineStatus.STOPPED;
 

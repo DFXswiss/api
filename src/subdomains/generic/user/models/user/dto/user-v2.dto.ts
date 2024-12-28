@@ -81,12 +81,17 @@ export class UserKycDto {
   dataComplete: boolean;
 }
 
+export class UserPaymentLinkDto {
+  @ApiProperty()
+  active: boolean;
+}
+
 export class UserV2Dto {
   @ApiProperty({ description: 'Unique account id' })
   accountId: number;
 
-  @ApiProperty({ enum: AccountType })
-  accountType: AccountType;
+  @ApiPropertyOptional({ enum: AccountType })
+  accountType?: AccountType;
 
   @ApiPropertyOptional()
   mail?: string;
@@ -112,6 +117,18 @@ export class UserV2Dto {
   @ApiProperty({ type: UserAddressDto, isArray: true })
   addresses: UserAddressDto[];
 
+  @ApiProperty({ type: UserAddressDto, isArray: true })
+  disabledAddresses: UserAddressDto[];
+
   @ApiPropertyOptional({ type: UserAddressDto })
   activeAddress?: UserAddressDto;
+
+  @ApiProperty({ type: UserPaymentLinkDto })
+  paymentLink: UserPaymentLinkDto;
+
+  @ApiPropertyOptional()
+  apiKeyCT?: string;
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  apiFilterCT?: HistoryFilterKey[];
 }

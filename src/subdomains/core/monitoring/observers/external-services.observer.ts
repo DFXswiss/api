@@ -50,12 +50,20 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
   }
 
   private async getIbanService(): Promise<ExternalServicesData> {
-    const balance = await this.ibanService.getBalance();
-    return { name: 'IBAN', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
+    try {
+      const balance = await this.ibanService.getBalance();
+      return { name: 'IBAN', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
+    } catch (e) {
+      this.logger.error('Failed to get IBAN service balance:', e);
+    }
   }
 
   private async getLetterService(): Promise<ExternalServicesData> {
-    const balance = await this.letterService.getBalance();
-    return { name: 'Letter', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
+    try {
+      const balance = await this.letterService.getBalance();
+      return { name: 'Letter', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
+    } catch (e) {
+      this.logger.error('Failed to get letter service balance:', e);
+    }
   }
 }

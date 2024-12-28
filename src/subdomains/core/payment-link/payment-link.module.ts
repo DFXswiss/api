@@ -3,13 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
-import { PaymentLinkController } from './controllers/payment-link.controller';
+import { PaymentLinkController, PaymentLinkShortController } from './controllers/payment-link.controller';
+import { PaymentLinkGateway } from './controllers/payment-link.gateway';
 import { PaymentLink } from './entities/payment-link.entity';
-import { PaymentActivationModule } from './payment-activation.module';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
-import { PaymentCronService } from './services/payment-cron.services';
-import { PaymentLinkService } from './services/payment-link.services';
+import { PaymentCronService } from './services/payment-cron.service';
+import { PaymentLinkService } from './services/payment-link.service';
 
 @Module({
   imports: [
@@ -18,10 +18,9 @@ import { PaymentLinkService } from './services/payment-link.services';
     SharedModule,
     SellCryptoModule,
     PaymentLinkPaymentModule,
-    PaymentActivationModule,
   ],
-  controllers: [PaymentLinkController],
-  providers: [PaymentLinkRepository, PaymentLinkService, PaymentCronService],
+  controllers: [PaymentLinkController, PaymentLinkShortController],
+  providers: [PaymentLinkRepository, PaymentLinkService, PaymentCronService, PaymentLinkController, PaymentLinkGateway],
   exports: [PaymentLinkService],
 })
 export class PaymentLinkModule {}

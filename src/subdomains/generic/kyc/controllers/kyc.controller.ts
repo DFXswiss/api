@@ -10,47 +10,55 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
-  UploadedFile,
-  UseInterceptors,
+  UseGuards,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { AuthGuard } from '@nestjs/passport';
 import {
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
   ApiForbiddenResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { LimitRequestDto } from '../../../supporting/support-issue/dto/limit-request.dto';
-import { LimitRequestService } from '../../../supporting/support-issue/services/limit-request.service';
+import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
 import {
   KycContactData,
   KycFileData,
   KycLegalEntityData,
+  KycManualIdentData,
   KycNationalityData,
   KycPersonalData,
   KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
+import { Start2faDto } from '../dto/input/start-2fa.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
-import { FileType } from '../dto/kyc-file.dto';
+import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
-import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
+import { SumSubWebhookResult } from '../dto/sum-sub.dto';
+import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
 
@@ -66,12 +74,36 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(
-    private readonly kycService: KycService,
-    private readonly tfaService: TfaService,
-    private readonly limitService: LimitRequestService,
-  ) {}
+  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
 
+  // --- 2FA --- //
+  @Get('2fa')
+  @ApiOkResponse({ description: '2FA active' })
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
+    return this.tfaService.check(jwt.account, ip, level);
+  }
+
+  @Post('2fa')
+  @ApiCreatedResponse({ type: Setup2faDto })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async start2fa(@Headers(CodeHeaderName) code: string, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
+    return this.tfaService.setup(code, level);
+  }
+
+  @Post('2fa/verify')
+  @ApiCreatedResponse({ description: '2FA successful' })
+  @ApiUnauthorizedResponse(MergedResponse)
+  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
+  async verify2fa(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Body() dto: Verify2faDto,
+  ): Promise<void> {
+    return this.tfaService.verify(code, dto.token, ip);
+  }
+
+  // --- KYC --- //
   @Get()
   @ApiOkResponse({ type: KycLevelDto })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -95,6 +127,7 @@ export class KycController {
   @Get('countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiUnauthorizedResponse(MergedResponse)
+  @ApiOperation({ deprecated: true })
   async getKycCountries(@Headers(CodeHeaderName) code: string): Promise<CountryDto[]> {
     return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
@@ -111,6 +144,13 @@ export class KycController {
     return this.kycService.getOrCreateStep(code, ip, stepName, stepType, sequence ? +sequence : undefined);
   }
 
+  @Get('file/:id')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
+  async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
+    return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
+  }
+
   @Post('transfer')
   @ApiExcludeEndpoint()
   async addKycClient(@Headers(CodeHeaderName) code: string, @Query('client') walletName: string) {
@@ -125,93 +165,117 @@ export class KycController {
 
   // --- UPDATE ENDPOINTS --- //
   @Put('data/contact/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateContactData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycContactData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateContactData(code, +id, data);
   }
 
   @Put('data/personal/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updatePersonalData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycPersonalData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updatePersonalData(code, +id, data);
   }
 
   @Put('data/legal/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateLegalEntityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycLegalEntityData,
-  ): Promise<KycResultDto> {
-    return this.kycService.updateUserData(code, +id, data, false);
+  ): Promise<KycStepBase> {
+    return this.kycService.updateKycStep(code, +id, data, false);
   }
 
   @Put('data/stock/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateStockRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_stock-register_user-upload_${data.fileName}`;
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('stock-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
   }
 
   @Put('data/nationality/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateNationalityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycNationalityData,
-  ): Promise<KycResultDto> {
-    return this.kycService.updateUserData(code, +id, data, true);
+  ): Promise<KycStepBase> {
+    return this.kycService.updateKycStep(code, +id, data, true);
   }
 
   @Put('data/commercial/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_commercial-register_user-upload_${data.fileName}`;
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('commercial-register', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
+  @Put('data/residence/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateResidencePermitData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('residence-permit', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
+  }
+
+  @Put('data/additional/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateAdditionalDocumentsData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('additional-documents', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+  }
+
   @Put('data/signatory/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateSignatoryPowerData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
-  ): Promise<KycResultDto> {
-    return this.kycService.updateUserData(code, +id, data, true);
+  ): Promise<KycStepBase> {
+    return this.kycService.updateKycStep(code, +id, data, true);
   }
 
   @Put('data/authority/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateAuthorityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
-  ): Promise<KycResultDto> {
-    data.fileName = `${Util.isoDateTime(new Date())}_authority_user-upload_${data.fileName}`;
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('authority', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
   }
 
@@ -229,7 +293,7 @@ export class KycController {
   }
 
   @Put('data/financial/:id')
-  @ApiOkResponse({ type: KycResultDto })
+  @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   @ApiForbiddenResponse(TfaResponse)
   async updateFinancialData(
@@ -237,19 +301,48 @@ export class KycController {
     @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFinancialInData,
-  ): Promise<KycResultDto> {
+  ): Promise<KycStepBase> {
     return this.kycService.updateFinancialData(code, ip, +id, data);
+  }
+
+  @Post('ident/sumsub')
+  @ApiExcludeEndpoint()
+  async sumsubWebhook(@Req() req: Request, @Body() data: any) {
+    if (!SumsubService.checkWebhook(req, req.body)) {
+      this.logger.error(`Received invalid sumsub webhook: ${data}`);
+      throw new ForbiddenException('Invalid key');
+    }
+
+    const result = JSON.parse(data) as SumSubWebhookResult;
+
+    try {
+      await this.kycService.updateSumsubIdent(result);
+    } catch (e) {
+      this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${result.applicantId}:`, e);
+      throw new InternalServerErrorException(e.message);
+    }
+  }
+
+  @Put('ident/manual/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateIdentData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycManualIdentData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateIdentManual(code, +id, data);
   }
 
   @Post('ident/:type')
   @ApiExcludeEndpoint()
-  async identWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+  async identWebhook(@RealIP() ip: string, @Body() data: IdNowResult) {
     this.checkWebhookIp(ip, data);
 
     try {
-      await this.kycService.updateIdent(data);
+      await this.kycService.updateIntrumIdent(data);
     } catch (e) {
-      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}:`, e);
+      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess?.id}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }
@@ -266,48 +359,8 @@ export class KycController {
     res.redirect(307, redirectUri);
   }
 
-  @Put('document/:id')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOkResponse({ type: KycResultDto })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async uploadDocument(
-    @Headers(CodeHeaderName) code: string,
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ): Promise<KycResultDto> {
-    return this.kycService.uploadDocument(code, +id, file);
-  }
-
-  // --- 2FA --- //
-  @Post('2fa')
-  @ApiCreatedResponse({ type: Setup2faDto })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async createSecret(@Headers(CodeHeaderName) code: string): Promise<Setup2faDto> {
-    return this.tfaService.setup(code);
-  }
-
-  @Post('2fa/verify')
-  @ApiCreatedResponse({ description: '2FA successful' })
-  @ApiUnauthorizedResponse(MergedResponse)
-  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
-  async verifyToken(
-    @Headers(CodeHeaderName) code: string,
-    @RealIP() ip: string,
-    @Body() dto: Verify2faDto,
-  ): Promise<void> {
-    return this.tfaService.verify(code, dto.token, ip);
-  }
-
-  // --- LIMIT INCREASE --- //
-  @Post('limit')
-  @ApiCreatedResponse({ description: 'Limit request initiated' })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async increaseLimit(@Headers(CodeHeaderName) code: string, @Body() request: LimitRequestDto): Promise<void> {
-    return this.limitService.increaseLimit(request, code);
-  }
-
   // --- HELPER METHODS --- //
-  private checkWebhookIp(ip: string, data: IdentResultDto) {
+  private checkWebhookIp(ip: string, data: IdNowResult) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');
@@ -323,5 +376,9 @@ export class KycController {
       .filter((p) => !p.includes('frame-ancestors'))
       .join(';');
     res.setHeader('Content-Security-Policy', updatedPolicy);
+  }
+
+  private fileName(type: string, file: string): string {
+    return `${Util.isoDateTime(new Date())}_${type}_user-upload_${Util.randomId()}_${file}`;
   }
 }

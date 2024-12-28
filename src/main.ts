@@ -1,10 +1,11 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
 import { useContainer } from 'class-validator';
 import cors from 'cors';
-import { json, text } from 'express';
+import { json, raw, text } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { AppModule } from './app.module';
@@ -31,8 +32,12 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cors());
 
+  app.use('/v2/kyc/ident/sumsub', raw({ type: 'application/json', limit: '10mb' }));
+  app.use('/v1/alchemy/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
   app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
+
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   app.enableVersioning({
     type: VersioningType.URI,

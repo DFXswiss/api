@@ -39,6 +39,12 @@ param kycPassword string
 param kycPrefix string
 param kycWebhookIps string
 
+param kycAppToken string
+@secure()
+param kycSecretKey string
+@secure()
+param kycWebhookSecret string
+
 @secure()
 param githubToken string
 
@@ -53,9 +59,11 @@ param utxoSpenderAddress string
 param btcOutWalletAddress string
 
 param paymentTimeout string
+param paymentQuoteTimeout string
 param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
+param paymentMoneroAddress string
 
 @secure()
 param evmDepositSeed string
@@ -106,12 +114,13 @@ param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscQuoteContractAddress string
 param bscChainId string
-param bscScanApiUrl string
-@secure()
-param bscScanApiKey string
 
 @secure()
 param lightningApiCertificate string
+@secure()
+param lightningSigningPrivKey string
+@secure()
+param lightningSigningPubKey string
 @secure()
 param lightningLnbitsApiKey string
 @secure()
@@ -211,6 +220,7 @@ param servicesUrl string
 
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
+param limitRequestSupportStaffMail string
 param limitRequestSupportName string
 
 param azureSubscriptionId string
@@ -237,6 +247,9 @@ param ckoEntityId string
 
 @secure()
 param siftApiKey string
+@secure()
+param siftAccountId string
+param siftAnalyst string
 
 param delisenseJsonPath string
 @secure()
@@ -246,6 +259,9 @@ param delisenseKey string
 param alchemyApiKey string
 @secure()
 param alchemyAuthToken string
+
+param customBalanceAssets string
+param customBalanceAddresses string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -580,6 +596,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: kycWebhookIps
         }
         {
+          name: 'KYC_APP_TOKEN'
+          value: kycAppToken
+        }
+        {
+          name: 'KYC_SECRET_KEY'
+          value: kycSecretKey
+        }
+        {
+          name: 'KYC_WEBHOOK_SECRET'
+          value: kycWebhookSecret
+        }
+        {
           name: 'GH_TOKEN'
           value: githubToken
         }
@@ -640,12 +668,20 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentTimeout
         }
         {
+          name: 'PAYMENT_QUOTE_TIMEOUT'
+          value: paymentQuoteTimeout
+        }
+        {
           name: 'PAYMENT_TIMEOUT_DELAY'
           value: paymentTimeoutDelay
         }
         {
           name: 'PAYMENT_EVM_SEED'
           value: paymentEvmSeed
+        }
+        {
+          name: 'PAYMENT_MONERO_ADDRESS'
+          value: paymentMoneroAddress
         }
         {
           name: 'EVM_DEPOSIT_SEED'
@@ -792,20 +828,20 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscQuoteContractAddress
         }
         {
-          name: 'BSC_SCAN_API_URL'
-          value: bscScanApiUrl
-        }
-        {
-          name: 'BSC_SCAN_API_KEY'
-          value: bscScanApiKey
-        }
-        {
           name: 'BSC_CHAIN_ID'
           value: bscChainId
         }
         {
           name: 'LIGHTNING_API_CERTIFICATE'
           value: lightningApiCertificate
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PRIV_KEY'
+          value: lightningSigningPrivKey
+        }
+        {
+          name: 'LIGHTNING_SIGNING_PUB_KEY'
+          value: lightningSigningPubKey
         }
         {
           name: 'LIGHTNING_LNBITS_API_URL'
@@ -1040,6 +1076,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: limitRequestSupportMail
         }
         {
+          name: 'LIMIT_REQUEST_SUPPORT_STAFF_MAIL'
+          value: limitRequestSupportStaffMail
+        }
+        {
           name: 'LIMIT_REQUEST_SUPPORT_NAME'
           value: limitRequestSupportName
         }
@@ -1100,6 +1140,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: siftApiKey
         }
         {
+          name: 'SIFT_ACCOUNT_ID'
+          value: siftAccountId
+        }
+        {
+          name: 'SIFT_ANALYST'
+          value: siftAnalyst
+        }
+        {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
         }
@@ -1118,6 +1166,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ALCHEMY_AUTH_TOKEN'
           value: alchemyAuthToken
+        }
+        {
+          name: 'CUSTOM_BALANCE_ASSETS'
+          value: customBalanceAssets
+        }
+        {
+          name: 'CUSTOM_BALANCE_ADDRESSES'
+          value: customBalanceAddresses
         }
       ]
     }

@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { PaymentActivationModule } from 'src/subdomains/core/payment-link/payment-activation.module';
+import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payment-link-payment.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { DexModule } from '../dex/dex.module';
@@ -12,12 +12,14 @@ import { TransactionModule } from '../payment/transaction.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { CryptoInput } from './entities/crypto-input.entity';
+import { PayInWebhookModule } from './payin-webhook.module';
 import { PayInRepository } from './repositories/payin.repository';
 import { PayInArbitrumService } from './services/payin-arbitrum.service';
 import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInLightningService } from './services/payin-lightning.service';
 import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
@@ -53,6 +55,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
 @Module({
   imports: [
     TypeOrmModule.forFeature([CryptoInput]),
+    PayInWebhookModule,
     BlockchainModule,
     SharedModule,
     PricingModule,
@@ -63,7 +66,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     NotificationModule,
     AlchemyModule,
     TransactionModule,
-    PaymentActivationModule,
+    PaymentLinkPaymentModule,
   ],
   controllers: [],
   providers: [
@@ -71,6 +74,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayInService,
     PayInNotificationService,
     PayInBitcoinService,
+    PayInLightningService,
     PayInMoneroService,
     PayInEthereumService,
     PayInBscService,

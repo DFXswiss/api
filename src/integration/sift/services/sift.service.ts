@@ -10,7 +10,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import {
   TransactionRequest,
@@ -28,6 +28,7 @@ import {
   SiftAssetType,
   SiftBase,
   SiftCheckoutDeclineMap,
+  SiftDecisionSource,
   SiftPaymentMethodMap,
   SiftResponse,
   Transaction,
@@ -38,6 +39,8 @@ import {
 @Injectable()
 export class SiftService {
   private readonly url = 'https://api.sift.com/v205/events';
+  private readonly decisionUrl = 'https://api.sift.com/v3/accounts/';
+
   private readonly logger = new DfxLogger(SiftService);
 
   constructor(private readonly http: HttpService) {}
@@ -219,6 +222,27 @@ export class SiftService {
       return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
+    }
+  }
+
+  async sendUserBlocked(user: User, description?: string): Promise<SiftResponse> {
+    if (!Config.sift.apiKey) return;
+
+    const data = {
+      decision_id: 'looks_suspicious_payment_abuse',
+      analyst: Config.sift.analyst,
+      source: SiftDecisionSource.MANUAL_REVIEW,
+      description,
+    };
+
+    const scoreUrl = `${Config.sift.accountId}/users/${user.id}/decisions`;
+
+    try {
+      return await this.http.post(`${this.decisionUrl}${scoreUrl}`, data, {
+        headers: { Authorization: Config.sift.apiKey },
+      });
+    } catch (error) {
+      this.logger.error(`Error sending Sift decision for user ${user.id}:`, error);
     }
   }
 }

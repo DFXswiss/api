@@ -1,4 +1,5 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -62,7 +63,11 @@ export class LightningStrategy extends PayoutStrategy {
 
           if (isComplete) {
             order.complete();
-            order.recordPayoutFee(await this.feeAsset(), payoutFee);
+
+            const feeAsset = await this.feeAsset();
+            const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+            order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
+
             await this.payoutOrderRepo.save(order);
           }
         } catch (e) {
@@ -73,12 +78,7 @@ export class LightningStrategy extends PayoutStrategy {
   }
 
   private async isHealthy(): Promise<boolean> {
-    try {
-      return await this.payoutLightningService.isHealthy();
-    } catch (e) {
-      this.logger.error('Error in checking health state of Lightning Node', e);
-      return false;
-    }
+    return this.payoutLightningService.isHealthy();
   }
 
   async estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult> {

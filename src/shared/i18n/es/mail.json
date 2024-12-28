@@ -4,7 +4,6 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si tienes alguna pregunta,<br>nos encantaría ayudarte en [url:https://services.dfx.swiss/support].",
         "thanks": "Muchas gracias por tu confianza",
-        "happy_trading": "¡Que disfrutes al comerciar!",
         "welcome": "Hola {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
@@ -38,7 +37,16 @@
             "title": "Pago abonado",
             "salutation": "Su pago ha sido enviado a su cuenta bancaria"
         },
-        "return": {
+        "processing": {
+            "title": "Se procesa la transacción",
+            "salutation": "Su transacción será procesada"
+        },
+        "chargeback": {
+            "unconfirmed": {
+                "title": "Medidas necesarias",
+                "salutation": "Se requiere una acción para su transacción",
+                "transaction_button": "Puede realizar la acción a través del siguiente enlace:<br>[url:haga clic aquí]"
+            },
             "fiat": {
                 "title": "Los fondos han sido reembolsados",
                 "salutation": "Tus fondos se han reembolsado a tu cuenta bancaria"
@@ -64,16 +72,19 @@
                 "staking_discontinued": "No se pueden depositar más en el servicio de Staking",
                 "bank_not_allowed": "El banco remitente que ha utilizado no está autorizado. Por favor, utilice un banco diferente para su depósito.",
                 "country_not_allowed": "Desafortunadamente, su depósito no puede ser procesado <br>porque el dinero proviene de un país que no podemos apoyar. Más información:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
-                "high_risk_kyc_needed": "Sin la verificación (KYC), no podíamos asegurar que esta transacción no fuera fraudulenta y por lo tanto desafortunadamente tuvimos que rechazar la transacción.",
-                "high_risk_kyc_needed_checkout": "Sin la verificación (KYC), no podíamos asegurar que esta transacción no fuera fraudulenta y por lo tanto desafortunadamente tuvimos que rechazar la transacción.<br>Los pagos por transacción bancaria todavía están disponibles para usted.",
-                "high_risk_blocked": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.",
-                "high_risk_blocked_checkout": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
+                "high_risk_kyc_needed": "Debido a los requisitos reglamentarios, lamentablemente hemos tenido que rechazar su transacción ya que no ha proporcionado una verificación completa.",
+                "high_risk_kyc_needed_checkout": "Debido a los requisitos reglamentarios, lamentablemente hemos tenido que rechazar su transacción ya que no ha proporcionado una verificación completa.<br>Los pagos por transacción bancaria todavía están disponibles para usted.",
+                "high_risk_blocked": "Debido a los requisitos reglamentarios, lamentablemente hemos tenido que rechazar su transacción.",
+                "high_risk_blocked_checkout": "Debido a los requisitos reglamentarios, lamentablemente hemos tenido que rechazar su transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
                 "fee_too_high": "Las tarifas de la red son actualmente demasiado altas para la cantidad que has enviado",
                 "receiver_rejected_tx": "El nodo receptor ha rechazado la transacción",
                 "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada",
                 "chf_abroad_tx": "No se pueden pagar CHF a IBAN extranjeros",
                 "asset_kyc_needed": "Se requiere KYC para el activo depositado",
-                "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX"
+                "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX",
+                "user_deactivated": "Tu dirección de blockchain vinculada ha sido eliminada irrevocablemente por ti. Puede seguir utilizando DFX con otras direcciones de blockchain",
+                "video_ident_needed": "Usted debe completar su KYC con la identificación de vídeo para la transacción",
+                "missing_liquidity": "DFX no pudo negociar la cantidad requerida de tokens en el plazo especificado"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -83,9 +94,9 @@
                 "salutation": "Has excedido tu volumen máximo durante 24 horas",
                 "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
                 "line2": "Después de que pases el KYC empezaremos con tu transacción.",
-                "line3": "Sin verificación, su dinero será devuelto automáticamente al cabo de 2 días.",
-                "line4": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
-                "line5": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\"."
+                "line3": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
+                "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "annual_limit": {
                 "title": "Has excedido el límite anual",
@@ -93,8 +104,8 @@
                 "line1": "Por favor, registra tu interés para un límite anual nuevo.",
                 "line2": "Una vez el nuevo límite anual de haya aprobado,<br> empezaremos con tu transacción.",
                 "line3": "¿Quieres incrementar el límite?",
-                "line4": "Abre la aplicación DFX a través de la página de pago en \"My DFX\".",
-                "line5": "Ves a la flecha roja debajo de \"Tu límite\" y<br> pide un límite nuevo."
+                "line4": "Puede solicitar un aumento del límite a través del siguiente enlace:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "annual_limit_without_kyc": {
                 "title": "Transacción pendiente - límite anual excedido sin KYC",
@@ -103,7 +114,7 @@
                 "line2": "Desafortunadamente, no podemos procesar la transferencia sin una verificación completa, ya que has excedido el límite anual.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "olky_no_kyc": {
                 "title": "Se requiere el registro KYC para usar las transferencias SEPA instantáneas",
@@ -112,7 +123,7 @@
                 "line2": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al día sin el KYC con transferencias SEPA ordinarias.",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "name_check_without_kyc": {
                 "title": "Se requiere KYC para ejecutar la transacción pendiente",
@@ -121,16 +132,16 @@
                 "line2": "Desafortunadamente, no podemos procesar tu orden sin una verificación KYC completa.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "high_risk_kyc_needed": {
                 "title": "Problema con su depósito",
                 "salutation": "Se requiere verificación (KYC) para ejecutar su transacción pendiente",
                 "line1": "Querido y valorado cliente, muchas gracias por tu confianza en DFX.",
-                "line2": "Lamentablemente, sin una verificación completa, no podemos asegurar que esta transacción no sea fraudulenta.",
+                "line2": "Debido a requisitos normativos, lamentablemente no podemos procesar su transacción sin una verificación completa.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "manual_check": {
                 "title": "Depósito en cuenta corriente",
@@ -139,16 +150,7 @@
                 "line2": "Lamentablemente, la transacción no ha podido liberarse de forma totalmente automática y ahora debe ser comprobada manualmente por un empleado.",
                 "line3": "Suele tardar 24 horas, pero un máximo de 7 días.",
                 "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
-                "line5": ""
-            },
-            "chargeback_not_possible_no_iban": {
-                "title": "No es posible la devolución del cargo",
-                "salutation": "Su devolución no es posible",
-                "line1": "Gracias por confiar en DFX.",
-                "line2": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.",
-                "line3": "Póngase en contacto con nuestro equipo de asistencia.",
-                "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [url:https://services.dfx.swiss/support].",
-                "line5": ""
+                "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
             },
             "asset_kyc_needed": {
                 "title": "Verificación (KYC) requerida",
@@ -157,7 +159,16 @@
                 "line2": "Lamentablemente, necesitamos que verifique (KYC) el activo que ha depositado.",
                 "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no desea llevar a cabo la verificación, el activo se devolverá de forma totalmente automática al cabo de 2 días."
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
+            },
+            "video_ident_needed": {
+                "title": "Se requiere verificación de identidad por vídeo (KYC)",
+                "salutation": "Se requiere verificación de identidad por vídeo (KYC) para ejecutar su transacción pendiente",
+                "line1": "Gracias por confiar en DFX.",
+                "line2": "Lamentablemente, necesitamos un vídeo de verificación de identidad (KYC) de usted para su transacción.",
+                "line3": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
+                "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",
@@ -176,12 +187,6 @@
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
     },
     "kyc": {
-        "identStarted": {
-            "title": "Identificación en línea",
-            "salutation": "Inicio de la identificación en línea",
-            "line1": "Ha iniciado el proceso de identificación en línea en DFX. Si se produce alguna interrupción, puede continuar el proceso en cualquier momento utilizando este enlace:<br>[url:{urlText}]",
-            "line2": "Si tiene algún problema técnico, también puede utilizar nuestro servicio de identificación por vídeo. Un empleado comprobará su documento de identidad manualmente. Tenga en cuenta que este servicio sólo está disponible durante las horas de apertura y supone para DFX unos costes considerablemente más elevados que el proceso totalmente automatizado con el botón de arriba. Por lo tanto, le rogamos que utilice este enlace sólo en caso de problemas técnicos con el botón anterior:<br>[url:Video Id Link]"
-        },
         "success": {
             "title": "Verificación exitosa",
             "salutation": "Verificación exitosa",
@@ -190,7 +195,22 @@
         "failed": {
             "title": "Tu identificación ha fallado",
             "salutation": "Tu identificación ha fallado",
-            "message": "Su identificación falló por la siguiente razón:<br>{reason}"
+            "message": "Su identificación falló por la siguiente razón:<br>{reason}",
+            "reasons": {
+                "user_data_merged": "Su cuenta está fusionada",
+                "user_data_blocked": "Error desconocido",
+                "first_name_not_matching": "Su nombre no coincide",
+                "last_name_not_matching": "Su apellido no coincide",
+                "nationality_not_matching": "Su nacionalidad no coincide",
+                "nationality_missing": "Falta la nacionalidad",
+                "invalid_document_type": "El tipo de documento no es válido",
+                "identification_number_missing": "Falta su número de identificación",
+                "invalid_result": "Error desconocido",
+                "verified_name_missing": "Falta el nombre de la cuenta",
+                "first_name_not_matching_verified_name": "Su nombre no coincide con el nombre de su cuenta",
+                "last_name_not_matching_verified_name": "Su apellido no coincide con el nombre de su cuenta",
+                "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta"
+            }
         },
         "reminder": {
             "title": "Completa tu verificación",
@@ -204,7 +224,8 @@
         "request": {
             "title": "Confirmar correo electrónico",
             "salutation": "Confirme su correo electrónico",
-            "message": "Haga clic en el siguiente enlace para confirmar su correo electrónico:<br>[url:{urlText}]"
+            "message": "Haga clic en el siguiente enlace para confirmar su correo para otra cuenta:<br>[url:{urlText}]",
+            "closing": "Si no ha introducido su correo en otra cuenta DFX, póngase en contacto con el servicio de asistencia inmediatamente en [url:https://services.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Dirección añadida a la cuenta",
@@ -223,7 +244,8 @@
     },
     "support_message": {
         "title": "Nuevo mensaje de apoyo",
-        "message": "{supportMessage}"
+        "salutation": "Ha recibido un mensaje de asistencia",
+        "message": "Ha recibido un nuevo mensaje en su ticket de soporte. Puede acceder a su ticket en la siguiente URL:<br>[url:{urlText}]"
     },
     "black_squad": {
         "title": "Invitation Black Squad",
@@ -233,5 +255,17 @@
         "line4": "We would be pleased if you would like to join this group.",
         "line5": "We have provided you with direct access to this group on your personal DFX Payment page. Just click on MyDFX in the DFX app and follow the link.",
         "closing": "Thank you for your trust in us.<br>Oli"
+    },
+    "verification_code": {
+        "default": {
+            "title": "Código de verificación",
+            "salutation": "Ha solicitado un código de verificación 2FA"
+        },
+        "email": {
+            "title": "Código de verificación de correo electrónico",
+            "salutation": "Ha solicitado cambiar su dirección de correo electrónico"
+        },
+        "message": "Su código de verificación es:<br>{code}",
+        "closing": "El código de verificación es válido durante {expiration} minutos. Por favor, no comparta este código de verificación con otras personas. Si no ha solicitado un código de verificación, póngase en contacto con el servicio de asistencia inmediatamente a través de [url:https://services.dfx.swiss/support]."
     }
 }

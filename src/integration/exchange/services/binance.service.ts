@@ -20,10 +20,11 @@ export class BinanceService extends ExchangeService {
     Ethereum: 'ETH',
     Optimism: 'OPTIMISM',
     Polygon: 'MATIC',
-    Base: undefined,
+    Base: 'BASE',
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
+    Railgun: undefined,
   };
 
   constructor() {

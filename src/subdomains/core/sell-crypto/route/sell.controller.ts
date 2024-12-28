@@ -25,6 +25,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -32,7 +33,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { ConfirmSellDto } from './dto/confirm-sell.dto';
+import { ConfirmDto } from './dto/confirm.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
@@ -93,7 +94,7 @@ export class SellController {
       asset,
       currency,
       targetAmount,
-      discountCode,
+      specialCode,
     } = await this.paymentInfoService.sellCheck(dto);
 
     const {
@@ -119,7 +120,7 @@ export class SellController {
       FiatPaymentMethod.BANK,
       true,
       undefined,
-      discountCode ? [discountCode] : [],
+      specialCode ? [specialCode] : [],
     );
 
     return {
@@ -165,7 +166,7 @@ export class SellController {
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: ConfirmSellDto,
+    @Body() dto: ConfirmDto,
   ): Promise<TransactionDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
@@ -208,6 +209,8 @@ export class SellController {
       sell.user.id,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
+      undefined,
+      IbanBankName.MAERKI,
       await this.assetService.getNativeAsset(defaultBlockchain),
       sell.fiat,
     );
@@ -220,7 +223,7 @@ export class SellController {
       annualVolume: sell.annualVolume,
       fiat: FiatDtoMapper.toDto(sell.fiat),
       currency: FiatDtoMapper.toDto(sell.fiat),
-      deposit: DepositDtoMapper.entityToDto(sell.deposit),
+      deposit: sell.active ? DepositDtoMapper.entityToDto(sell.deposit) : undefined,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       blockchain: sell.deposit.blockchainList[0],
       minFee: { amount: fee.network, asset: 'CHF' },
@@ -263,7 +266,7 @@ export class SellController {
       timestamp,
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: sell.deposit.address,
+      depositAddress: sell.active ? sell.deposit.address : undefined,
       blockchain: dto.asset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
@@ -283,7 +286,9 @@ export class SellController {
       maxVolume,
       maxVolumeTarget,
       feesTarget: feeTarget,
-      paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
+      paymentRequest: sell.active
+        ? await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount)
+        : undefined,
       isValid,
       error,
     };

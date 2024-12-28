@@ -1,78 +1,70 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LnurlpPaymentData } from 'src/integration/lightning/data/lnurlp-payment.data';
+import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInEntry } from '../../../interfaces';
+import { PayInWebHookService } from '../../../services/payin-webhhook.service';
 import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class LightningStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(LightningStrategy);
 
-  constructor(private readonly lightningService: LightningService) {
+  private readonly depositWebhookMessageQueue: QueueHandler;
+
+  constructor(readonly payInWebHookService: PayInWebHookService) {
     super();
+
+    this.depositWebhookMessageQueue = new QueueHandler();
+
+    payInWebHookService
+      .getLightningTransactionWebhookObservable()
+      .subscribe((transaction) => this.processLightningTransactionMessageQueue(transaction));
   }
 
   get blockchain(): Blockchain {
     return Blockchain.LIGHTNING;
   }
 
-  //*** JOBS ***//
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async checkPayInEntries(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
-    await this.processNewPayInEntries();
+  // --- MESSAGE QUEUE --- //
+  private processLightningTransactionMessageQueue(transactionWebhook: LnBitsTransactionWebhookDto) {
+    this.depositWebhookMessageQueue
+      .handle<void>(async () => this.processLightningTransaction(transactionWebhook))
+      .catch((e) => {
+        this.logger.error('Error while processing transaction webhook data', e);
+      });
   }
 
-  //*** HELPER METHODS ***//
-
-  private async processNewPayInEntries(): Promise<void> {
+  async processLightningTransaction(transactionWebhook: LnBitsTransactionWebhookDto): Promise<void> {
     const log = this.createNewLogObject();
 
-    const lastCheckedTxId = await this.payInRepository
-      .findOne({
-        select: ['inTxId'],
-        where: { address: { blockchain: this.blockchain } },
-        order: { id: 'DESC' },
-        loadEagerRelations: false,
-      })
-      .then((input) => input?.inTxId ?? '');
+    const payInEntry = await this.createPayInEntry(transactionWebhook);
 
-    const newEntries = await this.getNewEntries(lastCheckedTxId);
-
-    await this.createPayInsAndSave(newEntries, log);
+    await this.createPayInsAndSave([payInEntry], log);
 
     this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  private async getNewEntries(lastCheckedTxId: string): Promise<PayInEntry[]> {
-    const payments = await this.lightningService.getDefaultClient().getLnurlpPayments(lastCheckedTxId);
-    return this.mapToPayInEntries(payments);
-  }
-
-  private async mapToPayInEntries(payments: LnurlpPaymentData[]): Promise<PayInEntry[]> {
+  private async createPayInEntry(transactionWebhook: LnBitsTransactionWebhookDto): Promise<PayInEntry> {
     const asset = await this.assetService.getLightningCoin();
 
-    return [...payments].reverse().map((p) => ({
-      address: BlockchainAddress.create(this.getAddress(p), this.blockchain),
-      txId: p.paymentDto.checking_id,
-      txType: null,
+    return {
+      senderAddresses: null,
+      receiverAddress: BlockchainAddress.create(this.getAddress(transactionWebhook), this.blockchain),
+      txId: transactionWebhook.transaction.paymentHash,
+      txType: transactionWebhook.transaction.txType,
       blockHeight: null,
-      amount: LightningHelper.msatToBtc(p.paymentDto.amount),
+      amount: LightningHelper.msatToBtc(transactionWebhook.transaction.amount),
       asset,
-    }));
+    };
   }
 
-  private getAddress(paymentData: LnurlpPaymentData): string {
-    return paymentData.lnurl ? paymentData.lnurl : null;
+  private getAddress(transactionWebhook: LnBitsTransactionWebhookDto): string | null {
+    return transactionWebhook.transaction.lnurlp
+      ? LightningHelper.createEncodedLnurlp(transactionWebhook.transaction.lnurlp)
+      : null;
   }
 }

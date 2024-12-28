@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Blob } from 'src/integration/infrastructure/azure-storage.service';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
+import { KycStep } from '../entities/kyc-step.entity';
+import { ContentType } from '../enums/content-type.enum';
+import { FileCategory } from '../enums/file-category.enum';
 
 export enum FileType {
   NAME_CHECK = 'NameCheck',
@@ -7,35 +12,38 @@ export enum FileType {
   IDENTIFICATION = 'Identification',
   USER_NOTES = 'UserNotes',
   TRANSACTION_NOTES = 'TransactionNotes',
-  SUPPORT_ISSUE = 'SupportIssue',
   STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
+  RESIDENCE_PERMIT = 'ResidencePermit',
+  ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   AUTHORITY = 'Authority',
-}
-
-export enum ContentType {
-  PNG = 'image/png',
-  JPEG = 'image/jpeg',
-  JSON = 'application/json',
-  PDF = 'application/pdf',
-  TEXT = 'text/plain',
-  XML = 'text/xml',
-  ZIP = 'application/zip',
-  MP3 = 'audio/mpeg',
 }
 
 export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
 
-export interface File {
+export interface KycFile extends Blob {
+  category: FileCategory;
   type: FileType;
-  name: string;
-  url: string;
   contentType: ContentType;
-  created: Date;
-  updated: Date;
-  metadata: Record<string, string>;
+  path?: string;
+}
+
+export class CreateKycFileDto {
+  name: string;
+  type: FileType;
+  protected: boolean;
+  userData: UserData;
+  kycStep?: KycStep;
+}
+
+export class KycFileDataDto {
+  name: string;
+  type: FileType;
+  uid: string;
+  contentType: string;
+  content: Buffer;
 }
 
 export class KycReportDto {

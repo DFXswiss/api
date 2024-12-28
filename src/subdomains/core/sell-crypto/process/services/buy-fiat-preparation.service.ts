@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Config } from 'src/config/config';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -15,11 +21,14 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
-export class BuyFiatPreparationService {
+export class BuyFiatPreparationService implements OnModuleInit {
   private readonly logger = new DfxLogger(BuyFiatPreparationService);
+  private chf: Fiat;
+  private eur: Fiat;
 
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
@@ -31,7 +40,15 @@ export class BuyFiatPreparationService {
     private readonly amlService: AmlService,
     private readonly userService: UserService,
     private readonly payInService: PayInService,
+    private readonly userDataService: UserDataService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
+    private readonly countryService: CountryService,
   ) {}
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
+  }
 
   async doAmlCheck(): Promise<void> {
     const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
@@ -65,11 +82,17 @@ export class BuyFiatPreparationService {
 
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
-        const minVolume = await this.transactionHelper.getMinVolumeIn(
+        const isPayment = entity.cryptoInput.isPayment;
+        const minVolume = await this.transactionHelper.getMinVolume(
           entity.cryptoInput.asset,
+          entity.outputAsset,
           entity.cryptoInput.asset,
           false,
+          isPayment,
         );
+
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
@@ -77,15 +100,6 @@ export class BuyFiatPreparationService {
           false,
           Util.daysBefore(1, entity.transaction.created),
           Util.daysAfter(1, entity.transaction.created),
-          entity.userData.users,
-        );
-
-        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          Util.daysBefore(7, entity.transaction.created),
-          Util.daysAfter(7, entity.transaction.created),
           entity.userData.users,
         );
 
@@ -110,21 +124,40 @@ export class BuyFiatPreparationService {
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
         if (bankData && !bankData.comment) continue;
 
+        const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
+
+        // check if amlCheck changed (e.g. reset or refund)
+        if (
+          entity.amlCheck === CheckStatus.PENDING &&
+          (await this.buyFiatRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
+        )
+          continue;
+
         await this.buyFiatRepo.update(
           ...entity.amlCheckAndFillUp(
+            inputReferenceCurrency,
             minVolume,
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             last24hVolume,
-            last7dVolume,
             last30dVolume,
             last365dVolume,
             bankData,
             blacklist,
+            ibanCountry,
           ),
         );
 
-        await this.payInService.updateAmlCheck(entity.cryptoInput.id, entity.amlCheck);
+        await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
-        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
+        if (amlCheckBefore !== entity.amlCheck) {
+          await this.buyFiatService.triggerWebhook(entity);
+          if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+            await this.userDataService.triggerVideoIdent(entity.userData);
+        }
+
+        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+          await this.buyFiatNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
@@ -150,16 +183,12 @@ export class BuyFiatPreparationService {
       },
     });
 
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
     for (const entity of entities) {
       try {
         const inputCurrency = entity.cryptoInput.asset;
 
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, this.chf, false);
 
         const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
@@ -168,20 +197,16 @@ export class BuyFiatPreparationService {
           amountInChf,
           inputCurrency,
           inputCurrency,
-          entity.sell.fiat,
+          entity.outputAsset,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
+          undefined,
+          IbanBankName.MAERKI,
           entity.user,
         );
 
         await this.buyFiatRepo.update(
-          ...entity.setFeeAndFiatReference(
-            eurPrice.convert(entity.inputAmount, 2),
-            amountInChf,
-            fee,
-            eurPrice.convert(fee.min, 2),
-            chfPrice.convert(fee.total, 2),
-          ),
+          ...entity.setFeeAndFiatReference(fee, eurPrice.convert(fee.min, 2), chfPrice.convert(fee.total, 2)),
         );
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
@@ -205,57 +230,57 @@ export class BuyFiatPreparationService {
         isComplete: false,
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) } },
+        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) }, status: PayInStatus.COMPLETED },
       },
       relations: {
         sell: true,
-        cryptoInput: { paymentLinkPayment: true },
+        cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
         transaction: { user: { wallet: true, userData: true } },
       },
     });
 
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
     for (const entity of entities) {
       try {
         const inputCurrency = entity.cryptoInput.asset;
-        const outputReferenceCurrency = entity.paymentLinkPayment.currency;
-        const outputCurrency = entity.sell.fiat;
+        const outputCurrency = entity.outputAsset;
         const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
 
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
-        const outputReferencePrice = await this.pricingService.getPrice(outputReferenceCurrency, outputCurrency, false);
-        const referencePrice = Price.create(
-          inputCurrency.name,
-          outputReferenceCurrency.name,
-          entity.inputReferenceAmount / entity.outputReferenceAmount,
-        );
+        if (outputCurrency.id !== entity.paymentLinkPayment.currency.id) throw new Error('Payment currency mismatch');
 
+        // fees
+        const feeRate = Config.payment.fee(entity.cryptoInput.paymentQuote.standard, outputCurrency, inputCurrency);
+        const totalFee = entity.inputReferenceAmount * feeRate;
+        const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
+
+        const { fee: paymentLinkFee } = entity.cryptoInput.paymentLinkPayment.link.configObj;
+
+        // prices
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, this.chf, false);
+
+        const conversionPrice = Price.create(
+          inputCurrency.name,
+          outputCurrency.name,
+          inputReferenceAmountMinusFee / outputReferenceAmount,
+        );
         const priceStep = PriceStep.create(
           'Payment',
-          inputCurrency.name,
-          outputReferenceCurrency.name,
-          entity.inputAmount / outputReferenceAmount,
+          conversionPrice.source,
+          conversionPrice.target,
+          conversionPrice.price,
         );
-
-        const totalFee = entity.inputReferenceAmount - referencePrice.invert().convert(entity.outputReferenceAmount);
-
-        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setPaymentLinkPayment(
             eurPrice.convert(entity.inputAmount, 2),
-            amountInChf,
+            chfPrice.convert(entity.inputAmount, 2),
+            feeRate,
             totalFee,
             chfPrice.convert(totalFee, 5),
+            inputReferenceAmountMinusFee,
             outputReferenceAmount,
-            outputReferenceCurrency,
-            outputReferencePrice.convert(outputReferenceAmount, 2),
-            outputCurrency,
-            [priceStep, ...outputReferencePrice.steps],
+            paymentLinkFee,
+            [priceStep],
           ),
         );
 
@@ -283,11 +308,11 @@ export class BuyFiatPreparationService {
     for (const entity of entities) {
       try {
         const asset = entity.cryptoInput.asset;
-        const currency = entity.sell.fiat;
+        const currency = entity.outputAsset;
         const price = await this.pricingService.getPrice(asset, currency, false);
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency, price.steps),
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), price.steps),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);

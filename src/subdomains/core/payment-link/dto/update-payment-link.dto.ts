@@ -1,10 +1,75 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty } from 'class-validator';
-import { PaymentLinkStatus } from './payment-link.dto';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { EntityDto } from 'src/shared/dto/entity.dto';
+import { Country } from 'src/shared/models/country/country.entity';
+import { PaymentLinkStatus } from '../enums';
+import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
-export class UpdatePaymentLinkDto {
-  @ApiProperty({ enum: PaymentLinkStatus })
-  @IsNotEmpty()
+export class UpdatePaymentLinkBaseDto {
+  @ApiPropertyOptional({ enum: PaymentLinkStatus })
+  @IsOptional()
   @IsEnum(PaymentLinkStatus)
-  status: PaymentLinkStatus;
+  status?: PaymentLinkStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
+}
+
+export class UpdatePaymentLinkDto extends UpdatePaymentLinkBaseDto {
+  @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })
+  @IsOptional()
+  @Type(() => UpdatePaymentLinkConfigDto)
+  @ValidateNested()
+  config?: UpdatePaymentLinkConfigDto;
+}
+
+export class UpdatePaymentLinkInternalDto {
+  @IsOptional()
+  @IsString()
+  externalId: string;
+
+  @IsOptional()
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  street: string;
+
+  @IsOptional()
+  @IsString()
+  houseNumber: string;
+
+  @IsOptional()
+  @IsString()
+  zip: string;
+
+  @IsOptional()
+  @IsString()
+  city: string;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  country: Country;
+
+  @IsOptional()
+  @IsString()
+  phone: string;
+
+  @IsOptional()
+  @IsString()
+  mail: string;
+
+  @IsOptional()
+  @IsString()
+  website: string;
+
+  @IsOptional()
+  @IsString()
+  config: string;
 }

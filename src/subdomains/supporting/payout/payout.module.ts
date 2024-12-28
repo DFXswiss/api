@@ -4,6 +4,7 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { DexModule } from '../dex/dex.module';
+import { PricingModule } from '../pricing/pricing.module';
 import { PayoutOrder } from './entities/payout-order.entity';
 import { PayoutOrderFactory } from './factories/payout-order.factory';
 import { PayoutController } from './payout.controller';
@@ -47,7 +48,14 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
 import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/polygon.strategy';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PayoutOrder]), BlockchainModule, SharedModule, DexModule, NotificationModule],
+  imports: [
+    TypeOrmModule.forFeature([PayoutOrder]),
+    BlockchainModule,
+    SharedModule,
+    DexModule,
+    NotificationModule,
+    PricingModule,
+  ],
   controllers: [PayoutController],
   providers: [
     PayoutOrderRepository,
@@ -90,6 +98,6 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     BaseCoinStrategyPO,
     BaseTokenStrategyPO,
   ],
-  exports: [PayoutService],
+  exports: [PayoutService, PayoutMoneroService],
 })
 export class PayoutModule {}

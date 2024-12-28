@@ -3,8 +3,9 @@ import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { EvmBridgeApproval, EvmContractApproval } from 'src/integration/blockchain/shared/evm/dto/evm-approval.dto';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
+import { EvmRawInputDataDto } from 'src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
@@ -13,7 +14,7 @@ import { EvmRawTransactionDto } from '../../../integration/blockchain/shared/evm
 @Injectable()
 export class GsEvmService {
   constructor(
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly depositService: DepositService,
     private readonly assetService: AssetService,
   ) {}
@@ -22,7 +23,7 @@ export class GsEvmService {
     request,
     blockchain,
   }: EvmRawTransactionDto): Promise<ethers.providers.TransactionResponse> {
-    const client = this.evmRegistryService.getClient(blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(request.from, blockchain));
 
@@ -35,13 +36,39 @@ export class GsEvmService {
     throw new Error('Provided source address is not known');
   }
 
+  async sendContractTransaction({
+    blockchain,
+    contractAddress,
+    signer,
+    callData,
+  }: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
+
+    const privateKey = Config.evmWallets.get(signer);
+    if (!privateKey) throw new Error(`No private key found for address ${signer}`);
+
+    const { method, types, inputs } = JSON.parse(callData);
+    const iface = new ethers.utils.Interface([`function ${method}(${types.join(',')})`]);
+    const encodedData = iface.encodeFunctionData(method, inputs);
+
+    const transaction: ethers.providers.TransactionRequest = {
+      from: signer,
+      to: contractAddress,
+      data: encodedData,
+      value: 0,
+      gasLimit: ethers.BigNumber.from(300000),
+    };
+
+    return client.sendRawTransactionFrom(privateKey, transaction);
+  }
+
   async sendTokenTransaction(dto: EvmTokenTransactionDto): Promise<string> {
     const { fromAddress, toAddress, assetId, amount, feeLimit, blockchain } = dto;
     const token = await this.assetService.getAssetById(assetId);
 
     if (!token) throw new BadRequestException(`Asset ${assetId} not found`);
 
-    const client = this.evmRegistryService.getClient(blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
 
@@ -62,7 +89,7 @@ export class GsEvmService {
 
   async sendCoinTransaction(dto: EvmCoinTransactionDto): Promise<string> {
     const { fromAddress, toAddress, amount, feeLimit, blockchain } = dto;
-    const client = this.evmRegistryService.getClient(blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
 
@@ -85,7 +112,7 @@ export class GsEvmService {
     const l2Token = await this.assetService.getAssetById(l2AssetId);
     if (!l1Token || !l2Token) throw new NotFoundException('Token not found');
 
-    const client = this.evmRegistryService.getL2Client(l2Token.blockchain);
+    const client = this.blockchainRegistryService.getL2Client(l2Token.blockchain);
 
     return client.approveBridge(l1Token, l2Token);
   }
@@ -94,7 +121,7 @@ export class GsEvmService {
     const token = await this.assetService.getAssetById(assetId);
     if (!token) throw new NotFoundException('Token not found');
 
-    const client = this.evmRegistryService.getClient(token.blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(token.blockchain);
 
     return client.approveContract(token, contractAddress);
   }

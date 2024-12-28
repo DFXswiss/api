@@ -14,35 +14,38 @@ import { LiquidityManagementAction } from './liquidity-management-action.entity'
 @Index((r: LiquidityManagementRule) => [r.context, r.targetAsset, r.targetFiat], { unique: true })
 export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
-  context: LiquidityManagementContext;
+  context?: LiquidityManagementContext;
 
   @Column({ length: 256, nullable: true })
-  status: LiquidityManagementRuleStatus;
+  status?: LiquidityManagementRuleStatus;
 
   @OneToOne(() => Asset, { eager: true, nullable: true })
   @JoinColumn()
-  targetAsset: Asset;
+  targetAsset?: Asset;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  targetFiat: Fiat;
+  targetFiat?: Fiat;
 
   @Column({ type: 'float', nullable: true })
-  minimal: number;
+  minimal?: number;
 
   @Column({ type: 'float', nullable: true })
-  optimal: number;
+  optimal?: number;
 
   @Column({ type: 'float', nullable: true })
-  maximal: number;
+  maximal?: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
-  deficitStartAction: LiquidityManagementAction;
+  deficitStartAction?: LiquidityManagementAction;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
-  redundancyStartAction: LiquidityManagementAction;
+  redundancyStartAction?: LiquidityManagementAction;
 
   @Column({ type: 'int', nullable: true })
-  reactivationTime: number;
+  reactivationTime?: number;
+
+  @Column({ default: true })
+  sendNotifications: boolean;
 
   //*** FACTORY METHODS ***//
 
@@ -120,8 +123,7 @@ export class LiquidityManagementRule extends IEntity {
 
   shouldReactivate(): boolean {
     return (
-      this.status === LiquidityManagementRuleStatus.PAUSED &&
-      Util.minutesDiff(this.updated) > this.reactivationTime
+      this.status === LiquidityManagementRuleStatus.PAUSED && Util.minutesDiff(this.updated) > this.reactivationTime
     );
   }
 

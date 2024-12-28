@@ -1,7 +1,7 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
-import { UserData } from '../../../generic/user/models/user-data/user-data.entity';
+import { Column, Entity, OneToOne } from 'typeorm';
 
 export enum InvestmentDate {
   NOW = 'Now',
@@ -22,6 +22,7 @@ export enum LimitRequestDecision {
   PARTIALLY_ACCEPTED = 'PartiallyAccepted',
   REJECTED = 'Rejected',
   EXPIRED = 'Expired',
+  CLOSED = 'Closed',
 }
 
 @Entity()
@@ -36,33 +37,27 @@ export class LimitRequest extends IEntity {
   fundOrigin: FundOrigin;
 
   @Column({ length: 'MAX', nullable: true })
-  fundOriginText: string;
+  fundOriginText?: string;
 
   @Column({ length: 256, nullable: true })
-  documentProofUrl: string; // TODO: remove
+  decision?: LimitRequestDecision;
 
   @Column({ length: 256, nullable: true })
-  decision: LimitRequestDecision;
-
-  @Column({ length: 256, nullable: true })
-  clerk: string;
+  clerk?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  edited: Date;
+  edited?: Date;
 
   //Mail
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailSendDate: Date;
+  mailSendDate?: Date;
 
   // References
 
-  @ManyToOne(() => UserData, { nullable: false })
-  userData: UserData; // TODO: remove
-
-  @OneToOne(() => SupportIssue, (supportIssue) => supportIssue.limitRequest, { nullable: true })
+  @OneToOne(() => SupportIssue, (supportIssue) => supportIssue.limitRequest, { nullable: false, eager: true })
   supportIssue: SupportIssue;
 
   // Methods
@@ -71,6 +66,10 @@ export class LimitRequest extends IEntity {
     this.mailSendDate = new Date();
 
     return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
+  }
+
+  get userData(): UserData {
+    return this.supportIssue.userData;
   }
 }
 

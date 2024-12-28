@@ -11,8 +11,10 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { ContentType, File, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
+import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import {
   Blank,
   BlankType,
@@ -30,7 +32,6 @@ import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
-import { KycUserDataDto } from './dto/kyc-user-data.dto';
 
 @Injectable()
 export class KycService {
@@ -43,7 +44,7 @@ export class KycService {
     private readonly walletRepo: WalletRepository,
     private readonly countryService: CountryService,
     private readonly http: HttpService,
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
   ) {}
 
   // --- KYC DATA --- //
@@ -52,14 +53,6 @@ export class KycService {
     const user = await this.getUser(code, userDataId);
 
     return this.countryService.getCountriesByKycType(user.kycType);
-  }
-
-  async updateKycData(code: string, data: KycUserDataDto, userDataId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userDataId);
-    if (user.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
-
-    const updatedUser = await this.userDataService.updateKycData(user, data);
-    return this.createKycInfoBasedOn(updatedUser);
   }
 
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
@@ -99,12 +92,13 @@ export class KycService {
   ): Promise<boolean> {
     const userData = await this.getUser(code, userDataId);
 
-    const upload = await this.storageService.uploadFile(
-      userData.id,
+    const upload = await this.documentService.uploadUserFile(
+      userData,
       kycDocument,
-      `${Util.isoDate(new Date()).split('-').join('')}-incorporation-certificate-${document.filename}`,
+      `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
       document.buffer,
       document.mimetype as ContentType,
+      false,
     );
     return upload != '';
   }
@@ -153,7 +147,7 @@ export class KycService {
   private async getUserByKycCode(code: string): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { kycHash: code },
-      relations: ['users', 'users.wallet'],
+      relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
@@ -177,7 +171,7 @@ export class KycService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const allDocuments = await this.documentService.listUserFiles(user.userData.id);
 
     return Object.values(KycDocumentType)
       .map((type) => ({ type, info: this.getFileFor(type, allDocuments) }))
@@ -192,11 +186,13 @@ export class KycService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const allDocuments = await this.documentService.listUserFiles(user.userData.id);
     const document = this.getFileFor(type, allDocuments);
     if (!document) throw new NotFoundException('File not found');
 
-    return this.storageService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+    return this.documentService
+      .downloadFile(FileCategory.USER, user.userData.id, document.type, document.name)
+      .then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //
@@ -208,11 +204,11 @@ export class KycService {
     };
   }
 
-  private toKycFileDto(type: KycDocumentType, { contentType }: File): KycFileDto {
+  private toKycFileDto(type: KycDocumentType, { contentType }: KycFile): KycFileDto {
     return { type, contentType };
   }
 
-  private getFileFor(type: KycDocumentType, documents: File[]): File | undefined {
+  private getFileFor(type: KycDocumentType, documents: KycFile[]): KycFile | undefined {
     switch (type) {
       case KycDocumentType.IDENTIFICATION:
         return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);

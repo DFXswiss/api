@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { IsNull, Not } from 'typeorm';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -25,6 +25,24 @@ export class BuyFiatRegistrationService {
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
   ) {}
+
+  async syncReturnTxId(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        cryptoInput: { returnTxId: Not(IsNull()), status: PayInStatus.RETURN_CONFIRMED },
+        chargebackTxId: IsNull(),
+      },
+      relations: { cryptoInput: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyFiatRepo.update(entity.id, { chargebackTxId: entity.cryptoInput.returnTxId, isComplete: true });
+      } catch (e) {
+        this.logger.error(`Error during buyFiat payIn returnTxId sync (${entity.id}):`, e);
+      }
+    }
+  }
 
   async registerSellPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
@@ -63,8 +81,9 @@ export class BuyFiatRegistrationService {
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
         (r) =>
-          payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
-          r.blockchains.includes(payIn.address.blockchain),
+          (payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
+            r.blockchains.includes(payIn.address.blockchain)) ||
+          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -84,18 +103,10 @@ export class BuyFiatRegistrationService {
         const alreadyExists = await this.buyFiatRepo.existsBy({ cryptoInput: { id: payIn.id } });
 
         if (!alreadyExists) {
-          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
+          const result = await this.transactionHelper.validateInput(payIn);
 
-          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+          if (!result) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
-            continue;
-          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
-            await this.payInService.returnPayIn(
-              payIn,
-              PayInPurpose.BUY_FIAT,
-              BlockchainAddress.create(sellRoute.user.address, payIn.asset.blockchain),
-              sellRoute,
-            );
             continue;
           }
 

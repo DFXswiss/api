@@ -1,10 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
-import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
-import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.entity';
 import { CreateSupportMessageDto } from './create-support-message.dto';
-import { LimitRequestBaseDto } from './limit-request.dto';
+import { LimitRequestDto } from './limit-request.dto';
 
 export class TransactionIssueDto {
   @ApiPropertyOptional()
@@ -29,7 +28,11 @@ export class TransactionIssueDto {
   date?: Date;
 }
 
-export class CreateSupportIssueDto extends CreateSupportMessageDto {
+export class CreateSupportIssueBaseDto extends CreateSupportMessageDto {
+  @IsOptional()
+  @IsString()
+  author: string;
+
   @ApiProperty({ enum: SupportIssueType })
   @IsNotEmpty()
   @IsEnum(SupportIssueType)
@@ -50,21 +53,16 @@ export class CreateSupportIssueDto extends CreateSupportMessageDto {
   @ValidateNested()
   @Type(() => TransactionIssueDto)
   @ValidateIf((dto: CreateSupportIssueDto) => dto.type === SupportIssueType.TRANSACTION_ISSUE)
-  transaction: TransactionIssueDto;
+  transaction?: TransactionIssueDto;
+}
 
+export class CreateSupportIssueDto extends CreateSupportIssueBaseDto {
   @ApiPropertyOptional()
   @IsNotEmpty()
   @ValidateNested()
-  @Type(() => LimitRequestBaseDto)
+  @Type(() => LimitRequestDto)
   @ValidateIf((dto: CreateSupportIssueDto) => dto.type === SupportIssueType.LIMIT_REQUEST)
-  limitRequest: LimitRequestBaseDto;
+  limitRequest?: LimitRequestDto;
 }
 
-export class CreateSupportIssueInternalDto {
-  type: SupportIssueType;
-  state: SupportIssueState;
-  reason: SupportIssueReason;
-  name: string;
-  fileUrl?: string;
-  limitRequest?: LimitRequest;
-}
+export class CreateSupportIssueSupportDto extends CreateSupportIssueBaseDto {}

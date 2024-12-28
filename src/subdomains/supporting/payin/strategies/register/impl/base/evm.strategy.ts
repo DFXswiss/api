@@ -1,5 +1,8 @@
-import { Inject } from '@nestjs/common';
+import { Inject, OnModuleInit } from '@nestjs/common';
 import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
+import { Config } from 'src/config/config';
+import { AlchemyTransactionDto } from 'src/integration/alchemy/dto/alchemy-transaction.dto';
+import { AlchemyTransactionMapper } from 'src/integration/alchemy/dto/alchemy-transaction.mapper';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
@@ -9,15 +12,18 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
+import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Like } from 'typeorm';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { RegisterStrategy } from './register.strategy';
 
-export abstract class EvmStrategy extends RegisterStrategy {
+export abstract class EvmStrategy extends RegisterStrategy implements OnModuleInit {
   protected addressWebhookMessageQueue: QueueHandler;
   protected assetTransfersMessageQueue: QueueHandler;
+
+  private evmPaymentDepositAddress: string;
 
   @Inject() protected readonly alchemyWebhookService: AlchemyWebhookService;
   @Inject() protected readonly alchemyService: AlchemyService;
@@ -28,6 +34,12 @@ export abstract class EvmStrategy extends RegisterStrategy {
     super();
   }
 
+  onModuleInit() {
+    super.onModuleInit();
+
+    this.evmPaymentDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
+  }
+
   protected abstract getOwnAddresses(): string[];
 
   // --- WEBHOOKS --- //
@@ -36,7 +48,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     this.addressWebhookMessageQueue
       .handle<void>(async () => this.processWebhookTransactions(dto))
       .catch((e) => {
-        this.logger.error('Error while process new payin entries', e);
+        this.logger.error(`Error while processing new pay-in entries with webhook dto ${JSON.stringify(dto)}:`, e);
       });
   }
 
@@ -44,12 +56,17 @@ export abstract class EvmStrategy extends RegisterStrategy {
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+
     const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
+    const transactions = AlchemyTransactionMapper.mapWebhookActivities(relevantTransactions);
 
-    const payInEntries = await this.mapWebhookTransactions(relevantTransactions);
+    const payInEntries = transactions.map((tx) => this.mapAlchemyTransaction(tx, supportedAssets)).filter((p) => p);
 
-    const log = this.createNewLogObject();
-    await this.createPayInsAndSave(payInEntries, log);
+    if (payInEntries.length) {
+      const log = this.createNewLogObject();
+      await this.createPayInsAndSave(payInEntries, log);
+    }
   }
 
   private filterWebhookTransactionsByRelevantAddresses(
@@ -62,19 +79,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
     );
 
     return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.toAddress));
-  }
-
-  private async mapWebhookTransactions(transactions: AlchemyWebhookActivityDto[]): Promise<PayInEntry[]> {
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
-
-    return transactions.map((tx) => ({
-      address: BlockchainAddress.create(tx.toAddress, this.blockchain),
-      txId: tx.hash,
-      txType: null,
-      blockHeight: Number(tx.blockNum),
-      amount: EvmUtil.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
-      asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
-    }));
   }
 
   // --- ASSET TRANSFERS --- //
@@ -91,22 +95,16 @@ export abstract class EvmStrategy extends RegisterStrategy {
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+
     const relevantAssetTransfers = this.filterAssetTransfersByRelevantAddresses(
       fromAddresses,
       toAddresses,
       assetTransfers,
     );
+    const transactions = AlchemyTransactionMapper.mapAssetTransfers(relevantAssetTransfers);
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
-
-    const payInEntries = relevantAssetTransfers.map((tx) => ({
-      address: BlockchainAddress.create(tx.to, this.blockchain),
-      txId: tx.hash,
-      txType: null,
-      blockHeight: Number(tx.blockNum),
-      amount: EvmUtil.fromWeiAmount(tx.rawContract.value, Number(tx.rawContract.decimal)),
-      asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
-    }));
+    const payInEntries = transactions.map((tx) => this.mapAlchemyTransaction(tx, supportedAssets)).filter((p) => p);
 
     if (payInEntries.length) {
       const log = this.createNewLogObject();
@@ -125,17 +123,38 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   // --- HELPER METHODS --- //
-
-  protected async getPayInAddresses(): Promise<string[]> {
+  private async getPayInAddresses(): Promise<string[]> {
     const routes = await this.repos.depositRoute.find({
       where: { deposit: { blockchains: Like(`%${this.blockchain}%`) } },
       relations: ['deposit'],
     });
 
-    return routes.map((dr) => dr.deposit.address);
+    const addresses = routes.map((dr) => dr.deposit.address);
+    addresses.push(this.evmPaymentDepositAddress);
+
+    return addresses;
   }
 
-  protected getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
+  private mapAlchemyTransaction(transaction: AlchemyTransactionDto, supportedAssets: Asset[]): PayInEntry | undefined {
+    const rawValue = transaction.rawContract.rawValue;
+    if (!rawValue || rawValue === '0x') return;
+
+    return {
+      senderAddresses: transaction.fromAddress,
+      receiverAddress: BlockchainAddress.create(transaction.toAddress, this.blockchain),
+      txId: transaction.hash,
+      txType: this.getTxType(transaction.toAddress),
+      blockHeight: Number(transaction.blockNum),
+      amount: EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals),
+      asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
+    };
+  }
+
+  private getTxType(address: string): PayInType | undefined {
+    return Util.equalsIgnoreCase(this.evmPaymentDepositAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
+  }
+
+  private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
     return chainId
       ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
       : supportedAssets.find((a) => a.type === AssetType.COIN);

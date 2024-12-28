@@ -3,7 +3,6 @@ import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { LnurlpPaymentData } from './data/lnurlp-payment.data';
 import { LnBitsWalletDto, LnBitsWalletPaymentDto, LnBitsWalletPaymentParamsDto } from './dto/lnbits.dto';
 import {
   LndChannelBalanceDto,
@@ -22,13 +21,23 @@ import {
   LnurlpLinkUpdateDto,
 } from './dto/lnurlp.dto';
 import { LnurlWithdrawRequestDto, LnurlwInvoiceDto, LnurlwLinkDto, LnurlwLinkRemoveDto } from './dto/lnurlw.dto';
-import { PaymentDto } from './dto/payment.dto';
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
+
+  async isHealthy(): Promise<boolean> {
+    try {
+      const info = await this.getLndInfo();
+
+      return 0 < info.num_active_channels && info.synced_to_chain;
+    } catch {
+      return false;
+    }
+  }
+
   async getLndInfo(): Promise<LndInfoDto> {
     return this.http.get<LndInfoDto>(`${Config.blockchain.lightning.lnd.apiUrl}/getinfo`, this.httpLndConfig());
   }
@@ -63,6 +72,16 @@ export class LightningClient {
     const channels = await this.getChannels();
 
     const balances = channels.map((c) => +c.local_balance);
+
+    return LightningHelper.satToBtc(Util.sum(balances));
+  }
+
+  async getAvailableBalance(): Promise<number> {
+    const channels = await this.getChannels();
+
+    const balances = channels
+      .filter((c) => c.active)
+      .map((c) => +c.local_balance - +c.commit_fee - +c.local_chan_reserve_sat);
 
     return LightningHelper.satToBtc(Util.sum(balances));
   }
@@ -143,9 +162,11 @@ export class LightningClient {
         {
           out: false,
           amount: walletPaymentParams.amount,
+          memo: walletPaymentParams.memo,
           description_hash: Util.createHash(metadata),
           expiry: walletPaymentParams.expirySec,
           webhook: walletPaymentParams.webhook,
+          extra: walletPaymentParams.extra,
         },
         this.httpLnBitsConfig(),
       )
@@ -156,48 +177,6 @@ export class LightningClient {
     return {
       pr: payment.payment_request,
     };
-  }
-
-  // --- PAYMENTS --- //
-  async getLnurlpPayments(checkingId: string): Promise<LnurlpPaymentData[]> {
-    const batchSize = 5;
-    let offset = 0;
-
-    const result: LnurlpPaymentData[] = [];
-
-    // get max. batchSize * 100 payments to avoid performance risks (getPayments() will be called every minute)
-    for (let i = 0; i < 100; i++) {
-      const url = `${Config.blockchain.lightning.lnbits.apiUrl}/payments?limit=${batchSize}&offset=${offset}&sortby=time&direction=desc`;
-      const payments = await this.http.get<PaymentDto[]>(url, this.httpLnBitsConfig());
-
-      // finish loop if there are no more payments available (offset is at the end of the payment list)
-      if (!payments.length) break;
-
-      const notPendingLnurlpPayments = payments.filter((p) => !p.pending).filter((p) => 'lnurlp' === p.extra.tag);
-
-      // finish loop if there are no more not pending 'lnurlp' payments available
-      if (!notPendingLnurlpPayments.length) break;
-
-      const checkItemIndex = notPendingLnurlpPayments.findIndex((p) => p.checking_id === checkingId);
-
-      if (checkItemIndex >= 0) {
-        result.push(...this.createLnurlpPayments(notPendingLnurlpPayments.slice(0, checkItemIndex)));
-        break;
-      }
-
-      result.push(...this.createLnurlpPayments(notPendingLnurlpPayments));
-
-      offset += batchSize;
-    }
-
-    return result;
-  }
-
-  private createLnurlpPayments(paymentDtoArray: PaymentDto[]): LnurlpPaymentData[] {
-    return paymentDtoArray.map((p) => ({
-      paymentDto: p,
-      lnurl: LightningHelper.createEncodedLnurlp(p.extra.link),
-    }));
   }
 
   // --- LNURLp REWRITE --- //
@@ -229,12 +208,17 @@ export class LightningClient {
   async addLnurlpLink(description: string): Promise<LnurlpLinkDto> {
     if (!description) throw new Error('Description is undefined');
 
+    const uniqueId = Util.createUniqueId('deposit');
+    const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
+
     const newLnurlpLinkDto: LnurlpLinkDto = {
       description: description,
       min: 100,
       max: 100000000,
       comment_chars: 0,
       fiat_base_multiplier: 100,
+      webhook_url: `${Config.url()}/payIn/lnurlpDeposit/${uniqueId}`,
+      webhook_headers: `{ "Deposit-Signature": "${uniqueIdSignature}" }`,
     };
 
     return this.http.post<LnurlpLinkDto>(
@@ -323,6 +307,23 @@ export class LightningClient {
       `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`,
       this.httpLnBitsConfig(),
     );
+  }
+
+  // --- LNURLd --- //
+
+  async getLnurlDevice(id: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    const url = `${this.getDeviceUrl()}/${id}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
+  async getLnurlDeviceCallback(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    const url = `${this.getDeviceUrl()}/cb/${id}/${variable}`;
+    return this.http.get(url, this.httpLnBitsConfig(params));
+  }
+
+  private getDeviceUrl(): string {
+    const baseUrl = Config.blockchain.lightning.lnbits.lnurlpUrl.replace('/lnurlp', '');
+    return `${baseUrl}/lnurldevice/api/v1/lnurl`;
   }
 
   // --- HELPER METHODS --- //

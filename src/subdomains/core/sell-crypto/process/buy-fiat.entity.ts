@@ -1,10 +1,13 @@
+import { Active } from 'src/shared/models/active';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -13,9 +16,9 @@ import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/pri
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { AmlHelperService } from '../../aml/services/aml-helper.service';
 import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
 
@@ -26,168 +29,185 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
-  @OneToOne(() => FiatOutput, { nullable: true })
-  @JoinColumn()
-  fiatOutput: FiatOutput;
+  @ManyToOne(() => FiatOutput, (o) => o.buyFiats, { nullable: true })
+  fiatOutput?: FiatOutput;
 
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
-  bankTx: BankTx;
+  bankTx?: BankTx;
 
   @ManyToOne(() => BankData, { nullable: true })
-  bankData: BankData;
+  bankData?: BankData;
 
   // Mail
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mail1SendDate: Date;
+  mail1SendDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  mail2SendDate: Date;
+  mail2SendDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  mail3SendDate: Date;
+  mail3SendDate?: Date;
 
   // Pricing
   @Column({ type: 'float', nullable: true })
-  inputAmount: number;
+  inputAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  inputAsset: string;
+  inputAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmount: number; // deprecated
+  inputReferenceAmount?: number; // deprecated
 
   @Column({ length: 256, nullable: true })
-  inputReferenceAsset: string; // deprecated
+  inputReferenceAsset?: string; // deprecated
 
   @Column({ type: 'float', nullable: true })
-  amountInChf: number;
+  amountInChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountInEur: number;
+  amountInEur?: number;
 
   // Ref
   @Column({ length: 256, nullable: true })
-  usedRef: string;
+  usedRef?: string;
 
   @Column({ type: 'float', nullable: true })
-  refProvision: number;
+  refProvision?: number;
 
   @Column({ type: 'float', nullable: true })
-  refFactor: number;
+  refFactor?: number;
 
   // Check
   @Column({ length: 256, nullable: true })
-  amlCheck: CheckStatus;
+  amlCheck?: CheckStatus;
 
   @Column({ length: 256, nullable: true })
-  amlReason: AmlReason;
+  amlReason?: AmlReason;
 
   @Column({ nullable: true })
-  highRisk: boolean;
+  highRisk?: boolean;
 
   @Column({ length: 256, nullable: true })
-  amlResponsible: string;
+  amlResponsible?: string;
 
   // Fee
   @Column({ length: 256, nullable: true })
-  usedFees: string; // Semicolon separated id's
+  usedFees?: string; // Semicolon separated id's
 
   @Column({ type: 'float', nullable: true })
-  percentFee: number;
+  percentFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  percentFeeAmount: number; //inputAsset
+  bankFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  absoluteFeeAmount: number; //inputAsset
+  percentFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmountMinusFee: number;
+  absoluteFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmount: number; //inputAsset
+  inputReferenceAmountMinusFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmountFiat: number; //EUR
+  minFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmount: number; //inputAsset
+  minFeeAmountFiat?: number; //EUR
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmountChf: number;
+  totalFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  blockchainFee: number;
+  totalFeeAmountChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  blockchainFee?: number;
+
+  @Column({ type: 'float', nullable: true })
+  paymentLinkFee?: number;
 
   // Fail
   @Column({ length: 256, nullable: true })
-  cryptoReturnTxId: string;
+  chargebackTxId?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  cryptoReturnDate: Date;
+  chargebackDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAddress?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailReturnSendDate: Date;
+  mailReturnSendDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  chargebackAllowedDate: Date;
+  chargebackAllowedDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackAllowedDateUser?: Date;
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  chargebackAllowedBy?: string;
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  priceDefinitionAllowedDate: Date;
+  priceDefinitionAllowedDate?: Date;
 
   @Column({ type: 'float', nullable: true })
-  outputReferenceAmount: number;
+  outputReferenceAmount?: number;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  outputReferenceAsset: Fiat;
+  outputReferenceAsset?: Fiat;
 
   @Column({ type: 'float', nullable: true })
-  outputAmount: number;
+  outputAmount?: number;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  outputAsset: Fiat;
+  outputAsset?: Fiat;
 
   @Column({ length: 'MAX', nullable: true })
-  priceSteps: string;
+  priceSteps?: string;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
-  remittanceInfo: string;
+  remittanceInfo?: string;
 
   @Column({ nullable: true })
-  instantSepa: boolean;
+  instantSepa?: boolean;
 
   @Column({ length: 256, nullable: true })
-  usedBank: string;
+  usedBank?: string;
 
   @Column({ type: 'float', nullable: true })
-  bankBatchId: number;
+  bankBatchId?: number;
 
   @Column({ type: 'datetime2', nullable: true })
-  bankStartTimestamp: Date;
+  bankStartTimestamp?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  bankFinishTimestamp: Date;
+  bankFinishTimestamp?: Date;
 
   @Column({ length: 256, nullable: true })
-  info: string;
+  info?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  outputDate: Date;
+  outputDate?: Date;
 
   @Column({ default: false })
   isComplete: boolean;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @OneToOne(() => Transaction, { eager: true, nullable: false })
   @JoinColumn()
@@ -206,7 +226,7 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  returnMail(): UpdateResult<BuyFiat> {
+  chargebackMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
       mailReturnSendDate: new Date(),
@@ -228,9 +248,30 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  chargebackFillUp(
+    chargebackAddress: string,
+    chargebackAmount: number,
+    chargebackAllowedDate: Date,
+    chargebackAllowedDateUser: Date,
+    chargebackAllowedBy: string,
+  ): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      chargebackDate: chargebackAllowedDate ? new Date() : null,
+      chargebackAllowedDate,
+      chargebackAllowedDateUser,
+      chargebackAddress,
+      chargebackAmount,
+      chargebackAllowedBy,
+      amlCheck: CheckStatus.FAIL,
+      mailReturnSendDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   setFeeAndFiatReference(
-    amountInEur: number,
-    amountInChf: number,
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
@@ -250,9 +291,8 @@ export class BuyFiat extends IEntity {
             totalFeeAmount: fee.total,
             totalFeeAmountChf,
             blockchainFee: fee.network,
+            bankFeeAmount: fee.bank,
             inputReferenceAmountMinusFee,
-            amountInEur,
-            amountInChf,
             usedRef,
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
@@ -267,16 +307,14 @@ export class BuyFiat extends IEntity {
   setPaymentLinkPayment(
     amountInEur: number,
     amountInChf: number,
+    feeRate: number,
     totalFee: number,
     totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
     outputReferenceAmount: number,
-    outputReferenceAsset: Fiat,
-    outputAmount: number,
-    outputAsset: Fiat,
+    paymentLinkFee: number,
     priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
-    const inputReferenceAmountMinusFee = this.inputReferenceAmount - totalFee;
-    const feeRate = Util.round(totalFee / this.inputReferenceAmount, 4);
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> =
@@ -291,6 +329,7 @@ export class BuyFiat extends IEntity {
             percentFeeAmount: totalFee,
             totalFeeAmount: totalFee,
             totalFeeAmountChf,
+            paymentLinkFee,
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
@@ -298,10 +337,8 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount,
+            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
             outputReferenceAmount,
-            outputAsset,
-            outputReferenceAsset,
             priceSteps: this.priceSteps,
           };
 
@@ -310,14 +347,12 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
+  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAsset: outputAssetEntity,
-      outputReferenceAsset: outputAssetEntity,
       priceSteps: this.priceSteps,
     };
 
@@ -327,24 +362,34 @@ export class BuyFiat extends IEntity {
   }
 
   amlCheckAndFillUp(
+    inputAsset: Active,
     minVolume: number,
+    amountInEur: number,
+    amountInChf: number,
     last24hVolume: number,
-    last7dVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    ibanCountry: Country,
   ): UpdateResult<BuyFiat> {
-    const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
-      this,
-      minVolume,
-      last24hVolume,
-      last7dVolume,
-      last30dVolume,
-      last365dVolume,
-      bankData,
-      blacklist,
-    );
+    const update: Partial<BuyFiat> = {
+      ...AmlHelperService.getAmlResult(
+        this,
+        inputAsset,
+        minVolume,
+        amountInChf,
+        last24hVolume,
+        0,
+        last30dVolume,
+        last365dVolume,
+        bankData,
+        blacklist,
+        ibanCountry,
+      ),
+      amountInChf,
+      amountInEur,
+    };
 
     Object.assign(this, update);
 
@@ -381,16 +426,36 @@ export class BuyFiat extends IEntity {
       usedBank: null,
       instantSepa: null,
       remittanceInfo: null,
-      cryptoReturnTxId: null,
-      cryptoReturnDate: null,
+      chargebackTxId: null,
+      chargebackDate: null,
       mailReturnSendDate: null,
       comment: null,
+      chargebackAddress: null,
       chargebackAllowedDate: null,
+      chargebackAllowedDateUser: null,
+      chargebackAmount: null,
+      chargebackAllowedBy: null,
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  pendingInputAmount(asset: Asset): number {
+    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+  }
+
+  pendingOutputAmount(asset: Asset): number {
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      (asset.blockchain as string) === 'MaerkiBaumann'
+      ? this.outputAmount
+      : 0;
+  }
+
+  get feeAmountChf(): number {
+    return this.totalFeeAmountChf;
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
@@ -444,6 +509,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

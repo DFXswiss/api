@@ -37,8 +37,13 @@ export class SpecialExternalAccountService {
           SpecialExternalAccountType.BANNED_IBAN,
           SpecialExternalAccountType.BANNED_IBAN_BUY,
           SpecialExternalAccountType.BANNED_IBAN_SELL,
+          SpecialExternalAccountType.BANNED_IBAN_AML,
           SpecialExternalAccountType.BANNED_BIC,
+          SpecialExternalAccountType.BANNED_BIC_BUY,
+          SpecialExternalAccountType.BANNED_BIC_SELL,
+          SpecialExternalAccountType.BANNED_BIC_AML,
           SpecialExternalAccountType.BANNED_MAIL,
+          SpecialExternalAccountType.BANNED_ACCOUNT_IBAN,
         ],
       ),
     });

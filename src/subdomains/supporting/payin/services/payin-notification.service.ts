@@ -5,7 +5,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -14,6 +13,7 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
+import { PayInAction } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 
 @Injectable()
@@ -35,9 +35,9 @@ export class PayInNotificationService {
         mailReturnSendDate: IsNull(),
         recipientMail: IsNull(),
         returnTxId: Not(IsNull()),
-        amlCheck: CheckStatus.PASS,
+        action: PayInAction.RETURN,
       },
-      relations: ['route', 'route.user', 'route.user.userData'],
+      relations: { route: { user: { userData: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
@@ -50,8 +50,8 @@ export class PayInNotificationService {
             context: MailContext.CRYPTO_INPUT_RETURN,
             input: {
               userData: entity.route.user.userData,
-              title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
-              salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
+              title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
+              salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.amount} ${entity.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.asset.blockchain,
@@ -63,14 +63,14 @@ export class PayInNotificationService {
               suffix: [
                 !entity.isLightningInput
                   ? {
-                      key: `${MailTranslationKey.CRYPTO_RETURN}.payment_link`,
+                      key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.payment_link`,
                       params: { url: txExplorerUrl(entity.asset.blockchain, entity.returnTxId) },
                     }
                   : null,
                 {
-                  key: `${MailTranslationKey.RETURN}.introduction`,
+                  key: `${MailTranslationKey.CHARGEBACK}.introduction`,
                   params: {
-                    reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                    reason: MailFactory.parseMailKey(MailTranslationKey.CHARGEBACK_REASON, entity.amlReason),
                   },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },

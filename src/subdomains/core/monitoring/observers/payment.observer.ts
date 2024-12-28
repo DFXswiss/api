@@ -6,16 +6,19 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
   incomplete: IncompleteTransactions;
-  bankTxWithoutType: number;
   freeDeposit: { blockchain: string; count: number }[];
   unhandledCryptoInputs: number;
+  unconfirmedCryptoInputs: number;
+  bankTxWithoutType: number;
+  bankTxGsType: number;
 }
 
 interface LastOutputDates {
@@ -55,6 +58,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       lastOutputDates: await this.getLastOutputDates(),
       incomplete: await this.getIncompleteTransactions(),
       bankTxWithoutType: await this.repos.bankTx.countBy({ type: IsNull() }),
+      bankTxGsType: await this.repos.bankTx.countBy({ type: BankTxType.GSHEET }),
       freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
         .select('deposit.blockchains, COUNT(deposit.blockchains) as count')
@@ -66,16 +70,22 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           list.map((i) => i.blockchains.split(';').map((b) => ({ blockchain: b, count: i.count }))).flat(),
         ),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
-        amlCheck: Not(CheckStatus.FAIL),
+        action: IsNull(),
+        status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURN_CONFIRMED])),
+        buyCrypto: { id: IsNull() },
+        buyFiat: { id: IsNull() },
+      }),
+      unconfirmedCryptoInputs: await this.repos.payIn.countBy({
         status: Not(
           In([
-            PayInStatus.FAILED,
-            PayInStatus.IGNORED,
-            PayInStatus.RETURNED,
-            PayInStatus.FORWARDED,
+            PayInStatus.RETURN_CONFIRMED,
+            PayInStatus.FORWARD_CONFIRMED,
             PayInStatus.COMPLETED,
+            PayInStatus.IGNORED,
+            PayInStatus.FAILED,
           ]),
         ),
+        action: In([PayInAction.FORWARD, PayInAction.RETURN]),
       }),
     };
   }

@@ -97,12 +97,12 @@ export class UpdateBuyFiatDto {
 
   @IsOptional()
   @IsString()
-  cryptoReturnTxId: string;
+  chargebackTxId: string;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  cryptoReturnDate: Date;
+  chargebackDate: Date;
 
   @IsOptional()
   @IsDate()
@@ -199,10 +199,19 @@ export class UpdateBuyFiatDto {
   chargebackAllowedDate: Date;
 
   @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDateUser: Date;
+
+  @IsOptional()
   @IsInt()
   bankDataId: number;
 
   @IsOptional()
   @IsBoolean()
   bankDataActive: boolean;
+
+  @IsOptional()
+  @IsString()
+  chargebackAllowedBy: string;
 }

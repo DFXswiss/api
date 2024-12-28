@@ -1,14 +1,15 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active } from 'src/shared/models/active';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -20,22 +21,22 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
-import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { SignUpDto } from '../auth/dto/auth-credentials.dto';
+import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { ApiKeyDto } from './dto/api-key.dto';
-import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
@@ -57,6 +58,7 @@ export class UserService {
     private readonly feeService: FeeService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
+    private readonly siftService: SiftService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -88,7 +90,10 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true, wallet: true } });
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: { userData: true, wallet: true },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -104,7 +109,7 @@ export class UserService {
       .where('user.id = :id', { id })
       .andWhere('wallet.isKycClient = 0')
       .andWhere('linkedUser.status NOT IN (:...userStatus)', {
-        userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED],
+        userStatus: [UserStatus.BLOCKED, UserStatus.DELETED],
       })
       .getRawMany<{ address: string }>();
 
@@ -119,7 +124,7 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
-      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DEACTIVATED] })
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
       })
@@ -128,7 +133,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
@@ -137,6 +142,7 @@ export class UserService {
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
     return UserDtoMapper.mapUser(userData, userId);
   }
@@ -151,96 +157,135 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
-  async createUser(
-    { address, signature, usedRef }: CreateUserDto,
-    userIp: string,
-    userOrigin?: string,
-    wallet?: Wallet,
-    discountCode?: string,
-  ): Promise<User> {
-    let user = this.userRepo.create({ address, signature });
+  async createUser({
+    userDetails: { address, signature, usedRef },
+    userIp,
+    userOrigin,
+    wallet,
+    specialCode,
+    userData,
+  }: {
+    userDetails: SignUpDto;
+    userIp: string;
+    userOrigin?: string;
+    wallet?: Wallet;
+    specialCode?: string;
+    userData?: UserData;
+  }): Promise<User> {
+    if ([UserDataStatus.BLOCKED, UserDataStatus.MERGED].includes(userData?.status))
+      throw new BadRequestException('UserData merged or blocked');
+
+    if (userData?.status === UserDataStatus.KYC_ONLY)
+      await this.userDataRepo.update(userData.id, { status: UserDataStatus.NA });
+
+    let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
+    const userIsActive = userData?.status === UserDataStatus.ACTIVE;
 
     user.ip = userIp;
     user.ipCountry = this.geoLocationService.getCountry(userIp);
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
+    userIsActive && (user.status = UserStatus.ACTIVE);
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
-    user.userData = await this.userDataService.createUserData({
-      kycType: user.wallet.customKyc ?? KycType.DFX,
-      language,
-      currency,
-    });
+    user.userData =
+      userData ??
+      (await this.userDataService.createUserData({
+        kycType: user.wallet.customKyc ?? KycType.DFX,
+        language,
+        currency,
+      }));
     user = await this.userRepo.save(user);
+    userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
       if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
+      this.logger.warn(`Error while adding specialCode to new user ${user.id}:`, e);
     }
 
     return user;
   }
 
-  async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+  async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     // update
-    user = await this.userRepo.save({ ...user, ...dto });
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
-    user.userData = update;
+    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
 
-    return { user: await this.toDto(user, true), isKnownUser };
+    return this.toDto(user, true);
   }
 
-  async updateUser(
-    userDataId: number,
-    dto: UpdateUserDto,
-    userId?: number,
-  ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
+  async updateUser(userDataId: number, dto: UpdateUserDto, userId?: number): Promise<UserV2Dto> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
+    const update = await this.userDataService.updateUserSettings(userData, dto);
 
-    return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
+    return UserDtoMapper.mapUser(update, userId);
+  }
+
+  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+
+    await this.userDataService.updateUserMail(userData, dto, ip);
+  }
+
+  async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+
+    const user = await this.userDataService.verifyUserMail(userData, token);
+
+    return UserDtoMapper.mapUser(user, userId);
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
     await this.userDataService.updateUserName(user.userData, dto);
   }
 
-  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
-    if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
-
-    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
-
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, {
-      mail: dto.mail,
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<UserDetailDto> {
+    const user = await this.userRepo.findOne({
+      where: { id },
+      relations: { userData: { users: true }, wallet: true },
     });
-    user.userData = update;
+    if (user.userData.kycLevel !== KycLevel.LEVEL_0 || (user.userData.mail && user.userData.mail !== dto.mail))
+      throw new BadRequestException('KYC already started, mail already set');
 
-    return { user: await this.toDto(user, true), isKnownUser };
+    user.userData = await this.userDataService.trySetUserMail(user.userData, dto.mail);
+    user.userData = await this.userDataService.updatePersonalData(user.userData, dto);
+
+    return this.toDto(user, true);
   }
 
-  async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
+  async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
+
+    if (update.status && update.status === UserStatus.BLOCKED)
+      await this.siftService.sendUserBlocked(user, update.comment);
+
+    if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
     return this.userRepo.save({ ...user, ...update });
   }
@@ -271,9 +316,9 @@ export class UserService {
     if (address) {
       const user = userData.users.find((u) => u.address === address);
       if (!user) throw new NotFoundException('Address not found');
-      if (user.isBlockedOrDeactivated) throw new BadRequestException('Address already deactivated');
+      if (user.isBlockedOrDeleted) throw new BadRequestException('Address already deleted or blocked');
 
-      await this.userRepo.update(...user.deactivateUser('Manual user deactivation'));
+      await this.userRepo.update(...user.deleteUser('Manual user deletion'));
       return;
     }
 
@@ -353,6 +398,8 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    bankIn: CardBankName | IbanBankName,
+    bankOut: CardBankName | IbanBankName,
     from: Active,
     to: Active,
   ): Promise<InternalFeeDto> {
@@ -366,8 +413,10 @@ export class UserService {
       from,
       to,
       txVolume: undefined,
-      discountCodes: [],
+      specialCodes: [],
       allowCachedBlockchainFee: true,
+      bankIn,
+      bankOut,
     });
   }
 
@@ -442,7 +491,7 @@ export class UserService {
   }
 
   async activateUser(user: User): Promise<void> {
-    await this.userRepo.activateUser(user);
+    await this.userRepo.update(...user.activateUser());
     await this.userDataRepo.activateUserData(user.userData);
   }
 
@@ -465,21 +514,6 @@ export class UserService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const user = await this.userRepo.findOneBy({ id: userId });
-    if (!user) throw new BadRequestException('User not found');
-    if (user.apiKeyCT) throw new ConflictException('API key already exists');
-
-    user.apiKeyCT = ApiKeyService.createKey(user.address);
-    user.apiFilterCT = ApiKeyService.getFilterCode(filter);
-
-    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiFilterCT: user.apiFilterCT });
-
-    const secret = ApiKeyService.getSecret(user);
-
-    return { key: user.apiKeyCT, secret: secret };
-  }
-
   async deleteApiKey(userId: number): Promise<void> {
     await this.userRepo.update(userId, { apiKeyCT: null });
   }
@@ -521,8 +555,8 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
-      apiKeyCT: user.apiKeyCT,
-      apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
+      apiKeyCT: user.userData?.apiKeyCT ?? user.apiKeyCT,
+      apiFilterCT: ApiKeyService.getFilterArray(user.userData?.apiFilterCT ?? user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };

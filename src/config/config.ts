@@ -3,11 +3,20 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
+import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
+import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -32,6 +41,8 @@ export class Configuration {
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
+  transactionRefundExpirySeconds = 30;
+  refRewardManualCheckLimit = 3000; //EUR
 
   defaults = {
     currency: 'EUR',
@@ -55,10 +66,14 @@ export class Configuration {
     },
   };
 
+  loginCountries = {
+    '1': ['CH'],
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 
-  apiKeyVersionCT = '0'; // single digit hex number
+  apiKeyVersionCT = '1'; // single digit hex number
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
@@ -100,8 +115,9 @@ export class Configuration {
   cardanoAddressFormat = 'stake[a-z0-9]{54}';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
+  railgunAddressFormat = '0zk[a-z0-9]{1,124}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -112,8 +128,9 @@ export class Configuration {
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
+  railgunSignatureFormat = '[a-f0-9]{128}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '[a-f0-9]{84}';
@@ -141,13 +158,13 @@ export class Configuration {
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
-    requestTimeout: 30000,
+    requestTimeout: 60000,
   };
 
   i18n: I18nOptions = {
     fallbackLanguage: this.defaults.language.toLowerCase(),
     loaderOptions: {
-      path: join(__dirname, '../shared/i18n/'),
+      path: join(process.cwd(), 'src/shared/i18n/'),
       watch: true,
     },
     resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
@@ -183,12 +200,17 @@ export class Configuration {
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
     reminderAfterDays: 2,
+    appToken: process.env.KYC_APP_TOKEN,
+    secretKey: process.env.KYC_SECRET_KEY,
+    webhookKey: process.env.KYC_WEBHOOK_KEY,
+    residencePermitCountries: ['RU'],
   };
 
   support = {
     limitRequest: {
       mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
       mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
+      mailAddressSupportStaff: process.env.LIMIT_REQUEST_SUPPORT_STAFF_MAIL,
       mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
     },
     blackSquad: {
@@ -235,7 +257,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: join(__dirname, '../subdomains/supporting/notification/templates'),
+        dir: join(process.cwd(), 'src/subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -255,11 +277,49 @@ export class Configuration {
     apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
+  financialLog = {
+    customAssets: process.env.CUSTOM_BALANCE_ASSETS?.split(';') ?? [], // asset uniqueName
+    customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
+  };
+
   payment = {
-    timeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
-    fee: 0.02,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    minVolume: 0.01, // CHF
+
+    defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+
+    defaultForexFee: 0.01,
+    addressForexFee: 0.02,
+    defaultQuoteTimeout: 300, // sec
+    addressQuoteTimeout: 7200, // sec
+
+    webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
+    webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
+      if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
+
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressForexFee;
+
+        default:
+          return this.payment.defaultForexFee;
+      }
+    },
+
+    quoteTimeout: (standard: PaymentStandard): number => {
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressQuoteTimeout;
+
+        default:
+          return this.payment.defaultQuoteTimeout;
+      }
+    },
   };
 
   blockchain = {
@@ -343,14 +403,14 @@ export class Configuration {
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
-      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
-      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
+      gasPrice: process.env.BSC_GAS_PRICE,
     },
     lightning: {
       lnbits: {
@@ -359,6 +419,8 @@ export class Configuration {
         lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
         lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
         lnurlwApiUrl: process.env.LIGHTNING_LNBITS_LNURLW_API_URL,
+        signingPrivKey: process.env.LIGHTNING_SIGNING_PRIV_KEY?.split('<br>').join('\n'),
+        signingPubKey: process.env.LIGHTNING_SIGNING_PUB_KEY?.split('<br>').join('\n'),
       },
       lnd: {
         apiUrl: process.env.LIGHTNING_LND_API_URL,
@@ -464,6 +526,7 @@ export class Configuration {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
     },
+    forexFee: 0.02,
   };
 
   giroCode = {
@@ -505,11 +568,100 @@ export class Configuration {
 
   sift = {
     apiKey: process.env.SIFT_API_KEY,
+    accountId: process.env.SIFT_ACCOUNT_ID,
+    analyst: process.env.SIFT_ANALYST,
   };
 
   checkout = {
     entityId: process.env.CKO_ENTITY_ID,
   };
+
+  downloadTargets = [
+    {
+      folderName: '01_Deckblatt',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('GwGFileDeckblatt'),
+    },
+    {
+      folderName: '02_Identifikationsdokument',
+      prefixes: (userData: UserData) => [
+        `user/${userData.id}/Identification`,
+        `spider/${userData.id}/online-identification`,
+        `spider/${userData.id}/video_identification`,
+      ],
+      fileTypes: [ContentType.PDF],
+    },
+    {
+      folderName: '03_Banktransaktion oder Videoident Tonspur',
+      prefixes: (userData: UserData) => {
+        switch (userData.identificationType) {
+          case KycIdentificationType.VIDEO_ID:
+            return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
+          case KycIdentificationType.ONLINE_ID:
+            return [`user/${userData.id}/UserNotes`];
+          default:
+            return [];
+        }
+      },
+      filter: (file: KycFile, userData: UserData) =>
+        (userData.identificationType === KycIdentificationType.VIDEO_ID &&
+          file.contentType.startsWith(ContentType.MP3)) ||
+        (userData.identificationType === KycIdentificationType.ONLINE_ID &&
+          file.name.includes('bankTransactionVerify') &&
+          file.contentType.startsWith(ContentType.PDF)),
+      handleFileNotFound: (zip: JSZip, userData: UserData) =>
+        userData.identificationType === KycIdentificationType.MANUAL
+          ? zip.file('03_nicht_benötigt_aufgrund_manueller_identifikation.txt', '')
+          : false,
+    },
+    {
+      folderName: '04_Identifizierungsformular',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
+    },
+    {
+      folderName: '05_Kundenprofil',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Kundenprofil'),
+    },
+    {
+      folderName: '06_Risikoprofil',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('Risikoprofil'),
+    },
+    {
+      folderName: '07_Formular A oder K',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
+        (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+    },
+    {
+      folderName: '08_Onboardingdokument',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.toLowerCase().includes('onboarding'),
+    },
+    {
+      folderName: '09_Blockchain Check',
+      prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile) => file.name.includes('blockchainAddressAnalyse'),
+    },
+    {
+      folderName: '10_Überprüfung der Wohnsitzadresse',
+      prefixes: (userData: UserData) => [`spider/${userData.id}/user-added-document`, `user/${userData.id}/UserNotes`],
+      fileTypes: [ContentType.PDF],
+      filter: (file: KycFile, userData: UserData) =>
+        (file.category === FileCategory.USER && file.name.includes('postversand')) ||
+        (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
+    },
+  ];
 
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {
@@ -545,6 +697,10 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
     };
+  }
+
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
   // --- HELPERS --- //

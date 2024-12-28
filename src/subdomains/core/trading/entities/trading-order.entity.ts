@@ -20,7 +20,7 @@ export class TradingOrder extends IEntity {
   price2: number; // current price
 
   @Column({ type: 'float', nullable: true })
-  price3: number; // check price
+  price3?: number; // check price
 
   @Column({ type: 'float' })
   priceImpact: number;
@@ -32,25 +32,34 @@ export class TradingOrder extends IEntity {
   assetOut: Asset;
 
   @Column({ type: 'float', nullable: true })
-  amountIn: number;
+  amountIn?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountExpected: number;
+  amountExpected?: number;
 
   @Column({ type: 'float', nullable: true })
-  amountOut: number;
+  amountOut?: number;
 
   @Column({ nullable: true })
-  txId: string;
+  txId?: string;
 
   @Column({ type: 'float', nullable: true })
-  feeAmount: number;
+  txFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  feeAmountChf: number;
+  txFeeAmountChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  swapFeeAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  swapFeeAmountChf?: number;
 
   @Column({ length: 'MAX', nullable: true })
-  errorMessage: string;
+  errorMessage?: string;
+
+  @Column({ type: 'float', nullable: true })
+  profitChf?: number;
 
   // --- FACTORY --- //
 
@@ -95,10 +104,20 @@ export class TradingOrder extends IEntity {
     return this;
   }
 
-  complete(outputAmount: number, feeAmount: number, feeAmountChf: number): this {
+  complete(
+    outputAmount: number,
+    txFeeAmount: number,
+    txFeeAmountChf: number,
+    swapFeeAmount: number,
+    swapFeeAmountChf: number,
+    profitChf: number,
+  ): this {
     this.amountOut = outputAmount;
-    this.feeAmount = feeAmount;
-    this.feeAmountChf = feeAmountChf;
+    this.txFeeAmount = txFeeAmount;
+    this.txFeeAmountChf = txFeeAmountChf;
+    this.swapFeeAmount = swapFeeAmount;
+    this.swapFeeAmountChf = swapFeeAmountChf;
+    this.profitChf = profitChf;
 
     this.status = TradingOrderStatus.COMPLETE;
 
@@ -110,5 +129,9 @@ export class TradingOrder extends IEntity {
     this.errorMessage = errorMessage;
 
     return this;
+  }
+
+  get feeAmountChf(): number {
+    return this.txFeeAmountChf;
   }
 }

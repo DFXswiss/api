@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column } from 'typeorm';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Column, Entity, ManyToOne } from 'typeorm';
 
 @Entity()
 export class IpLog extends IEntity {
@@ -10,11 +11,14 @@ export class IpLog extends IEntity {
   ip: string;
 
   @Column({ length: 256, nullable: true })
-  country: string;
+  country?: string;
 
   @Column({ length: 256 })
   url: string;
 
   @Column()
   result: boolean;
+
+  @ManyToOne(() => User, { nullable: true })
+  user?: User;
 }

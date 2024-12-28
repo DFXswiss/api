@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { isAsset, isFiat } from 'src/shared/models/active';
 import { Util } from 'src/shared/utils/util';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { BankAdapter } from '../adapters/balances/bank.adapter';
 import { BlockchainAdapter } from '../adapters/balances/blockchain.adapter';
 import { ExchangeAdapter } from '../adapters/balances/exchange.adapter';
@@ -42,7 +43,14 @@ export class LiquidityBalanceIntegrationFactory {
   private getAdapterType(rule: LiquidityManagementRule): AdapterType {
     if (isAsset(rule.target)) {
       const blockchain = Object.values(Blockchain).find((b) => b.toString() === rule.context.toString());
-      return blockchain ? AdapterType.BLOCKCHAIN : AdapterType.EXCHANGE;
+      if (blockchain) return AdapterType.BLOCKCHAIN;
+
+      const bank = [...Object.values(IbanBankName), ...Object.values(CardBankName)].find(
+        (b) => b.toString() === rule.context.toString(),
+      );
+      if (bank) return AdapterType.BANK;
+
+      return AdapterType.EXCHANGE;
     }
 
     if (isFiat(rule.target)) {

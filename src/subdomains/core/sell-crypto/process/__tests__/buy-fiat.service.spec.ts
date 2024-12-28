@@ -5,9 +5,10 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
@@ -20,8 +21,7 @@ import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
-import { BuyFiatPreparationService } from '../services/buy-fiat-preparation.service';
-import { BuyFiatRegistrationService } from '../services/buy-fiat-registration.service';
+import { BuyFiatNotificationService } from '../services/buy-fiat-notification.service';
 import { BuyFiatService } from '../services/buy-fiat.service';
 
 enum MockBuyData {
@@ -41,14 +41,14 @@ describe('BuyFiatService', () => {
   let bankTxService: BankTxService;
   let fiatOutputService: FiatOutputService;
   let buyCryptoService: BuyCryptoService;
-  let buyFiatRegistrationService: BuyFiatRegistrationService;
   let webhookService: WebhookService;
   let fiatService: FiatService;
-  let buyFiatPreparationService: BuyFiatPreparationService;
   let transactionRequestService: TransactionRequestService;
   let bankDataService: BankDataService;
   let transactionService: TransactionService;
   let payInService: PayInService;
+  let userDataService: UserDataService;
+  let buyFiatNotificationService: BuyFiatNotificationService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -58,14 +58,14 @@ describe('BuyFiatService', () => {
     bankTxService = createMock<BankTxService>();
     fiatOutputService = createMock<FiatOutputService>();
     buyCryptoService = createMock<BuyCryptoService>();
-    buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
     webhookService = createMock<WebhookService>();
     fiatService = createMock<FiatService>();
-    buyFiatPreparationService = createMock<BuyFiatPreparationService>();
     transactionRequestService = createMock<TransactionRequestService>();
     bankDataService = createMock<BankDataService>();
     transactionService = createMock<TransactionService>();
     payInService = createMock<PayInService>();
+    userDataService = createMock<UserDataService>();
+    buyFiatNotificationService = createMock<BuyFiatNotificationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -78,14 +78,14 @@ describe('BuyFiatService', () => {
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
         { provide: WebhookService, useValue: webhookService },
         { provide: FiatService, useValue: fiatService },
-        { provide: BuyFiatPreparationService, useValue: buyFiatPreparationService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: BankDataService, useValue: bankDataService },
         { provide: TransactionService, useValue: transactionService },
         { provide: PayInService, useValue: payInService },
+        { provide: UserDataService, useValue: userDataService },
+        { provide: BuyFiatNotificationService, useValue: buyFiatNotificationService },
       ],
     }).compile();
 

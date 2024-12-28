@@ -7,6 +7,8 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { RegisterStrategy } from './base/register.strategy';
@@ -61,8 +63,7 @@ export class MoneroStrategy extends RegisterStrategy {
   }
 
   private async getNewEntries(lastCheckedBlockHeight: number): Promise<PayInEntry[]> {
-    const isHealthy = await this.payInMoneroService.isHealthy();
-    if (!isHealthy) throw new Error('Monero Node is unhealthy');
+    await this.payInMoneroService.checkHealthOrThrow();
 
     const transferInResults = await this.payInMoneroService.getTransactionHistory(lastCheckedBlockHeight);
     const relevantTransferInResults = this.filterByRelevantAddresses(this.getOwnAddresses(), transferInResults);
@@ -82,12 +83,19 @@ export class MoneroStrategy extends RegisterStrategy {
     const asset = await this.assetService.getMoneroCoin();
 
     return [...transferInResults].reverse().map((p) => ({
-      address: BlockchainAddress.create(p.address, this.blockchain),
+      senderAddresses: null,
+      receiverAddress: BlockchainAddress.create(p.address, this.blockchain),
       txId: p.txid,
-      txType: null,
+      txType: this.getTxType(p),
       blockHeight: p.height,
       amount: p.amount,
       asset,
     }));
+  }
+
+  private getTxType(transfer: MoneroTransferDto): PayInType | undefined {
+    return transfer.destinations?.some((d) => Util.equalsIgnoreCase(Config.payment.moneroAddress, d.address))
+      ? PayInType.PAYMENT
+      : PayInType.DEPOSIT;
   }
 }

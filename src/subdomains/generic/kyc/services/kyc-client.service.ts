@@ -9,13 +9,15 @@ import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { PaymentWebhookData } from '../../user/services/webhook/dto/payment-webhook.dto';
 import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
-import { ContentType, File, FileType, KycClientDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
-import { DocumentStorageService } from './integration/document-storage.service';
+import { FileType, KycClientDataDto, KycFile, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { ContentType } from '../enums/content-type.enum';
+import { FileCategory } from '../enums/file-category.enum';
+import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class KycClientService {
   constructor(
-    private readonly storageService: DocumentStorageService,
+    private readonly documentService: KycDocumentService,
     private readonly userService: UserService,
     private readonly walletService: WalletService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
@@ -58,7 +60,7 @@ export class KycClientService {
     const user = await this.userService.getUserByAddress(userAddress, { userData: true, wallet: true });
     if (!user || user.wallet.id !== walletId) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const allDocuments = await this.documentService.listUserFiles(user.userData.id);
 
     return Object.values(KycReportType)
       .map((type) => ({ type, info: this.getFileFor(type, allDocuments) }))
@@ -70,12 +72,14 @@ export class KycClientService {
     const user = await this.userService.getUserByAddress(userAddress, { userData: true, wallet: true });
     if (!user || user.wallet.id !== walletId) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const allDocuments = await this.documentService.listUserFiles(user.userData.id);
 
     const document = this.getFileFor(type, allDocuments);
     if (!document) throw new NotFoundException('File not found');
 
-    return this.storageService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+    return this.documentService
+      .downloadFile(FileCategory.USER, user.userData.id, document.type, document.name)
+      .then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //
@@ -99,7 +103,7 @@ export class KycClientService {
     });
   }
 
-  private getFileFor(type: KycReportType, documents: File[]): File | undefined {
+  private getFileFor(type: KycReportType, documents: KycFile[]): KycFile | undefined {
     switch (type) {
       case KycReportType.IDENTIFICATION:
         return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);
@@ -116,7 +120,7 @@ export class KycClientService {
     };
   }
 
-  private toKycFileDto(type: KycReportType, { contentType }: File): KycReportDto {
+  private toKycFileDto(type: KycReportType, { contentType }: KycFile): KycReportDto {
     return { type, contentType };
   }
 }

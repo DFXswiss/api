@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Util } from '../utils/util';
 
@@ -17,25 +18,25 @@ export class ApiKeyService {
   };
 
   // --- SECRET HANDLING --- //
-  public static getSecret(user: User): string {
+  public static getSecret(user: User | UserData): string {
     if (!user.apiKeyCT) throw new BadRequestException('API key is null');
     return Util.createHash(user.apiKeyCT + user.created, 'sha256').toUpperCase();
   }
 
-  public static getSign(user: User, timestamp: string): string {
+  public static getSign(user: User | UserData, timestamp: string): string {
     const secret = this.getSecret(user);
     return Util.createHash(secret + timestamp, 'sha256').toUpperCase();
   }
 
-  public static isValidSign(user: User, sign: string, timestamp: string): boolean {
+  public static isValidSign(user: User | UserData, sign: string, timestamp: string): boolean {
     const userSign = this.getSign(user, timestamp);
 
     return sign.toUpperCase() == userSign && Util.daysDiff(new Date(timestamp)) <= 1;
   }
 
   // --- KEY HANDLING --- //
-  public static createKey(address: string): string {
-    const hash = Util.createHash(Util.createHash(address + new Date().toISOString(), 'sha256'), 'md5').toUpperCase();
+  public static createKey(id: number): string {
+    const hash = Util.createHash(Util.createHash(`${id}` + new Date().toISOString(), 'sha256'), 'md5').toUpperCase();
     return hash.substring(0, hash.length - this.versionLength) + Config.apiKeyVersionCT;
   }
 

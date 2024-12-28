@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -14,9 +24,12 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
+import { TransactionDtoMapper } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
+import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -79,7 +92,7 @@ export class SwapController {
       sourceAsset,
       targetAsset,
       targetAmount,
-      discountCode,
+      specialCode,
     } = await this.paymentInfoService.swapCheck(dto);
 
     const {
@@ -104,7 +117,7 @@ export class SwapController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
-      discountCode ? [discountCode] : [],
+      specialCode ? [specialCode] : [],
     );
 
     return {
@@ -140,6 +153,22 @@ export class SwapController {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     ).then((crypto) => this.toPaymentInfoDto(jwt.user, crypto, dto));
+  }
+
+  @Put('/paymentInfos/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse({ type: TransactionDto })
+  async confirmSwap(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ConfirmDto,
+  ): Promise<TransactionDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    return this.swapService.confirmSwap(request, dto).then((tx) => TransactionDtoMapper.mapBuyCryptoTransaction(tx));
   }
 
   @Put(':id')
@@ -180,6 +209,8 @@ export class SwapController {
       userId,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
+      undefined,
       await this.assetService.getNativeAsset(defaultBlockchain),
       swap.asset,
     );
@@ -189,7 +220,7 @@ export class SwapController {
       volume: swap.volume,
       annualVolume: swap.annualVolume,
       active: swap.active,
-      deposit: DepositDtoMapper.entityToDto(swap.deposit),
+      deposit: swap.active ? DepositDtoMapper.entityToDto(swap.deposit) : undefined,
       asset: AssetDtoMapper.toDto(swap.asset),
       blockchain: swap.deposit.blockchainList[0],
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
@@ -233,7 +264,7 @@ export class SwapController {
       timestamp,
       routeId: swap.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: swap.deposit.address,
+      depositAddress: swap.active ? swap.deposit.address : undefined,
       blockchain: dto.sourceAsset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
@@ -252,12 +283,9 @@ export class SwapController {
       sourceAsset: AssetDtoMapper.toDto(dto.sourceAsset),
       maxVolume,
       maxVolumeTarget,
-      paymentRequest: await this.cryptoService.getPaymentRequest(
-        isValid,
-        dto.sourceAsset,
-        swap.deposit.address,
-        amount,
-      ),
+      paymentRequest: swap.active
+        ? await this.cryptoService.getPaymentRequest(isValid, dto.sourceAsset, swap.deposit.address, amount)
+        : undefined,
       isValid,
       error,
     };

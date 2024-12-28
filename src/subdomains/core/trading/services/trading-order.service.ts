@@ -1,5 +1,7 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { Config } from 'src/config/config';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -32,7 +34,7 @@ export class TradingOrderService implements OnModuleInit {
   constructor(
     private readonly dexService: DexService,
     private readonly notificationService: NotificationService,
-    private readonly evmRegistryService: EvmRegistryService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly liquidityService: LiquidityManagementService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
@@ -48,6 +50,17 @@ export class TradingOrderService implements OnModuleInit {
   async processOrders() {
     await this.startNewOrders();
     await this.checkRunningOrders();
+  }
+
+  async getTradingOrderYield(from: Date): Promise<{ profit: number; fee: number }> {
+    const { profit, fee } = await this.orderRepo
+      .createQueryBuilder('tradingOrder')
+      .select('SUM(profitChf)', 'profit')
+      .addSelect('SUM(txFeeAmountChf)', 'fee')
+      .where('created >= :from', { from })
+      .getRawOne<{ profit: number; fee: number }>();
+
+    return { profit: profit ?? 0, fee: fee ?? 0 };
   }
 
   // --- HELPER METHODS --- //
@@ -109,7 +122,10 @@ export class TradingOrderService implements OnModuleInit {
 
       throw new WaitingForLiquidityException(`Waiting for liquidity of ${order.assetIn.uniqueName}`);
     } else {
-      liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
+      const adaptedAmount = Math.min(order.amountIn, availableAmount);
+
+      order.amountExpected = Util.round((order.amountExpected * adaptedAmount) / order.amountIn, 8);
+      liquidityRequest.referenceAmount = order.amountIn = adaptedAmount;
     }
 
     await this.dexService.reserveLiquidity(liquidityRequest);
@@ -120,7 +136,7 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
-    const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
 
     order.txId = await client.swapPool(
       order.assetIn,
@@ -142,7 +158,7 @@ export class TradingOrderService implements OnModuleInit {
 
   private async checkOrder(order: TradingOrder): Promise<void> {
     try {
-      const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
+      const client = this.blockchainRegistryService.getClient(order.assetIn.blockchain);
 
       const isComplete = await client.isTxComplete(order.txId);
 
@@ -155,14 +171,26 @@ export class TradingOrderService implements OnModuleInit {
   private async handleOrderCompletion(order: TradingOrder): Promise<void> {
     await this.closeReservation(order);
 
-    const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
+    const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
+
     const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
-    const fee = await client.getTxActualFee(order.txId);
+    const txFee = await client.getTxActualFee(order.txId);
+    const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
 
     const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
-    const chfPrice = await this.pricingService.getPrice(coin, this.chf, true);
+    const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
+    const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
+    const outChfPrice = await this.pricingService.getPrice(order.assetOut, this.chf, true);
 
-    order.complete(outputAmount, fee, chfPrice.convert(fee));
+    order.complete(
+      outputAmount,
+      txFee,
+      coinChfPrice.convert(txFee),
+      swapFee,
+      inChfPrice.convert(swapFee),
+      outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
+        inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
+    );
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();

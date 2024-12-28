@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
-import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -109,12 +109,16 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
           this.logger.verbose(
             `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
           );
-          const id = await this.updateOrderPrice(order, price).catch((e) =>
-            this.logger.error(`Failed to update price of order ${order.id}:`, e),
-          );
-          this.logger.verbose(`Order ${order.id} changed to ${id}`);
+          const id = await this.updateOrderPrice(order, price).catch((e: ExchangeError) => {
+            this.logger.error(`Failed to update price of order ${order.id}:`, e);
 
-          if (id) throw new TradeChangedException(id);
+            if (e.message.includes('Not enough leaves qty')) throw e;
+          });
+
+          if (id) {
+            this.logger.verbose(`Order ${order.id} changed to ${id}`);
+            throw new TradeChangedException(id);
+          }
         } else {
           this.logger.verbose(`Order ${order.id} open, price is still ${price}`);
         }
@@ -248,7 +252,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const balance = await this.getBalance(from);
     if (amount > balance) {
       throw new BadRequestException(
-        `${this.name}: there is not enough balance on for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
+        `${this.name}: not enough balance for ${from} (balance: ${balance}, requested: ${amount})`,
       );
     }
 

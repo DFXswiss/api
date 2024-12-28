@@ -7,7 +7,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { LimitRequestDecision } from '../entities/limit-request.entity';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
 
@@ -28,14 +28,11 @@ export class LimitRequestNotificationService {
   }
 
   private async limitRequestAcceptedManual(): Promise<void> {
-    const entities = await this.limitRequestRepo.find({
-      where: {
-        mailSendDate: IsNull(),
-        decision: LimitRequestDecision.ACCEPTED,
-        clerk: Not(IsNull()),
-        edited: Not(IsNull()),
-      },
-      relations: ['userData'],
+    const entities = await this.limitRequestRepo.findBy({
+      mailSendDate: IsNull(),
+      decision: In([LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED]),
+      clerk: Not(IsNull()),
+      edited: Not(IsNull()),
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'limit-request accepted' email(s)`);
@@ -60,8 +57,8 @@ export class LimitRequestNotificationService {
                   params: {
                     limitAmount:
                       entity.userData.language.symbol === 'DE'
-                        ? entity.limit.toLocaleString('de-DE')
-                        : entity.limit.toLocaleString('en-US'),
+                        ? entity.userData.depositLimit.toLocaleString('de-DE')
+                        : entity.userData.depositLimit.toLocaleString('en-US'),
                   },
                 },
                 { key: MailKey.SPACE, params: { value: '4' } },
@@ -74,6 +71,7 @@ export class LimitRequestNotificationService {
                 },
               ],
               from: Config.support.limitRequest.mailAddress,
+              bcc: Config.support.limitRequest.mailAddressSupportStaff,
               displayName: Config.support.limitRequest.mailName,
               banner: Config.support.limitRequest.mailBanner,
             },

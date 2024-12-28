@@ -25,32 +25,32 @@ export enum PayoutOrderStatus {
 @Entity()
 @Index((p: PayoutOrder) => [p.context, p.correlationId], { unique: true })
 export class PayoutOrder extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   context: PayoutOrderContext;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   correlationId: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   chain: Blockchain;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  asset: Asset;
+  asset?: Asset;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amount: number;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   destinationAddress: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   status: PayoutOrderStatus;
 
   @Column({ length: 256, nullable: true })
-  transferTxId: string;
+  transferTxId?: string;
 
   @Column({ length: 256, nullable: true })
-  payoutTxId: string;
+  payoutTxId?: string;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   preparationFeeAsset?: Asset;
@@ -58,11 +58,17 @@ export class PayoutOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   preparationFeeAmount?: number;
 
+  @Column({ type: 'float', nullable: true })
+  preparationFeeAmountChf?: number;
+
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   payoutFeeAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
   payoutFeeAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  payoutFeeAmountChf?: number;
 
   pendingPreparation(transferTxId: string): this {
     this.transferTxId = transferTxId;
@@ -77,9 +83,14 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
-  recordPreparationFee(preparationFeeAsset: Asset, preparationFeeAmount: number): this {
+  recordPreparationFee(
+    preparationFeeAsset: Asset,
+    preparationFeeAmount: number,
+    preparationFeeAmountChf: number,
+  ): this {
     this.preparationFeeAsset = preparationFeeAsset;
     this.preparationFeeAmount = preparationFeeAmount;
+    this.preparationFeeAmountChf = preparationFeeAmountChf;
 
     return this;
   }
@@ -111,9 +122,10 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
-  recordPayoutFee(payoutFeeAsset: Asset, payoutFeeAmount: number): this {
+  recordPayoutFee(payoutFeeAsset: Asset, payoutFeeAmount: number, payoutFeeAmountChf: number): this {
     this.payoutFeeAsset = payoutFeeAsset;
     this.payoutFeeAmount = payoutFeeAmount;
+    this.payoutFeeAmountChf = payoutFeeAmountChf;
 
     return this;
   }
@@ -131,5 +143,9 @@ export class PayoutOrder extends IEntity {
       asset: this.payoutFeeAsset,
       amount: Util.round(this.payoutFeeAmount + this.preparationFeeAmount, 8),
     };
+  }
+
+  get feeAmountChf(): number {
+    return this.preparationFeeAmountChf + this.payoutFeeAmountChf;
   }
 }

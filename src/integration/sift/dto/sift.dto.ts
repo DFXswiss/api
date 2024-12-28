@@ -52,6 +52,12 @@ export enum PaymentType {
   WIRE_DEBIT = '$wire_debit',
 }
 
+export enum SiftDecisionSource {
+  MANUAL_REVIEW = 'MANUAL_REVIEW',
+  AUTOMATED_RULE = 'AUTOMATED_RULE',
+  CHARGEBACK = 'CHARGEBACK',
+}
+
 export enum PaymentGateway {
   ABRA = '$abra',
   ACAPTURE = '$acapture',
@@ -753,6 +759,14 @@ export enum DeclineCategory {
   OTHER = '$other',
 }
 
+export interface SiftDecision {
+  decision_id: string;
+  source: SiftDecisionSource;
+  analyst: string;
+  description?: string;
+  time?: number;
+}
+
 export interface SiftBase {
   $type?: EventType;
   $api_key?: string;
@@ -988,7 +1002,6 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: DeclineCategory.INVALID,
   [AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: DeclineCategory.INVALID,
   [AmlReason.BANK_NOT_ALLOWED]: DeclineCategory.RISKY,
-  [AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN]: DeclineCategory.OTHER,
   [AmlReason.COUNTRY_NOT_ALLOWED]: DeclineCategory.RISKY,
   [AmlReason.DAILY_LIMIT]: DeclineCategory.OTHER,
   [AmlReason.FEE_TOO_HIGH]: DeclineCategory.OTHER,
@@ -1008,6 +1021,11 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.CHF_ABROAD_TX]: DeclineCategory.INVALID,
   [AmlReason.ASSET_KYC_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.CARD_NAME_MISMATCH]: DeclineCategory.OTHER,
+  [AmlReason.USER_BLOCKED]: DeclineCategory.OTHER,
+  [AmlReason.USER_DATA_BLOCKED]: DeclineCategory.OTHER,
+  [AmlReason.USER_DELETED]: DeclineCategory.OTHER,
+  [AmlReason.VIDEO_IDENT_NEEDED]: DeclineCategory.OTHER,
+  [AmlReason.MISSING_LIQUIDITY]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

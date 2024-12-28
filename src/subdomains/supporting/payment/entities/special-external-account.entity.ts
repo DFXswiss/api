@@ -6,8 +6,13 @@ export enum SpecialExternalAccountType {
   BANNED_IBAN = 'BannedIban',
   BANNED_IBAN_BUY = 'BannedIbanBuy',
   BANNED_IBAN_SELL = 'BannedIbanSell',
+  BANNED_IBAN_AML = 'BannedIbanAml',
   BANNED_BIC = 'BannedBic',
+  BANNED_BIC_BUY = 'BannedBicBuy',
+  BANNED_BIC_SELL = 'BannedBicSell',
+  BANNED_BIC_AML = 'BannedBicAml',
   BANNED_MAIL = 'BannedMail',
+  BANNED_ACCOUNT_IBAN = 'BannedAccountIban',
 }
 
 @Entity()
@@ -16,13 +21,13 @@ export class SpecialExternalAccount extends IEntity {
   type: SpecialExternalAccountType;
 
   @Column({ length: 256, nullable: true })
-  name: string;
+  name?: string;
 
   @Column({ length: 256, nullable: true })
-  value: string;
+  value?: string;
 
   @Column({ length: 256, nullable: true })
-  comment: string;
+  comment?: string;
 
   // --- ENTITY METHODS --- //
 

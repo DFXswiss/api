@@ -26,8 +26,7 @@ export class PaymentInfoService {
 
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Asset not found');
-    if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
-      throw new BadRequestException('Asset blockchain mismatch');
+    if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
 
     if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
       if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable via Card');
@@ -41,6 +40,8 @@ export class PaymentInfoService {
         throw new BadRequestException(`Asset not buyable ${'paymentMethod' in dto ? 'via Bank' : ''}`);
     }
 
+    if ('discountCode' in dto) dto.specialCode = dto.discountCode;
+
     return dto;
   }
 
@@ -52,8 +53,7 @@ export class PaymentInfoService {
       dto.asset = await this.assetService.getAssetById(dto.asset.id);
       if (!dto.asset) throw new NotFoundException('Asset not found');
       if (!dto.asset.sellable) throw new BadRequestException('Asset not sellable');
-      if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
-        throw new BadRequestException('Asset blockchain mismatch');
+      if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
     }
 
     if ('blockchain' in dto) {
@@ -68,6 +68,8 @@ export class PaymentInfoService {
       throw new BadRequestException(
         'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
       );
+
+    if ('discountCode' in dto) dto.specialCode = dto.discountCode;
 
     return dto;
   }
@@ -92,8 +94,10 @@ export class PaymentInfoService {
     dto.targetAsset = await this.assetService.getAssetById(dto.targetAsset.id);
     if (!dto.targetAsset) throw new NotFoundException('Asset not found');
     if (!dto.targetAsset.buyable) throw new BadRequestException('Asset not buyable');
-    if (jwt && !jwt.blockchains.includes(dto.targetAsset.blockchain))
+    if (jwt && !dto.targetAsset.isBuyableOn(jwt.blockchains))
       throw new BadRequestException('Asset blockchain mismatch');
+
+    if ('discountCode' in dto) dto.specialCode = dto.discountCode;
 
     return dto;
   }

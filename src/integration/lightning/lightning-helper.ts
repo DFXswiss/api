@@ -86,6 +86,10 @@ export class LightningHelper {
     return `${Config.url()}/lnurlw/cb/${id}`;
   }
 
+  static createLnurldCallbackUrl(id: string, variable: string): string {
+    return `${Config.url()}/lnurld/cb/${id}/${variable}`;
+  }
+
   // --- LNURL --- //
   static encodeLnurl(str: string): string {
     return lnurlEncode(str).toUpperCase();
@@ -122,6 +126,13 @@ export class LightningHelper {
   static getPublicKeyOfInvoice(invoice: string): string {
     const decodedInvoice = bolt11Decode(invoice);
     return decodedInvoice.payeeNodeKey;
+  }
+
+  static getPaymentHashOfInvoice(invoice: string): string {
+    const decodedInvoice = bolt11Decode(invoice);
+
+    const paymentHashTag = decodedInvoice.tags.find((t) => t.tagName === 'payment_hash');
+    return (paymentHashTag?.data as string) ?? '';
   }
 
   // --- HELPER FUNCTIONS --- //

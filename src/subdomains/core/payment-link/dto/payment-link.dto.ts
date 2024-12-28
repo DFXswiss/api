@@ -1,23 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
-
-export enum PaymentLinkStatus {
-  ACTIVE = 'Active',
-  INACTIVE = 'Inactive',
-}
-
-export enum PaymentLinkPaymentStatus {
-  PENDING = 'Pending',
-  COMPLETED = 'Completed',
-  CANCELLED = 'Cancelled',
-  EXPIRED = 'Expired',
-}
-
-export enum PaymentLinkPaymentMode {
-  SINGLE = 'Single',
-  MULTIPLE = 'Multiple',
-}
+import { ErrorDto } from 'src/shared/dto/error.dto';
+import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
+import { PaymentLinkConfigDto } from './payment-link-config.dto';
+import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
 export type TransferMethod = Blockchain;
 
@@ -25,21 +11,56 @@ export interface TransferInfo {
   asset: string;
   amount: number;
   method: TransferMethod;
+  quoteUniqueId: string;
+  hex: string;
 }
 
-export interface PaymentLinkPayRequestDto {
+export interface TransferAmount {
+  method: TransferMethod;
+  minFee: number;
+  assets: TransferAmountAsset[];
+}
+
+export interface TransferAmountAsset {
+  asset: string;
+  amount: number;
+}
+
+export type RequestedAmountAsset = TransferAmountAsset;
+
+export interface PaymentLinkRequestDto {
+  displayName: string;
+  standard: PaymentStandard;
+  possibleStandards: PaymentStandard[];
+  displayQr: boolean;
+  recipient: PaymentLinkRecipientDto;
+}
+
+export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
   tag: string;
   callback: string;
   minSendable: number;
   maxSendable: number;
   metadata: string;
-  transferAmounts: TransferInfo[];
+  quote: {
+    id: string;
+    expiration: Date;
+    payment: string;
+  };
+  requestedAmount: RequestedAmountAsset;
+  transferAmounts: TransferAmount[];
 }
+
+export interface PaymentLinkPaymentErrorResponseDto extends PaymentLinkRequestDto, ErrorDto {}
 
 export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;
   uri: string;
+}
+
+export interface PaymentLinkHexResultDto {
+  txId: string;
 }
 
 export class PaymentLinkPaymentDto {
@@ -55,8 +76,8 @@ export class PaymentLinkPaymentDto {
   @ApiProperty()
   amount: number;
 
-  @ApiProperty({ type: FiatDto })
-  currency: FiatDto;
+  @ApiProperty()
+  currency: string;
 
   @ApiProperty({ enum: PaymentLinkPaymentMode })
   mode: PaymentLinkPaymentMode;
@@ -65,13 +86,19 @@ export class PaymentLinkPaymentDto {
   expiryDate: Date;
 
   @ApiProperty()
+  txCount: number;
+
+  @ApiProperty()
+  isConfirmed: boolean;
+
+  @ApiProperty()
   url: string;
 
   @ApiProperty()
   lnurl: string;
 }
 
-export class PaymentLinkDto {
+export class PaymentLinkBaseDto {
   @ApiProperty()
   id: number;
 
@@ -79,7 +106,10 @@ export class PaymentLinkDto {
   routeId: number;
 
   @ApiPropertyOptional()
-  externalId: string;
+  externalId?: string;
+
+  @ApiPropertyOptional()
+  webhookUrl?: string;
 
   @ApiProperty({ enum: PaymentLinkStatus })
   status: PaymentLinkStatus;
@@ -90,6 +120,19 @@ export class PaymentLinkDto {
   @ApiProperty()
   lnurl: string;
 
+  @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
+  recipient?: PaymentLinkRecipientDto;
+
+  @ApiPropertyOptional({ type: PaymentLinkConfigDto })
+  config?: PaymentLinkConfigDto;
+}
+
+export class PaymentLinkDto extends PaymentLinkBaseDto {
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto })
-  payment: PaymentLinkPaymentDto;
+  payment?: PaymentLinkPaymentDto;
+}
+
+export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
+  @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
+  payments?: PaymentLinkPaymentDto[];
 }

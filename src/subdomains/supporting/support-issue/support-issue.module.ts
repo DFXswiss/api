@@ -12,9 +12,9 @@ import { LimitRequestController } from './limit-request.controller';
 import { LimitRequestRepository } from './repositories/limit-request.repository';
 import { SupportIssueRepository } from './repositories/support-issue.repository';
 import { SupportMessageRepository } from './repositories/support-message.repository';
-import { LimitRequestJobService } from './services/limit-request-job.service';
 import { LimitRequestNotificationService } from './services/limit-request-notification.service';
 import { LimitRequestService } from './services/limit-request.service';
+import { SupportDocumentService } from './services/support-document.service';
 import { SupportIssueNotificationService } from './services/support-issue-notification.service';
 import { SupportIssueService } from './services/support-issue.service';
 import { SupportIssueController } from './support-issue.controller';
@@ -37,7 +37,7 @@ import { SupportIssueController } from './support-issue.controller';
     LimitRequestService,
     LimitRequestRepository,
     LimitRequestNotificationService,
-    LimitRequestJobService,
+    SupportDocumentService,
   ],
   exports: [SupportIssueService, LimitRequestService],
 })

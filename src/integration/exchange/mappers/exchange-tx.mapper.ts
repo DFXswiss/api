@@ -1,12 +1,14 @@
 import { Trade, Transaction } from 'ccxt';
-import { ExchangeTxDto, ExchangeTxType } from '../entities/exchange-tx.entity';
+import { ExchangeTxDto } from '../dto/exchange-tx.dto';
+import { ExchangeTxType } from '../entities/exchange-tx.entity';
+import { ExchangeName } from '../enums/exchange.enum';
 
 export class ExchangeTxMapper {
-  static mapDeposits(transactions: Transaction[], exchange: string): ExchangeTxDto[] {
+  static mapDeposits(transactions: Transaction[], exchange: ExchangeName): ExchangeTxDto[] {
     return transactions
       .filter((d) => d.type === 'deposit')
       .map((d) => ({
-        exchange: exchange,
+        exchange,
         type: ExchangeTxType.DEPOSIT,
         externalId: d.id,
         externalCreated: d.datetime ? new Date(d.datetime) : null,
@@ -23,11 +25,11 @@ export class ExchangeTxMapper {
       }));
   }
 
-  static mapWithdrawals(transactions: Transaction[], exchange: string): ExchangeTxDto[] {
+  static mapWithdrawals(transactions: Transaction[], exchange: ExchangeName): ExchangeTxDto[] {
     return transactions
       .filter((w) => w.type === 'withdrawal')
       .map((w) => ({
-        exchange: exchange,
+        exchange,
         type: ExchangeTxType.WITHDRAWAL,
         externalId: w.id,
         externalCreated: w.datetime ? new Date(w.datetime) : null,
@@ -44,9 +46,9 @@ export class ExchangeTxMapper {
       }));
   }
 
-  static mapTrades(trade: Trade[], exchange: string): ExchangeTxDto[] {
+  static mapTrades(trade: Trade[], exchange: ExchangeName): ExchangeTxDto[] {
     return trade.map((t) => ({
-      exchange: exchange,
+      exchange,
       type: ExchangeTxType.TRADE,
       externalId: t.id,
       externalCreated: t.datetime ? new Date(t.datetime) : null,

@@ -39,11 +39,11 @@ export class KycNotificationService {
         status: KycStepStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         userData: {
-          kycLevel: MoreThanOrEqual(0),
+          kycLevel: MoreThanOrEqual(0) && LessThan(50),
           status: In([UserDataStatus.NA, UserDataStatus.ACTIVE, UserDataStatus.KYC_ONLY]),
         },
       },
-      relations: ['userData'],
+      relations: { userData: true },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
@@ -154,8 +154,6 @@ export class KycNotificationService {
               texts: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
-                { key: MailKey.SPACE, params: { value: '4' } },
-                { key: `${MailTranslationKey.GENERAL}.happy_trading` },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
             },
@@ -169,40 +167,6 @@ export class KycNotificationService {
       await this.webhookService.kycChanged(userData);
     } catch (e) {
       this.logger.error(`Failed to send KYC success mail or KYC changed webhook ${userData.id}:`, e);
-    }
-  }
-
-  async sendIdentStartedMail(userData: UserData): Promise<void> {
-    try {
-      if (userData?.mail && !DisabledProcess(Process.KYC_MAIL)) {
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          context: MailContext.IDENT_STARTED,
-          input: {
-            userData,
-            title: `${MailTranslationKey.IDENT_STARTED}.title`,
-            salutation: { key: `${MailTranslationKey.IDENT_STARTED}.salutation` },
-            suffix: [
-              { key: MailKey.SPACE, params: { value: '1' } },
-              {
-                key: `${MailTranslationKey.IDENT_STARTED}.line1`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
-              },
-              {
-                key: `${MailTranslationKey.GENERAL}.button`,
-                params: {
-                  url: userData.kycUrl,
-                },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: `${MailTranslationKey.IDENT_STARTED}.line2`, params: { url: userData.kycVideoUrl } },
-              { key: MailKey.DFX_TEAM_CLOSING },
-            ],
-          },
-        });
-      }
-    } catch (e) {
-      this.logger.error(`Failed to send ident started mail ${userData.id}:`, e);
     }
   }
 }

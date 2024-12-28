@@ -21,7 +21,6 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -34,11 +33,12 @@ import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { SignInDto, SignUpDto } from './dto/auth-credentials.dto';
 import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -96,24 +96,35 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
+  async authenticate(dto: SignUpDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+
+    if (userData && existingUser && existingUser.userData.id !== userDataId) {
+      throw new ConflictException('Address already linked to another account');
+    }
+
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false).catch((e) => {
+      : this.doSignUp(dto, userIp, false, userData).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
           throw e;
         });
   }
 
-  async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signUp(dto: SignUpDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
     if (existingUser) throw new ConflictException('User already exists');
 
     return this.doSignUp(dto, userIp, isCustodial);
   }
 
-  private async doSignUp(dto: CreateUserDto, userIp: string, isCustodial: boolean) {
+  private async doSignUp(
+    dto: SignUpDto,
+    userIp: string,
+    isCustodial: boolean,
+    userData?: UserData,
+  ): Promise<AuthResponseDto> {
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
       dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
@@ -126,12 +137,19 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser(dto, userIp, ref?.origin, wallet, dto.discountCode);
+    const user = await this.userService.createUser({
+      userDetails: dto,
+      userIp,
+      userOrigin: ref?.origin,
+      wallet,
+      specialCode: dto.specialCode ?? dto.discountCode,
+      userData,
+    });
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signIn(dto: AuthCredentialsDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signIn(dto: SignInDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
 
@@ -147,8 +165,8 @@ export class AuthService {
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
-  private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
-    if (user.isBlockedOrDeactivated || user.userData.isBlockedOrDeactivated)
+  private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
+    if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new ConflictException('User is deactivated or blocked');
 
     const keyWalletId =
@@ -165,9 +183,10 @@ export class AuthService {
     }
 
     try {
-      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user, dto.discountCode);
+      if (dto.specialCode || dto.discountCode)
+        await this.feeService.addSpecialCodeUser(user, dto.specialCode ?? dto.discountCode);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
+      this.logger.warn(`Error while adding specialCode in user signIn ${user.id}:`, e);
     }
 
     await this.siftService.login(user, userIp);
@@ -179,7 +198,7 @@ export class AuthService {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
-        if (Config.environment !== Environment.LOC && !redirectUrl.host.endsWith('dfx.swiss'))
+        if (Config.environment !== Environment.LOC && !/^([\w-]*\.)*dfx.swiss$/.test(redirectUrl.host))
           throw new Error('Redirect URL not allowed');
       } catch (e) {
         throw new BadRequestException(e.message);
@@ -202,7 +221,7 @@ export class AuthService {
 
     // create random key
     const key = randomUUID();
-    const loginUrl = `${Config.url()}/auth/mail/redirect?code=${key}`;
+    const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
     this.mailKeyList.set(key, {
       created: new Date(),
@@ -250,8 +269,11 @@ export class AuthService {
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const account = await this.userDataService.getUserData(entry.userDataId);
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
+
+      if (account.isDeactivated)
+        await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);
@@ -261,7 +283,7 @@ export class AuthService {
     }
   }
 
-  private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
+  private async companySignIn(dto: SignInDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
@@ -285,7 +307,7 @@ export class AuthService {
   async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
-    if (user.isBlockedOrDeactivated || user.userData.isBlockedOrDeactivated)
+    if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new BadRequestException('User is deactivated or blocked');
     return { accessToken: this.generateUserToken(user, ip) };
   }
@@ -304,6 +326,16 @@ export class AuthService {
       defaultMessage: Config.auth.signMessageGeneral + address,
       fallbackMessage: Config.auth.signMessage + address,
     };
+  }
+
+  // --- VERIFY SIGN MESSAGES --- //
+
+  async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
+    const keyWallet = await this.walletService.getWithMasterKey(signature);
+
+    const isValid = keyWallet ? true : await this.cryptoService.verifySignature(message, address, signature);
+
+    return { isValid };
   }
 
   // --- HELPER METHODS --- //
@@ -352,7 +384,7 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  private generateUserToken(user: User, ip: string): string {
+  generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       user: user.id,
       address: user.address,
@@ -364,7 +396,7 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  private generateAccountToken(userData: UserData, ip: string): string {
+  generateAccountToken(userData: UserData, ip: string): string {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,

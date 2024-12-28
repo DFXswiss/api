@@ -9,7 +9,7 @@ export function txExplorerUrl(blockchain: Blockchain, txId: string): string | un
 
 export function assetExplorerUrl(asset: Asset): string | undefined {
   const explorerUrl = BlockchainExplorerUrls[asset.blockchain];
-  return asset.type === AssetType.COIN ? explorerUrl : `${explorerUrl}/${assetPaths(asset) ?? ''}`;
+  return asset.type === AssetType.TOKEN ? `${explorerUrl}/${assetPaths(asset) ?? ''}` : explorerUrl;
 }
 
 export function addressExplorerUrl(blockchain: Blockchain, address: string): string | undefined {
@@ -35,6 +35,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
+  [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -52,6 +53,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
+  [Blockchain.RAILGUN]: 'transaction',
 };
 
 function assetPaths(asset: Asset): string | undefined {

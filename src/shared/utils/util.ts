@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
+import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 
@@ -13,8 +13,12 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
 export class Util {
   // --- MATH --- //
-  static roundReadable(amount: number, isFiat: boolean): number {
-    return isFiat ? (amount < 0.01 ? this.round(amount, 2) : this.ceil(amount, 2)) : this.roundByPrecision(amount, 5);
+  static roundReadable(amount: number, isFiat: boolean, assetPrecision?: number): number {
+    return isFiat
+      ? amount < 0.01
+        ? this.round(amount, 2)
+        : this.ceil(amount, 2)
+      : this.roundByPrecision(amount, assetPrecision ?? 5);
   }
 
   static round(amount: number, decimals: number): number {
@@ -124,23 +128,31 @@ export class Util {
   static includesSameName(reference: string, testedName: string): boolean {
     if (!reference || !testedName) return false;
 
-    return this.removeSpecialChars(reference).includes(this.removeSpecialChars(testedName));
+    const referenceArray = this.removeSpecialChars(reference).split(' ');
+    const testedNameArray = this.removeSpecialChars(testedName).split(' ');
+
+    return testedNameArray.some((n) => referenceArray.includes(n));
   }
 
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
-      .replace(/[ìíîy]/g, 'i')
-      .replace(/[úûùü]/g, 'u')
-      .replace(/[áâåàä]/g, 'a')
-      .replace(/[éèê]/g, 'e')
-      .replace(/[öó]/g, 'o')
+      .replace(/[ýÿ]/g, 'y')
+      .replace(/[ìíîïyī]/g, 'i')
+      .replace(/[ùúûüū]/g, 'u')
+      .replace(/[àáâăåäãā]/g, 'a')
+      .replace(/[èéêëė]/g, 'e')
+      .replace(/[òóôöõō]/g, 'o')
       .replace(/ae/g, 'a')
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[çč]/g, 'c')
-      .replace(/[ß]/g, 's')
+      .replace(/[ł]/g, 'l')
+      .replace(/[f]/g, 'ph')
+      .replace(/[çčć]/g, 'c')
+      .replace(/[ßșšś]/g, 's')
+      .replace(/ss/g, 's')
+      .replace(/[žż]/g, 'z')
       .replace(/[\.]/g, '')
       .replace(/[-‘`´']/g, ' ');
   }
@@ -235,6 +247,14 @@ export class Util {
 
   static isoDateTime(date: Date): string {
     return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
+  }
+
+  static firstDayOfMonth(date = new Date()): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  static lastDayOfMonth(date = new Date()): Date {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
   }
 
   // --- ENCRYPTION --- //
@@ -409,10 +429,38 @@ export class Util {
     return `${prefix}_${hash.slice(0, length)}`;
   }
 
-  static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
+  static createSign(
+    data: BinaryLike,
+    key: KeyLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'base64',
+  ): string {
     const sign = createSign(algo);
     sign.update(data);
-    return sign.sign(key, 'base64');
+    return sign.sign(key, encoding);
+  }
+
+  static verifySign(
+    data: BinaryLike,
+    key: KeyLike,
+    signature: string,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'base64',
+  ): boolean {
+    const verify = createVerify(algo);
+    verify.update(data);
+    return verify.verify(key, signature, encoding);
+  }
+
+  static createHmac(
+    key: BinaryLike,
+    data: BinaryLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    const hmac = createHmac(algo, key);
+    hmac.update(data);
+    return hmac.digest(encoding);
   }
 
   static async retry<T>(
@@ -441,7 +489,9 @@ export class Util {
       throw validationResult;
     }
 
-    return new XMLParser({ ignoreAttributes: false }).parse(file);
+    return new XMLParser({ ignoreAttributes: false, numberParseOptions: { leadingZeros: false, hex: false } }).parse(
+      file,
+    );
   }
 
   static blankStart(value: string, visibleLength = 4): string {
@@ -454,7 +504,7 @@ export class Util {
   }
 
   static trimAll({ value }: TransformFnParams): string | undefined {
-    return value?.split(' ').join('');
+    return value?.replace(/ /g, '');
   }
 
   static trim({ value }: TransformFnParams): string | undefined {
@@ -487,7 +537,6 @@ export class Util {
   }
 
   static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
-    const enumKey = Object.keys(enumObj).find((k) => k.toLowerCase() === value?.toLowerCase());
-    return enumObj[enumKey as keyof T];
+    return Object.values(enumObj).find((e) => e.toLowerCase() === value?.toLowerCase());
   }
 }

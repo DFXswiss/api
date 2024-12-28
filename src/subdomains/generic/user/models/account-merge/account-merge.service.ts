@@ -13,7 +13,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
-import { AccountMerge } from './account-merge.entity';
+import { AccountMerge, MergeReason } from './account-merge.entity';
 import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
@@ -24,13 +24,14 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
-  async sendMergeRequest(master: UserData, slave: UserData): Promise<boolean> {
-    if (!slave.mail) return false;
-    try {
-      master.checkIfMergePossibleWith(slave);
-    } catch {
-      return false;
-    }
+  async sendMergeRequest(
+    master: UserData,
+    slave: UserData,
+    reason: MergeReason,
+    sendToSlave = false,
+  ): Promise<boolean> {
+    if (!master.isMergePossibleWith(slave)) return false;
+
     const request =
       (await this.accountMergeRepo.findOne({
         where: {
@@ -39,27 +40,34 @@ export class AccountMergeService {
           expiration: MoreThan(new Date()),
         },
         relations: { master: true, slave: true },
-      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave)));
+      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
 
+    const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
+    if (!receiver.mail) return false;
+
+    const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
     const url = this.buildConfirmationUrl(request.code);
+
     await this.notificationService.sendMail({
       type: MailType.USER,
       context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
-        userData: request.slave,
+        userData: receiver,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         prefix: [
           { key: MailKey.SPACE, params: { value: '3' } },
           {
             key: `${MailTranslationKey.GENERAL}.welcome`,
-            params: { name: request.master.organizationName ?? request.master.firstname },
+            params: { name },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           {
             key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
             params: { url, urlText: url },
           },
+          { key: MailKey.SPACE, params: { value: '2' } },
+          { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.closing` },
           { key: MailKey.SPACE, params: { value: '4' } },
         ],
         suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
@@ -78,12 +86,20 @@ export class AccountMergeService {
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
-    await this.userDataService.mergeUserData(request.master.id, request.slave.id);
+    const [master, slave] = this.masterFirst([request.master, request.slave]);
 
-    return this.accountMergeRepo.save(request.complete());
+    await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+
+    await this.accountMergeRepo.update(...request.complete(master, slave));
+
+    return request;
+  }
+
+  masterFirst(users: UserData[]): UserData[] {
+    return users.sort((a, b) => b.kycLevel - a.kycLevel);
   }
 
   private buildConfirmationUrl(code: string): string {
-    return `${Config.url()}/auth/mail/confirm?code=${code}`;
+    return `${Config.frontend.services}/account-merge?otp=${code}`;
   }
 }

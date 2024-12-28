@@ -1,10 +1,18 @@
 import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInConfirmationType,
+  PayInStatus,
+} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -29,14 +37,19 @@ export enum SendType {
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
+  protected chf: Fiat;
 
   @Inject() private readonly priceProvider: PricingService;
   @Inject() private readonly payoutService: PayoutService;
   @Inject(forwardRef(() => TransactionHelper)) private readonly transactionHelper: TransactionHelper;
   @Inject() private readonly registry: SendStrategyRegistry;
+  @Inject() private readonly fiatService: FiatService;
+  @Inject() protected readonly pricingService: PricingService;
+  @Inject() protected readonly assetService: AssetService;
 
   onModuleInit() {
     this.registry.add({ blockchain: this.blockchain, assetType: this.assetType }, this);
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
   }
 
   onModuleDestroy() {
@@ -45,24 +58,32 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
   abstract get blockchain(): Blockchain;
   abstract get assetType(): AssetType;
+  abstract get forwardRequired(): boolean;
 
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
-  abstract checkConfirmations(payIns: CryptoInput[]): Promise<void>;
+  abstract checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void>;
 
   protected abstract getForwardAddress(): BlockchainAddress;
 
-  protected updatePayInWithSendData(
+  protected async updatePayInWithSendData(
     payIn: CryptoInput,
     type: SendType,
     outTxId: string,
     feeAmount: number = null,
-  ): CryptoInput | null {
+  ): Promise<CryptoInput | null> {
     switch (type) {
       case SendType.FORWARD:
-        return payIn.forward(outTxId, feeAmount);
+        const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
+        const feeAmountChf = feeAmount
+          ? await this.pricingService
+              .getPrice(feeAsset, this.chf, true)
+              .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+          : null;
+
+        return payIn.forward(outTxId, feeAmount, feeAmountChf);
 
       case SendType.RETURN:
-        return payIn.return(outTxId);
+        return payIn.return(outTxId, feeAmount);
 
       default:
         this.logger.warn(`Unsupported SendType for updating with send data for pay-in ${payIn.id}`);
@@ -89,8 +110,12 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     return this.transactionHelper.getBlockchainFee(asset, true);
   }
 
-  protected async getEstimatedFee(asset: Asset, amount: number): Promise<{ nativeFee: number; targetFee: number }> {
-    const nativeFee = await this.payoutService.estimateFee(asset, this.getForwardAddress().address, amount, asset);
+  protected async getEstimatedFee(
+    asset: Asset,
+    amount: number,
+    targetAddress: string,
+  ): Promise<{ nativeFee: number; targetFee: number }> {
+    const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
     const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
 
     return { nativeFee: nativeFee.amount, targetFee };

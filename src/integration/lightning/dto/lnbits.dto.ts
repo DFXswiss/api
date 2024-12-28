@@ -1,3 +1,5 @@
+import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+
 export interface LnBitsWalletDto {
   id: string;
   name: string;
@@ -14,6 +16,10 @@ export interface LnBitsWalletPaymentParamsDto {
   memo: string;
   expirySec: number;
   webhook: string;
+  extra: {
+    link: string;
+    signature: string;
+  };
 }
 
 export interface LnBitsWalletPaymentDto {
@@ -34,7 +40,12 @@ export interface LnBitsTransactionDto {
   preimage: string;
   payment_hash: string;
   expiry: number;
-  extra: any;
+  extra: {
+    tag: string;
+    link: string;
+    extra: string;
+    signature: string;
+  };
   wallet_id: string;
   webhook: string;
   webhook_status: string;
@@ -42,5 +53,10 @@ export interface LnBitsTransactionDto {
 
 export interface LnBitsTransactionWebhookDto {
   uniqueId: string;
-  transaction: LnBitsTransactionDto;
+  transaction: {
+    txType: PayInType;
+    paymentHash: string;
+    amount: number;
+    lnurlp: string;
+  };
 }
