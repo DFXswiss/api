@@ -289,6 +289,7 @@ export class TransactionController {
       bankTx: true,
       bankTxReturn: true,
       user: { userData: true },
+      checkoutTx: true,
       buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: { route: { user: true } } },
     });
@@ -350,9 +351,10 @@ export class TransactionController {
         ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
         : 0;
 
-      const bankFeeAmount = transaction.targetEntity.cryptoInput
-        ? 0
-        : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
+      const bankFeeAmount =
+        transaction.targetEntity.cryptoInput || transaction.checkoutTx
+          ? 0
+          : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
 
       const totalFeeAmount = networkFeeAmount + bankFeeAmount;
 
