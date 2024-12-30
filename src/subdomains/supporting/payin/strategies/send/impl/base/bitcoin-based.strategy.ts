@@ -44,13 +44,13 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
       try {
         this.designateSend(payIn, type);
 
-        const { inputAssetFee } = await this.getEstimatedFee(
+        const { inputAssetFee, maxBlockchainFee } = await this.getEstimatedFee(
           payIn.asset,
           payIn.amount,
           payIn.destinationAddress.address,
         );
 
-        CryptoInput.verifyEstimatedFee(inputAssetFee, payIn.maxForwardFee, payIn.amount);
+        CryptoInput.verifyEstimatedFee(inputAssetFee, payIn.maxForwardFee, maxBlockchainFee, payIn.amount);
 
         const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn);
         await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);

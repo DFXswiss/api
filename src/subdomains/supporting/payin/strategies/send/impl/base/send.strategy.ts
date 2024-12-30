@@ -114,17 +114,21 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     asset: Asset,
     amount: number,
     targetAddress: string,
-  ): Promise<{ nativeFee: number; inputAssetFee: number }> {
+  ): Promise<{ nativeFee: number; inputAssetFee: number; maxBlockchainFee: number }> {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
-    const inputAssetFee = nativeFee.amount
-      ? await this.getFeeReferenceAmount(nativeFee.asset, nativeFee.amount, asset)
-      : 0;
+    const { referenceAmount: inputAssetFee, maxAmount: maxBlockchainFee } = nativeFee.amount
+      ? await this.getFeeAmounts(nativeFee.asset, nativeFee.amount, asset)
+      : { referenceAmount: 0, maxAmount: 0 };
 
-    return { nativeFee: nativeFee.amount, inputAssetFee };
+    return { nativeFee: nativeFee.amount, inputAssetFee, maxBlockchainFee };
   }
 
-  private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Active): Promise<number> {
+  private async getFeeAmounts(
+    fromAsset: Asset,
+    fromAmount: number,
+    toAsset: Active,
+  ): Promise<{ referenceAmount: number; maxAmount: number }> {
     const price = await this.priceProvider.getPrice(fromAsset, toAsset, true);
-    return price.convert(fromAmount, 8);
+    return { referenceAmount: price.convert(fromAmount, 8), maxAmount: price.convert(Config.maxBlockchainFee, 8) };
   }
 }

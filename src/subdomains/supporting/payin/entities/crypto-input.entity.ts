@@ -1,4 +1,3 @@
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -167,12 +166,17 @@ export class CryptoInput extends IEntity {
 
   //*** UTILITY METHODS ***//
 
-  static verifyEstimatedFee(estimatedFee: number, blockchainFee: number, totalAmount: number): void {
+  static verifyEstimatedFee(
+    estimatedFee: number,
+    blockchainFee: number,
+    maxBlockchainFee: number,
+    totalAmount: number,
+  ): void {
     if (estimatedFee == null) throw new Error('No fee estimation provided');
     if (blockchainFee == null) throw new Error('No blockchain fee provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, blockchainFee);
+    const maxFee = Math.max(maxBlockchainFee, blockchainFee);
 
     if (estimatedFee > maxFee) {
       const feePercent = Util.toPercent(estimatedFee / totalAmount);
