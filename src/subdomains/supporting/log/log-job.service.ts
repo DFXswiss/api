@@ -45,7 +45,7 @@ import {
   BalancesByFinancialType,
   BankExchangeType,
   ChangeLog,
-  ManualDebtPosition,
+  ManualLogPosition,
   TradingLog,
 } from './dto/log.dto';
 import { LogSeverity } from './log.entity';
@@ -220,8 +220,9 @@ export class LogJobService {
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
 
-    // debt balances
-    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
+    // manual balances
+    const manualDebtPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
+    const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
 
     // pending internal balances
     // db requests
@@ -318,8 +319,11 @@ export class LogJobService {
           0,
         );
 
+      const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0);
+      const liquidity =
+        (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
