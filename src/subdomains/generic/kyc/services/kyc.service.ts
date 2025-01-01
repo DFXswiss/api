@@ -891,14 +891,16 @@ export class KycService {
     if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
     if (
       !Util.isSameName(identStep.userData.surname, data.lastname) &&
-      !Util.isSameName(identStep.userData.surname, data.birthname)
+      !Util.isSameName(identStep.userData.surname, data.birthname) &&
+      (data.lastname || !Util.isSameName(identStep.userData.surname, data.firstname))
     )
       errors.push(KycError.LAST_NAME_NOT_MATCHING);
 
     if (
       (Util.isSameName(identStep.userData.firstname, data.lastname) ||
         Util.isSameName(identStep.userData.firstname, data.birthname)) &&
-      Util.isSameName(identStep.userData.surname, data.firstname)
+      Util.isSameName(identStep.userData.surname, data.firstname) &&
+      errors.some((e) => [KycError.FIRST_NAME_NOT_MATCHING, KycError.LAST_NAME_NOT_MATCHING].includes(e))
     )
       errors.push(KycError.REVERSED_NAMES);
 
