@@ -50,7 +50,15 @@ export class TransactionService {
     let entity = await this.getTransactionById(id);
     if (!entity) throw new Error('Transaction not found');
 
+    return this.updateInternal(entity, dto);
+  }
+
+  async updateInternal(
+    entity: Transaction,
+    dto: UpdateTransactionInternalDto | UpdateTransactionDto,
+  ): Promise<Transaction> {
     Object.assign(entity, dto);
+
     if (!(dto instanceof UpdateTransactionDto)) {
       entity.externalId = dto.request?.externalTransactionId;
 

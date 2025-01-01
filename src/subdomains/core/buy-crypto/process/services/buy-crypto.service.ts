@@ -128,6 +128,7 @@ export class BuyCryptoService {
     await this.createEntity(entity, {
       type: TransactionTypeInternal.BUY_CRYPTO,
       user: buy.user,
+      userData: buy.userData,
       resetMailSendDate: true,
     });
   }
@@ -165,6 +166,7 @@ export class BuyCryptoService {
     await this.createEntity(entity, {
       type: TransactionTypeInternal.BUY_CRYPTO,
       user: buy.user,
+      userData: buy.userData,
     });
   }
 
@@ -185,6 +187,7 @@ export class BuyCryptoService {
       {
         type: TransactionTypeInternal.CRYPTO_CRYPTO,
         user: swap.user,
+        userData: swap.userData,
       },
       request,
     );
@@ -601,7 +604,7 @@ export class BuyCryptoService {
 
     // transaction
     request = await this.getAndCompleteTxRequest(entity, request);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
+    entity.transaction = await this.transactionService.updateInternal(entity.transaction, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
 
