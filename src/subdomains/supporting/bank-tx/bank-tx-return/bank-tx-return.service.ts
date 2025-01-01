@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IsNull } from 'typeorm';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -23,7 +22,7 @@ export class BankTxReturnService {
     private readonly fiatOutputService: FiatOutputService,
   ) {}
 
-  async create(bankTx: BankTx, userData?: UserData): Promise<BankTxReturn> {
+  async create(bankTx: BankTx): Promise<BankTxReturn> {
     let entity = await this.bankTxReturnRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
@@ -31,7 +30,7 @@ export class BankTxReturnService {
       type: TransactionTypeInternal.BANK_TX_RETURN,
     });
 
-    entity = this.bankTxReturnRepo.create({ bankTx, transaction, userData });
+    entity = this.bankTxReturnRepo.create({ bankTx, transaction, userData: bankTx.transaction.userData });
 
     return this.bankTxReturnRepo.save(entity);
   }
@@ -70,7 +69,7 @@ export class BankTxReturnService {
   async refundBankTxReturn(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
     const bankTxReturn = await this.bankTxReturnRepo.findOne({
       where: { id: buyCryptoId },
-      relations: { transaction: { user: { userData: true } }, bankTx: true },
+      relations: { transaction: { userData: true }, bankTx: true },
     });
 
     if (!bankTxReturn) throw new NotFoundException('BankTxReturn not found');

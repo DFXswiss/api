@@ -202,7 +202,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         chargebackOutput: true,
         bankData: true,
       },
@@ -301,7 +301,7 @@ export class BuyCryptoService {
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
-      await this.userService.activateUser(entity.user);
+      await this.userService.activateUser(entity.user, entity.userData);
     }
 
     // create sift transaction
@@ -330,7 +330,7 @@ export class BuyCryptoService {
       relations: {
         checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
 

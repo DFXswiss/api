@@ -276,11 +276,11 @@ export class UserService {
   }
 
   async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!user) throw new NotFoundException('User not found');
 
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
-      await this.activateUser(user);
+      await this.activateUser(user, user.userData);
 
     if (update.status && update.status === UserStatus.BLOCKED)
       await this.siftService.sendUserBlocked(user, update.comment);
@@ -490,9 +490,9 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, Config.defaultVolumeDecimal) });
   }
 
-  async activateUser(user: User): Promise<void> {
+  async activateUser(user: User, userData: UserData): Promise<void> {
     await this.userRepo.update(...user.activateUser());
-    await this.userDataRepo.activateUserData(user.userData);
+    await this.userDataRepo.activateUserData(userData);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
