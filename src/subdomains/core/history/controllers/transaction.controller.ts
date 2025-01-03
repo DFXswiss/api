@@ -328,6 +328,8 @@ export class TransactionController {
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+        inputAmount,
+        inputAsset: refundAsset,
         refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, true),
         fee: {
           network: 0,
@@ -347,6 +349,10 @@ export class TransactionController {
       if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
 
+      const inputAmount = transaction.bankTx
+        ? transaction.bankTx.amount + transaction.bankTx.chargeAmount
+        : transaction.targetEntity.inputAmount;
+
       const networkFeeAmount = transaction.targetEntity.cryptoInput
         ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
         : 0;
@@ -358,12 +364,11 @@ export class TransactionController {
 
       const totalFeeAmount = networkFeeAmount + bankFeeAmount;
 
-      if (totalFeeAmount >= transaction.targetEntity.inputAmount)
-        throw new BadRequestException('Transaction fee is too expensive');
+      if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
       const refundAsset = transaction.targetEntity.cryptoInput?.asset
         ? AssetDtoMapper.toDto(transaction.targetEntity.cryptoInput?.asset)
-        : FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputAsset));
+        : FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.targetEntity.inputReferenceAsset));
 
       let refundTarget = null;
 
@@ -383,10 +388,9 @@ export class TransactionController {
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-        refundAmount: Util.roundReadable(
-          transaction.targetEntity.inputAmount - totalFeeAmount,
-          !transaction.targetEntity.cryptoInput,
-        ),
+        inputAmount,
+        inputAsset: refundAsset,
+        refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, !transaction.targetEntity.cryptoInput),
         fee: {
           network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
           bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
