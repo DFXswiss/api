@@ -114,8 +114,8 @@ export class SumsubService {
       `/resources/accessTokens?userId=${transactionId}&levelName=${
         kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelAuto : this.kycLevelVideo
       }&ttlInSecs=${expirySecs}`,
-      undefined,
       'POST',
+      undefined,
     );
   }
 
