@@ -136,20 +136,23 @@ export class MailFactory {
 
   private createUserMail(request: MailRequest): UserMail {
     const { correlationId, options } = request;
-    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
+    const { userData, wallet, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
 
     const lang = userData.language.symbol;
 
-    return new UserMail({
-      to: userData.mail,
-      subject: this.translate(title, lang),
-      salutation: salutation && this.translate(salutation.key, lang, salutation.params),
-      prefix: prefix && this.getMailAffix(prefix, lang),
-      table: table && this.getTable(table, lang),
-      suffix: suffix && this.getMailAffix(suffix, lang),
-      correlationId,
-      options,
-    });
+    return new UserMail(
+      {
+        to: userData.mail,
+        subject: this.translate(title, lang),
+        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
+        prefix: prefix && this.getMailAffix(prefix, lang),
+        table: table && this.getTable(table, lang),
+        suffix: suffix && this.getMailAffix(suffix, lang),
+        correlationId,
+        options,
+      },
+      wallet,
+    );
   }
 
   private createPersonalMail(request: MailRequest): PersonalMail {

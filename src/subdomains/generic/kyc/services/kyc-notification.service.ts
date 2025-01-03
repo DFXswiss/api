@@ -43,7 +43,7 @@ export class KycNotificationService {
           status: In([UserDataStatus.NA, UserDataStatus.ACTIVE, UserDataStatus.KYC_ONLY]),
         },
       },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
@@ -58,6 +58,7 @@ export class KycNotificationService {
             context: MailContext.KYC_REMINDER,
             input: {
               userData: entity.userData,
+              wallet: entity.userData.wallet,
               title: `${MailTranslationKey.KYC_REMINDER}.title`,
               salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
               suffix: [
@@ -99,7 +100,8 @@ export class KycNotificationService {
           type: MailType.USER,
           context: MailContext.KYC_FAILED,
           input: {
-            userData: userData,
+            userData,
+            wallet: userData.wallet,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
             suffix: [
@@ -149,6 +151,7 @@ export class KycNotificationService {
             context: MailContext.KYC_CHANGED,
             input: {
               userData,
+              wallet: userData.wallet,
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,
               salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
               suffix: [

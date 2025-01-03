@@ -35,7 +35,7 @@ export class RefRewardNotificationService {
         targetAddress: Not(IsNull()),
         targetBlockchain: Not(IsNull()),
       },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: true, wallet: true } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'ref reward' email(s)`);
@@ -50,6 +50,7 @@ export class RefRewardNotificationService {
             context: MailContext.REF_REWARD,
             input: {
               userData: entity.user.userData,
+              wallet: entity.user.wallet,
               title: `${MailTranslationKey.REFERRAL}.title`,
               salutation: { key: `${MailTranslationKey.REFERRAL}.salutation` },
               table: {
