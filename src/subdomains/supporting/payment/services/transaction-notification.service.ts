@@ -45,7 +45,7 @@ export class TransactionNotificationService {
       relations: {
         buyCrypto: true,
         buyFiat: true,
-        user: { userData: true },
+        userData: true,
       },
     });
     if (entities.length === 0) return;

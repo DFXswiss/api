@@ -76,7 +76,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true, userData: { users: true } } },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         bankData: true,
       },
     });
@@ -191,7 +191,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           await this.buyCryptoNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
-          await this.userService.activateUser(entity.user);
+          await this.userService.activateUser(entity.user, entity.userData);
 
         // create sift transaction
         if (entity.amlCheck === CheckStatus.FAIL)

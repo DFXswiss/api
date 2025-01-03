@@ -473,11 +473,11 @@ export class BuyFiat extends IEntity {
   }
 
   get userData(): UserData {
-    return this.user.userData;
+    return this.transaction.userData;
   }
 
   set userData(userData: UserData) {
-    this.user.userData = userData;
+    this.transaction.userData = userData;
   }
 
   get noCommunication(): boolean {
