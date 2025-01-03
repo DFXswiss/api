@@ -3,6 +3,7 @@ import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/_
 import { User } from '../user.entity';
 
 const defaultUser: Partial<User> = {
+  id: 1,
   userData: createDefaultUserData(),
   wallet: createDefaultWallet(),
   address: 'ADDR_01',

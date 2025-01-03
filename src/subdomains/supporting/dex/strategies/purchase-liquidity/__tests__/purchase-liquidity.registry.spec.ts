@@ -100,7 +100,9 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       });
 
       it('gets BITCOIN strategy for BITCOIN Crypto', () => {
-        const strategy = registry.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.BITCOIN, type: AssetType.COIN }),
+        );
 
         expect(strategy).toBeInstanceOf(BitcoinStrategy);
       });
@@ -138,7 +140,9 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       });
 
       it('gets MONERO strategy for MONERO Crypto', () => {
-        const strategy = registry.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.MONERO }));
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.MONERO, type: AssetType.COIN }),
+        );
 
         expect(strategy).toBeInstanceOf(MoneroStrategy);
       });

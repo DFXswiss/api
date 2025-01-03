@@ -44,8 +44,8 @@ describe('LiquidityOrderFactory', () => {
 
     it('calls repo create(...) with correct parameters', () => {
       factory.createPurchaseOrder(
-        createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
-        Blockchain.DEFICHAIN,
+        createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'USDT' }) }),
+        Blockchain.ETHEREUM,
         AssetCategory.PUBLIC,
       );
 
@@ -54,16 +54,16 @@ describe('LiquidityOrderFactory', () => {
         type: LiquidityOrderType.PURCHASE,
         context: LiquidityOrderContext.BUY_CRYPTO,
         correlationId: 'CID_01',
-        chain: Blockchain.DEFICHAIN,
+        chain: Blockchain.ETHEREUM,
         referenceAsset: {
-          blockchain: 'DeFiChain',
+          blockchain: 'Ethereum',
           category: 'Public',
           dexName: 'BTC',
-          name: 'dTSLA',
-          type: 'Coin',
+          name: 'USDT',
+          type: 'Token',
         },
         referenceAmount: 1,
-        targetAsset: createCustomAsset({ dexName: 'TSLA' }),
+        targetAsset: createCustomAsset({ dexName: 'USDT' }),
       });
     });
   });
@@ -71,8 +71,8 @@ describe('LiquidityOrderFactory', () => {
   describe('#createReservationOrder(...)', () => {
     it('calls repo create(...) with correct parameters', () => {
       factory.createReservationOrder(
-        createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
-        Blockchain.DEFICHAIN,
+        createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'BTC' }) }),
+        Blockchain.ETHEREUM,
       );
 
       expect(repositoryCreateSpy).toBeCalledTimes(1);
@@ -80,16 +80,16 @@ describe('LiquidityOrderFactory', () => {
         type: LiquidityOrderType.RESERVATION,
         context: LiquidityOrderContext.BUY_CRYPTO,
         correlationId: 'CID_01',
-        chain: Blockchain.DEFICHAIN,
+        chain: Blockchain.ETHEREUM,
         referenceAsset: {
-          blockchain: 'DeFiChain',
+          blockchain: 'Ethereum',
           category: 'Public',
           dexName: 'BTC',
-          name: 'dTSLA',
-          type: 'Coin',
+          name: 'USDT',
+          type: 'Token',
         },
         referenceAmount: 1,
-        targetAsset: createCustomAsset({ dexName: 'TSLA' }),
+        targetAsset: createCustomAsset({ dexName: 'BTC' }),
       });
     });
   });

@@ -23,7 +23,7 @@ export class BankTxRepeatService {
     let entity = await this.bankTxRepeatRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
-    const transaction = await this.transactionService.update(bankTx.transaction.id, {
+    const transaction = await this.transactionService.updateInternal(bankTx.transaction, {
       type: TransactionTypeInternal.BANK_TX_REPEAT,
     });
 
@@ -67,11 +67,12 @@ export class BankTxRepeatService {
 
     // user
     if (dto.userId) {
-      const user = await this.userService.getUser(dto.userId);
+      const user = await this.userService.getUser(dto.userId, { userData: true });
       if (!user) throw new NotFoundException('User not found');
-      await this.transactionService.update(entity.transaction.id, {
+      await this.transactionService.updateInternal(entity.transaction, {
         type: TransactionTypeInternal.BANK_TX_REPEAT,
         user,
+        userData: user.userData,
       });
     }
 

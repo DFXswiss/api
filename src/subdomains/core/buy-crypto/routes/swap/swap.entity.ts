@@ -2,6 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Route } from 'src/subdomains/core/route/route.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
@@ -42,4 +43,10 @@ export class Swap extends DepositRoute {
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
   cryptoInputs: CryptoInput[];
+
+  // --- ENTITY METHODS --- //
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
 }
