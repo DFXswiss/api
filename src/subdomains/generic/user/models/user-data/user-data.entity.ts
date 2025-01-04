@@ -5,6 +5,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
+import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
@@ -274,6 +275,9 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   amlListReactivatedDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  amlListStatus?: AmlListStatus;
 
   @Column({ length: 256, nullable: true })
   internalAmlNote?: string;
