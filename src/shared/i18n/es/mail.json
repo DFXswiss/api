@@ -27,7 +27,8 @@
                 "title": "Asignar depósito",
                 "salutation": "Su depósito no puede asignarse automáticamente",
                 "transaction_button": "Por favor, asigne su depósito a su pedido:<br>[url:haga clic aquí]"
-            }
+            },
+            "currency_exchange": "Por cierto: La cuenta bancaria {bankAccount} es una cuenta {bankAsset}, si envías {inputAsset} este será canjeado directamente en el banco y recibiremos {bankAsset}.<br>Si es posible, envía {bankAsset} directamente a esta cuenta bancaria."
         },
         "crypto_output": {
             "title": "Criptoactivo pagado",

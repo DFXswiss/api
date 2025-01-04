@@ -27,7 +27,8 @@
                 "title": "Einzahlung zuordnen",
                 "salutation": "Deine Einzahlung kann nicht automatisch zugeordnet werden",
                 "transaction_button": "Bitte ordne deinen Zahlungseingang deiner Bestellung zu:<br>[url:Klick hier]"
-            }
+            },
+            "currency_exchange": "Übrigens: Das {bankAccount} Bankkonto ist ein {bankAsset}-Konto, wenn du {inputAsset} schickst wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>Wenn möglich schicke also direkt {bankAsset} zu diesem Bankkonto."
         },
         "crypto_output": {
             "title": "Krypto-Asset verschickt",

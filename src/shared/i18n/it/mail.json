@@ -27,7 +27,8 @@
                 "title": "Assegnazione del deposito",
                 "salutation": "Il vostro deposito non può essere assegnato automaticamente",
                 "transaction_button": "Si prega di assegnare il deposito all'ordine:<br>[url:clicca qui]"
-            }
+            },
+            "currency_exchange": "A proposito: il conto bancario {bankAccount} è un conto {bankAsset}, se inviate {inputAsset} questo sarà scambiato direttamente in banca e noi riceveremo {bankAsset}.<br>Se possibile, inviate {bankAsset} direttamente a questo conto bancario."
         },
         "crypto_output": {
             "title": "Attività in criptovaluta pagata",
