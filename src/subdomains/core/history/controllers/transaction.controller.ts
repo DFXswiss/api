@@ -360,7 +360,7 @@ export class TransactionController {
       const bankFeeAmount =
         transaction.targetEntity.cryptoInput || transaction.checkoutTx
           ? 0
-          : transaction.targetEntity.inputAmount - transaction.targetEntity.bankTx.amount;
+          : inputAmount - transaction.targetEntity.bankTx.amount;
 
       const totalFeeAmount = networkFeeAmount + bankFeeAmount;
 
@@ -388,7 +388,7 @@ export class TransactionController {
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-        inputAmount,
+        inputAmount: Util.roundReadable(inputAmount, !transaction.targetEntity.cryptoInput),
         inputAsset: refundAsset,
         refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, !transaction.targetEntity.cryptoInput),
         fee: {
