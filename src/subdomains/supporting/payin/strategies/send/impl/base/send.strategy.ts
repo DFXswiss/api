@@ -2,6 +2,7 @@ import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/commo
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { Active } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -14,7 +15,6 @@ import {
   PayInStatus,
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SendStrategyRegistry } from './send.strategy-registry';
@@ -114,19 +114,21 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     asset: Asset,
     amount: number,
     targetAddress: string,
-  ): Promise<{ nativeFee: number; targetFee: number }> {
+  ): Promise<{ nativeFee: number; inputAssetFee: number; maxBlockchainFee: number }> {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
-    const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
+    const { referenceAmount: inputAssetFee, maxAmount: maxBlockchainFee } = nativeFee.amount
+      ? await this.getFeeAmounts(nativeFee.asset, nativeFee.amount, asset)
+      : { referenceAmount: 0, maxAmount: 0 };
 
-    return { nativeFee: nativeFee.amount, targetFee };
+    return { nativeFee: nativeFee.amount, inputAssetFee, maxBlockchainFee };
   }
 
-  private async getFeeAmountInPayInAsset(asset: Asset, nativeFee: FeeResult): Promise<number> {
-    return nativeFee.amount ? this.getFeeReferenceAmount(nativeFee.asset, nativeFee.amount, asset) : 0;
-  }
-
-  private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
+  private async getFeeAmounts(
+    fromAsset: Asset,
+    fromAmount: number,
+    toAsset: Active,
+  ): Promise<{ referenceAmount: number; maxAmount: number }> {
     const price = await this.priceProvider.getPrice(fromAsset, toAsset, true);
-    return price.convert(fromAmount, 8);
+    return { referenceAmount: price.convert(fromAmount, 8), maxAmount: price.convert(Config.maxBlockchainFee, 8) };
   }
 }
