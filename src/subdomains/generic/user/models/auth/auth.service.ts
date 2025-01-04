@@ -174,7 +174,11 @@ export class AuthService {
 
     if (keyWalletId) {
       const wallet = await this.walletService.getByIdOrName(keyWalletId);
-      if (dto.signature !== wallet.masterKey) throw new UnauthorizedException('Invalid credentials');
+      if (
+        dto.signature !== wallet.masterKey &&
+        !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))
+      )
+        throw new UnauthorizedException('Invalid credentials');
     } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
       throw new UnauthorizedException('Invalid credentials');
     } else if (!user.signature) {
