@@ -301,6 +301,7 @@ export class FeeService implements OnModuleInit {
         bankFixed: 0,
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        wallet: specialFee.wallet,
       };
 
     // get min custom fee
@@ -318,6 +319,7 @@ export class FeeService implements OnModuleInit {
         bankFixed: 0,
         payoutRefBonus: customFee.payoutRefBonus,
         network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        wallet: customFee.wallet,
       };
 
     // get min base fee
@@ -356,11 +358,14 @@ export class FeeService implements OnModuleInit {
         bankFixed: combinedBankFixedFee,
         payoutRefBonus: true,
         network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        wallet: baseFee.wallet,
       };
     }
 
+    const usedFees = [baseFee, discountFee, ...additiveFees];
+
     return {
-      fees: [baseFee, discountFee, ...additiveFees].filter((e) => e != null),
+      fees: usedFees.filter((e) => e != null),
       rate: baseFee.rate + combinedExtraFeeRate,
       fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0),
       bankRate: combinedBankFeeRate,
@@ -379,6 +384,7 @@ export class FeeService implements OnModuleInit {
         ),
         Config.maxBlockchainFee,
       ),
+      wallet: usedFees.find((f) => f.wallet).wallet,
     };
   }
 

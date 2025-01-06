@@ -47,8 +47,13 @@ export class GetSellQuoteDto {
   @IsString()
   discountCode: string;
 
-  @ApiPropertyOptional({ description: 'Special code' })
+  @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCodes" instead.', deprecated: true })
   @IsOptional()
   @IsString()
   specialCode: string;
+
+  @ApiPropertyOptional({ description: 'Special codes' })
+  @IsOptional()
+  @IsString()
+  specialCodes: string;
 }

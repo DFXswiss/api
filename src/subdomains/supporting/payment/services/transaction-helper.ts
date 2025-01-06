@@ -292,6 +292,7 @@ export class TransactionHelper implements OnModuleInit {
       maxVolumeTarget: targetSpecs.volume.max ?? undefined,
       isValid: error == null,
       error,
+      wallet: fee.wallet,
     };
   }
 

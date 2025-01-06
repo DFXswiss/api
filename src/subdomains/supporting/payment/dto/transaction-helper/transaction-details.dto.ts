@@ -1,3 +1,4 @@
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { FeeDto } from '../fee.dto';
 import { QuoteError } from './quote-error.enum';
@@ -21,4 +22,5 @@ export interface TransactionDetails extends TargetEstimation {
   maxVolumeTarget: number;
   isValid: boolean;
   error?: QuoteError;
+  wallet: Wallet;
 }

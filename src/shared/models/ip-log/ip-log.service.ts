@@ -17,7 +17,7 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  async create(ip: string, url: string, address: string): Promise<IpLog> {
+  async create(ip: string, url: string, address: string, specialCode?: string): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
     const ipLog = this.ipLogRepo.create({
       ip,
@@ -26,6 +26,7 @@ export class IpLogService {
       url,
       address,
       user,
+      specialCode,
     });
 
     return this.ipLogRepo.save(ipLog);

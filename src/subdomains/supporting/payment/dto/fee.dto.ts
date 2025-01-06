@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Fee } from '../entities/fee.entity';
 
 export class BaseFeeDto {
@@ -34,4 +35,5 @@ export class InternalFeeDto extends BaseFeeDto {
   payoutRefBonus: boolean;
   bankRate: number; // bank fee rate
   bankFixed: number; // bank fixed fee
+  wallet: Wallet | undefined;
 }
