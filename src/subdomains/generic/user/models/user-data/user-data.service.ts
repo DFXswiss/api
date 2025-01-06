@@ -185,7 +185,16 @@ export class UserDataService {
       // cancel a pending video ident, if ident is completed
       const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
       const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
-      if (identCompleted && pendingVideo) await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
+      const pendingSumSubVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.SUMSUB_VIDEO);
+
+      if (identCompleted) {
+        if (pendingVideo) {
+          await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
+        }
+        if (pendingSumSubVideo) {
+          await this.kycAdminService.updateKycStepInternal(pendingSumSubVideo.cancel());
+        }
+      }
     }
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
@@ -815,7 +824,9 @@ export class UserDataService {
       master.amlListReactivatedDate = slave.amlListReactivatedDate;
       master.kycFileId = slave.kycFileId;
     }
-    if (slave.kycSteps.some((k) => k.type === KycStepType.VIDEO && k.isCompleted)) {
+    if (
+      slave.kycSteps.some((k) => (k.type === KycStepType.VIDEO || k.type === KycStepType.SUMSUB_VIDEO) && k.isCompleted)
+    ) {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }

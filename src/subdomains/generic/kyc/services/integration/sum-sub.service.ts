@@ -11,13 +11,16 @@ import { IdentDocument } from '../../dto/ident.dto';
 import { ApplicantType, SumSubDataResult, SumsubResult } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
+import { KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class SumsubService {
   private readonly logger = new DfxLogger(SumsubService);
 
   private readonly baseUrl = `https://api.sumsub.com`;
-  private readonly kycLevel = 'CH-Standard';
+  private readonly kycLevelAuto = 'CH-Standard';
+  private readonly kycLevelVideo = 'CH-Standard-Video';
+
   private static readonly algoMap: { [key: string]: string } = {
     HMAC_SHA1_HEX: 'sha1',
     HMAC_SHA256_HEX: 'sha256',
@@ -29,8 +32,8 @@ export class SumsubService {
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    await this.createApplicant(kycStep.transactionId, user);
-    return this.generateAccessToken(kycStep.transactionId).then((r) => r.token);
+    await this.createApplicant(kycStep.transactionId, user, kycStep.type);
+    return this.generateAccessToken(kycStep.transactionId, kycStep.type).then((r) => r.token);
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -74,7 +77,7 @@ export class SumsubService {
   }
 
   // --- HELPER METHODS --- //
-  private async createApplicant(transactionId: string, user: UserData): Promise<void> {
+  private async createApplicant(transactionId: string, user: UserData, kycStepType: KycStepType): Promise<void> {
     const data = {
       externalUserId: transactionId,
       type: ApplicantType.INDIVIDUAL,
@@ -84,6 +87,7 @@ export class SumsubService {
         country: user.country?.symbol3,
         dob: user.birthday && Util.isoDate(user.birthday),
         nationality: user.nationality?.symbol3,
+
         addresses: [
           {
             street: user.street + (user.houseNumber ? ` ${user.houseNumber}` : ''),
@@ -94,14 +98,24 @@ export class SumsubService {
         ],
       },
     };
-    await this.callApi<{ id: string }>(`/resources/applicants?levelName=${this.kycLevel}`, 'POST', data);
+
+    await this.callApi<{ id: string }>(
+      `/resources/applicants?levelName=${
+        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelAuto : this.kycLevelVideo
+      }`,
+      'POST',
+      data,
+    );
   }
 
-  private async generateAccessToken(transactionId: string): Promise<{ token: string }> {
+  private async generateAccessToken(transactionId: string, kycStepType: KycStepType): Promise<{ token: string }> {
     const expirySecs = Config.kyc.identFailAfterDays * 24 * 60 * 60;
     return this.callApi<{ token: string }>(
-      `/resources/accessTokens?userId=${transactionId}&levelName=${this.kycLevel}&ttlInSecs=${expirySecs}`,
+      `/resources/accessTokens?userId=${transactionId}&levelName=${
+        kycStepType === KycStepType.SUMSUB_AUTO ? this.kycLevelAuto : this.kycLevelVideo
+      }&ttlInSecs=${expirySecs}`,
       'POST',
+      undefined,
     );
   }
 
