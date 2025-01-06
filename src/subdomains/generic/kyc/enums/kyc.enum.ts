@@ -50,6 +50,7 @@ export enum KycStepType {
   VIDEO = 'Video',
   MANUAL = 'Manual',
   SUMSUB_AUTO = 'SumsubAuto',
+  SUMSUB_VIDEO = 'SumsubVideo',
 }
 
 export enum KycLogType {

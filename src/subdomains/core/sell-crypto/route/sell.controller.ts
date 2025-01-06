@@ -120,6 +120,7 @@ export class SellController {
       FiatPaymentMethod.BANK,
       true,
       undefined,
+      dto.wallet,
       specialCode ? [specialCode] : [],
     );
 
