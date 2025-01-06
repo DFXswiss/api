@@ -117,6 +117,7 @@ export class SwapController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
+      dto.wallet,
       specialCode ? [specialCode] : [],
     );
 

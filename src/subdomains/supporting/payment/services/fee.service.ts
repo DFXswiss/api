@@ -48,10 +48,12 @@ export interface FeeRequest extends FeeRequestBase {
 
 export interface OptionalFeeRequest extends FeeRequestBase {
   user?: User;
+  wallet?: Wallet;
   accountType?: AccountType;
 }
 
 export interface FeeRequestBase {
+  wallet?: Wallet;
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
   bankIn: CardBankName | IbanBankName;
@@ -400,7 +402,7 @@ export class FeeService implements OnModuleInit {
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
     const accountType = request.user?.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
-    const wallet = request.user?.wallet;
+    const wallet = request.wallet ?? request.user?.wallet;
     const userDataId = request.user?.userData?.id;
 
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];

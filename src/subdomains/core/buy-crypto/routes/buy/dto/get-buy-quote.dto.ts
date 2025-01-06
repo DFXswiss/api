@@ -58,4 +58,9 @@ export class GetBuyQuoteDto {
   @IsOptional()
   @IsString()
   specialCode: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  wallet: string;
 }
