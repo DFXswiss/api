@@ -51,7 +51,6 @@ export interface MailKeyData {
   mail: string;
   userDataId: number;
   loginUrl: string;
-  specialCode: string;
   redirectUri?: string;
 }
 
