@@ -18,15 +18,8 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountType } from '../account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../is-dfx-phone.validator';
-import {
-  KycIdentificationType,
-  KycLevel,
-  KycStatus,
-  LegalEntity,
-  SignatoryPower,
-  UserData,
-  UserDataStatus,
-} from '../user-data.entity';
+import { KycIdentificationType } from '../kyc-identification-type.enum';
+import { KycLevel, KycStatus, LegalEntity, SignatoryPower, UserData, UserDataStatus } from '../user-data.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -151,6 +144,16 @@ export class UpdateUserDataDto {
   @IsDate()
   @Type(() => Date)
   amlListAddedDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  amlListExpiredDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  amlListReactivatedDate?: Date;
 
   @IsOptional()
   @IsEnum(KycIdentificationType)

@@ -7,14 +7,14 @@ export const CustomerAuthor = 'Customer';
 
 @Entity()
 export class SupportMessage extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   author: string;
 
   @Column({ length: 'MAX', nullable: true })
-  message: string;
+  message?: string;
 
   @Column({ length: 256, nullable: true })
-  fileUrl: string;
+  fileUrl?: string;
 
   @ManyToOne(() => SupportIssue, (issue) => issue.messages, { nullable: false, eager: true })
   issue: SupportIssue;

@@ -25,6 +25,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -119,6 +120,7 @@ export class SellController {
       FiatPaymentMethod.BANK,
       true,
       undefined,
+      dto.wallet,
       specialCode ? [specialCode] : [],
     );
 
@@ -208,6 +210,8 @@ export class SellController {
       sell.user.id,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
+      undefined,
+      IbanBankName.MAERKI,
       await this.assetService.getNativeAsset(defaultBlockchain),
       sell.fiat,
     );

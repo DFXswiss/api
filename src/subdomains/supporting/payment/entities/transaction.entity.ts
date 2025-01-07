@@ -51,13 +51,13 @@ export class Transaction extends IEntity {
   sourceType: TransactionSourceType;
 
   @Column({ length: 256, nullable: true })
-  type: TransactionTypeInternal;
+  type?: TransactionTypeInternal;
 
   @Column({ length: 256, unique: true })
   uid: string;
 
   @Column({ length: 256, nullable: true })
-  externalId: string;
+  externalId?: string;
 
   @Column({ length: 256, nullable: true })
   assets: string;
@@ -80,45 +80,45 @@ export class Transaction extends IEntity {
 
   // Mail
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
+  recipientMail?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  mailSendDate: Date;
+  mailSendDate?: Date;
 
   // References
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
-  buyCrypto: BuyCrypto;
+  buyCrypto?: BuyCrypto;
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.transaction, { nullable: true })
-  buyFiat: BuyFiat;
+  buyFiat?: BuyFiat;
 
   @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.transaction, { nullable: true })
-  bankTxReturn: BankTxReturn;
+  bankTxReturn?: BankTxReturn;
 
   @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.transaction, { nullable: true })
-  bankTxRepeat: BankTxRepeat;
+  bankTxRepeat?: BankTxRepeat;
 
   @OneToOne(() => RefReward, (refReward) => refReward.transaction, { nullable: true })
-  refReward: RefReward;
+  refReward?: RefReward;
 
   @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { nullable: true })
-  bankTx: BankTx;
+  bankTx?: BankTx;
 
   @OneToOne(() => CryptoInput, (cryptoInput) => cryptoInput.transaction, { nullable: true })
-  cryptoInput: CryptoInput;
+  cryptoInput?: CryptoInput;
 
   @OneToOne(() => CheckoutTx, (checkoutTx) => checkoutTx.transaction, { nullable: true })
-  checkoutTx: CheckoutTx;
+  checkoutTx?: CheckoutTx;
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transaction)
   supportIssues: SupportIssue[];
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
-  user: User;
+  user?: User;
 
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
-  request: TransactionRequest;
+  request?: TransactionRequest;
 
   // --- ENTITY METHODS --- //
 
@@ -157,8 +157,8 @@ export class Transaction extends IEntity {
     }
   }
 
-  get targetEntity(): BuyCrypto | BuyFiat | RefReward | undefined {
-    return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? undefined;
+  get targetEntity(): BuyCrypto | BuyFiat | RefReward | BankTxReturn | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? this.bankTxReturn ?? undefined;
   }
 
   get userData(): UserData {

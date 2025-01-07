@@ -3,12 +3,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
+import { TransactionUtilModule } from 'src/subdomains/core/transaction/transaction-util.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankTxRepeatController } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.controller';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatRepository } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.repository';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankModule } from '../bank/bank.module';
+import { FiatOutputModule } from '../fiat-output/fiat-output.module';
 import { NotificationModule } from '../notification/notification.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
@@ -36,6 +38,8 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     BankModule,
     TransactionModule,
     PricingModule,
+    TransactionUtilModule,
+    forwardRef(() => FiatOutputModule),
   ],
 
   controllers: [BankTxController, BankTxReturnController, BankTxRepeatController],

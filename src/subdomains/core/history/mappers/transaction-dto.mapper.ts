@@ -7,6 +7,7 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   KycRequiredReason,
+  LimitExceededReason,
   TransactionDetailDto,
   TransactionDto,
   TransactionReason,
@@ -236,6 +237,10 @@ export class TransactionDtoMapper {
 
     return {
       rate: entity.percentFee,
+      bank:
+        entity.bankFeeAmount != null
+          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       fixed:
         entity.absoluteFeeAmount != null
           ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
@@ -292,6 +297,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
+        if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
         return { state: TransactionState.AML_PENDING, reason };
 
@@ -321,6 +327,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
+        if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
         return { state: TransactionState.AML_PENDING, reason };
 

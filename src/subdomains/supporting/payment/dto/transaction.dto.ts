@@ -18,6 +18,7 @@ export enum TransactionState {
   PROCESSING = 'Processing',
   AML_PENDING = 'AmlPending',
   KYC_REQUIRED = 'KycRequired',
+  LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
@@ -49,15 +50,16 @@ export enum TransactionReason {
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   USER_DELETED = 'UserDeleted',
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
+  MISSING_LIQUIDITY = 'MissingLiquidity',
 }
 
 export const KycRequiredReason = [
-  TransactionReason.DAILY_LIMIT_EXCEEDED,
-  TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   TransactionReason.INSTANT_PAYMENT,
   TransactionReason.SANCTION_SUSPICION,
   TransactionReason.FRAUD_SUSPICION,
 ];
+
+export const LimitExceededReason = [TransactionReason.DAILY_LIMIT_EXCEEDED, TransactionReason.ANNUAL_LIMIT_EXCEEDED];
 
 export const TransactionReasonMapper: {
   [key in AmlReason]: TransactionReason;
@@ -90,6 +92,7 @@ export const TransactionReasonMapper: {
   [AmlReason.ASSET_KYC_NEEDED]: TransactionReason.ASSET_KYC_NEEDED,
   [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
   [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
+  [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
 };
 
 export class UnassignedTransactionDto {

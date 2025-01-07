@@ -1,3 +1,4 @@
+import { BadRequest } from 'ccxt';
 import { IdentShortResult } from './ident-result.dto';
 
 export interface SumsubResult {
@@ -92,6 +93,11 @@ export enum ReviewAnswer {
 export enum ReviewRejectType {
   FINAL = 'FINAL',
   RETRY = 'RETRY',
+}
+
+export enum VideoIdentStatus {
+  PENDING = 'pending',
+  COMPLETED = 'completed',
 }
 
 export enum SumSubWebhookType {
@@ -263,9 +269,25 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
-  if (dto.type == SumSubWebhookType.APPLICANT_PENDING) return IdentShortResult.REVIEW;
-  if (dto.type == SumSubWebhookType.APPLICANT_REVIEWED)
-    return dto.reviewResult.reviewAnswer == ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+  switch (dto.type) {
+    case SumSubWebhookType.APPLICANT_PENDING:
+      return IdentShortResult.REVIEW;
+
+    case SumSubWebhookType.APPLICANT_REVIEWED:
+      return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+
+    case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED:
+      if (dto.videoIdentReviewStatus === VideoIdentStatus.PENDING) {
+        return IdentShortResult.REVIEW;
+      }
+      if (dto.videoIdentReviewStatus === VideoIdentStatus.COMPLETED) {
+        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+      }
+      break;
+
+    default:
+      throw new BadRequest(`Unknown webhook type: ${dto.type}`);
+  }
 }
 
 export function getSumSubReason(reasons: SumSubRejectionLabels[]): string {

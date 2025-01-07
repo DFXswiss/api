@@ -117,6 +117,7 @@ export class SwapController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
+      dto.wallet,
       specialCode ? [specialCode] : [],
     );
 
@@ -209,6 +210,8 @@ export class SwapController {
       userId,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
+      undefined,
       await this.assetService.getNativeAsset(defaultBlockchain),
       swap.asset,
     );

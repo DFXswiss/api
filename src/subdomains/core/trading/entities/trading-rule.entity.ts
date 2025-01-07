@@ -46,13 +46,13 @@ export class TradingRule extends IEntity {
 
   // check price
   @Column({ nullable: true })
-  source3: string; // {src}:{param}
+  source3?: string; // {src}:{param}
 
   @Column({ nullable: true })
-  leftAsset3: string;
+  leftAsset3?: string;
 
   @Column({ nullable: true })
-  rightAsset3: string;
+  rightAsset3?: string;
 
   @Column({ type: 'float' })
   lowerLimit: number;
@@ -70,7 +70,7 @@ export class TradingRule extends IEntity {
   poolFee: FeeAmount;
 
   @Column({ type: 'int', nullable: true })
-  reactivationTime: number;
+  reactivationTime?: number;
 
   // --- GETTERS --- //
   get config1(): PriceConfig {
