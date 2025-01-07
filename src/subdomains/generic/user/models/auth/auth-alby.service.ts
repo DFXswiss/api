@@ -65,7 +65,7 @@ export class AuthAlbyService {
         {
           client_id: Config.alby.clientId,
           client_secret: Config.alby.clientSecret,
-          code: code,
+          code,
           grant_type: 'authorization_code',
           redirect_uri: this.redirectUri(id),
         },
@@ -84,7 +84,7 @@ export class AuthAlbyService {
       // construct session and create IP log
       const session = { address: LightningHelper.addressToLnurlp(lightning_address), signature: identifier };
 
-      const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address);
+      const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address, dto.specialCode);
       if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
       const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
