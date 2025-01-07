@@ -25,8 +25,8 @@ export interface SumSubWebhookResult {
     reviewRejectType?: ReviewRejectType;
     buttonIds?: string[];
   };
-  reviewStatus?: string;
-  videoIdentReviewStatus?: string;
+  reviewStatus?: ReviewStatus;
+  videoIdentReviewStatus?: ReviewStatus;
   createdAt: Date;
   createdAtMs?: Date;
   sandboxMode?: boolean;
@@ -102,11 +102,6 @@ export enum ReviewStatus {
   QUEUED = 'queued',
   COMPLETED = 'completed',
   ON_HOLD = 'onHold',
-}
-
-export enum VideoIdentStatus {
-  PENDING = 'pending',
-  COMPLETED = 'completed',
 }
 
 export enum SumSubWebhookType {
@@ -287,10 +282,15 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
       return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
 
     case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED:
-      if (dto.videoIdentReviewStatus === VideoIdentStatus.PENDING) {
+      if (dto.videoIdentReviewStatus === ReviewStatus.INIT) {
+        return IdentShortResult.PENDING;
+      }
+
+      if (dto.videoIdentReviewStatus === ReviewStatus.PENDING) {
         return IdentShortResult.REVIEW;
       }
-      if (dto.videoIdentReviewStatus === VideoIdentStatus.COMPLETED) {
+
+      if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
         return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
       }
       break;
