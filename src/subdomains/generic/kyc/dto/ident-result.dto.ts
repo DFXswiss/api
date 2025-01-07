@@ -59,6 +59,7 @@ export enum IdentShortResult {
   REVIEW = 'Review',
   SUCCESS = 'Success',
   FAIL = 'Fail',
+  PENDING = 'Pending',
 }
 
 export enum IdentItemStatus {
