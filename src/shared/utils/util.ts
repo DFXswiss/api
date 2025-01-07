@@ -13,8 +13,12 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
 export class Util {
   // --- MATH --- //
-  static roundReadable(amount: number, isFiat: boolean): number {
-    return isFiat ? (amount < 0.01 ? this.round(amount, 2) : this.ceil(amount, 2)) : this.roundByPrecision(amount, 5);
+  static roundReadable(amount: number, isFiat: boolean, assetPrecision?: number): number {
+    return isFiat
+      ? amount < 0.01
+        ? this.round(amount, 2)
+        : this.ceil(amount, 2)
+      : this.roundByPrecision(amount, assetPrecision ?? 5);
   }
 
   static round(amount: number, decimals: number): number {
@@ -149,7 +153,7 @@ export class Util {
       .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
-      .replace(/[\.]/g, '')
+      .replace(/[\.,]/g, '')
       .replace(/[-‘`´']/g, ' ');
   }
 

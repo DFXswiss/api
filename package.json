@@ -76,6 +76,7 @@
     "handlebars": "^4.7.7",
     "helmet": "^6.0.1",
     "ibantools": "^4.2.2",
+    "jszip": "^3.10.1",
     "libphonenumber-js": "^1.11.4",
     "liquidjs-lib": "^6.0.2-liquid.32",
     "lnurl": "^0.27.0",

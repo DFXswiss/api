@@ -40,10 +40,12 @@ export class SwapService {
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
   ) {}

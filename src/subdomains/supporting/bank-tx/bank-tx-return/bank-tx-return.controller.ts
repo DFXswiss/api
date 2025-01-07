@@ -1,8 +1,9 @@
-import { Controller, Put, Param, Body, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { BankTxReturn } from './bank-tx-return.entity';
 import { BankTxReturnService } from './bank-tx-return.service';
 import { UpdateBankTxReturnDto } from './dto/update-bank-tx-return.dto';
@@ -18,5 +19,13 @@ export class BankTxReturnController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async update(@Param('id') id: string, @Body() dto: UpdateBankTxReturnDto): Promise<BankTxReturn> {
     return this.bankTxReturnService.update(+id, dto);
+  }
+
+  @Post(':id/refund')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @ApiExcludeEndpoint()
+  async refundBuyCrypto(@Param('id') id: string, @Body() dto: RefundInternalDto): Promise<void> {
+    return this.bankTxReturnService.refundBankTxReturn(+id, dto);
   }
 }

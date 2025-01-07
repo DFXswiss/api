@@ -21,6 +21,7 @@ import {
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
+  FrankencoinPositionGraphDto,
   FrankencoinSwapDto,
   FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
@@ -65,7 +66,8 @@ export class FrankencoinService implements OnModuleInit {
 
     const logMessage: FrankencoinLogDto = {
       swap: await this.getSwap(),
-      positions: await this.getPositions(),
+      positionV1s: await this.getPositionV1s(),
+      positionV2s: await this.getPositionV2s(),
       poolShares: await this.getFPS(),
       totalSupply: await this.getTotalSupply(),
       totalValueLocked: await this.getTvl(),
@@ -100,32 +102,27 @@ export class FrankencoinService implements OnModuleInit {
     };
   }
 
-  async getPositions(): Promise<FrankencoinPositionDto[]> {
-    const positionsResult: FrankencoinPositionDto[] = [];
+  async getPositionV1s(): Promise<FrankencoinPositionDto[]> {
+    const positions = await this.client.getPositionV1s();
+    return this.getPositions(positions);
+  }
 
-    const positions = await this.client.getPositions();
+  async getPositionV2s(): Promise<FrankencoinPositionDto[]> {
+    const positions = await this.client.getPositionV2s();
+    return this.getPositions(positions);
+  }
+
+  private async getPositions(positions: FrankencoinPositionGraphDto[]): Promise<FrankencoinPositionDto[]> {
+    const positionsResult: FrankencoinPositionDto[] = [];
 
     for (const position of positions) {
       try {
-        const collateralContract = this.client.getErc20Contract(position.collateral);
-
-        const symbol = await collateralContract.symbol();
-        const decimals = await collateralContract.decimals();
-        const positionBalance = await collateralContract.balanceOf(position.position);
-
-        const positionContract = this.client.getPositionContract(position.position);
         const frankencoinContract = this.client.getFrankencoinContract(position.zchf);
 
-        const price = await positionContract.price();
-        const limitForClones = await positionContract.limitForClones();
-        const minted = await positionContract.minted();
-        const reserveContribution = await positionContract.reserveContribution();
         const calculateAssignedReserve = await frankencoinContract.calculateAssignedReserve(
-          minted,
-          Number(reserveContribution),
+          position.minted,
+          position.reserveContribution,
         );
-        const limit = await positionContract.limit();
-        const expiration = await positionContract.expiration();
 
         positionsResult.push({
           address: {
@@ -135,16 +132,16 @@ export class FrankencoinService implements OnModuleInit {
             owner: position.owner,
           },
           collateral: {
-            symbol: symbol,
-            amount: EvmUtil.fromWeiAmount(positionBalance, decimals),
+            symbol: position.collateralSymbol,
+            amount: EvmUtil.fromWeiAmount(position.collateralBalance, position.collateralDecimals),
           },
           details: {
-            availableAmount: EvmUtil.fromWeiAmount(limitForClones),
-            totalBorrowed: EvmUtil.fromWeiAmount(minted),
-            liquidationPrice: EvmUtil.fromWeiAmount(price, 36 - decimals),
+            availableAmount: EvmUtil.fromWeiAmount(position.availableForClones),
+            totalBorrowed: EvmUtil.fromWeiAmount(position.minted),
+            liquidationPrice: EvmUtil.fromWeiAmount(position.price, 36 - position.collateralDecimals),
             retainedReserve: EvmUtil.fromWeiAmount(calculateAssignedReserve),
-            limit: EvmUtil.fromWeiAmount(limit),
-            expirationDate: new Date(Number(expiration) * 1000),
+            limit: EvmUtil.fromWeiAmount(position.limitForClones),
+            expirationDate: new Date(Number(position.expiration) * 1000),
           },
         });
       } catch (e) {
@@ -155,8 +152,12 @@ export class FrankencoinService implements OnModuleInit {
     return positionsResult;
   }
 
-  async getChallenges(): Promise<FrankencoinChallengeGraphDto[]> {
-    return this.client.getChallenges();
+  async getChallengeV1s(): Promise<FrankencoinChallengeGraphDto[]> {
+    return this.client.getChallengeV1s();
+  }
+
+  async getChallengeV2s(): Promise<FrankencoinChallengeGraphDto[]> {
+    return this.client.getChallengeV2s();
   }
 
   async getFPS(): Promise<FrankencoinPoolSharesDto> {

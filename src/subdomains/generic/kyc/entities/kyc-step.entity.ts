@@ -41,14 +41,14 @@ export class KycStep extends IEntity {
   result?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  comment: string;
+  comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
   logs: StepLog;
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
-  reminderSentDate: Date;
+  reminderSentDate?: Date;
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {
@@ -212,9 +212,21 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  ignored(): UpdateResult<KycStep> {
+  inProgress(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.IN_PROGRESS,
+      result: this.setResult(result),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  ignored(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.IGNORED,
+      comment,
     };
 
     Object.assign(this, update);
@@ -254,9 +266,10 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  manualReview(): UpdateResult<KycStep> {
+  manualReview(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.MANUAL_REVIEW,
+      comment,
     };
 
     Object.assign(this, update);
@@ -363,7 +376,7 @@ export class KycStep extends IEntity {
   }
 
   get isSumsub(): boolean {
-    return this.type === KycStepType.SUMSUB_AUTO;
+    return this.type === KycStepType.SUMSUB_AUTO || this.type === KycStepType.SUMSUB_VIDEO;
   }
 
   get isManual(): boolean {

@@ -32,6 +32,7 @@ import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
+import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
 @Injectable()
 export class BuyFiatService {
@@ -54,6 +55,7 @@ export class BuyFiatService {
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly userDataService: UserDataService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -80,7 +82,7 @@ export class BuyFiatService {
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
       if (!bankData && sell.userData.completeName)
-        await this.bankDataService.createBankData(sell.userData, {
+        await this.bankDataService.createVerifyBankData(sell.userData, {
           name: sell.userData.completeName,
           iban: sell.iban,
           type: BankDataType.BANK_OUT,
@@ -155,6 +157,9 @@ export class BuyFiatService {
       isComplete: dto.isComplete,
       comment: update.comment,
     };
+    if (BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
+      await this.buyFiatNotificationService.paymentProcessing(entity);
+
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
     if (dto.amlCheck) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);

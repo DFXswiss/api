@@ -9,6 +9,7 @@ import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockch
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
+import { isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -21,7 +22,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
-import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
@@ -44,7 +45,7 @@ import {
   BalancesByFinancialType,
   BankExchangeType,
   ChangeLog,
-  ManualDebtPosition,
+  ManualLogPosition,
   TradingLog,
 } from './dto/log.dto';
 import { LogSeverity } from './log.entity';
@@ -107,9 +108,9 @@ export class LogJobService {
         tradings: tradingLog,
         balancesByFinancialType,
         balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
-          totalBalanceChf: plusBalanceChf - minusBalanceChf,
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, true, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, true, true),
+          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, true, true),
         },
         changes: changeLog,
       }),
@@ -141,10 +142,10 @@ export class LogJobService {
       );
 
       acc[financialType] = {
-        plusBalance: this.getJsonValue(plusBalance, true),
-        plusBalanceChf: this.getJsonValue(plusBalanceChf, true),
-        minusBalance: this.getJsonValue(minusBalance, true),
-        minusBalanceChf: this.getJsonValue(minusBalanceChf, true),
+        plusBalance: this.getJsonValue(plusBalance, this.isFinancialTypeFiat(financialType), true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, true, true),
+        minusBalance: this.getJsonValue(minusBalance, this.isFinancialTypeFiat(financialType), true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, true, true),
       };
 
       return acc;
@@ -219,8 +220,9 @@ export class LogJobService {
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
 
-    // debt balances
-    const manualDebtPositions = await this.settingService.getObj<ManualDebtPosition[]>('balanceLogDebtPositions', []);
+    // manual balances
+    const manualDebtPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
+    const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
 
     // pending internal balances
     // db requests
@@ -317,8 +319,11 @@ export class LogJobService {
           0,
         );
 
+      const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0);
+      const liquidity =
+        (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -439,35 +444,35 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus, true),
-          liquidity: this.getJsonValue(liquidity),
+          total: this.getJsonValue(totalPlus, isFiat(curr), true),
+          liquidity: this.getJsonValue(liquidity, isFiat(curr)),
           pending: totalPlusPending
             ? {
-                total: this.getJsonValue(totalPlusPending, true),
-                cryptoInput: this.getJsonValue(cryptoInput),
-                exchangeOrder: this.getJsonValue(exchangeOrder),
-                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount),
-                fromKraken: this.getJsonValue(fromKraken),
-                toKraken: this.getJsonValue(toKraken),
+                total: this.getJsonValue(totalPlusPending, isFiat(curr), true),
+                cryptoInput: this.getJsonValue(cryptoInput, isFiat(curr)),
+                exchangeOrder: this.getJsonValue(exchangeOrder, isFiat(curr)),
+                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, isFiat(curr)),
+                fromKraken: this.getJsonValue(fromKraken, isFiat(curr)),
+                toKraken: this.getJsonValue(toKraken, isFiat(curr)),
               }
             : undefined,
         },
         minusBalance: {
-          total: this.getJsonValue(totalMinus, true),
-          debt: this.getJsonValue(manualDebtPosition),
+          total: this.getJsonValue(totalMinus, isFiat(curr), true),
+          debt: this.getJsonValue(manualDebtPosition, isFiat(curr)),
           pending: totalMinusPending
             ? {
-                total: this.getJsonValue(totalMinusPending, true),
-                buyFiat: this.getJsonValue(buyFiat),
-                buyFiatPass: this.getJsonValue(buyFiatPass),
-                buyCrypto: this.getJsonValue(buyCrypto),
-                buyCryptoPass: this.getJsonValue(buyCryptoPass),
-                bankTxNull: this.getJsonValue(bankTxNull),
-                bankTxPending: this.getJsonValue(bankTxPending),
-                bankTxUnknown: this.getJsonValue(bankTxUnknown),
-                bankTxGSheet: this.getJsonValue(bankTxGSheet),
-                bankTxRepeat: this.getJsonValue(bankTxRepeat),
-                bankTxReturn: this.getJsonValue(bankTxReturn),
+                total: this.getJsonValue(totalMinusPending, isFiat(curr), true),
+                buyFiat: this.getJsonValue(buyFiat, isFiat(curr)),
+                buyFiatPass: this.getJsonValue(buyFiatPass, isFiat(curr)),
+                buyCrypto: this.getJsonValue(buyCrypto, isFiat(curr)),
+                buyCryptoPass: this.getJsonValue(buyCryptoPass, isFiat(curr)),
+                bankTxNull: this.getJsonValue(bankTxNull, isFiat(curr)),
+                bankTxPending: this.getJsonValue(bankTxPending, isFiat(curr)),
+                bankTxUnknown: this.getJsonValue(bankTxUnknown, isFiat(curr)),
+                bankTxGSheet: this.getJsonValue(bankTxGSheet, isFiat(curr)),
+                bankTxRepeat: this.getJsonValue(bankTxRepeat, isFiat(curr)),
+                bankTxReturn: this.getJsonValue(bankTxReturn, isFiat(curr)),
               }
             : undefined,
         },
@@ -678,7 +683,11 @@ export class LogJobService {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0 ? undefined : value;
+  private getJsonValue(value: number | undefined, isFiat: boolean, returnZero = false): number | undefined {
+    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, isFiat, 8);
+  }
+
+  private isFinancialTypeFiat(financialType: string): boolean {
+    return ['EUR', 'USD', 'CHF'].includes(financialType);
   }
 }

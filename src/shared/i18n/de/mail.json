@@ -37,6 +37,10 @@
             "title": "Auszahlung verschickt",
             "salutation": "Deine Auszahlung wurde an dein Bankkonto verschickt"
         },
+        "processing": {
+            "title": "Transaktion wird weiterverarbeitet",
+            "salutation": "Deine Transaktion wird nun weiterverarbeitet"
+        },
         "chargeback": {
             "unconfirmed": {
                 "title": "Aktion ausstehend",
@@ -79,9 +83,10 @@
                 "asset_kyc_needed": "Für das eingezahlte Asset wird KYC benötigt",
                 "card_name_mismatch": "Der angegebene Kreditkartenname stimmt nicht mit dem Namen des Inhabers des DFX Kontos überein",
                 "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
-                "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen"
+                "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen",
+                "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln"
             },
-            "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
+            "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
         "pending": {
             "daily_limit": {
@@ -182,12 +187,6 @@
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {
-        "identStarted": {
-            "title": "Online-Identifikation gestartet",
-            "salutation": "Online-Identifikation gestartet",
-            "line1": "Du hast den Online Ident Prozess bei DFX gestartet. Sollte es zu Unterbechungen kommen, kannst du den Prozess jederzeit mit diesem Link fortführen:<br>[url:{urlText}]",
-            "line2": "Sollte es zu technischen Problemen kommen, so steht dir alternativ unser Video Ident Service zur Verfügung. Dabei prüft ein Mitarbeiter deinen Ausweis manuell. Bitte beachte, dass dieser Service nur während den Öffnungszeiten zur Verfügung steht und deutlich höhere Kosten für DFX beinhaltet als der vollautomatische Prozess mit dem Button oben. Wir bitten dich daher diesen Link nur zu verwenden, wenn es mit dem Button oben ein technisches Problem gibt:<br>[url:Video Id Link]"
-        },
         "success": {
             "title": "Verifikation erfolgreich",
             "salutation": "Verifikation erfolgreich",
@@ -225,7 +224,8 @@
         "request": {
             "title": "E-Mail bestätigen",
             "salutation": "Bestätige deine E-Mail",
-            "message": "Klicke den nachfolgenden Link, um deine E-Mail zu bestätigen:<br>[url:{urlText}]"
+            "message": "Klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]",
+            "closing": "Wenn du du deine Mail nicht in einem anderen DFX Account eingegeben hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Adresse zu Account hinzugefügt",
@@ -257,8 +257,14 @@
         "closing": "Vielen Dank für dein Vertrauen in uns.<br>Oli"
     },
     "verification_code": {
-        "title": "Verifizierungscode",
-        "salutation": "Du hast einen 2FA Verifizierungscode angefordert",
+        "default": {
+            "title": "Verifizierungscode",
+            "salutation": "Du hast einen 2FA Verifizierungscode angefordert"
+        },
+        "email": {
+            "title": "E-Mail Verifizierungscode",
+            "salutation": "Du hast eine Änderung deiner E-Mail Adresse angefordert"
+        },
         "message": "Dein Verifizierungscode lautet:<br>{code}",
         "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://services.dfx.swiss/support]."
     }

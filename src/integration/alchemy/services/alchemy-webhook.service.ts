@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AddressActivityResponse, AddressActivityWebhook, Alchemy, Network, Webhook, WebhookType } from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
 import { Config, GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
@@ -9,6 +10,8 @@ import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 
 @Injectable()
 export class AlchemyWebhookService implements OnModuleInit {
+  private readonly logger = new DfxLogger(AlchemyWebhookService);
+
   private readonly alchemy: Alchemy;
   private readonly webhookCache: Map<string, string>;
 
@@ -41,11 +44,15 @@ export class AlchemyWebhookService implements OnModuleInit {
     return this.alchemy.notify.getAddresses(webhookId);
   }
 
-  isValidWebhookSignature(alchemySignature: string, dto: AlchemyWebhookDto): boolean {
-    const signingKey = this.webhookCache.get(dto.webhookId);
-    if (!signingKey) return false;
+  isValidWebhookSignature(alchemySignature: string, webhookId: string, rawBody: any): boolean {
+    const signingKey = this.webhookCache.get(webhookId);
+    if (!signingKey) {
+      this.logger.warn(`Webhook Id ${webhookId} has no signing key`);
+      this.logger.warn(`Webhook cache: ${JSON.stringify(this.webhookCache)}`);
+      return false;
+    }
 
-    const checkSignature = Util.createHmac(signingKey, JSON.stringify(dto));
+    const checkSignature = Util.createHmac(signingKey, rawBody);
     return alchemySignature === checkSignature;
   }
 
