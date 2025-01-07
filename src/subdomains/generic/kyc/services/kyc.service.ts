@@ -520,7 +520,7 @@ export class KycService {
 
       case IdentShortResult.PENDING:
         if ([KycStepStatus.EXTERNAL_REVIEW].includes(kycStep.status))
-          await this.kycStepRepo.update(...kycStep.update(KycStepStatus.IN_PROGRESS, dto));
+          await this.kycStepRepo.update(...kycStep.inProgress(dto));
         break;
 
       case IdentShortResult.REVIEW:
