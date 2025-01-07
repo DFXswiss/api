@@ -95,6 +95,15 @@ export enum ReviewRejectType {
   RETRY = 'RETRY',
 }
 
+export enum ReviewStatus {
+  INIT = 'init',
+  PENDING = 'pending',
+  PRE_CHECKED = 'prechecked',
+  QUEUED = 'queued',
+  COMPLETED = 'completed',
+  ON_HOLD = 'onHold',
+}
+
 export enum VideoIdentStatus {
   PENDING = 'pending',
   COMPLETED = 'completed',
@@ -269,6 +278,7 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
+  if (dto.reviewStatus === ReviewStatus.INIT) IdentShortResult.PENDING;
   switch (dto.type) {
     case SumSubWebhookType.APPLICANT_PENDING:
       return IdentShortResult.REVIEW;
