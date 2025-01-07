@@ -537,8 +537,7 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    // Only for Organization, not for SoleProprietorship?
-    return this.accountType === AccountType.ORGANIZATION
+    return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,
