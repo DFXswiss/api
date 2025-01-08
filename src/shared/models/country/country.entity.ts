@@ -13,6 +13,9 @@ export class Country extends IEntity {
   @Column({ length: 256 })
   name: string;
 
+  @Column({ length: 256, nullable: true })
+  foreignName: string;
+
   @Column({ default: true })
   dfxEnable: boolean;
 

@@ -7,6 +7,7 @@ export class CountryDtoMapper {
       id: country.id,
       symbol: country.symbol,
       name: country.name,
+      foreignName: country.foreignName,
       locationAllowed: country.ipEnable,
       kycAllowed: country.dfxEnable,
       kycOrganizationAllowed: country.dfxOrganizationEnable,
