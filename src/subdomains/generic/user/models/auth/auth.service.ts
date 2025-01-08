@@ -176,13 +176,13 @@ export class AuthService {
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new ConflictException('User is deactivated or blocked');
-    if (user.custodyProvider) {
-      if (dto.signature !== user.custodyProvider.masterKey) throw new UnauthorizedException('Invalid credentials');
-    } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
-      throw new UnauthorizedException('Invalid credentials');
-    } else if (!user.signature) {
-      // TODO: temporary code to update empty signatures (remove?)
-      await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
+    if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
+      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+        throw new UnauthorizedException('Invalid credentials');
+      } else if (!user.signature) {
+        // TODO: temporary code to update empty signatures (remove?)
+        await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
+      }
     }
 
     try {
