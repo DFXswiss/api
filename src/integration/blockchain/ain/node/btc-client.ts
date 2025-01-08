@@ -63,4 +63,9 @@ export class BtcClient extends NodeClient {
   async getRecentHistory(txCount = 100): Promise<TransactionHistory[]> {
     return this.callNode<TransactionHistory[]>((c) => c.call('listtransactions', ['*', txCount], 'number'), true);
   }
+
+  async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
+    const transaction = await this.getTx(txId);
+    return transaction.blockhash && transaction.confirmations > minConfirmations;
+  }
 }
