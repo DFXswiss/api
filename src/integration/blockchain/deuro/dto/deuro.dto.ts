@@ -1,4 +1,4 @@
-export interface EurocoinPositionGraphDto {
+export interface DEuroPositionGraphDto {
   id: string;
   position: string;
   owner: string;
@@ -15,35 +15,35 @@ export interface EurocoinPositionGraphDto {
   expiration: string;
 }
 
-export interface EurocoinDepsGraphDto {
+export interface DEuroDepsGraphDto {
   id: string;
   profits: string;
   loss: string;
   reserve: string;
 }
 
-export interface EurocoinLogDto {
-  positionV2s: EurocoinPositionDto[];
-  poolShares: EurocoinPoolSharesDto;
+export interface DEuroLogDto {
+  positionV2s: DEuroPositionDto[];
+  poolShares: DEuroPoolSharesDto;
   totalSupply: number;
   totalValueLocked: number;
 }
 
-export interface EurocoinInfoDto {
+export interface DEuroInfoDto {
   totalSupplyZchf: number;
   totalValueLockedInChf: number;
   depsMarketCapInChf: number;
 }
 
-export interface EurocoinSwapDto {
+export interface DEuroSwapDto {
   xchfSwapLimit: number;
   zchfSwapLimit: number;
 }
 
-export interface EurocoinPositionDto {
+export interface DEuroPositionDto {
   address: {
     position: string;
-    eurocoin: string;
+    deuro: string;
     collateral: string;
     owner: string;
   };
@@ -61,7 +61,7 @@ export interface EurocoinPositionDto {
   };
 }
 
-export interface EurocoinPoolSharesDto {
+export interface DEuroPoolSharesDto {
   depsPrice: number;
   supply: number;
   marketCap: number;

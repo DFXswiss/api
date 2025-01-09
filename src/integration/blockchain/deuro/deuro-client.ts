@@ -3,9 +3,9 @@ import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { EurocoinDepsGraphDto, EurocoinPositionGraphDto } from './dto/eurocoin.dto';
+import { DEuroDepsGraphDto, DEuroPositionGraphDto } from './dto/deuro.dto';
 
-export class EurocoinClient {
+export class DEuroClient {
   private readonly provider: ethers.providers.JsonRpcProvider;
 
   constructor(private readonly http: HttpService, gatewayUrl: string, apiKey: string) {
@@ -14,10 +14,10 @@ export class EurocoinClient {
   }
 
   async getTvl(): Promise<number> {
-    return this.http.get<number>(`${Config.blockchain.eurocoin.dEuroTvlUrl}`);
+    return this.http.get<number>(`${Config.blockchain.deuro.deuroTvlUrl}`);
   }
 
-  async getPositionV2s(): Promise<EurocoinPositionGraphDto[]> {
+  async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
     const document = gql`
       {
         positionV2s {
@@ -41,13 +41,13 @@ export class EurocoinClient {
       }
     `;
 
-    return request<{ positionV2s: { items: [EurocoinPositionGraphDto] } }>(
-      Config.blockchain.eurocoin.dEuroGraphUrl,
+    return request<{ positionV2s: { items: [DEuroPositionGraphDto] } }>(
+      Config.blockchain.deuro.deuroGraphUrl,
       document,
     ).then((r) => r.positionV2s.items);
   }
 
-  async getDEPS(chainId: number): Promise<EurocoinDepsGraphDto> {
+  async getDEPS(chainId: number): Promise<DEuroDepsGraphDto> {
     const address = ADDRESS[chainId].decentralizedEURO;
 
     const document = gql`
@@ -61,12 +61,10 @@ export class EurocoinClient {
       }
     `;
 
-    return request<{ dEPS: EurocoinDepsGraphDto }>(Config.blockchain.eurocoin.dEuroGraphUrl, document).then(
-      (r) => r.dEPS,
-    );
+    return request<{ dEPS: DEuroDepsGraphDto }>(Config.blockchain.deuro.deuroGraphUrl, document).then((r) => r.dEPS);
   }
 
-  getEurocoinContract(chainId: number): Contract {
+  getDEuroContract(chainId: number): Contract {
     return new Contract(ADDRESS[chainId].decentralizedEURO, DecentralizedEUROABI, this.provider);
   }
 

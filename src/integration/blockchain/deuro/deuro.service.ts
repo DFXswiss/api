@@ -13,23 +13,23 @@ import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmUtil } from '../shared/evm/evm.util';
+import { DEuroClient } from './deuro-client';
 import {
-  EurocoinInfoDto,
-  EurocoinLogDto,
-  EurocoinPoolSharesDto,
-  EurocoinPositionDto,
-  EurocoinPositionGraphDto,
-} from './dto/eurocoin.dto';
-import { EurocoinClient } from './eurocoin-client';
+  DEuroInfoDto,
+  DEuroLogDto,
+  DEuroPoolSharesDto,
+  DEuroPositionDto,
+  DEuroPositionGraphDto,
+} from './dto/deuro.dto';
 
 @Injectable()
-export class EurocoinService implements OnModuleInit {
-  private readonly logger = new DfxLogger(EurocoinService);
+export class DEuroService implements OnModuleInit {
+  private readonly logger = new DfxLogger(DEuroService);
 
   private static readonly LOG_SYSTEM = 'EvmInformation';
-  private static readonly LOG_SUBSYSTEM = 'EurocoinSmartContract';
+  private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
 
-  private readonly client: EurocoinClient;
+  private readonly client: DEuroClient;
 
   private pricingService: PricingService;
 
@@ -44,10 +44,10 @@ export class EurocoinService implements OnModuleInit {
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
-    const { dEuroGatewayUrl, dEuroApiKey, dEuroChainId } = GetConfig().blockchain.eurocoin;
+    const { deuroGatewayUrl, deuroApiKey, deuroChainId } = GetConfig().blockchain.deuro;
 
-    this.client = new EurocoinClient(http, dEuroGatewayUrl, dEuroApiKey);
-    this.chainId = dEuroChainId;
+    this.client = new DEuroClient(http, deuroGatewayUrl, deuroApiKey);
+    this.chainId = deuroChainId;
   }
 
   async onModuleInit() {
@@ -59,10 +59,10 @@ export class EurocoinService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock()
-  async processLogInfo(): Promise<CreateLogDto> {
-    if (DisabledProcess(Process.EUROCOIN_LOG_INFO)) return;
+  async processLogInfo(): Promise<void> {
+    if (DisabledProcess(Process.DEURO_LOG_INFO)) return;
 
-    const logMessage: EurocoinLogDto = {
+    const logMessage: DEuroLogDto = {
       positionV2s: await this.getPositionV2s(),
       poolShares: await this.getDEPS(),
       totalSupply: await this.getTotalSupply(),
@@ -70,8 +70,8 @@ export class EurocoinService implements OnModuleInit {
     };
 
     const log: CreateLogDto = {
-      system: EurocoinService.LOG_SYSTEM,
-      subsystem: EurocoinService.LOG_SUBSYSTEM,
+      system: DEuroService.LOG_SYSTEM,
+      subsystem: DEuroService.LOG_SUBSYSTEM,
       severity: LogSeverity.INFO,
       message: JSON.stringify(logMessage),
       valid: null,
@@ -79,23 +79,21 @@ export class EurocoinService implements OnModuleInit {
     };
 
     await this.logService.create(log);
-
-    return log;
   }
 
-  async getPositionV2s(): Promise<EurocoinPositionDto[]> {
+  async getPositionV2s(): Promise<DEuroPositionDto[]> {
     const positions = await this.client.getPositionV2s();
     return this.getPositions(positions);
   }
 
-  private async getPositions(positions: EurocoinPositionGraphDto[]): Promise<EurocoinPositionDto[]> {
-    const positionsResult: EurocoinPositionDto[] = [];
+  private async getPositions(positions: DEuroPositionGraphDto[]): Promise<DEuroPositionDto[]> {
+    const positionsResult: DEuroPositionDto[] = [];
 
     for (const position of positions) {
       try {
-        const eurocoinContract = this.client.getEurocoinContract(this.chainId);
+        const deuroContract = this.client.getDEuroContract(this.chainId);
 
-        const calculateAssignedReserve = await eurocoinContract.calculateAssignedReserve(
+        const calculateAssignedReserve = await deuroContract.calculateAssignedReserve(
           position.minted,
           position.reserveContribution,
         );
@@ -103,7 +101,7 @@ export class EurocoinService implements OnModuleInit {
         positionsResult.push({
           address: {
             position: position.position,
-            eurocoin: position.deuro,
+            deuro: position.deuro,
             collateral: position.collateral,
             owner: position.owner,
           },
@@ -128,25 +126,25 @@ export class EurocoinService implements OnModuleInit {
     return positionsResult;
   }
 
-  async getDEPS(): Promise<EurocoinPoolSharesDto> {
+  async getDEPS(): Promise<DEuroPoolSharesDto> {
     const equityContract = this.client.getEquityContract(this.chainId);
-    const eurocoinContract = this.client.getEurocoinContract(this.chainId);
+    const deuroContract = this.client.getDEuroContract(this.chainId);
 
     const deps = await this.client.getDEPS(this.chainId);
 
     try {
       const totalSupply = await equityContract.totalSupply();
       const price = await equityContract.price();
-      const eurocoinMinterReserve = await eurocoinContract.minterReserve();
-      const eurocoinEquity = await eurocoinContract.equity();
+      const deuroMinterReserve = await deuroContract.minterReserve();
+      const deuroEquity = await deuroContract.equity();
 
-      const depsResult: EurocoinPoolSharesDto = {
+      const depsResult: DEuroPoolSharesDto = {
         depsPrice: EvmUtil.fromWeiAmount(price),
         supply: EvmUtil.fromWeiAmount(totalSupply),
         marketCap: EvmUtil.fromWeiAmount(totalSupply) * EvmUtil.fromWeiAmount(price),
-        totalReserve: EvmUtil.fromWeiAmount(eurocoinMinterReserve) + EvmUtil.fromWeiAmount(eurocoinEquity),
-        equityCapital: EvmUtil.fromWeiAmount(eurocoinEquity),
-        minterReserve: EvmUtil.fromWeiAmount(eurocoinMinterReserve),
+        totalReserve: EvmUtil.fromWeiAmount(deuroMinterReserve) + EvmUtil.fromWeiAmount(deuroEquity),
+        equityCapital: EvmUtil.fromWeiAmount(deuroEquity),
+        minterReserve: EvmUtil.fromWeiAmount(deuroMinterReserve),
         totalIncome: EvmUtil.fromWeiAmount(deps?.profits ?? '0x0'),
         totalLosses: EvmUtil.fromWeiAmount(deps?.loss ?? '0x0'),
       };
@@ -158,26 +156,26 @@ export class EurocoinService implements OnModuleInit {
   }
 
   private async getTotalSupply(): Promise<number> {
-    const eurocoinContract = this.client.getEurocoinContract(this.chainId);
-    const deuroTotalSupply = await eurocoinContract.totalSupply();
+    const deuroContract = this.client.getDEuroContract(this.chainId);
+    const deuroTotalSupply = await deuroContract.totalSupply();
 
     return EvmUtil.fromWeiAmount(deuroTotalSupply);
   }
 
   async getTvl(): Promise<number> {
     // TODO: Frankencoin TVL comes from "https://api.llama.fi/tvl/frankencoin"
-    // TODO: and Eurocoin TVL comes from "?????"
+    // TODO: and DEuro TVL comes from "?????"
     return 0; //this.client.getTvl();
   }
 
-  async getEurocoinInfo(): Promise<EurocoinInfoDto> {
-    const maxEurocoinLogEntity = await this.logService.maxEntity(
-      EurocoinService.LOG_SYSTEM,
-      EurocoinService.LOG_SUBSYSTEM,
+  async getDEuroInfo(): Promise<DEuroInfoDto> {
+    const maxDEuroLogEntity = await this.logService.maxEntity(
+      DEuroService.LOG_SYSTEM,
+      DEuroService.LOG_SUBSYSTEM,
       LogSeverity.INFO,
     );
 
-    if (!maxEurocoinLogEntity) {
+    if (!maxDEuroLogEntity) {
       return {
         totalSupplyZchf: 0,
         totalValueLockedInChf: 0,
@@ -185,14 +183,14 @@ export class EurocoinService implements OnModuleInit {
       };
     }
 
-    const eurocoinLog = <EurocoinLogDto>JSON.parse(maxEurocoinLogEntity.message);
+    const deuroLog = <DEuroLogDto>JSON.parse(maxDEuroLogEntity.message);
 
     const priceUsdToChf = await this.pricingService.getPrice(this.usd, this.chf, true);
 
     return {
-      totalSupplyZchf: eurocoinLog.totalSupply,
-      totalValueLockedInChf: priceUsdToChf.convert(eurocoinLog.totalValueLocked),
-      depsMarketCapInChf: eurocoinLog.poolShares.marketCap,
+      totalSupplyZchf: deuroLog.totalSupply,
+      totalValueLockedInChf: priceUsdToChf.convert(deuroLog.totalValueLocked),
+      depsMarketCapInChf: deuroLog.poolShares.marketCap,
     };
   }
 }

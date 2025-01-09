@@ -7,9 +7,9 @@ import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
 import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
+import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
 import { EthereumModule } from './ethereum/ethereum.module';
-import { EurocoinModule } from './eurocoin/eurocoin.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
@@ -33,7 +33,7 @@ import { CryptoService } from './shared/services/crypto.service';
     LightningModule,
     MoneroModule,
     FrankencoinModule,
-    EurocoinModule,
+    DEuroModule,
     Ebel2xModule,
     ArweaveModule,
     RailgunModule,
@@ -49,7 +49,7 @@ import { CryptoService } from './shared/services/crypto.service';
     LightningModule,
     MoneroModule,
     FrankencoinModule,
-    EurocoinModule,
+    DEuroModule,
     Ebel2xModule,
     RailgunModule,
     EvmGasPriceService,
