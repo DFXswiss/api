@@ -175,11 +175,7 @@ export class BankDataService {
       dto.preferredCurrency = null;
     }
 
-    if (bankData.default) {
-      this.bankDataRepo.clearDefault(bankData.userData);
-    }
-
-    return this.bankDataRepo.save({ ...bankData, ...dto });
+    return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }
 
   async deleteBankData(id: number): Promise<void> {
@@ -295,7 +291,7 @@ export class BankDataService {
 
     if (existing) {
       if (userData.id === existing.userData.id) {
-        if (!existing.active) await this.bankDataRepo.updateWithDefault(...existing.activate(dto));
+        if (!existing.active) await this.bankDataRepo.update(...existing.activate(dto));
         return existing;
       }
 
@@ -320,7 +316,7 @@ export class BankDataService {
       default: dto.default,
     });
 
-    return this.bankDataRepo.saveWithDefault(bankData);
+    return this.bankDataRepo.saveWithUniqueDefault(bankData);
   }
 
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {

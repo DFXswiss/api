@@ -3,7 +3,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
-import { Column, Entity, Index, ManyToOne, OneToMany, Unique } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum BankDataType {
   IDENT = 'Ident',
@@ -23,7 +23,6 @@ export enum BankDataVerificationError {
 }
 
 @Entity()
-@Unique('single_default_per_user', ['userData', 'default'])
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   name?: string;
