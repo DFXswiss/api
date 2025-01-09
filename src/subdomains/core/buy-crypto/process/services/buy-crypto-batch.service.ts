@@ -12,9 +12,10 @@ import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
@@ -41,10 +42,9 @@ export class BuyCryptoBatchService {
 
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
-      const search = {
+      const search: FindOptionsWhere<BuyCrypto> = {
         outputReferenceAsset: Not(IsNull()),
         outputAsset: { type: Not(AssetType.CUSTOM) },
-        outputReferenceAmount: IsNull(),
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
         batch: IsNull(),
@@ -98,6 +98,19 @@ export class BuyCryptoBatchService {
   private async defineReferenceAmount(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
       try {
+        if (tx.outputReferenceAmount) {
+          tx.priceStepsObject = [
+            ...tx.inputPriceStep,
+            PriceStep.create(
+              'DFX',
+              tx.inputReferenceAsset,
+              tx.outputReferenceAsset.name,
+              tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
+            ),
+          ];
+          continue;
+        }
+
         const inputReferenceCurrency =
           tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
 

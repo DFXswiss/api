@@ -524,8 +524,7 @@ export class KycService {
         break;
 
       case IdentShortResult.REVIEW:
-        if (![KycStepStatus.INTERNAL_REVIEW, KycStepStatus.MANUAL_REVIEW].includes(kycStep.status))
-          await this.kycStepRepo.update(...kycStep.externalReview(dto));
+        if (!kycStep.isDone) await this.kycStepRepo.update(...kycStep.externalReview());
         break;
 
       case IdentShortResult.SUCCESS:

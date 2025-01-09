@@ -244,11 +244,8 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  externalReview(result?: KycStepResult): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = {
-      status: KycStepStatus.EXTERNAL_REVIEW,
-      result: this.setResult(result),
-    };
+  externalReview(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = { status: KycStepStatus.EXTERNAL_REVIEW };
 
     Object.assign(this, update);
 
