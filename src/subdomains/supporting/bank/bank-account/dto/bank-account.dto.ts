@@ -16,4 +16,7 @@ export class BankAccountDto {
 
   @ApiProperty()
   default: boolean;
+
+  @ApiProperty()
+  active: boolean;
 }
