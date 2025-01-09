@@ -314,7 +314,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           : undefined;
         const priceSteps = price?.steps ?? [
           PriceStep.create(
-            'Exchange',
+            'DFX',
             entity.inputReferenceAsset,
             entity.outputReferenceAsset.name,
             entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,

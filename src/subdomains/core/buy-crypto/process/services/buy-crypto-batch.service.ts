@@ -102,7 +102,7 @@ export class BuyCryptoBatchService {
           tx.priceStepsObject = [
             ...tx.inputPriceStep,
             PriceStep.create(
-              'Exchange',
+              'DFX',
               tx.inputReferenceAsset,
               tx.outputReferenceAsset.name,
               tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
