@@ -24,11 +24,15 @@ export class TransactionSpecification extends IEntity {
   @Column({ type: 'float' })
   minFee: number; // CHF
 
+  @Column({ nullable: true })
+  minConfirmations?: number;
+
   static default(): TransactionSpecification {
     const spec = new TransactionSpecification();
 
     spec.minVolume = 0;
     spec.minFee = 0;
+    spec.minConfirmations = 0;
 
     return spec;
   }

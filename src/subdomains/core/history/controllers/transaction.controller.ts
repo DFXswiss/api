@@ -26,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as IbanTools from 'ibantools';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -313,6 +314,21 @@ export class TransactionController {
         throw new BadRequestException('You can only refund a transaction once');
 
       userData = bankData.userData;
+
+      if (bankFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
+
+      refundData = {
+        expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+        inputAmount,
+        inputAsset: refundAsset,
+        refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, true),
+        fee: {
+          network: 0,
+          bank: Util.roundReadable(bankFeeAmount, true),
+        },
+        refundAsset,
+        refundTarget,
+      };
     } else {
       // Assigned transaction
       if (jwt.account !== transaction.userData.id)
@@ -325,6 +341,23 @@ export class TransactionController {
         throw new BadRequestException('You cannot refund payment transactions');
 
       userData = transaction.userData;
+
+      const totalFeeAmount = networkFeeAmount + bankFeeAmount;
+
+      if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
+
+      refundData = {
+        expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+        inputAmount: Util.roundReadable(inputAmount, !transaction.targetEntity.cryptoInput),
+        inputAsset: refundAsset,
+        refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, !transaction.targetEntity.cryptoInput),
+        fee: {
+          network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
+          bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
+        },
+        refundAsset,
+        refundTarget,
+      };
     }
 
     const bankIn = transaction.cryptoInput

@@ -242,18 +242,7 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
-    const inputPriceStep =
-      this.inputAsset !== this.inputReferenceAsset
-        ? [
-            PriceStep.create(
-              'Bank',
-              this.inputAsset,
-              this.inputReferenceAsset,
-              this.inputAmount / this.inputReferenceAmount,
-            ),
-          ]
-        : [];
-    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...price.steps];
+    this.priceStepsObject = [...this.priceStepsObject, ...this.inputPriceStep, ...price.steps];
     return this;
   }
 
@@ -558,6 +547,19 @@ export class BuyCrypto extends IEntity {
 
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
+  }
+
+  get inputPriceStep(): PriceStep[] {
+    return this.inputAsset !== this.inputReferenceAsset
+      ? [
+          PriceStep.create(
+            'Bank',
+            this.inputAsset,
+            this.inputReferenceAsset,
+            this.inputAmount / this.inputReferenceAmount,
+          ),
+        ]
+      : [];
   }
 
   get feeAmountChf(): number {

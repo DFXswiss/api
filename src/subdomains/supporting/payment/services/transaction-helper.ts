@@ -21,12 +21,14 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
-import { CryptoInput } from '../../payin/entities/crypto-input.entity';
+import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
@@ -53,6 +55,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly walletService: WalletService,
   ) {}
 
   onModuleInit() {
@@ -156,6 +159,16 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
+  async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
+    const spec = this.specRepo.getSpec(
+      this.transactionSpecifications,
+      payIn.asset.blockchain,
+      payIn.asset.name,
+      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
+    );
+    return spec?.minConfirmations ?? 0;
+  }
+
   // --- TARGET ESTIMATION --- //
   async getTxFeeInfos(
     inputReferenceAmount: number,
@@ -171,7 +184,19 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<InternalFeeDto & FeeDto> {
     // get fee
     const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(user, paymentMethodIn, paymentMethodOut, bankIn, bankOut, from, to, inputAmountChf, [], false),
+      this.getTxFee(
+        user,
+        undefined,
+        paymentMethodIn,
+        paymentMethodOut,
+        bankIn,
+        bankOut,
+        from,
+        to,
+        inputAmountChf,
+        [],
+        false,
+      ),
       this.getNetworkStartFee(to, false, user),
     ]);
 
@@ -216,6 +241,7 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     allowExpiredPrice: boolean,
     user?: User,
+    walletName?: string,
     specialCodes: string[] = [],
   ): Promise<TransactionDetails> {
     const txAsset = targetAmount ? to : from;
@@ -227,10 +253,13 @@ export class TransactionHelper implements OnModuleInit {
     const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
     const bankOut = this.getDefaultBankByPaymentMethod(paymentMethodOut);
 
+    const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
+
     // get fee
     const [fee, networkStartFee] = await Promise.all([
       this.getTxFee(
         user,
+        wallet,
         paymentMethodIn,
         paymentMethodOut,
         bankIn,
@@ -415,6 +444,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private async getTxFee(
     user: User | undefined,
+    wallet: Wallet | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     bankIn: CardBankName | IbanBankName,
@@ -427,6 +457,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<InternalFeeDto> {
     const feeRequest: UserFeeRequest = {
       user,
+      wallet,
       paymentMethodIn,
       paymentMethodOut,
       bankIn,
