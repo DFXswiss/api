@@ -16,19 +16,7 @@ export class BankDataRepository extends BaseRepository<BankData> {
     return super.save(bankData);
   }
 
-  async updateWithUniqueDefault(criteria: any, update: Partial<BankData>): Promise<any> {
-    if (update.default) {
-      const entity = await this.findOne({ where: criteria });
-      if (!entity) throw new Error('Entity not found');
-
-      await this.clearDefault(entity.userData);
-    }
-
-    return super.update(criteria, update);
-  }
-
   async clearDefault(userData: UserData): Promise<void> {
-    const currentDefault = await this.findOne({ where: { userData: { id: userData.id }, default: true } });
-    if (currentDefault) await super.save({ ...currentDefault, default: false });
+    await this.update({ userData: { id: userData.id }, default: true }, { default: false });
   }
 }
