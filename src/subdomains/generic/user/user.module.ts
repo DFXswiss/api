@@ -30,6 +30,8 @@ import { CustodyProviderController } from './models/custody-provider/custody-pro
 import { CustodyProvider } from './models/custody-provider/custody-provider.entity';
 import { CustodyProviderRepository } from './models/custody-provider/custody-provider.repository';
 import { CustodyProviderService } from './models/custody-provider/custody-provider.service';
+import { IntegratorRepository } from './models/integrator/integrator.repository';
+import { IntegratorService } from './models/integrator/integrator.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
@@ -97,6 +99,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     AccountMergeService,
     CustodyProviderService,
     CustodyProviderRepository,
+    IntegratorRepository,
+    IntegratorService,
   ],
   exports: [
     UserService,

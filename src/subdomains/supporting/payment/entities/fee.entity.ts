@@ -8,6 +8,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { Bank } from '../../bank/bank/bank.entity';
 import { FeeRequest } from '../services/fee.service';
+import { SpecialCode } from './special-code.entity';
 
 export enum FeeType {
   BASE = 'Base',
@@ -43,6 +44,8 @@ export class Fee extends IEntity {
   active: boolean;
 
   // Filter columns
+
+  // TODO: remove
   @Column({ length: 256, nullable: true })
   specialCode?: string;
 
@@ -71,7 +74,11 @@ export class Fee extends IEntity {
   wallet?: Wallet;
 
   @ManyToOne(() => Bank, { nullable: true, eager: true })
-  bank: Bank;
+  bank?: Bank;
+
+  // TODO: rename
+  @ManyToOne(() => SpecialCode, { nullable: true, eager: true })
+  code?: SpecialCode;
 
   // Volume columns
 

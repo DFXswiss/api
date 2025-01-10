@@ -33,8 +33,10 @@ import { InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
+import { SpecialCodeType } from '../entities/special-code.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
 import { FeeRepository } from '../repositories/fee.repository';
+import { SpecialCodeService } from './special-code.service';
 
 export interface UserFeeRequest extends FeeRequestBase {
   user: User;
@@ -48,12 +50,10 @@ export interface FeeRequest extends FeeRequestBase {
 
 export interface OptionalFeeRequest extends FeeRequestBase {
   user?: User;
-  wallet?: Wallet;
   accountType?: AccountType;
 }
 
 export interface FeeRequestBase {
-  wallet?: Wallet;
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
   bankIn: CardBankName | IbanBankName;
@@ -84,6 +84,7 @@ export class FeeService implements OnModuleInit {
     private readonly payoutService: PayoutService,
     private readonly pricingService: PricingService,
     private readonly bankService: BankService,
+    private readonly specialCodeService: SpecialCodeService,
   ) {}
 
   onModuleInit() {
@@ -158,7 +159,10 @@ export class FeeService implements OnModuleInit {
     if (dto.createSpecialCode) {
       // create hash
       const hash = Util.createHash(fee.label + fee.type).toUpperCase();
-      fee.specialCode = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
+      fee.code = await this.specialCodeService.createSpecialCode({
+        code: `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`,
+        type: SpecialCodeType.FEE,
+      });
     }
 
     // save
@@ -209,7 +213,7 @@ export class FeeService implements OnModuleInit {
   }
 
   async getFeeBySpecialCode(specialCode: string): Promise<Fee> {
-    const fee = await this.getAllFees().then((fees) => fees.find((f) => f.specialCode === specialCode));
+    const fee = await this.getAllFees().then((fees) => fees.find((f) => f.code.code === specialCode));
     if (!fee) throw new NotFoundException(`Discount code ${specialCode} not found`);
     return fee;
   }
@@ -402,7 +406,7 @@ export class FeeService implements OnModuleInit {
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
     const accountType = request.user?.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
-    const wallet = request.wallet ?? request.user?.wallet;
+    const wallet = request.user?.wallet;
     const userDataId = request.user?.userData?.id;
 
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
@@ -414,7 +418,7 @@ export class FeeService implements OnModuleInit {
           ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.BANK].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
-          request.specialCodes.includes(f.specialCode) ||
+          request.specialCodes.includes(f.code.code) ||
           (f.wallet && f.wallet.id === wallet?.id),
       ),
     );

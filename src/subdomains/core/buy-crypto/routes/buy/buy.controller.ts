@@ -99,6 +99,7 @@ export class BuyController {
       targetAmount,
       paymentMethod,
       specialCode,
+      specialCodes,
     } = await this.paymentInfoService.buyCheck(dto);
 
     const {
@@ -124,8 +125,7 @@ export class BuyController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
-      dto.wallet,
-      specialCode ? [specialCode] : [],
+      specialCodes ?? (specialCode ? [specialCode] : []),
     );
 
     return {

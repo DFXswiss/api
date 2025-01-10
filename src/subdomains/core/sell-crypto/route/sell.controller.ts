@@ -95,6 +95,7 @@ export class SellController {
       currency,
       targetAmount,
       specialCode,
+      specialCodes,
     } = await this.paymentInfoService.sellCheck(dto);
 
     const {
@@ -120,8 +121,7 @@ export class SellController {
       FiatPaymentMethod.BANK,
       true,
       undefined,
-      dto.wallet,
-      specialCode ? [specialCode] : [],
+      specialCodes ?? (specialCode ? [specialCode] : []),
     );
 
     return {
