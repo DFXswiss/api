@@ -379,7 +379,7 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency =
       refundEntity instanceof BankTx
         ? await this.fiatService.getFiatByName(refundEntity.currency)
-        : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputAsset));
+        : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputReferenceAsset));
 
     const chargebackFee = await this.feeService.getChargebackFee({
       from: inputCurrency,
@@ -407,6 +407,8 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+      inputAmount: Util.roundReadable(inputAmount, isFiat),
+      inputAsset: refundAsset,
       refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, isFiat),
       fee: {
         dfx: Util.roundReadable(dfxFeeAmount, isFiat),
