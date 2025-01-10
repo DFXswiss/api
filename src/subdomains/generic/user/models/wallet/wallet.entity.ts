@@ -30,10 +30,7 @@ export class Wallet extends IEntity {
   @Column({ length: 256, nullable: true })
   displayName?: string;
 
-  @Column({ length: 256, nullable: true })
-  masterKey?: string;
-
-  // TODO: remove
+  // TODO: remove?
   @Column({ default: false })
   isKycClient: boolean;
 
