@@ -34,7 +34,7 @@ export class DEuroService implements OnModuleInit {
   private pricingService: PricingService;
 
   private usd: Fiat;
-  private chf: Fiat;
+  private eur: Fiat;
 
   private readonly chainId: number;
 
@@ -54,7 +54,7 @@ export class DEuroService implements OnModuleInit {
     this.pricingService = this.moduleRef.get(PricingService, { strict: false });
 
     this.usd = await this.fiatService.getFiatByName('USD');
-    this.chf = await this.fiatService.getFiatByName('CHF');
+    this.eur = await this.fiatService.getFiatByName('EUR');
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -177,20 +177,20 @@ export class DEuroService implements OnModuleInit {
 
     if (!maxDEuroLogEntity) {
       return {
-        totalSupplyZchf: 0,
-        totalValueLockedInChf: 0,
-        depsMarketCapInChf: 0,
+        totalSupplyDeuro: 0,
+        totalValueLockedInEur: 0,
+        depsMarketCapInEur: 0,
       };
     }
 
     const deuroLog = <DEuroLogDto>JSON.parse(maxDEuroLogEntity.message);
 
-    const priceUsdToChf = await this.pricingService.getPrice(this.usd, this.chf, true);
+    const priceUsdToEur = await this.pricingService.getPrice(this.usd, this.eur, true);
 
     return {
-      totalSupplyZchf: deuroLog.totalSupply,
-      totalValueLockedInChf: priceUsdToChf.convert(deuroLog.totalValueLocked),
-      depsMarketCapInChf: deuroLog.poolShares.marketCap,
+      totalSupplyDeuro: deuroLog.totalSupply,
+      totalValueLockedInEur: priceUsdToEur.convert(deuroLog.totalValueLocked),
+      depsMarketCapInEur: deuroLog.poolShares.marketCap,
     };
   }
 }

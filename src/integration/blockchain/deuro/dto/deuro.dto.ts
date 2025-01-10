@@ -30,14 +30,9 @@ export interface DEuroLogDto {
 }
 
 export interface DEuroInfoDto {
-  totalSupplyZchf: number;
-  totalValueLockedInChf: number;
-  depsMarketCapInChf: number;
-}
-
-export interface DEuroSwapDto {
-  xchfSwapLimit: number;
-  zchfSwapLimit: number;
+  totalSupplyDeuro: number;
+  totalValueLockedInEur: number;
+  depsMarketCapInEur: number;
 }
 
 export interface DEuroPositionDto {
