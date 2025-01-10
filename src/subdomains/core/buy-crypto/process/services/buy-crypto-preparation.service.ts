@@ -18,7 +18,6 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, IsNull, Not } from 'typeorm';
@@ -41,7 +40,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly amlService: AmlService,
     private readonly userService: UserService,
