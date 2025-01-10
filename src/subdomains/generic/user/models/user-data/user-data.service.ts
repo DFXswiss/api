@@ -93,15 +93,13 @@ export class UserDataService {
     if (DisabledProcess(Process.USER_DATA_WALLET_SYNC)) return;
 
     const entities = await this.userDataRepo.find({
-      where: { wallet: { id: IsNull() } },
+      where: { wallet: { id: IsNull() }, users: { id: Not(IsNull()) } },
       relations: { users: { wallet: true } },
       take: 10000,
     });
 
     for (const entity of entities) {
       try {
-        if (!entity.users.length) continue;
-
         await this.userDataRepo.update(entity.id, { wallet: entity.users[0].wallet });
       } catch (e) {
         this.logger.error(`Error in userData wallet sync: ${entity.id}`, e);
