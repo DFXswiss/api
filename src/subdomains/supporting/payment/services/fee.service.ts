@@ -408,7 +408,7 @@ export class FeeService implements OnModuleInit {
     const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
     const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
 
-    if (!chargebackFees) throw new InternalServerErrorException('Chargeback fee is missing');
+    if (!chargebackFees.length) throw new InternalServerErrorException('Chargeback fee is missing');
     return {
       fees: chargebackFees,
       rate: combinedChargebackFeeRate,
