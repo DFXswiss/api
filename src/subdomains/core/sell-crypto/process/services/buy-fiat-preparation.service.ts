@@ -211,8 +211,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
+        for (const usedFee of fee.fees) {
+          await this.feeService.increaseTxUsages(amountInChf, usedFee.id, entity.user.userData);
         }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);

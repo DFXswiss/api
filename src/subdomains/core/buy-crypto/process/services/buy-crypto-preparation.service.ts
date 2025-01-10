@@ -222,7 +222,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
     for (const entity of entities) {
       try {
-        const isFirstRun = !entity.percentFee;
+        const isFirstRun = entity.percentFee == null;
 
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
@@ -277,10 +277,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         }
 
         if (isFirstRun) {
-          for (const feeId of fee.fees) {
-            await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
-          }
-
           await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
           await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
           await this.buyCryptoService.updateRefVolume([entity.usedRef]);
