@@ -28,6 +28,7 @@
     "@defichain/jellyfish-api-jsonrpc": "^3.30.1",
     "@defichain/jellyfish-network": "^3.30.1",
     "@defichain/whale-api-client": "^3.30.1",
+    "@deuro/eurocoin": "^1.0.7",
     "@dhedge/v2-sdk": "^1.9.8",
     "@eth-optimism/sdk": "^3.2.0",
     "@maticnetwork/maticjs": "^3.7.8",
@@ -97,6 +98,7 @@
     "swagger-ui-express": "^4.6.2",
     "swissqrbill": "^4.0.2",
     "typeorm": "^0.3.12",
+    "viem": "^1.0.6",
     "xoauth2": "^1.2.0",
     "zbase32": "^1.0.5"
   },
