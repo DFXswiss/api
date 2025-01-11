@@ -120,6 +120,9 @@ export class Transaction extends IEntity {
   @ManyToOne(() => UserData, (userData) => userData.kycSteps, { nullable: true })
   userData?: UserData;
 
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
+  wallet?: Wallet;
+
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   request?: TransactionRequest;
@@ -139,10 +142,6 @@ export class Transaction extends IEntity {
 
   get url(): string {
     return `${Config.frontend.services}/tx/${this.uid}`;
-  }
-
-  get wallet(): Wallet {
-    return this.userData?.wallet ?? this.user?.wallet;
   }
 
   get mailContext(): MailContext | undefined {

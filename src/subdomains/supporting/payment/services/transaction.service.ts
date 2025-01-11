@@ -37,6 +37,26 @@ export class TransactionService {
     }
   }
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
+  async syncWallet(): Promise<void> {
+    if (DisabledProcess(Process.TRANSACTION_WALLET_SYNC)) return;
+
+    const entities = await this.repo.find({
+      where: { user: { id: Not(IsNull()) }, wallet: { id: IsNull() } },
+      relations: { user: { wallet: true }, wallet: true },
+      take: 10000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.repo.update(entity.id, { wallet: entity.user.wallet });
+      } catch (e) {
+        this.logger.error(`Failed to sync transaction wallet ${entity.id}:`, e);
+      }
+    }
+  }
+
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
