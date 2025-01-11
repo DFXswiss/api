@@ -27,7 +27,8 @@
                 "title": "Attribuer un dépôt",
                 "salutation": "Votre dépôt ne peut pas être attribué automatiquement",
                 "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
-            }
+            },
+            "currency_exchange": "Par ailleurs: le compte bancaire {bankAccount} est un compte {bankAsset}, si vous envoyez {inputAsset}, il sera échangé directement à la banque et nous recevrons {bankAsset}.<br>Si possible, envoyez {bankAsset} directement sur ce compte bancaire."
         },
         "crypto_output": {
             "title": "Actif cryptographique payé",

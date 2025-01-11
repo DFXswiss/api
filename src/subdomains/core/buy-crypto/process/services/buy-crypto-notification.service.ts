@@ -79,7 +79,7 @@ export class BuyCryptoNotificationService {
         outputAmount: Not(IsNull()),
       },
       relations: {
-        transaction: { userData: true },
+        transaction: { userData: { wallet: true }, user: { wallet: true } },
       },
     });
 
@@ -91,6 +91,7 @@ export class BuyCryptoNotificationService {
             context: MailContext.BUY_CRYPTO_COMPLETED,
             input: {
               userData: entity.userData,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.CRYPTO_OUTPUT}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_OUTPUT}.salutation` },
               suffix: [
@@ -165,7 +166,7 @@ export class BuyCryptoNotificationService {
         amlReason: In(BuyCryptoAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: { transaction: { userData: true } },
+      relations: { transaction: { userData: { wallet: true }, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
@@ -178,6 +179,7 @@ export class BuyCryptoNotificationService {
             context: MailContext.BUY_CRYPTO_PENDING,
             input: {
               userData: entity.userData,
+              wallet: entity.wallet,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
@@ -246,7 +248,7 @@ export class BuyCryptoNotificationService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { userData: true },
+        transaction: { userData: { wallet: true }, user: { wallet: true } },
       },
     });
 
@@ -264,6 +266,7 @@ export class BuyCryptoNotificationService {
             context: MailContext.BUY_CRYPTO_RETURN,
             input: {
               userData: entity.userData,
+              wallet: entity.wallet,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               suffix: [
@@ -323,7 +326,7 @@ export class BuyCryptoNotificationService {
         amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
       },
-      relations: { transaction: { userData: true } },
+      relations: { transaction: { userData: { wallet: true }, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);
@@ -336,6 +339,7 @@ export class BuyCryptoNotificationService {
             context: MailContext.BUY_CRYPTO_CHARGEBACK_UNCONFIRMED,
             input: {
               userData: entity.userData,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.title`,
               salutation: {
                 key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation`,

@@ -4,7 +4,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { CryptoInput, PayInConfirmationType } from '../../../entities/crypto-input.entity';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
@@ -65,7 +65,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     throw new Error('Method not implemented.');
   }
 
-  protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
-    return this.moneroService.checkTransactionCompletion(payIn.confirmationTxId(direction));
+  async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
+    return this.moneroService.checkTransactionCompletion(txId, minConfirmations);
   }
 }

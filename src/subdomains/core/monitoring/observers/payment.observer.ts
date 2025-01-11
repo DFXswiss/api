@@ -10,6 +10,7 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { RewardStatus } from '../../referral/reward/ref-reward.entity';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -19,6 +20,7 @@ interface PaymentData {
   unconfirmedCryptoInputs: number;
   bankTxWithoutType: number;
   bankTxGsType: number;
+  refRewardManualCheck: number;
 }
 
 interface LastOutputDates {
@@ -87,6 +89,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         ),
         action: In([PayInAction.FORWARD, PayInAction.RETURN]),
       }),
+      refRewardManualCheck: await this.repos.refReward.countBy({ status: RewardStatus.MANUAL_CHECK }),
     };
   }
 

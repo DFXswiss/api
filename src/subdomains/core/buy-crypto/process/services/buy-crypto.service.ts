@@ -328,6 +328,7 @@ export class BuyCryptoService {
     const buyCrypto = await this.buyCryptoRepo.findOne({
       where: { id: buyCryptoId },
       relations: {
+        bankTx: true,
         checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
         transaction: { userData: true },

@@ -5,6 +5,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
+import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
@@ -18,6 +19,7 @@ import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/s
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
+import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 
@@ -276,6 +278,9 @@ export class UserData extends IEntity {
   amlListReactivatedDate?: Date;
 
   @Column({ length: 256, nullable: true })
+  amlListStatus?: AmlListStatus;
+
+  @Column({ length: 256, nullable: true })
   internalAmlNote?: string;
 
   @Column({ length: 256, nullable: true })
@@ -337,6 +342,9 @@ export class UserData extends IEntity {
   paymentLinksConfig?: string; // PaymentLinkConfig
 
   // References
+  @ManyToOne(() => Wallet, { nullable: true })
+  wallet: Wallet;
+
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;

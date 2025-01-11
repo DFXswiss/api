@@ -12,11 +12,17 @@ export class RefundFeeDto {
 }
 
 export class RefundDataDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Expiry date of the refund data' })
   expiryDate: Date;
 
-  @ApiProperty({ type: RefundFeeDto })
+  @ApiProperty({ type: RefundFeeDto, description: 'Refund fees' })
   fee: RefundFeeDto;
+
+  @ApiProperty()
+  inputAmount: number;
+
+  @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
+  inputAsset: ActiveDto;
 
   @ApiProperty()
   refundAmount: number;
@@ -24,6 +30,6 @@ export class RefundDataDto {
   @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
   refundAsset: ActiveDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
   refundTarget: string;
 }

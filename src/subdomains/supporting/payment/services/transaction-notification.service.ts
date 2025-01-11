@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -43,9 +44,11 @@ export class TransactionNotificationService {
         mailSendDate: IsNull(),
       },
       relations: {
+        bankTx: true,
         buyCrypto: true,
         buyFiat: true,
-        userData: true,
+        userData: { wallet: true },
+        user: { wallet: true },
       },
     });
     if (entities.length === 0) return;
@@ -64,6 +67,7 @@ export class TransactionNotificationService {
             context: entity.mailContext,
             input: {
               userData: entity.userData,
+              wallet: entity.wallet,
               title: `${entity.targetEntity.inputMailTranslationKey}.title`,
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
               suffix: [
@@ -75,6 +79,18 @@ export class TransactionNotificationService {
                   key: `${MailTranslationKey.GENERAL}.link`,
                   params: { url: entity.url, urlText: entity.url },
                 },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                entity.bankTx && entity.bankTx.instructedCurrency !== entity.bankTx.currency
+                  ? {
+                      key: `${MailTranslationKey.FIAT_INPUT}.currency_exchange`,
+                      params: {
+                        bankAccount: Util.blankCenter(entity.bankTx.accountIban),
+                        bankAsset: entity.bankTx.currency,
+                        inputAsset: entity.bankTx.instructedCurrency,
+                      },
+                    }
+                  : null,
+
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
@@ -94,7 +110,7 @@ export class TransactionNotificationService {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
         mailSendDate: IsNull(),
       },
-      relations: { bankTx: true },
+      relations: { bankTx: true, user: { wallet: true } },
     });
     if (entities.length === 0) return;
 
@@ -109,6 +125,7 @@ export class TransactionNotificationService {
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
               salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
               suffix: [
