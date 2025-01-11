@@ -111,7 +111,6 @@ export class BuyCryptoBatchService {
               tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
             ),
           ];
-          continue;
         } else {
           const inputReferenceCurrency =
             tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
