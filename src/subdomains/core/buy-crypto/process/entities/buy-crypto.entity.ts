@@ -8,6 +8,7 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -584,6 +585,10 @@ export class BuyCrypto extends IEntity {
   get translationReturnMailKey(): MailTranslationKey {
     if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_CHARGEBACK;
     return MailTranslationKey.CRYPTO_CHARGEBACK;
+  }
+
+  get wallet(): Wallet {
+    return this.transaction.wallet;
   }
 
   get user(): User {

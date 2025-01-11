@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -456,6 +457,10 @@ export class BuyFiat extends IEntity {
 
   get feeAmountChf(): number {
     return this.totalFeeAmountChf;
+  }
+
+  get wallet(): Wallet {
+    return this.transaction.wallet;
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {

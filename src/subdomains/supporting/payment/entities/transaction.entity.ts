@@ -4,6 +4,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
@@ -138,6 +139,10 @@ export class Transaction extends IEntity {
 
   get url(): string {
     return `${Config.frontend.services}/tx/${this.uid}`;
+  }
+
+  get wallet(): Wallet {
+    return this.userData?.wallet ?? this.user?.wallet;
   }
 
   get mailContext(): MailContext | undefined {
