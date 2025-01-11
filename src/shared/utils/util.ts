@@ -494,6 +494,10 @@ export class Util {
     );
   }
 
+  static blankCenter(value: string, visibleLength = 4): string {
+    return value.slice(0, visibleLength) + this.blankStart(value, visibleLength);
+  }
+
   static blankStart(value: string, visibleLength = 4): string {
     return '***' + value.slice(value.length - visibleLength);
   }
