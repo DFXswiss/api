@@ -82,7 +82,7 @@ export class TransactionNotificationService {
                   ? {
                       key: `${MailTranslationKey.FIAT_INPUT}.currency_exchange`,
                       params: {
-                        bankAccount: Util.blankCentre(entity.bankTx.accountIban),
+                        bankAccount: Util.blankCenter(entity.bankTx.accountIban),
                         bankAsset: entity.bankTx.currency,
                         inputAsset: entity.bankTx.instructedCurrency,
                       },
