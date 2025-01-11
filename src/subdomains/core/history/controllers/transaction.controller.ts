@@ -295,7 +295,6 @@ export class TransactionController {
       user: { userData: true },
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: true },
-      refReward: true,
     });
 
     if (!transaction || !transaction.refundTargetEntity) throw new NotFoundException('Transaction not found');
@@ -422,19 +421,20 @@ export class TransactionController {
   // --- HELPER METHODS --- //
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
-    if (transaction.targetEntity instanceof RefReward) return undefined;
-    if (transaction.targetEntity instanceof BuyFiat) return transaction.targetEntity.chargebackAddress;
+    if (transaction.refundTargetEntity instanceof BuyFiat) return transaction.refundTargetEntity.chargebackAddress;
 
     try {
       if (transaction.bankTx && (await this.validateIban(transaction.bankTx.iban))) return transaction.bankTx.iban;
     } catch (_) {
-      return transaction.targetEntity?.chargebackIban;
+      return transaction.refundTargetEntity instanceof BankTx
+        ? undefined
+        : transaction.refundTargetEntity?.chargebackIban;
     }
 
-    if (transaction.targetEntity instanceof BuyCrypto)
-      return transaction.targetEntity.checkoutTx
-        ? `${transaction.targetEntity.checkoutTx.cardBin}****${transaction.targetEntity.checkoutTx.cardLast4}`
-        : transaction.targetEntity.chargebackIban;
+    if (transaction.refundTargetEntity instanceof BuyCrypto)
+      return transaction.refundTargetEntity.checkoutTx
+        ? `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`
+        : transaction.refundTargetEntity.chargebackIban;
   }
 
   private async validateIban(iban: string): Promise<boolean> {
