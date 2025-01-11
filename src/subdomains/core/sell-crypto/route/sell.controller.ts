@@ -295,7 +295,7 @@ export class SellController {
     };
 
     const transactionRequestUid = await this.transactionRequestService
-      .create(TransactionRequestType.Sell, dto, sellDto, user.id)
+      .create(TransactionRequestType.SELL, dto, sellDto, user.id)
       .then((t) => t.uid);
 
     return { ...sellDto, transactionRequestUid };

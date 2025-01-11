@@ -292,7 +292,7 @@ export class SwapController {
     };
 
     const transactionRequestUid = await this.transactionRequestService
-      .create(TransactionRequestType.Swap, dto, swapDto, user.id)
+      .create(TransactionRequestType.SWAP, dto, swapDto, user.id)
       .then((t) => t.uid);
 
     return { ...swapDto, transactionRequestUid };

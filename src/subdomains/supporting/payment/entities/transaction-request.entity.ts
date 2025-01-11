@@ -7,9 +7,9 @@ import { PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 
 export enum TransactionRequestType {
-  Buy = 'Buy',
-  Sell = 'Sell',
-  Swap = 'Swap',
+  BUY = 'Buy',
+  SELL = 'Sell',
+  SWAP = 'Swap',
 }
 
 @Entity()

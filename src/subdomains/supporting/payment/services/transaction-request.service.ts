@@ -79,7 +79,7 @@ export class TransactionRequestService {
       let siftOrder: boolean;
 
       switch (type) {
-        case TransactionRequestType.Buy:
+        case TransactionRequestType.BUY:
           const buyRequest = request as GetBuyPaymentInfoDto;
           const buyResponse = response as BuyPaymentInfoDto;
 
@@ -94,7 +94,7 @@ export class TransactionRequestService {
           siftOrder = true;
           break;
 
-        case TransactionRequestType.Sell:
+        case TransactionRequestType.SELL:
           const sellResponse = response as SellPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
@@ -106,7 +106,7 @@ export class TransactionRequestService {
           blockchain = sellResponse.asset.blockchain;
           break;
 
-        case TransactionRequestType.Swap:
+        case TransactionRequestType.SWAP:
           const convertResponse = response as SwapPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
