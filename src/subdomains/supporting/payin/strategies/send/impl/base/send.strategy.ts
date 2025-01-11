@@ -133,6 +133,10 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     toAsset: Active,
   ): Promise<{ referenceAmount: number; maxAmount: number }> {
     const price = await this.priceProvider.getPrice(fromAsset, toAsset, true);
-    return { referenceAmount: price.convert(fromAmount, 8), maxAmount: price.convert(Config.maxBlockchainFee, 8) };
+    const chfTargetPrice = await this.priceProvider.getPrice(this.chf, toAsset, true);
+    return {
+      referenceAmount: price.convert(fromAmount, 8),
+      maxAmount: chfTargetPrice.convert(Config.maxBlockchainFee, 8),
+    };
   }
 }
