@@ -21,6 +21,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -88,6 +89,26 @@ export class UserDataService {
     private readonly tfaService: TfaService,
   ) {}
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
+  async syncWallet() {
+    if (DisabledProcess(Process.USER_DATA_WALLET_SYNC)) return;
+
+    const entities = await this.userDataRepo.find({
+      where: { wallet: { id: IsNull() }, users: { id: Not(IsNull()) } },
+      relations: { users: { wallet: true } },
+      take: 10000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.userDataRepo.update(entity.id, { wallet: entity.users[0].wallet });
+      } catch (e) {
+        this.logger.error(`Error in userData wallet sync: ${entity.id}`, e);
+      }
+    }
+  }
+
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
@@ -142,7 +163,7 @@ export class UserDataService {
         mail,
         status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
       },
-      relations: { users: true },
+      relations: { users: true, wallet: true },
     });
   }
 
@@ -177,7 +198,7 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
+      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
@@ -765,6 +786,7 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
+          wallet: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -776,6 +798,7 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
+          wallet: true,
         },
       }),
     ]);

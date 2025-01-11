@@ -20,6 +20,7 @@ import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } fr
 import { Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
+import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 
@@ -344,6 +345,9 @@ export class UserData extends IEntity {
   paymentLinksConfig?: string; // PaymentLinkConfig
 
   // References
+  @ManyToOne(() => Wallet, { nullable: true })
+  wallet: Wallet;
+
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;

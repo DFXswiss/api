@@ -28,6 +28,7 @@ import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-met
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { SignUpDto } from '../auth/dto/auth-credentials.dto';
+import { CustodyProvider } from '../custody-provider/custody-provider.entity';
 import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
@@ -157,27 +158,15 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
-  async createUser({
-    userDetails: { address, signature, usedRef },
-    userIp,
-    userOrigin,
-    wallet,
-    specialCode,
-    userData,
-  }: {
-    userDetails: SignUpDto;
-    userIp: string;
-    userOrigin?: string;
-    wallet?: Wallet;
-    specialCode?: string;
-    userData?: UserData;
-  }): Promise<User> {
-    if ([UserDataStatus.BLOCKED, UserDataStatus.MERGED].includes(userData?.status))
-      throw new BadRequestException('UserData merged or blocked');
-
-    if (userData?.status === UserDataStatus.KYC_ONLY)
-      await this.userDataRepo.update(userData.id, { status: UserDataStatus.NA });
-
+  async createUser(
+    { address, signature, usedRef }: SignUpDto,
+    userIp: string,
+    userOrigin?: string,
+    wallet?: Wallet,
+    specialCode?: string,
+    custodyProvider?: CustodyProvider,
+    userData?: UserData,
+  ): Promise<User> {
     let user = this.userRepo.create({ address, signature, addressType: CryptoService.getAddressType(address) });
     const userIsActive = userData?.status === UserDataStatus.ACTIVE;
 
@@ -186,6 +175,7 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
+    user.custodyProvider = custodyProvider;
     userIsActive && (user.status = UserStatus.ACTIVE);
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
@@ -197,6 +187,7 @@ export class UserService {
         kycType: user.wallet.customKyc ?? KycType.DFX,
         language,
         currency,
+        wallet: user.wallet,
       }));
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));

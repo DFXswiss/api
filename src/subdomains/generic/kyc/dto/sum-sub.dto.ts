@@ -25,8 +25,8 @@ export interface SumSubWebhookResult {
     reviewRejectType?: ReviewRejectType;
     buttonIds?: string[];
   };
-  reviewStatus?: string;
-  videoIdentReviewStatus?: string;
+  reviewStatus?: ReviewStatus;
+  videoIdentReviewStatus?: ReviewStatus;
   createdAt: Date;
   createdAtMs?: Date;
   sandboxMode?: boolean;
@@ -95,9 +95,13 @@ export enum ReviewRejectType {
   RETRY = 'RETRY',
 }
 
-export enum VideoIdentStatus {
+export enum ReviewStatus {
+  INIT = 'init',
   PENDING = 'pending',
+  PRE_CHECKED = 'prechecked',
+  QUEUED = 'queued',
   COMPLETED = 'completed',
+  ON_HOLD = 'onHold',
 }
 
 export enum SumSubWebhookType {
@@ -269,6 +273,7 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
+  if (dto.reviewStatus === ReviewStatus.INIT) IdentShortResult.PENDING;
   switch (dto.type) {
     case SumSubWebhookType.APPLICANT_PENDING:
       return IdentShortResult.REVIEW;
@@ -277,10 +282,15 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
       return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
 
     case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED:
-      if (dto.videoIdentReviewStatus === VideoIdentStatus.PENDING) {
+      if (dto.videoIdentReviewStatus === ReviewStatus.INIT) {
+        return IdentShortResult.PENDING;
+      }
+
+      if (dto.videoIdentReviewStatus === ReviewStatus.PENDING) {
         return IdentShortResult.REVIEW;
       }
-      if (dto.videoIdentReviewStatus === VideoIdentStatus.COMPLETED) {
+
+      if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
         return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
       }
       break;

@@ -212,6 +212,17 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
+  inProgress(result?: KycStepResult): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      status: KycStepStatus.IN_PROGRESS,
+      result: this.setResult(result),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   ignored(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.IGNORED,
@@ -233,11 +244,8 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  externalReview(result?: KycStepResult): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = {
-      status: KycStepStatus.EXTERNAL_REVIEW,
-      result: this.setResult(result),
-    };
+  externalReview(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = { status: KycStepStatus.EXTERNAL_REVIEW };
 
     Object.assign(this, update);
 

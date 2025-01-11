@@ -23,10 +23,6 @@ export class WalletService {
     return this.repo.save(entity);
   }
 
-  async getWithMasterKey(masterKey: string): Promise<Wallet | undefined> {
-    return masterKey && this.repo.findOneCachedBy(masterKey, { masterKey });
-  }
-
   async getByAddress(address: string): Promise<Wallet | undefined> {
     return this.repo.findOneCachedBy(address, { address });
   }

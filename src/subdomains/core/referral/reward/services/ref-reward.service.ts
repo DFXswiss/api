@@ -133,7 +133,7 @@ export class RefRewardService {
   }
 
   // --- HELPER METHODS --- //
-  private async updatePaidRefCredit(userIds: number[]): Promise<void> {
+  async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of userIds) {
@@ -141,7 +141,7 @@ export class RefRewardService {
         .createQueryBuilder('refReward')
         .select('SUM(amountInEur)', 'volume')
         .innerJoin('refReward.user', 'user')
-        .where('user.id = :id', { id })
+        .andWhere('refReward.status = :status', { status: RewardStatus.COMPLETE })
         .getRawOne<{ volume: number }>();
 
       await this.userService.updatePaidRefCredit(id, volume ?? 0);
