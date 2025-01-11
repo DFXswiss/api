@@ -82,7 +82,10 @@ export class TransactionUtilService {
 
     if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(entity.amlCheck) || entity.outputAmount)
       throw new BadRequestException('Only failed or pending transactions are refundable');
-    if (dto.chargebackAmount && dto.chargebackAmount > entity.inputAmount)
+    if (
+      dto.chargebackAmount &&
+      dto.chargebackAmount > (entity instanceof BuyCrypto && entity.bankTx ? entity.bankTx.amount : entity.inputAmount)
+    )
       throw new BadRequestException('You can not refund more than the input amount');
   }
 

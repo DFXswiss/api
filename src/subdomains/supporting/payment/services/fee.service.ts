@@ -48,10 +48,12 @@ export interface FeeRequest extends FeeRequestBase {
 
 export interface OptionalFeeRequest extends FeeRequestBase {
   user?: User;
+  wallet?: Wallet;
   accountType?: AccountType;
 }
 
 export interface FeeRequestBase {
+  wallet?: Wallet;
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
   bankIn: CardBankName | IbanBankName;
@@ -197,8 +199,8 @@ export class FeeService implements OnModuleInit {
     await this.userDataService.addFee(userData, cachedFee.id);
   }
 
-  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
-    const cachedFee = await this.getFee(fee.id);
+  async increaseTxUsages(txVolume: number, feeId: number, userData: UserData): Promise<void> {
+    const cachedFee = await this.getFee(feeId);
 
     await this.feeRepo.update(...cachedFee.increaseTxUsage());
     if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
@@ -400,7 +402,7 @@ export class FeeService implements OnModuleInit {
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
     const accountType = request.user?.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
-    const wallet = request.user?.wallet;
+    const wallet = request.wallet ?? request.user?.wallet;
     const userDataId = request.user?.userData?.id;
 
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];

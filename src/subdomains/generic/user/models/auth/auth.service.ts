@@ -25,6 +25,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { CustodyProviderService } from '../custody-provider/custody-provider.service';
 import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
@@ -58,8 +59,6 @@ export interface MailKeyData {
 export class AuthService {
   private readonly logger = new DfxLogger(AuthService);
 
-  private readonly masterKeyPrefix = 'MASTER-KEY-';
-
   private readonly challengeList = new Map<string, ChallengeData>();
   private readonly mailKeyList = new Map<string, MailKeyData>();
 
@@ -67,6 +66,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly userRepo: UserRepository,
     private readonly walletService: WalletService,
+    private readonly custodyProviderService: CustodyProviderService,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
     private readonly lightningService: LightningService,
@@ -97,7 +97,11 @@ export class AuthService {
 
   // --- AUTH METHODS --- //
   async authenticate(dto: SignUpDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
-    const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
+    const existingUser = await this.userService.getUserByAddress(dto.address, {
+      userData: true,
+      wallet: true,
+      custodyProvider: true,
+    });
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
 
     if (userData && existingUser && existingUser.userData.id !== userDataId) {
@@ -125,11 +129,10 @@ export class AuthService {
     isCustodial: boolean,
     userData?: UserData,
   ): Promise<AuthResponseDto> {
-    const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
-    if (keyWallet) {
-      dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
-    } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key)))
+    const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature);
+    if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
       throw new BadRequestException('Invalid signature');
+    }
 
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
@@ -137,14 +140,15 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
-    const user = await this.userService.createUser({
-      userDetails: dto,
+    const user = await this.userService.createUser(
+      dto,
       userIp,
-      userOrigin: ref?.origin,
+      ref?.origin,
       wallet,
-      specialCode: dto.specialCode ?? dto.discountCode,
+      dto.specialCode ?? dto.discountCode,
+      custodyProvider,
       userData,
-    });
+    );
     await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
@@ -153,7 +157,11 @@ export class AuthService {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto, userIp);
 
-    const user = await this.userService.getUserByAddress(dto.address, { userData: { users: true }, wallet: true });
+    const user = await this.userService.getUserByAddress(dto.address, {
+      userData: { users: true },
+      custodyProvider: true,
+      wallet: true,
+    });
     if (!user) throw new NotFoundException('User not found');
 
     if (user.userData.isDeactivated)
@@ -168,18 +176,13 @@ export class AuthService {
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new ConflictException('User is deactivated or blocked');
-
-    const keyWalletId =
-      user.signature?.includes(this.masterKeyPrefix) && +user.signature?.replace(this.masterKeyPrefix, '');
-
-    if (keyWalletId) {
-      const wallet = await this.walletService.getByIdOrName(keyWalletId);
-      if (dto.signature !== wallet.masterKey) throw new UnauthorizedException('Invalid credentials');
-    } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
-      throw new UnauthorizedException('Invalid credentials');
-    } else if (!user.signature) {
-      // TODO: temporary code to update empty signatures (remove?)
-      await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
+    if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
+      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+        throw new UnauthorizedException('Invalid credentials');
+      } else if (!user.signature) {
+        // TODO: temporary code to update empty signatures (remove?)
+        await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
+      }
     }
 
     try {
@@ -217,6 +220,7 @@ export class AuthService {
         mail: dto.mail,
         language: dto.language ?? language,
         status: UserDataStatus.KYC_ONLY,
+        wallet: await this.walletService.getDefault(),
       }));
 
     // create random key
@@ -237,7 +241,8 @@ export class AuthService {
       type: MailType.USER,
       context: MailContext.LOGIN,
       input: {
-        userData: userData,
+        userData,
+        wallet: userData.wallet,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
         suffix: [
@@ -331,9 +336,9 @@ export class AuthService {
   // --- VERIFY SIGN MESSAGES --- //
 
   async verifyMessageSignature(address: string, message: string, signature: string): Promise<VerifySignMessageDto> {
-    const keyWallet = await this.walletService.getWithMasterKey(signature);
+    const custodyProvider = await this.custodyProviderService.getWithMasterKey(signature);
 
-    const isValid = keyWallet ? true : await this.cryptoService.verifySignature(message, address, signature);
+    const isValid = custodyProvider ? true : await this.cryptoService.verifySignature(message, address, signature);
 
     return { isValid };
   }

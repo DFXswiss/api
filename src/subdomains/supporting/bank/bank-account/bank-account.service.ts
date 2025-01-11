@@ -76,7 +76,7 @@ export class BankAccountService {
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
     const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
 
-    return ibanCountry.isEnabled(kycType);
+    return ibanCountry?.isEnabled(kycType);
   }
 
   private async initBankAccount(iban: string): Promise<BankAccount> {
