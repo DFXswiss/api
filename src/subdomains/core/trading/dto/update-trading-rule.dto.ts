@@ -1,4 +1,5 @@
-import { IsInt, IsNumber, IsOptional } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional } from 'class-validator';
+import { TradingRuleStatus } from '../enums';
 
 export class UpdateTradingRuleDto {
   @IsOptional()
@@ -20,4 +21,8 @@ export class UpdateTradingRuleDto {
   @IsOptional()
   @IsInt()
   reactivationTime: number;
+
+  @IsOptional()
+  @IsEnum(TradingRuleStatus)
+  status: TradingRuleStatus;
 }

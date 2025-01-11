@@ -29,7 +29,7 @@ export class KycAdminService {
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },
-      relations: { userData: { bankDatas: true } },
+      relations: { userData: { bankDatas: true, wallet: true } },
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
@@ -72,7 +72,7 @@ export class KycAdminService {
 
   async triggerVideoIdentInternal(userData: UserData): Promise<void> {
     try {
-      await this.kycService.getOrCreateStepInternal(userData.kycHash, KycStepName.IDENT, KycStepType.VIDEO);
+      await this.kycService.getOrCreateStepInternal(userData.kycHash, KycStepName.IDENT, KycStepType.SUMSUB_VIDEO);
     } catch (e) {
       this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
     }

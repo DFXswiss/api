@@ -211,8 +211,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
+        for (const usedFee of fee.fees) {
+          await this.feeService.increaseTxUsages(amountInChf, usedFee.id, entity.user.userData);
         }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
@@ -309,10 +309,23 @@ export class BuyFiatPreparationService implements OnModuleInit {
       try {
         const asset = entity.cryptoInput.asset;
         const currency = entity.outputAsset;
-        const price = await this.pricingService.getPrice(asset, currency, false);
+        const price = !entity.outputReferenceAmount
+          ? await this.pricingService.getPrice(asset, currency, false)
+          : undefined;
+        const priceSteps = price?.steps ?? [
+          PriceStep.create(
+            'DFX',
+            entity.inputReferenceAsset,
+            entity.outputReferenceAsset.name,
+            entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
+          ),
+        ];
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), price.steps),
+          ...entity.setOutput(
+            entity.outputReferenceAmount ?? price.convert(entity.inputReferenceAmountMinusFee),
+            priceSteps,
+          ),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);

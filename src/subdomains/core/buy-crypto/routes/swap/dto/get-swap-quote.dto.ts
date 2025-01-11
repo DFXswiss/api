@@ -50,4 +50,9 @@ export class GetSwapQuoteDto {
   @IsOptional()
   @IsString()
   specialCode: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  wallet: string;
 }

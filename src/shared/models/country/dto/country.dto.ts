@@ -10,6 +10,9 @@ export class CountryDto {
   @ApiProperty()
   name: string;
 
+  @ApiProperty()
+  foreignName: string;
+
   @ApiProperty({ description: 'Allowed to access DFX API (current IP location)' })
   locationAllowed: boolean;
 

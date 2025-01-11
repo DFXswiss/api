@@ -450,6 +450,13 @@ export class Configuration {
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
     },
+    deuro: {
+      deuroGatewayUrl: process.env.DEURO_GATEWAY_URL,
+      deuroApiKey: process.env.ALCHEMY_API_KEY,
+      deuroChainId: +process.env.DEURO_CHAIN_ID,
+      deuroGraphUrl: process.env.DEURO_GRAPH_URL,
+      deuroTvlUrl: process.env.DEURO_TVL_URL,
+    },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
     },

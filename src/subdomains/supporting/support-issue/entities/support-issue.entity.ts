@@ -24,6 +24,7 @@ export enum SupportIssueType {
 
 export enum SupportIssueReason {
   OTHER = 'Other',
+  DATA_REQUEST = 'DataRequest',
 
   // transaction
   FUNDS_NOT_RECEIVED = 'FundsNotReceived',

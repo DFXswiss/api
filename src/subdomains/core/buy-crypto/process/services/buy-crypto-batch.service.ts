@@ -10,11 +10,13 @@ import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supp
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
@@ -37,14 +39,14 @@ export class BuyCryptoBatchService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
+    private readonly feeService: FeeService,
   ) {}
 
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
-      const search = {
+      const search: FindOptionsWhere<BuyCrypto> = {
         outputReferenceAsset: Not(IsNull()),
         outputAsset: { type: Not(AssetType.CUSTOM) },
-        outputReferenceAmount: IsNull(),
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
         batch: IsNull(),
@@ -70,6 +72,7 @@ export class BuyCryptoBatchService {
           cryptoInput: true,
           buy: { user: true },
           cryptoRoute: { user: true },
+          transaction: { user: { userData: true } },
         },
       });
 
@@ -98,12 +101,28 @@ export class BuyCryptoBatchService {
   private async defineReferenceAmount(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
       try {
-        const inputReferenceCurrency =
-          tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
+        if (tx.outputReferenceAmount) {
+          tx.priceStepsObject = [
+            ...tx.inputPriceStep,
+            PriceStep.create(
+              'DFX',
+              tx.inputReferenceAsset,
+              tx.outputReferenceAsset.name,
+              tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
+            ),
+          ];
+        } else {
+          const inputReferenceCurrency =
+            tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
 
-        const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
+          const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
 
-        tx.calculateOutputReferenceAmount(price);
+          tx.calculateOutputReferenceAmount(price);
+        }
+
+        for (const feeId of tx.usedFees?.split(';')) {
+          await this.feeService.increaseTxUsages(tx.amountInChf, Number.parseInt(feeId), tx.userData);
+        }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
           await this.setPriceInvalidStatus([tx]);
