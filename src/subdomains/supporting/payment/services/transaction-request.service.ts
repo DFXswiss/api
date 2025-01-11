@@ -1,7 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
@@ -9,7 +12,7 @@ import { GetSwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swa
 import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/swap-payment-info.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
-import { MoreThan } from 'typeorm';
+import { FindOptionsRelations, IsNull, MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
@@ -23,16 +26,36 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
   ) {}
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
+  async uidSync() {
+    if (DisabledProcess(Process.TX_REQUEST_UID_SYNC)) return;
+
+    const entities = await this.transactionRequestRepo.find({ where: { uid: IsNull() }, take: 10000 });
+
+    for (const entity of entities) {
+      try {
+        const uid = Util.createHash(entity.type + new Date() + Util.randomId()).toUpperCase();
+
+        await this.transactionRequestRepo.update(entity.id, { uid });
+      } catch (e) {
+        this.logger.error(`Error in TransactionRequest sync ${entity.id}`, e);
+      }
+    }
+  }
+
   async create(
     type: TransactionRequestType,
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
-  ): Promise<void> {
+  ): Promise<TransactionRequest> {
     try {
+      const hash = Util.createHash(type + new Date() + Util.randomId()).toUpperCase();
+
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
-        type: type,
+        type,
         routeId: response.routeId,
         amount: response.amount,
         estimatedAmount: response.estimatedAmount,
@@ -47,6 +70,7 @@ export class TransactionRequestService {
         networkFee: response.fees.network,
         totalFee: response.fees.total,
         user: { id: userId },
+        uid: `Q${hash.slice(0, 16)}`,
       });
 
       let sourceCurrencyName: string;
@@ -107,6 +131,8 @@ export class TransactionRequestService {
           targetCurrencyName,
           blockchain,
         );
+
+      return transactionRequest;
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -126,6 +152,13 @@ export class TransactionRequestService {
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 
     return request;
+  }
+
+  async getTransactionRequestByUid(
+    uid: string,
+    relations: FindOptionsRelations<TransactionRequest> = {},
+  ): Promise<TransactionRequest | undefined> {
+    return this.transactionRequestRepo.findOne({ where: { uid }, relations });
   }
 
   async findAndComplete(

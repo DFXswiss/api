@@ -21,14 +21,16 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    let entity = await this.getTransactionById(id);
+    let entity = await this.getTransactionById(id, { request: { supportIssues: true } });
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
+
     if (!(dto instanceof UpdateTransactionDto)) {
       entity.externalId = dto.request?.externalTransactionId;
 
       if (dto.resetMailSendDate) entity.mailSendDate = null;
+      if (dto.request) entity.supportIssues = [...entity.supportIssues, ...entity.request.supportIssues];
     }
 
     entity = await this.repo.save(entity);

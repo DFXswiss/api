@@ -8,10 +8,13 @@ import {
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
+import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
+import { TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
+import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
@@ -37,18 +40,38 @@ export class SupportIssueService {
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
+  async createTransactionRequestIssue(uid: string, dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+    const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(uid, {
+      user: { userData: true },
+    });
+    if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
+
+    return this.createIssueInternal(transactionRequest.userData, dto, transactionRequest);
+  }
+
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
-    // mail is required
     const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('UserData not found');
+
+    return this.createIssueInternal(userData, dto);
+  }
+
+  async createIssueInternal(
+    userData: UserData,
+    dto: CreateSupportIssueDto,
+    transactionRequest?: TransactionRequest,
+  ): Promise<SupportIssueDto> {
+    // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
     const existingIssue = await this.supportIssueRepo.findOne({
       where: {
-        userData: { id: userDataId },
+        userData: { id: userData.id },
         type: newIssue.type,
         reason: newIssue.reason,
         transaction: { id: newIssue.transaction?.id ?? IsNull() },
@@ -64,17 +87,36 @@ export class SupportIssueService {
 
       // map transaction
       if (dto.transaction) {
-        if (dto.transaction.id) {
-          newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
-            user: { userData: true },
-          });
+        if (dto.transaction.id || dto.transaction.uid) {
+          newIssue.transaction = dto.transaction.id
+            ? await this.transactionService.getTransactionById(dto.transaction.id, {
+                user: { userData: true },
+              })
+            : await this.transactionService.getTransactionByUid(dto.transaction.uid, {
+                user: { userData: true },
+              });
+
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
+        } else if (dto.transaction.transactionRequestUid) {
+          newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
+            dto.transaction.transactionRequestUid,
+            { user: { userData: true } },
+          );
+
+          if (!newIssue.transactionRequest) throw new NotFoundException('Transaction not found');
+          if (
+            !newIssue.transactionRequest.user ||
+            newIssue.transactionRequest.user.userData.id !== newIssue.userData.id
+          )
+            throw new ForbiddenException('You can only create support issue for your own transactionRequest');
         }
 
         newIssue.additionalInformation = dto.transaction;
       }
+
+      if (transactionRequest) newIssue.transactionRequest = transactionRequest;
 
       // create limit request
       if (dto.limitRequest) {

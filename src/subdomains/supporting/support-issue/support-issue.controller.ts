@@ -7,7 +7,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
+import { CreateSupportIssueBaseDto, CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
 import { SupportIssueDto, SupportMessageDto } from './dto/support-issue.dto';
@@ -37,6 +37,14 @@ export class SupportIssueController {
     @Body() dto: CreateSupportIssueSupportDto,
   ): Promise<SupportIssueDto> {
     return this.supportIssueService.createIssue(+userDataId, dto);
+  }
+
+  @Post('transaction/request/:uid')
+  async createTransactionRequestIssue(
+    @Param('uid') uid: string,
+    @Body() dto: CreateSupportIssueBaseDto,
+  ): Promise<SupportIssueDto> {
+    return this.supportIssueService.createTransactionRequestIssue(uid, { ...dto, author: CustomerAuthor });
   }
 
   @Get()

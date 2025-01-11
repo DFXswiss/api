@@ -294,8 +294,10 @@ export class SellController {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Sell, dto, sellDto, user.id);
+    const transactionRequestUid = await this.transactionRequestService
+      .create(TransactionRequestType.Sell, dto, sellDto, user.id)
+      .then((t) => t.uid);
 
-    return sellDto;
+    return { ...sellDto, transactionRequestUid };
   }
 }

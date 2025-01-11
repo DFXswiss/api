@@ -353,9 +353,11 @@ export class BuyController {
         ),
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Buy, dto, buyDto, user.id);
+    const transactionRequestUid = await this.transactionRequestService
+      .create(TransactionRequestType.Buy, dto, buyDto, user.id)
+      .then((t) => t.uid);
 
-    return buyDto;
+    return { ...buyDto, transactionRequestUid };
   }
 
   // --- HELPER-METHODS --- //

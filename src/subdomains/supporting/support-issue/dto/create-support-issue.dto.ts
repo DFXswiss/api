@@ -14,6 +14,16 @@ export class TransactionIssueDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  uid?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  transactionRequestUid?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   senderIban?: string;
 
   @ApiPropertyOptional()

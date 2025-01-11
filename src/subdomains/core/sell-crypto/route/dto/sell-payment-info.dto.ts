@@ -91,6 +91,9 @@ export class SellPaymentInfoDto {
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
   paymentRequest?: string;
 
+  @ApiProperty({ description: 'UID of the transaction request' })
+  transactionRequestUid?: string;
+
   @ApiProperty()
   isValid: boolean;
 
