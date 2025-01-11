@@ -161,14 +161,6 @@ export class PayInService {
     await this.payInRepository.save(payIn);
   }
 
-  async failedPayIn(payIn: CryptoInput, purpose: PayInPurpose): Promise<void> {
-    const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
-
-    _payIn.fail(purpose);
-
-    await this.payInRepository.save(_payIn);
-  }
-
   async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRouteType): Promise<void> {
     const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 

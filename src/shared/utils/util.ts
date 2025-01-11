@@ -153,7 +153,7 @@ export class Util {
       .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
-      .replace(/[\.]/g, '')
+      .replace(/[\.,]/g, '')
       .replace(/[-‘`´']/g, ' ');
   }
 
@@ -492,6 +492,10 @@ export class Util {
     return new XMLParser({ ignoreAttributes: false, numberParseOptions: { leadingZeros: false, hex: false } }).parse(
       file,
     );
+  }
+
+  static blankCenter(value: string, visibleLength = 4): string {
+    return value.slice(0, visibleLength) + this.blankStart(value, visibleLength);
   }
 
   static blankStart(value: string, visibleLength = 4): string {

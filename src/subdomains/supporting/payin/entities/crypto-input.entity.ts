@@ -194,13 +194,6 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  fail(purpose: PayInPurpose): this {
-    this.purpose = purpose;
-    this.status = PayInStatus.FAILED;
-
-    return this;
-  }
-
   ignore(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { RefRewardRepository } from 'src/subdomains/core/referral/reward/ref-reward.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
@@ -25,6 +26,7 @@ export class RepositoryFactory {
   public readonly transactionSpecification: TransactionSpecificationRepository;
   public readonly checkoutTx: CheckoutTxRepository;
   public readonly asset: AssetRepository;
+  public readonly refReward: RefRewardRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -38,5 +40,6 @@ export class RepositoryFactory {
     this.transactionSpecification = new TransactionSpecificationRepository(manager);
     this.checkoutTx = new CheckoutTxRepository(manager);
     this.asset = new AssetRepository(manager);
+    this.refReward = new RefRewardRepository(manager);
   }
 }

@@ -92,7 +92,12 @@ export abstract class EvmStrategy extends SendStrategy {
       try {
         if (!payIn.confirmationTxId(direction)) continue;
 
-        const isConfirmed = await this.isConfirmed(payIn, direction);
+        const minConfirmations = await this.getMinConfirmations(payIn, direction);
+
+        const isConfirmed = await this.payInEvmService.checkTransactionCompletion(
+          payIn.confirmationTxId(direction),
+          minConfirmations,
+        );
         if (isConfirmed) {
           payIn.confirm(direction, this.forwardRequired);
           await this.payInRepo.save(payIn);
@@ -101,10 +106,6 @@ export abstract class EvmStrategy extends SendStrategy {
         this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
       }
     }
-  }
-
-  protected async isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean> {
-    return this.payInEvmService.checkTransactionCompletion(payIn.confirmationTxId(direction));
   }
 
   //*** HELPER METHODS ***//

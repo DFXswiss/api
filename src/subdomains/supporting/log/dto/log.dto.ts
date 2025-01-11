@@ -36,7 +36,7 @@ export interface AssetLog {
 
 // manual debt
 
-export type ManualDebtPosition = {
+export type ManualLogPosition = {
   assetId: number;
   value: number;
 };

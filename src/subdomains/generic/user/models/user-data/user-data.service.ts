@@ -21,6 +21,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -86,6 +87,26 @@ export class UserDataService {
     private readonly tfaService: TfaService,
   ) {}
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
+  async syncWallet() {
+    if (DisabledProcess(Process.USER_DATA_WALLET_SYNC)) return;
+
+    const entities = await this.userDataRepo.find({
+      where: { wallet: { id: IsNull() }, users: { id: Not(IsNull()) } },
+      relations: { users: { wallet: true } },
+      take: 10000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.userDataRepo.update(entity.id, { wallet: entity.users[0].wallet });
+      } catch (e) {
+        this.logger.error(`Error in userData wallet sync: ${entity.id}`, e);
+      }
+    }
+  }
+
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
@@ -140,7 +161,7 @@ export class UserDataService {
         mail,
         status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
       },
-      relations: { users: true },
+      relations: { users: true, wallet: true },
     });
   }
 
@@ -175,7 +196,7 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
+      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
@@ -185,7 +206,16 @@ export class UserDataService {
       // cancel a pending video ident, if ident is completed
       const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
       const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
-      if (identCompleted && pendingVideo) await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
+      const pendingSumSubVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.SUMSUB_VIDEO);
+
+      if (identCompleted) {
+        if (pendingVideo) {
+          await this.kycAdminService.updateKycStepInternal(pendingVideo.cancel());
+        }
+        if (pendingSumSubVideo) {
+          await this.kycAdminService.updateKycStepInternal(pendingSumSubVideo.cancel());
+        }
+      }
     }
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
@@ -527,7 +557,7 @@ export class UserDataService {
     const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser ? KycStepType.VIDEO : customIdent ?? (defaultIdent as KycStepType);
+    return isVipUser ? KycStepType.SUMSUB_VIDEO : customIdent ?? (defaultIdent as KycStepType);
   }
 
   private async customIdentMethod(userDataId: number): Promise<KycStepType | undefined> {
@@ -731,6 +761,7 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
+          wallet: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -742,6 +773,7 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
+          wallet: true,
         },
       }),
     ]);
@@ -815,7 +847,9 @@ export class UserDataService {
       master.amlListReactivatedDate = slave.amlListReactivatedDate;
       master.kycFileId = slave.kycFileId;
     }
-    if (slave.kycSteps.some((k) => k.type === KycStepType.VIDEO && k.isCompleted)) {
+    if (
+      slave.kycSteps.some((k) => (k.type === KycStepType.VIDEO || k.type === KycStepType.SUMSUB_VIDEO) && k.isCompleted)
+    ) {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }

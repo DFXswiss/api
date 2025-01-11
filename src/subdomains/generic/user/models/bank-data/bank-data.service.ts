@@ -76,7 +76,7 @@ export class BankDataService {
       if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
 
       const existing = await this.bankDataRepo.findOne({
-        where: { iban: entity.iban, approved: true },
+        where: { id: Not(entity.id), iban: entity.iban, approved: true },
         relations: { userData: true },
       });
 

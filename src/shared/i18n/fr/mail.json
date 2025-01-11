@@ -27,7 +27,8 @@
                 "title": "Attribuer un dépôt",
                 "salutation": "Votre dépôt ne peut pas être attribué automatiquement",
                 "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
-            }
+            },
+            "currency_exchange": "Par ailleurs: le compte bancaire {bankAccount} est un compte {bankAsset}, si vous envoyez {inputAsset}, il sera échangé directement à la banque et nous recevrons {bankAsset}.<br>Si possible, envoyez {bankAsset} directement sur ce compte bancaire."
         },
         "crypto_output": {
             "title": "Actif cryptographique payé",
@@ -83,7 +84,8 @@
                 "asset_kyc_needed": "KYC est requis pour l'actif déposé",
                 "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX",
                 "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain",
-                "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction"
+                "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
+                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },

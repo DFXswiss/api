@@ -27,7 +27,8 @@
                 "title": "Assign deposit",
                 "salutation": "Your deposit cannot be allocated automatically",
                 "transaction_button": "Please assign your deposit to your order:<br>[url:click here]"
-            }
+            },
+            "currency_exchange": "By the way: The {bankAccount} bank account is a {bankAsset} account, if you send {inputAsset} this will be exchanged directly at the bank and we will receive {bankAsset}.<br>If possible, send {bankAsset} to this bank account."
         },
         "crypto_output": {
             "title": "Crypto asset paid out",
@@ -83,7 +84,8 @@
                 "asset_kyc_needed": "KYC is required for the deposited asset",
                 "card_name_mismatch": "The given credit card name does not match the name of the DFX account holder",
                 "user_deactivated": "Your linked blockchain address has been irrevocably deleted by you. You can still use DFX with other blockchain addresses",
-                "video_ident_needed": "You must complete your KYC with Video-Ident for the transaction"
+                "video_ident_needed": "You must complete your KYC with Video-Ident for the transaction",
+                "missing_liquidity": "DFX was unable to trade the required amount of tokens within the specified time"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },

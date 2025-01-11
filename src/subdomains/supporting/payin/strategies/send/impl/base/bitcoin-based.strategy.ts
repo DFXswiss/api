@@ -19,7 +19,7 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
   }
 
   protected abstract getForwardAddress(): BlockchainAddress;
-  protected abstract isConfirmed(payIn: CryptoInput, direction: PayInConfirmationType): Promise<boolean>;
+  protected abstract checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean>;
 
   get blockchain(): Blockchain {
     return Blockchain.BITCOIN;
@@ -73,7 +73,9 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
       try {
         if (!payIn.confirmationTxId(direction)) continue;
 
-        const isConfirmed = await this.isConfirmed(payIn, direction);
+        const minConfirmations = await this.getMinConfirmations(payIn, direction);
+
+        const isConfirmed = await this.checkTransactionCompletion(payIn.confirmationTxId(direction), minConfirmations);
         if (isConfirmed) {
           payIn.confirm(direction, this.forwardRequired);
 

@@ -27,7 +27,8 @@
                 "title": "Assegnazione del deposito",
                 "salutation": "Il vostro deposito non può essere assegnato automaticamente",
                 "transaction_button": "Si prega di assegnare il deposito all'ordine:<br>[url:clicca qui]"
-            }
+            },
+            "currency_exchange": "A proposito: il conto bancario {bankAccount} è un conto {bankAsset}, se inviate {inputAsset} questo sarà scambiato direttamente in banca e noi riceveremo {bankAsset}.<br>Se possibile, inviate {bankAsset} direttamente a questo conto bancario."
         },
         "crypto_output": {
             "title": "Attività in criptovaluta pagata",
@@ -83,7 +84,8 @@
                 "asset_kyc_needed": "Il KYC è richiesto per l'attività depositata",
                 "card_name_mismatch": "Il nome della carta di credito indicato non corrisponde al nome del titolare del conto DFX",
                 "user_deactivated": "L'indirizzo blockchain collegato è stato irrevocabilmente cancellato dall'utente. È ancora possibile utilizzare DFX con altri indirizzi blockchain",
-                "video_ident_needed": "È necessario completare il KYC con un'identità video per la transazione"
+                "video_ident_needed": "È necessario completare il KYC con un'identità video per la transazione",
+                "missing_liquidity": "DFX non è stata in grado di scambiare la quantità di token richiesta entro il tempo specificato"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },

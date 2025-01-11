@@ -27,7 +27,8 @@
                 "title": "Einzahlung zuordnen",
                 "salutation": "Deine Einzahlung kann nicht automatisch zugeordnet werden",
                 "transaction_button": "Bitte ordne deinen Zahlungseingang deiner Bestellung zu:<br>[url:Klick hier]"
-            }
+            },
+            "currency_exchange": "Übrigens: Das {bankAccount} Bankkonto ist ein {bankAsset}-Konto, wenn du {inputAsset} schickst wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>Wenn möglich schicke also direkt {bankAsset} zu diesem Bankkonto."
         },
         "crypto_output": {
             "title": "Krypto-Asset verschickt",
@@ -83,7 +84,8 @@
                 "asset_kyc_needed": "Für das eingezahlte Asset wird KYC benötigt",
                 "card_name_mismatch": "Der angegebene Kreditkartenname stimmt nicht mit dem Namen des Inhabers des DFX Kontos überein",
                 "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
-                "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen"
+                "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen",
+                "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },

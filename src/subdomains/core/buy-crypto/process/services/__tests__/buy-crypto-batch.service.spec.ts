@@ -8,6 +8,7 @@ import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__moc
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -36,6 +37,7 @@ describe('BuyCryptoBatchService', () => {
   let payoutService: PayoutService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let liquidityManagementService: LiquidityManagementService;
+  let feeService: FeeService;
 
   /*** Spies ***/
 
@@ -215,6 +217,7 @@ describe('BuyCryptoBatchService', () => {
     payoutService = mock<PayoutService>();
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
     liquidityManagementService = mock<LiquidityManagementService>();
+    feeService = mock<FeeService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -229,6 +232,7 @@ describe('BuyCryptoBatchService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: LiquidityManagementService, useValue: liquidityManagementService },
+        { provide: FeeService, useValue: feeService },
         TestUtil.provideConfig(),
       ],
     }).compile();
