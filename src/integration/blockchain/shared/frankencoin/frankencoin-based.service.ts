@@ -41,7 +41,7 @@ export abstract class FrankencoinBasedService {
         'contract',
       );
 
-      tvl += collateralWithTotalBalance.totalBalance / price.price;
+      if (price) tvl += collateralWithTotalBalance.totalBalance / price.price;
     }
 
     return tvl;

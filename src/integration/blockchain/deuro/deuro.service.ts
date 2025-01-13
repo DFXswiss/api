@@ -166,9 +166,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   async getTvl(): Promise<number> {
     const positionV2s = await this.client.getPositionV2s();
 
-    const activePositionV2s = positionV2s.filter((p) => !p.denied && !p.closed);
-
-    const collaterals = activePositionV2s.map((p) => {
+    const collaterals = positionV2s.map((p) => {
       return {
         collateral: p.collateral,
         collateralSymbol: p.collateralSymbol,

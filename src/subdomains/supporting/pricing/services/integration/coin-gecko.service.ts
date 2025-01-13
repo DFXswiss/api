@@ -68,7 +68,7 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
 
       return Price.create(token, currency, 1 / price);
     } catch (e) {
-      this.logger.error(`Failed to get price for ${token} -> ${currency}:`, e);
+      this.logger.error(`Failed to get price for token ${token} -> ${currency}:`, e);
       throw new ServiceUnavailableException(`Failed to get price`);
     }
   }
@@ -81,11 +81,14 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
         vs_currencies: currency,
       });
       const price = data[contractAddress]?.[currency];
-      if (!price) throw new Error('Price not found');
+      if (!price) {
+        this.logger.info(`No price for contract ${contractAddress} -> ${currency}`);
+        return;
+      }
 
       return Price.create(contractAddress, currency, 1 / price);
     } catch (e) {
-      this.logger.error(`Failed to get price for ${contractAddress} -> ${currency}:`, e);
+      this.logger.error(`Failed to get price for contract ${contractAddress} -> ${currency}:`, e);
       throw new ServiceUnavailableException(`Failed to get price`);
     }
   }

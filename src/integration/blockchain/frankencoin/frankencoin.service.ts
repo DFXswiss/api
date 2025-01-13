@@ -220,10 +220,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     const positionV1s = await this.client.getPositionV1s();
     const positionV2s = await this.client.getPositionV2s();
 
-    const activePositionV1s = positionV1s.filter((p) => !p.denied && !p.closed);
-    const activePositionV2s = positionV2s.filter((p) => !p.denied && !p.closed);
-
-    const collaterals = [...activePositionV1s, ...activePositionV2s].map((p) => {
+    const collaterals = [...positionV1s, ...positionV2s].map((p) => {
       return {
         collateral: p.collateral,
         collateralSymbol: p.collateralSymbol,
