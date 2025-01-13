@@ -225,22 +225,26 @@ export class LogJobService {
     const manualDebtPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
     const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
 
-    const financeLogPairIds = await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined);
+    const useUnfilteredTx = await this.settingService.getObj<boolean>('financeLogUnfilteredTx', false);
+
+    const financeLogPairIds = useUnfilteredTx
+      ? await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined)
+      : undefined;
 
     const minBankTxId = Math.min(
       ...[
-        financeLogPairIds.fromKraken.chf.bankTxId,
-        financeLogPairIds.fromKraken.eur.bankTxId,
-        financeLogPairIds.toKraken.chf.bankTxId,
-        financeLogPairIds.toKraken.eur.bankTxId,
+        financeLogPairIds?.fromKraken.chf.bankTxId,
+        financeLogPairIds?.fromKraken.eur.bankTxId,
+        financeLogPairIds?.toKraken.chf.bankTxId,
+        financeLogPairIds?.toKraken.eur.bankTxId,
       ],
     );
     const minExchangeTxId = Math.min(
       ...[
-        financeLogPairIds.fromKraken.chf.exchangeTxId,
-        financeLogPairIds.fromKraken.eur.exchangeTxId,
-        financeLogPairIds.toKraken.chf.exchangeTxId,
-        financeLogPairIds.toKraken.eur.exchangeTxId,
+        financeLogPairIds?.fromKraken.chf.exchangeTxId,
+        financeLogPairIds?.fromKraken.eur.exchangeTxId,
+        financeLogPairIds?.toKraken.chf.exchangeTxId,
+        financeLogPairIds?.toKraken.eur.exchangeTxId,
       ],
     );
 
@@ -487,7 +491,11 @@ export class LogJobService {
 
       // total pending balance
       const totalPlusPending =
-        cryptoInput + exchangeOrder + pendingOlkyMaerkiAmount + fromKrakenUnfiltered + toKrakenUnfiltered;
+        cryptoInput +
+        exchangeOrder +
+        pendingOlkyMaerkiAmount +
+        (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
+        (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
       const totalPlus = liquidity + totalPlusPending;
 
       // minus
@@ -540,8 +548,8 @@ export class LogJobService {
                 cryptoInput: this.getJsonValue(cryptoInput, isFiat(curr)),
                 exchangeOrder: this.getJsonValue(exchangeOrder, isFiat(curr)),
                 fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, isFiat(curr)),
-                fromKraken: this.getJsonValue(fromKrakenUnfiltered, isFiat(curr)),
-                toKraken: this.getJsonValue(toKrakenUnfiltered, isFiat(curr)),
+                fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, isFiat(curr)),
+                toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, isFiat(curr)),
               }
             : undefined,
           monitoring: errors.length
@@ -572,7 +580,7 @@ export class LogJobService {
               }
             : undefined,
         },
-        error: errors.join(';'),
+        error: errors.length ? errors.join(';') : undefined,
       };
 
       return prev;
