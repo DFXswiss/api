@@ -31,14 +31,25 @@ export interface AssetLog {
     priceChf: number;
     plusBalance: AssetLogPlusBalance;
     minusBalance: AssetLogMinusBalance;
+    error: string;
   };
 }
 
 // manual debt
-
 export type ManualLogPosition = {
   assetId: number;
   value: number;
+};
+
+// pairIds
+export type LogPairId = {
+  fromKraken: { eur: PairId; chf: PairId };
+  toKraken: { eur: PairId; chf: PairId };
+};
+
+type PairId = {
+  bankTxId: number;
+  exchangeTxId: number;
 };
 
 // asset log
@@ -46,12 +57,21 @@ type AssetLogPlusBalance = {
   total: number;
   liquidity?: number;
   pending?: AssetLogPlusPending;
+  monitoring?: AssetLogMonitoring;
 };
 
 type AssetLogMinusBalance = {
   total: number;
   debt?: number;
   pending?: AssetLogMinusPending;
+  monitoring?: AssetLogMonitoring;
+};
+
+type AssetLogMonitoring = {
+  fromKrakenBankTxIds: string;
+  toKrakenBankTxIds: string;
+  fromKrakenExchangeTxIds: string;
+  toKrakenExchangeTxIds: string;
 };
 
 type AssetLogPlusPending = {
