@@ -283,7 +283,7 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
+  async getRecentExchangeTx(minId = 1, type: BankTxType): Promise<BankTx[]> {
     return this.bankTxRepo.findBy({ id: MoreThanOrEqual(minId), type });
   }
 

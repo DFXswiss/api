@@ -82,7 +82,7 @@ export class ExchangeTxService implements OnModuleInit {
     return this.exchangeTxRepo.find({ where: { created: MoreThan(from) }, relations });
   }
 
-  async getRecentExchangeTx(minId: number, exchange: ExchangeName, types: ExchangeTxType[]): Promise<ExchangeTx[]> {
+  async getRecentExchangeTx(minId = 1, exchange: ExchangeName, types: ExchangeTxType[]): Promise<ExchangeTx[]> {
     return this.exchangeTxRepo.findBy({ id: MoreThanOrEqual(minId), type: In(types), exchange });
   }
 
