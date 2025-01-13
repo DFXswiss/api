@@ -13,10 +13,6 @@ export class DEuroClient {
     this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
   }
 
-  async getTvl(): Promise<number> {
-    return this.http.get<number>(`${Config.blockchain.deuro.deuroTvlUrl}`);
-  }
-
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
     const document = gql`
       {
@@ -36,6 +32,8 @@ export class DEuroClient {
             minted
             reserveContribution
             expiration
+            closed
+            denied
           }
         }
       }

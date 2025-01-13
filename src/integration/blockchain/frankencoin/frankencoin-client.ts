@@ -17,15 +17,11 @@ import {
 } from './dto/frankencoin.dto';
 
 export class FrankencoinClient {
-  private provider: ethers.providers.JsonRpcProvider;
+  private readonly provider: ethers.providers.JsonRpcProvider;
 
   constructor(private readonly http: HttpService, gatewayUrl: string, apiKey: string) {
     const providerUrl = `${gatewayUrl}/${apiKey}`;
     this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
-  }
-
-  async getTvl(): Promise<number> {
-    return this.http.get<number>(`${Config.blockchain.frankencoin.zchfTvlUrl}`);
   }
 
   async getPositionV1s(): Promise<FrankencoinPositionGraphDto[]> {
@@ -47,6 +43,8 @@ export class FrankencoinClient {
             minted
             reserveContribution
             expiration
+            closed
+            denied
           }
         }
       }
@@ -77,6 +75,8 @@ export class FrankencoinClient {
             minted
             reserveContribution
             expiration
+            closed
+            denied
           }
         }
       }
