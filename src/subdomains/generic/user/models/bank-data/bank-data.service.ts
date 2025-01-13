@@ -175,7 +175,7 @@ export class BankDataService {
       dto.preferredCurrency = null;
     }
 
-    return this.bankDataRepo.save({ ...bankData, ...dto });
+    return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }
 
   async getBankData(id: number): Promise<BankData> {
@@ -239,7 +239,7 @@ export class BankDataService {
       await this.bankDataRepo
         .createQueryBuilder()
         .update('bank_data')
-        .set({ active: false })
+        .set({ active: false, default: false })
         .where('bank_data.userDataId = :userDataId', { userDataId })
         .andWhere('bank_data.id != :id', { id: entity.id })
         .andWhere('bank_data.iban = :iban', { iban: entity.iban })
@@ -309,9 +309,10 @@ export class BankDataService {
       type: BankDataType.USER,
       label: dto.label,
       preferredCurrency: dto.preferredCurrency,
+      default: dto.default,
     });
 
-    return this.bankDataRepo.save(bankData);
+    return this.bankDataRepo.saveWithUniqueDefault(bankData);
   }
 
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
