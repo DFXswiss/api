@@ -689,7 +689,7 @@ export class LogJobService {
   // --- HELPER METHODS --- //
 
   private getTxIdMonitoringLog(tx: (BankTx | ExchangeTx)[]): string | undefined {
-    return tx?.map((t) => t.id)?.join(';');
+    return tx.length ? tx.map((t) => t.id).join(';') : undefined;
   }
 
   private getFeeAmount(
