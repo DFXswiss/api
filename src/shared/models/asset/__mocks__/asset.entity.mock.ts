@@ -2,11 +2,11 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetCategory, AssetType } from '../asset.entity';
 
 const defaultAsset: Partial<Asset> = {
-  name: 'dTSLA',
-  dexName: 'dTSLA',
-  blockchain: Blockchain.DEFICHAIN,
+  name: 'USDT',
+  dexName: 'USDT',
+  blockchain: Blockchain.ETHEREUM,
   category: AssetCategory.PUBLIC,
-  type: AssetType.COIN,
+  type: AssetType.TOKEN,
 };
 
 export function createDefaultAsset(): Asset {

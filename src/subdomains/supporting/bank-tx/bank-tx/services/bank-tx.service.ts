@@ -172,8 +172,8 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiat: { sell: { user: true } },
-        buyCryptoChargeback: { buy: { user: true }, cryptoRoute: { user: true } },
+        buyFiat: { sell: { user: { userData: true } } },
+        buyCryptoChargeback: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
       },
     });
     if (!bankTx) throw new NotFoundException('BankTx not found');
@@ -198,9 +198,10 @@ export class BankTxService {
           break;
         default:
           if (dto.type)
-            await this.transactionService.update(bankTx.transaction.id, {
+            await this.transactionService.updateInternal(bankTx.transaction, {
               type: TransactionBankTxTypeMapper[dto.type],
               user: bankTx.user,
+              userData: bankTx.user?.userData ?? userData,
             });
           break;
       }
