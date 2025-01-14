@@ -132,11 +132,14 @@ param moneroRpcCertificate string
 
 param zchfGatewayUrl string
 param zchfGraphUrl string
-param zchfTvlUrl string
 param zchfContractAddress string
 param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
+
+param deuroGatewayUrl string
+param deuroChainId string
+param deuroGraphUrl string
 
 param ebel2XContractAddress string
 
@@ -892,10 +895,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: zchfGraphUrl
         }
         {
-          name: 'ZCHF_TVL_URL'
-          value: zchfTvlUrl
-        }
-        {
           name: 'ZCHF_CONTRACT_ADDRESS'
           value: zchfContractAddress
         }
@@ -910,6 +909,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ZCHF_XCHF_CONTRACT_ADDRESS'
           value: zchfXchfContractAddress
+        }
+        {
+          name: 'DEURO_GATEWAY_URL'
+          value: deuroGatewayUrl
+        }
+        {
+          name: 'DEURO_CHAIN_ID'
+          value: deuroChainId
+        }
+        {
+          name: 'DEURO_GRAPH_URL'
+          value: deuroGraphUrl
         }
         {
           name: 'EBEL2X_CONTRACT_ADDRESS'

@@ -442,13 +442,18 @@ export class Configuration {
       zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
       zchfApiKey: process.env.ALCHEMY_API_KEY,
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
-      zchfTvlUrl: process.env.ZCHF_TVL_URL,
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
+    },
+    deuro: {
+      deuroGatewayUrl: process.env.DEURO_GATEWAY_URL,
+      deuroApiKey: process.env.ALCHEMY_API_KEY,
+      deuroChainId: +process.env.DEURO_CHAIN_ID,
+      deuroGraphUrl: process.env.DEURO_GRAPH_URL,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

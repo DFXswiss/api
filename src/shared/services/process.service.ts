@@ -35,6 +35,7 @@ export enum Process {
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
   TFA_CACHE = '2faCache',
   FRANKENCOIN_LOG_INFO = 'FrankencoinLogInfo',
+  DEURO_LOG_INFO = 'DEuroLogInfo',
   WEBHOOK = 'Webhook',
   AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
   TX_SPEEDUP = 'TxSpeedup',
@@ -53,6 +54,7 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
+  USER_DATA_WALLET_SYNC = 'UserDataWalletSync',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

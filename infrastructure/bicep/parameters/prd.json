@@ -254,9 +254,6 @@
     "zchfGraphUrl": {
       "value": "https://ponder.frankencoin.3dotshub.com"
     },
-    "zchfTvlUrl": {
-      "value": "https://api.llama.fi/tvl/frankencoin"
-    },
     "zchfContractAddress": {
       "value": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
     },
@@ -268,6 +265,15 @@
     },
     "zchfXchfContractAddress": {
       "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
+    },
+    "deuroGatewayUrl": {
+      "value": "https://eth-mainnet.g.alchemy.com/v2"
+    },
+    "deuroChainId": {
+      "value": "1"
+    },
+    "deuroGraphUrl": {
+      "value": "https://ponder.deuro.com"
     },
     "ebel2XContractAddress": {
       "value": "0xe137dd4bcd22e947c896ae33a0920c09c85e263d"

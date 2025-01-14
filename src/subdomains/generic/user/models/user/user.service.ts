@@ -187,6 +187,7 @@ export class UserService {
         kycType: user.wallet.customKyc ?? KycType.DFX,
         language,
         currency,
+        wallet: user.wallet,
       }));
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));

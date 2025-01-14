@@ -41,7 +41,7 @@ export class SupportIssueService {
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
@@ -54,7 +54,7 @@ export class SupportIssueService {
         transaction: { id: newIssue.transaction?.id ?? IsNull() },
         state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
       },
-      relations: { messages: true, transaction: true, limitRequest: true },
+      relations: { messages: true, transaction: true, limitRequest: true, userData: { wallet: true } },
     });
 
     if (!existingIssue) {
@@ -101,14 +101,17 @@ export class SupportIssueService {
   }
 
   async createMessage(id: string, dto: CreateSupportMessageDto, userDataId?: number): Promise<SupportMessageDto> {
-    const issue = await this.supportIssueRepo.findOneBy(this.getIssueSearch(id, userDataId));
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { userData: { wallet: true } },
+    });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor });
   }
 
   async createMessageSupport(id: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
-    const issue = await this.supportIssueRepo.findOneBy({ id });
+    const issue = await this.supportIssueRepo.findOne({ where: { id }, relations: { userData: { wallet: true } } });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, dto);

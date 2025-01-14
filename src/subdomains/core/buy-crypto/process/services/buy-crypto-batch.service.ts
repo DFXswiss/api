@@ -10,6 +10,7 @@ import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supp
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -38,6 +39,7 @@ export class BuyCryptoBatchService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
+    private readonly feeService: FeeService,
   ) {}
 
   async batchAndOptimizeTransactions(): Promise<void> {
@@ -70,6 +72,7 @@ export class BuyCryptoBatchService {
           cryptoInput: true,
           buy: { user: true },
           cryptoRoute: { user: true },
+          transaction: { user: { userData: true } },
         },
       });
 
@@ -108,15 +111,18 @@ export class BuyCryptoBatchService {
               tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
             ),
           ];
-          continue;
+        } else {
+          const inputReferenceCurrency =
+            tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
+
+          const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
+
+          tx.calculateOutputReferenceAmount(price);
         }
 
-        const inputReferenceCurrency =
-          tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
-
-        const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
-
-        tx.calculateOutputReferenceAmount(price);
+        for (const feeId of tx.usedFees?.split(';')) {
+          await this.feeService.increaseTxUsages(tx.amountInChf, Number.parseInt(feeId), tx.userData);
+        }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
           await this.setPriceInvalidStatus([tx]);

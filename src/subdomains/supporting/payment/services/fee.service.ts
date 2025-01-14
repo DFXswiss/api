@@ -199,8 +199,8 @@ export class FeeService implements OnModuleInit {
     await this.userDataService.addFee(userData, cachedFee.id);
   }
 
-  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
-    const cachedFee = await this.getFee(fee.id);
+  async increaseTxUsages(txVolume: number, feeId: number, userData: UserData): Promise<void> {
+    const cachedFee = await this.getFee(feeId);
 
     await this.feeRepo.update(...cachedFee.increaseTxUsage());
     if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));

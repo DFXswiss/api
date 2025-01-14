@@ -162,7 +162,7 @@ export class BuyCrypto extends IEntity {
   inputReferenceAmountMinusFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  blockchainFee?: number;
+  blockchainFee?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   paymentLinkFee?: number;

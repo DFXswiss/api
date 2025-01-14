@@ -22,30 +22,45 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
     void this.client.simpleSupportedCurrencies().then((cs) => (this.currencies = cs));
   }
 
-  async getPrice(from: string, to: string): Promise<Price> {
+  async getPrice(from: string, to: string, param: string): Promise<Price> {
+    if (param === 'contract') return this.getPriceFromContract(from, to);
+
+    return this.getPriceFromToken(from, to);
+  }
+
+  private async getPriceFromContract(contractAddress: string, to: string): Promise<Price> {
+    const toCurrency = this.getCurrency(to);
+
+    return this.fetchPriceFromContract(contractAddress, toCurrency);
+  }
+
+  private async getPriceFromToken(from: string, to: string): Promise<Price> {
     const fromCurrency = this.getCurrency(from);
     const toCurrency = this.getCurrency(to);
 
     if (fromCurrency && toCurrency) {
       const [priceFrom, priceTo] = await Promise.all([
-        this.fetchPrice('tether', fromCurrency),
-        this.fetchPrice('tether', toCurrency),
+        this.fetchPriceFromToken('tether', fromCurrency),
+        this.fetchPriceFromToken('tether', toCurrency),
       ]);
       return Price.join(priceFrom.invert(), priceTo);
     } else if (fromCurrency) {
-      const price = await this.fetchPrice(to, fromCurrency);
+      const price = await this.fetchPriceFromToken(to, fromCurrency);
       return price.invert();
     } else if (toCurrency) {
-      return this.fetchPrice(from, toCurrency);
+      return this.fetchPriceFromToken(from, toCurrency);
     } else {
-      const [priceFrom, priceTo] = await Promise.all([this.fetchPrice(from, 'usd'), this.fetchPrice(to, 'usd')]);
+      const [priceFrom, priceTo] = await Promise.all([
+        this.fetchPriceFromToken(from, 'usd'),
+        this.fetchPriceFromToken(to, 'usd'),
+      ]);
       return Price.join(priceFrom, priceTo.invert());
     }
   }
 
   // --- HELPER METHODS --- //
 
-  private async fetchPrice(token: string, currency: string): Promise<Price> {
+  private async fetchPriceFromToken(token: string, currency: string): Promise<Price> {
     try {
       const data = await this.client.simplePrice({ ids: token, vs_currencies: currency });
       const price = data[token]?.[currency];
@@ -53,7 +68,27 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
 
       return Price.create(token, currency, 1 / price);
     } catch (e) {
-      this.logger.error(`Failed to get price for ${token} -> ${currency}:`, e);
+      this.logger.error(`Failed to get price for token ${token} -> ${currency}:`, e);
+      throw new ServiceUnavailableException(`Failed to get price`);
+    }
+  }
+
+  private async fetchPriceFromContract(contractAddress: string, currency: string): Promise<Price> {
+    try {
+      const data = await this.client.simpleTokenPrice({
+        id: 'ethereum',
+        contract_addresses: contractAddress,
+        vs_currencies: currency,
+      });
+      const price = data[contractAddress]?.[currency];
+      if (!price) {
+        this.logger.info(`No price for contract ${contractAddress} -> ${currency}`);
+        return;
+      }
+
+      return Price.create(contractAddress, currency, 1 / price);
+    } catch (e) {
+      this.logger.error(`Failed to get price for contract ${contractAddress} -> ${currency}:`, e);
       throw new ServiceUnavailableException(`Failed to get price`);
     }
   }
