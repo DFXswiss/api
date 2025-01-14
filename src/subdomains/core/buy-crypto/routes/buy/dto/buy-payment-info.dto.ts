@@ -42,6 +42,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
 
+  @ApiProperty({ description: 'UID of the transaction request' })
+  uid?: string;
+
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
 
@@ -107,9 +110,6 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. GiroCode content)' })
   paymentRequest?: string;
-
-  @ApiProperty({ description: 'UID of the transaction request' })
-  transactionRequestUid?: string;
 
   paymentLink?: string;
   nameRequired?: boolean;

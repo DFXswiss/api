@@ -49,9 +49,10 @@ export class TransactionRequestService {
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
-  ): Promise<TransactionRequest> {
+  ): Promise<void> {
     try {
       const hash = Util.createHash(type + new Date() + Util.randomId()).toUpperCase();
+      const uid = `Q${hash.slice(0, 16)}`;
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
@@ -70,7 +71,7 @@ export class TransactionRequestService {
         networkFee: response.fees.network,
         totalFee: response.fees.total,
         user: { id: userId },
-        uid: `Q${hash.slice(0, 16)}`,
+        uid,
       });
 
       let sourceCurrencyName: string;
@@ -121,6 +122,7 @@ export class TransactionRequestService {
       // save
       await this.transactionRequestRepo.save(transactionRequest);
       response.id = transactionRequest.id;
+      response.uid = uid;
 
       // create order at sift (without waiting)
       if (siftOrder)
@@ -131,8 +133,6 @@ export class TransactionRequestService {
           targetCurrencyName,
           blockchain,
         );
-
-      return transactionRequest;
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(

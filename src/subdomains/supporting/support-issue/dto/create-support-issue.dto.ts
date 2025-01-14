@@ -19,7 +19,7 @@ export class TransactionIssueDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  transactionRequestUid?: string;
+  quoteUid?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

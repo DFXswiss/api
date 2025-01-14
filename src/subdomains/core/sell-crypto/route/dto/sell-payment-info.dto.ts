@@ -19,6 +19,9 @@ export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Transaction request ID' })
   id: number;
 
+  @ApiProperty({ description: 'UID of the transaction request' })
+  uid?: string;
+
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
 
@@ -90,9 +93,6 @@ export class SellPaymentInfoDto {
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
   paymentRequest?: string;
-
-  @ApiProperty({ description: 'UID of the transaction request' })
-  transactionRequestUid?: string;
 
   @ApiProperty()
   isValid: boolean;
