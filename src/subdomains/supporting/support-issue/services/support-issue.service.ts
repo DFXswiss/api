@@ -43,10 +43,12 @@ export class SupportIssueService {
     private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
-  async createTransactionRequestIssue(uid: string, dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
-    const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(uid, {
-      user: { userData: true },
-    });
+  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+    if (!dto?.transaction?.quoteUid) throw new BadRequestException('JWT Token or quoteUid missing');
+    const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
+      dto.transaction.quoteUid,
+      { user: { userData: true } },
+    );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
     return this.createIssueInternal(transactionRequest.userData, dto, transactionRequest);
