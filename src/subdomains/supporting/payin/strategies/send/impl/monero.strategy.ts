@@ -43,13 +43,13 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
         try {
           this.designateSend(payIn, type);
 
-          const { inputAssetFee, maxBlockchainFee } = await this.getEstimatedFee(
+          const { feeInputAsset: fee, maxFeeInputAsset: maxFee } = await this.getEstimatedForwardFee(
             payIn.asset,
             payIn.amount,
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyEstimatedFee(inputAssetFee, payIn.maxForwardFee, maxBlockchainFee, payIn.amount);
+          CryptoInput.verifyEstimatedFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
 
           const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);

@@ -2,7 +2,6 @@ import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/commo
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
-import { Active } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -114,29 +113,21 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     return this.transactionHelper.getMinConfirmations(payIn, direction);
   }
 
-  protected async getEstimatedFee(
+  protected async getEstimatedForwardFee(
     asset: Asset,
     amount: number,
     targetAddress: string,
-  ): Promise<{ nativeFee: number; inputAssetFee: number; maxBlockchainFee: number }> {
+  ): Promise<{ feeNativeAsset: number; feeInputAsset: number; maxFeeInputAsset: number }> {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
-    const { referenceAmount: inputAssetFee, maxAmount: maxBlockchainFee } = nativeFee.amount
-      ? await this.getFeeAmounts(nativeFee.asset, nativeFee.amount, asset)
-      : { referenceAmount: 0, maxAmount: 0 };
+    if (!nativeFee.amount) return { feeNativeAsset: 0, feeInputAsset: 0, maxFeeInputAsset: 0 };
 
-    return { nativeFee: nativeFee.amount, inputAssetFee, maxBlockchainFee };
-  }
+    const nativeAssetPrice = await this.priceProvider.getPrice(nativeFee.asset, asset, true);
+    const chfPrice = await this.priceProvider.getPrice(this.chf, asset, true);
 
-  private async getFeeAmounts(
-    fromAsset: Asset,
-    fromAmount: number,
-    toAsset: Active,
-  ): Promise<{ referenceAmount: number; maxAmount: number }> {
-    const price = await this.priceProvider.getPrice(fromAsset, toAsset, true);
-    const chfTargetPrice = await this.priceProvider.getPrice(this.chf, toAsset, true);
     return {
-      referenceAmount: price.convert(fromAmount, 8),
-      maxAmount: chfTargetPrice.convert(Config.maxBlockchainFee, 8),
+      feeNativeAsset: nativeFee.amount,
+      feeInputAsset: nativeAssetPrice.convert(nativeFee.amount, 8),
+      maxFeeInputAsset: chfPrice.convert(Config.maxBlockchainFee, 8),
     };
   }
 }

@@ -47,19 +47,19 @@ export abstract class EvmStrategy extends SendStrategy {
           const totalAmount = this.getTotalGroupAmount(payInGroup, type);
           const blockchainFee = this.getTotalGroupFeeAmount(payInGroup);
 
-          const { nativeFee, inputAssetFee, maxBlockchainFee } = await this.getEstimatedFee(
+          const { feeNativeAsset, feeInputAsset, maxFeeInputAsset } = await this.getEstimatedForwardFee(
             payInGroup.asset,
             totalAmount,
             this.getForwardAddress().address,
           );
 
-          CryptoInput.verifyEstimatedFee(inputAssetFee, blockchainFee, maxBlockchainFee, totalAmount);
+          CryptoInput.verifyEstimatedFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
 
           /**
            * @note
            * setting to some default minimal amount in case estimated fees go very low.
            */
-          const effectivePreparationFee = Math.max(nativeFee, Config.blockchain.evm.minimalPreparationFee);
+          const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.evm.minimalPreparationFee);
 
           await this.prepareSend(payInGroup, effectivePreparationFee);
 
