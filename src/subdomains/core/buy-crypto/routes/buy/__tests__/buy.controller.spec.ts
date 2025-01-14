@@ -18,7 +18,6 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { createDefaultTransactionRequest } from 'src/subdomains/supporting/payment/__mocks__/transaction-request.entity.mock';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -139,8 +138,6 @@ describe('BuyController', () => {
       priceSteps: [],
       timestamp: new Date(),
     });
-
-    jest.spyOn(transactionRequestService, 'create').mockResolvedValue(createDefaultTransactionRequest());
 
     const dto = createBuyPaymentInfoDto();
 
