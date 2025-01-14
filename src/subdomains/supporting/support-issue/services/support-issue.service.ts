@@ -66,10 +66,10 @@ export class SupportIssueService {
       if (dto.transaction) {
         if (dto.transaction.id) {
           newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
-            user: { userData: true },
+            userData: true,
           });
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
-          if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
+          if (!newIssue.transaction.userData || newIssue.transaction.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
         }
 

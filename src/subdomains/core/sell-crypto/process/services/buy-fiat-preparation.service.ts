@@ -64,7 +64,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         cryptoInput: true,
         sell: true,
-        transaction: { user: { wallet: true, userData: { users: true } } },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         bankData: true,
       },
     });
@@ -160,7 +160,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           await this.buyFiatNotificationService.paymentProcessing(entity);
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
-          await this.userService.activateUser(entity.user);
+          await this.userService.activateUser(entity.user, entity.userData);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
       }
@@ -235,7 +235,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         sell: true,
         cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
-        transaction: { user: { wallet: true, userData: true } },
       },
     });
 

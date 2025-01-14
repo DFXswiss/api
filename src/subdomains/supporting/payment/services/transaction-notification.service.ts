@@ -47,7 +47,8 @@ export class TransactionNotificationService {
         bankTx: true,
         buyCrypto: true,
         buyFiat: true,
-        user: { userData: true, wallet: true },
+        userData: { wallet: true },
+        user: { wallet: true },
       },
     });
     if (entities.length === 0) return;
@@ -66,7 +67,7 @@ export class TransactionNotificationService {
             context: entity.mailContext,
             input: {
               userData: entity.userData,
-              wallet: entity.user.wallet,
+              wallet: entity.wallet,
               title: `${entity.targetEntity.inputMailTranslationKey}.title`,
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
               suffix: [
@@ -124,7 +125,7 @@ export class TransactionNotificationService {
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
-              wallet: entity.user.wallet,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
               salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
               suffix: [

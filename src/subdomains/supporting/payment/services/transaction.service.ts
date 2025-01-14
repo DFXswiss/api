@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
@@ -9,7 +13,49 @@ import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
 export class TransactionService {
+  private readonly logger = new DfxLogger(TransactionService);
+
   constructor(private readonly repo: TransactionRepository) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
+  async syncUserData(): Promise<void> {
+    if (DisabledProcess(Process.TRANSACTION_USER_SYNC)) return;
+
+    const entities = await this.repo.find({
+      where: { user: { id: Not(IsNull()) }, userData: { id: IsNull() } },
+      relations: { user: { userData: true }, userData: true },
+      take: 10000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.repo.update(entity.id, { userData: entity.user.userData });
+      } catch (e) {
+        this.logger.error(`Failed to sync transaction userData ${entity.id}:`, e);
+      }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock()
+  async syncWallet(): Promise<void> {
+    if (DisabledProcess(Process.TRANSACTION_WALLET_SYNC)) return;
+
+    const entities = await this.repo.find({
+      where: { user: { id: Not(IsNull()) }, wallet: { id: IsNull() } },
+      relations: { user: { wallet: true }, wallet: true },
+      take: 10000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.repo.update(entity.id, { wallet: entity.user.wallet });
+      } catch (e) {
+        this.logger.error(`Failed to sync transaction wallet ${entity.id}:`, e);
+      }
+    }
+  }
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
@@ -21,10 +67,18 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    let entity = await this.getTransactionById(id);
+    const entity = await this.getTransactionById(id);
     if (!entity) throw new Error('Transaction not found');
 
+    return this.updateInternal(entity, dto);
+  }
+
+  async updateInternal(
+    entity: Transaction,
+    dto: UpdateTransactionInternalDto | UpdateTransactionDto,
+  ): Promise<Transaction> {
     Object.assign(entity, dto);
+
     if (!(dto instanceof UpdateTransactionDto)) {
       entity.externalId = dto.request?.externalTransactionId;
 
@@ -105,7 +159,7 @@ export class TransactionService {
       .createQueryBuilder('transaction')
       .select('transaction')
       .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

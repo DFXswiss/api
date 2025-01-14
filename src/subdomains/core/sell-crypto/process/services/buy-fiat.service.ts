@@ -73,9 +73,10 @@ export class BuyFiatService {
 
     // transaction
     request = await this.getAndCompleteTxRequest(entity, request);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, {
+    entity.transaction = await this.transactionService.updateInternal(entity.transaction, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
+      userData: sell.userData,
       request,
     });
 
@@ -104,7 +105,7 @@ export class BuyFiatService {
         fiatOutput: true,
         bankTx: true,
         cryptoInput: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -167,7 +168,7 @@ export class BuyFiatService {
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.user) {
-      await this.userService.activateUser(entity.user);
+      await this.userService.activateUser(entity.user, entity.userData);
     }
 
     // payment webhook
@@ -235,7 +236,7 @@ export class BuyFiatService {
       where: { id: buyFiatId },
       relations: {
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');

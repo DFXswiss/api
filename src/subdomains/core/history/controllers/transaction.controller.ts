@@ -288,10 +288,11 @@ export class TransactionController {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: true,
       bankTxReturn: true,
-      user: { userData: true },
+      userData: true,
       checkoutTx: true,
-      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: { route: { user: true } } },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
@@ -313,6 +314,9 @@ export class TransactionController {
 
       if (transaction.targetEntity?.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
+
+      const userData = await this.userDataService.getUserData(jwt.account);
+      await this.transactionService.updateInternal(transaction, { userData });
 
       const bankFeeAmount = transaction.bankTx.chargeAmount;
 
@@ -414,16 +418,17 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      bankTx: { transaction: true },
+      bankTx: { transaction: { userData: true } },
       bankTxReturn: true,
-      user: { userData: true },
+      userData: true,
       buyCrypto: {
-        transaction: { user: { userData: true } },
+        transaction: { user: { userData: true }, userData: true },
         cryptoInput: { route: { user: true } },
         bankTx: true,
         checkoutTx: true,
       },
-      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      buyFiat: { transaction: { user: { userData: true }, userData: true }, cryptoInput: { route: { user: true } } },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
@@ -444,9 +449,8 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {
-      const userData = await this.userDataService.getUserData(jwt.account);
       transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN }, userData)
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
     }
 
@@ -550,13 +554,14 @@ export class TransactionController {
     ckoId?: string;
   }): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: true, cryptoInput: true, bankTx: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
       checkoutTx: true,
-      user: { userData: true },
+      user: true,
+      userData: true,
     };
 
     let transaction: Transaction;
