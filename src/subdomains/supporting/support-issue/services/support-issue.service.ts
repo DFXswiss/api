@@ -12,7 +12,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
-import { TransactionRequestService } from '../../payment/services/transaction-request.service';
+import { QUOTE_UID_PREFIX, TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -28,10 +28,10 @@ import { LimitRequestService } from './limit-request.service';
 import { SupportDocumentService } from './support-document.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
 
+export const ISSUE_UID_PREFIX = 'I';
+
 @Injectable()
 export class SupportIssueService {
-  private readonly UID_PREFIX = 'I';
-
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
@@ -85,7 +85,7 @@ export class SupportIssueService {
     if (!existingIssue) {
       // create UID
       const hash = Util.createHash(newIssue.type + new Date() + Util.randomId()).toUpperCase();
-      newIssue.uid = `${this.UID_PREFIX}${hash.slice(0, 16)}`;
+      newIssue.uid = `${ISSUE_UID_PREFIX}${hash.slice(0, 16)}`;
 
       // map transaction
       if (dto.transaction) {
@@ -240,7 +240,8 @@ export class SupportIssueService {
   }
 
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
-    if (id.startsWith(this.UID_PREFIX)) return { uid: id };
+    if (id.startsWith(ISSUE_UID_PREFIX)) return { uid: id };
+    if (id.startsWith(QUOTE_UID_PREFIX)) return { transactionRequest: { uid: id } };
     if (userDataId) return { id: +id, userData: { id: userDataId } };
 
     throw new UnauthorizedException();

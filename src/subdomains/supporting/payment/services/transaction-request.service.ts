@@ -17,6 +17,8 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.en
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
+export const QUOTE_UID_PREFIX = 'Q';
+
 @Injectable()
 export class TransactionRequestService {
   private readonly logger = new DfxLogger(TransactionRequestService);
@@ -52,7 +54,7 @@ export class TransactionRequestService {
   ): Promise<void> {
     try {
       const hash = Util.createHash(type + new Date() + Util.randomId()).toUpperCase();
-      const uid = `Q${hash.slice(0, 16)}`;
+      const uid = `${QUOTE_UID_PREFIX}${hash.slice(0, 16)}`;
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
