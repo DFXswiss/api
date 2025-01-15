@@ -101,13 +101,14 @@ export class SupportIssueService {
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
-        } else if (dto.transaction.quoteUid) {
+        }
+        if (dto.transaction.quoteUid) {
           newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
             dto.transaction.quoteUid,
             { user: { userData: true } },
           );
 
-          if (!newIssue.transactionRequest) throw new NotFoundException('Transaction not found');
+          if (!newIssue.transactionRequest) throw new NotFoundException('Quote not found');
           if (
             !newIssue.transactionRequest.user ||
             newIssue.transactionRequest.user.userData.id !== newIssue.userData.id
@@ -117,8 +118,6 @@ export class SupportIssueService {
 
         newIssue.additionalInformation = dto.transaction;
       }
-
-      if (transactionRequest) newIssue.transactionRequest = transactionRequest;
 
       // create limit request
       if (dto.limitRequest) {
