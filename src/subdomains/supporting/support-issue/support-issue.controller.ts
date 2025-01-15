@@ -27,7 +27,7 @@ export class SupportIssueController {
   async createIssue(@Body() dto: CreateSupportIssueDto, @GetJwt() jwt?: JwtPayload): Promise<SupportIssueDto> {
     return jwt?.account
       ? this.supportIssueService.createIssue(jwt.account, { ...dto, author: CustomerAuthor })
-      : this.supportIssueService.createTransactionRequestIssue(dto);
+      : this.supportIssueService.createTransactionRequestIssue({ ...dto, author: CustomerAuthor });
   }
 
   @Post('support')
