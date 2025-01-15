@@ -16,7 +16,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -197,12 +197,16 @@ export class BankDataService {
       .getOne();
   }
 
-  async getVerifiedBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
+  async getVerifiedBankDataWithIban(
+    iban: string,
+    userDataId?: number,
+    relations: FindOptionsRelations<BankData> = { userData: true },
+  ): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
       .find({
         where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
-        relations: { userData: true },
+        relations,
       })
       .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
   }
