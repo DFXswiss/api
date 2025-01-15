@@ -11,7 +11,6 @@ import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum'
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
-import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
 import { QUOTE_UID_PREFIX, TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
@@ -51,7 +50,7 @@ export class SupportIssueService {
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
-    return this.createIssueInternal(transactionRequest.userData, dto, transactionRequest);
+    return this.createIssueInternal(transactionRequest.userData, dto);
   }
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
@@ -61,11 +60,7 @@ export class SupportIssueService {
     return this.createIssueInternal(userData, dto);
   }
 
-  async createIssueInternal(
-    userData: UserData,
-    dto: CreateSupportIssueDto,
-    transactionRequest?: TransactionRequest,
-  ): Promise<SupportIssueDto> {
+  async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
@@ -101,12 +96,12 @@ export class SupportIssueService {
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
-        }
-        if (dto.transaction.quoteUid) {
-          newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-            dto.transaction.quoteUid,
-            { user: { userData: true } },
-          );
+        } else if (dto.transaction.quoteUid) {
+          if (!newIssue.transactionRequest)
+            newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
+              dto.transaction.quoteUid,
+              { user: { userData: true } },
+            );
 
           if (!newIssue.transactionRequest) throw new NotFoundException('Quote not found');
           if (
