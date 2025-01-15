@@ -277,6 +277,7 @@ export const RefRewardStatusMapper: {
   [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
   [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
+  [RewardStatus.USER_SWITCH]: TransactionState.FAILED,
 };
 
 function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
