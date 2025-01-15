@@ -1,10 +1,11 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
+import { Transaction } from './transaction.entity';
 
 export enum TransactionRequestType {
   BUY = 'Buy',
@@ -83,6 +84,9 @@ export class TransactionRequest extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  transaction?: Transaction;
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transactionRequest)
   supportIssues: SupportIssue[];

@@ -100,7 +100,7 @@ export class SupportIssueService {
           if (!newIssue.transactionRequest)
             newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
               dto.transaction.quoteUid,
-              { user: { userData: true } },
+              { user: { userData: true }, transaction: true },
             );
 
           if (!newIssue.transactionRequest) throw new NotFoundException('Quote not found');
@@ -109,6 +109,8 @@ export class SupportIssueService {
             newIssue.transactionRequest.user.userData.id !== newIssue.userData.id
           )
             throw new ForbiddenException('You can only create support issue for your own quote');
+
+          if (newIssue.transactionRequest.transaction) newIssue.transaction = newIssue.transactionRequest.transaction;
         }
 
         newIssue.additionalInformation = dto.transaction;
