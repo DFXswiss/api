@@ -37,9 +37,9 @@ export class TransactionRequestService {
 
     for (const entity of entities) {
       try {
-        const uid = Util.createHash(entity.type + new Date() + Util.randomId()).toUpperCase();
+        const hash = Util.createHash(entity.type + new Date() + Util.randomId()).toUpperCase();
 
-        await this.transactionRequestRepo.update(entity.id, { uid });
+        await this.transactionRequestRepo.update(entity.id, { uid: `${QUOTE_UID_PREFIX}${hash.slice(0, 16)}` });
       } catch (e) {
         this.logger.error(`Error in TransactionRequest sync ${entity.id}`, e);
       }

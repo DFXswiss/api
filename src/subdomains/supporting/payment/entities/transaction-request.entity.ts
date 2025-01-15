@@ -85,7 +85,7 @@ export class TransactionRequest extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
 
-  @OneToOne(() => Transaction, { nullable: true })
+  @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })
   transaction?: Transaction;
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transactionRequest)
