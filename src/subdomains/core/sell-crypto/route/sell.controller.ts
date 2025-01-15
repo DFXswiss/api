@@ -294,7 +294,7 @@ export class SellController {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Sell, dto, sellDto, user.id);
+    await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
 
     return sellDto;
   }

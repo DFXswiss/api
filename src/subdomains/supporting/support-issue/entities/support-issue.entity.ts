@@ -3,6 +3,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { SupportMessage } from './support-message.entity';
 
@@ -53,6 +54,9 @@ export class SupportIssue extends IEntity {
 
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
   transaction?: Transaction;
+
+  @ManyToOne(() => TransactionRequest, (request) => request.supportIssues, { nullable: true, eager: true })
+  transactionRequest?: TransactionRequest;
 
   @OneToMany(() => SupportMessage, (supportMessage) => supportMessage.issue)
   messages: SupportMessage[];
