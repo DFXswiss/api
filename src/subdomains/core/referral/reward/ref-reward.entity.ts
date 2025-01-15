@@ -15,6 +15,7 @@ export enum RewardStatus {
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
   FAILED = 'Failed',
+  USER_SWITCH = 'UserSwitch', // Status to sync paidRefReward if user wants to change ref to new user
 }
 
 @Entity()
