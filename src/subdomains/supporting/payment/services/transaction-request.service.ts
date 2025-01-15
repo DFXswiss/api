@@ -33,7 +33,7 @@ export class TransactionRequestService {
   async uidSync() {
     if (DisabledProcess(Process.TX_REQUEST_UID_SYNC)) return;
 
-    const entities = await this.transactionRequestRepo.find({ where: { uid: IsNull() }, take: 10000 });
+    const entities = await this.transactionRequestRepo.find({ where: { uid: IsNull() }, take: 5000 });
 
     for (const entity of entities) {
       try {
