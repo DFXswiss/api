@@ -440,7 +440,9 @@ export class Configuration {
     },
     frankencoin: {
       zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
+      zchfWalletPrivateKey: process.env.ZCHF_WALLET_PRIVATE_KEY,
       zchfApiKey: process.env.ALCHEMY_API_KEY,
+      zchfChainId: +process.env.ZCHF_CHAIN_ID,
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
@@ -451,6 +453,7 @@ export class Configuration {
     },
     deuro: {
       deuroGatewayUrl: process.env.DEURO_GATEWAY_URL,
+      deuroWalletPrivateKey: process.env.DEURO_WALLET_PRIVATE_KEY,
       deuroApiKey: process.env.ALCHEMY_API_KEY,
       deuroChainId: +process.env.DEURO_CHAIN_ID,
       deuroGraphUrl: process.env.DEURO_GRAPH_URL,

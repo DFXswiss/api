@@ -248,8 +248,14 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
+    "zchfWalletPrivateKey": {
+      "value": "xxx"
+    },
     "zchfGatewayUrl": {
       "value": "https://eth-mainnet.g.alchemy.com/v2"
+    },
+    "zchfChainId": {
+      "value": "1"
     },
     "zchfGraphUrl": {
       "value": "https://ponder.frankencoin.3dotshub.com"
@@ -265,6 +271,9 @@
     },
     "zchfXchfContractAddress": {
       "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
+    },
+    "deuroWalletPrivateKey": {
+      "value": "xxx"
     },
     "deuroGatewayUrl": {
       "value": "https://eth-mainnet.g.alchemy.com/v2"

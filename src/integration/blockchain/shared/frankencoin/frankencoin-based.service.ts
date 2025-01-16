@@ -1,17 +1,27 @@
+import { Contract } from 'ethers';
 import { groupBy, sumBy } from 'lodash';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { EvmClient, EvmClientParams } from '../evm/evm-client';
+import { EvmService } from '../evm/evm.service';
 import { EvmUtil } from '../evm/evm.util';
 import { FrankencoinBasedCollateralDto } from './frankencoin-based.dto';
 
-export abstract class FrankencoinBasedService {
+export abstract class FrankencoinBasedService extends EvmService {
   private pricingService: PricingService;
+
+  constructor(client: new (params) => EvmClient, params: EvmClientParams) {
+    super(client, params);
+  }
 
   setup(pricingService: PricingService) {
     this.pricingService = pricingService;
   }
+
+  abstract getEquityContract(): Contract;
+  abstract getEquityPrice(): Promise<number>;
 
   async getPrice(from: Fiat, to: Fiat): Promise<Price> {
     return this.pricingService.getPrice(from, to, true);

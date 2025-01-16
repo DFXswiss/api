@@ -1,12 +1,12 @@
-import { Contract, ethers } from 'ethers';
+import { Contract } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
-import { HttpService } from 'src/shared/services/http.service';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import FRANKENCOIN_EQUITY_ABI from '../shared/evm/abi/frankencoin-equity.abi.json';
 import FRANKENCOIN_POSITION_ABI from '../shared/evm/abi/frankencoin-position.abi.json';
 import FRANKENCOIN_STABLECOIN_BRIDGE_ABI from '../shared/evm/abi/frankencoin-stablecoin-bridge.abi.json';
 import FRANKENCOIN_ABI from '../shared/evm/abi/frankencoin.abi.json';
+import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
@@ -16,12 +16,9 @@ import {
   FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 
-export class FrankencoinClient {
-  private readonly provider: ethers.providers.JsonRpcProvider;
-
-  constructor(private readonly http: HttpService, gatewayUrl: string, apiKey: string) {
-    const providerUrl = `${gatewayUrl}/${apiKey}`;
-    this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
+export class FrankencoinClient extends EvmClient {
+  constructor(params: EvmClientParams) {
+    super(params);
   }
 
   async getPositionV1s(): Promise<FrankencoinPositionGraphDto[]> {
@@ -230,7 +227,7 @@ export class FrankencoinClient {
   }
 
   getFrankencoinContract(contractAddress: string): Contract {
-    return new Contract(contractAddress, FRANKENCOIN_ABI, this.provider);
+    return new Contract(contractAddress, FRANKENCOIN_ABI, this.wallet);
   }
 
   getPositionContract(positionAddress: string): Contract {
@@ -238,7 +235,7 @@ export class FrankencoinClient {
   }
 
   getEquityContract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.provider);
+    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.wallet);
   }
 
   getStablecoinBridgeContract(collateralAddress: string): Contract {

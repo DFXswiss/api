@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Contract } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -35,8 +36,6 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
 
-  private readonly client: FrankencoinClient;
-
   private usd: Fiat;
   private chf: Fiat;
 
@@ -46,11 +45,15 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
-    super();
+    const { zchfGatewayUrl, zchfApiKey, zchfWalletPrivateKey, zchfChainId } = GetConfig().blockchain.frankencoin;
 
-    const { zchfGatewayUrl, zchfApiKey } = GetConfig().blockchain.frankencoin;
-
-    this.client = new FrankencoinClient(http, zchfGatewayUrl, zchfApiKey);
+    super(FrankencoinClient, {
+      http,
+      gatewayUrl: zchfGatewayUrl,
+      apiKey: zchfApiKey,
+      walletPrivateKey: zchfWalletPrivateKey,
+      chainId: zchfChainId,
+    });
   }
 
   async onModuleInit() {
@@ -87,8 +90,10 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   }
 
   async getSwap(): Promise<FrankencoinSwapDto> {
-    const xchfContract = this.client.getErc20Contract(Config.blockchain.frankencoin.contractAddress.xchf);
-    const stablecoinBridgeContract = this.client.getStablecoinBridgeContract(
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    const xchfContract = client.getErc20Contract(Config.blockchain.frankencoin.contractAddress.xchf);
+    const stablecoinBridgeContract = client.getStablecoinBridgeContract(
       Config.blockchain.frankencoin.contractAddress.stablecoinBridge,
     );
 
@@ -104,21 +109,27 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   }
 
   async getPositionV1s(): Promise<FrankencoinPositionDto[]> {
-    const positions = await this.client.getPositionV1s();
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    const positions = await client.getPositionV1s();
     return this.getPositions(positions);
   }
 
   async getPositionV2s(): Promise<FrankencoinPositionDto[]> {
-    const positions = await this.client.getPositionV2s();
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    const positions = await client.getPositionV2s();
     return this.getPositions(positions);
   }
 
   private async getPositions(positions: FrankencoinPositionGraphDto[]): Promise<FrankencoinPositionDto[]> {
     const positionsResult: FrankencoinPositionDto[] = [];
 
+    const client = this.getDefaultClient<FrankencoinClient>();
+
     for (const position of positions) {
       try {
-        const frankencoinContract = this.client.getFrankencoinContract(position.zchf);
+        const frankencoinContract = client.getFrankencoinContract(position.zchf);
 
         const calculateAssignedReserve = await frankencoinContract.calculateAssignedReserve(
           position.minted,
@@ -154,18 +165,22 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   }
 
   async getChallengeV1s(): Promise<FrankencoinChallengeGraphDto[]> {
-    return this.client.getChallengeV1s();
+    const client = this.getDefaultClient<FrankencoinClient>();
+    return client.getChallengeV1s();
   }
 
   async getChallengeV2s(): Promise<FrankencoinChallengeGraphDto[]> {
-    return this.client.getChallengeV2s();
+    const client = this.getDefaultClient<FrankencoinClient>();
+    return client.getChallengeV2s();
   }
 
   async getFPS(): Promise<FrankencoinPoolSharesDto> {
-    const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
-    const frankencoinContract = this.client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
+    const equityContract = this.getEquityContract();
 
-    const fps = await this.client.getFPS(Config.blockchain.frankencoin.contractAddress.zchf);
+    const client = this.getDefaultClient<FrankencoinClient>();
+    const frankencoinContract = client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
+
+    const fps = await client.getFPS(Config.blockchain.frankencoin.contractAddress.zchf);
 
     try {
       const totalSupply = await equityContract.totalSupply();
@@ -191,34 +206,54 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   }
 
   private async getTotalSupply(): Promise<number> {
-    const frankencoinContract = this.client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    const frankencoinContract = client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
     const zchfTotalSupply = await frankencoinContract.totalSupply();
 
     return EvmUtil.fromWeiAmount(zchfTotalSupply);
   }
 
+  getEquityContract(): Contract {
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    return client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
+  }
+
+  async getEquityPrice(): Promise<number> {
+    return this.getFPSPrice();
+  }
+
   async getFPSPrice(): Promise<number> {
-    const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
+    const equityContract = this.getEquityContract();
     const price = await equityContract.price();
 
     return EvmUtil.fromWeiAmount(price);
   }
 
   async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
-    return this.client.getMinters();
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    return client.getMinters();
   }
 
   async getDelegation(owner: string): Promise<FrankencoinDelegationGraphDto> {
-    return this.client.getDelegation(owner);
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    return client.getDelegation(owner);
   }
 
   async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
-    return this.client.getTrades();
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    return client.getTrades();
   }
 
   async getTvl(): Promise<number> {
-    const positionV1s = await this.client.getPositionV1s();
-    const positionV2s = await this.client.getPositionV2s();
+    const client = this.getDefaultClient<FrankencoinClient>();
+
+    const positionV1s = await client.getPositionV1s();
+    const positionV2s = await client.getPositionV2s();
 
     const collaterals = [...positionV1s, ...positionV2s].map((p) => {
       return {
