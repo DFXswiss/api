@@ -66,15 +66,26 @@ export class SupportIssueService {
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
+    const existingRequest: FindOptionsWhere<SupportIssue> = {
+      userData: { id: userData.id },
+      type: newIssue.type,
+      reason: newIssue.reason,
+      transactionRequest: { uid: newIssue.transactionRequest?.uid ?? IsNull() },
+      state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
+    };
+
     const existingIssue = await this.supportIssueRepo.findOne({
-      where: {
-        userData: { id: userData.id },
-        type: newIssue.type,
-        reason: newIssue.reason,
-        transaction: { id: newIssue.transaction?.id ?? IsNull() },
-        state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
-      },
-      relations: { messages: true, transaction: true, limitRequest: true, userData: { wallet: true } },
+      where: [
+        {
+          ...existingRequest,
+          transaction: { id: newIssue.transaction?.id ?? IsNull() },
+        },
+        {
+          ...existingRequest,
+          transaction: { uid: newIssue.transaction?.uid },
+        },
+      ],
+      relations: { messages: true, limitRequest: true, userData: { wallet: true } },
     });
 
     if (!existingIssue) {
