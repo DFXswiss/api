@@ -28,6 +28,7 @@ export class TransactionRequestService {
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
+    usedSpecialCodes: string,
   ): Promise<void> {
     try {
       // create the entity
@@ -47,6 +48,7 @@ export class TransactionRequestService {
         networkFee: response.fees.network,
         totalFee: response.fees.total,
         user: { id: userId },
+        usedSpecialCodes,
       });
 
       let sourceCurrencyName: string;

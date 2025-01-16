@@ -15,6 +15,9 @@ export class TransactionRequest extends IEntity {
   @Column()
   type: TransactionRequestType;
 
+  @Column({ length: 256, nullable: true })
+  usedSpecialCodes?: string; // Semicolon separated id's
+
   @Column({ type: 'integer' })
   routeId: number;
 

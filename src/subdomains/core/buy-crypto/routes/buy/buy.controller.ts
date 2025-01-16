@@ -353,7 +353,13 @@ export class BuyController {
         ),
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Buy, dto, buyDto, user.id);
+    await this.transactionRequestService.create(
+      TransactionRequestType.Buy,
+      dto,
+      buyDto,
+      user.id,
+      user.userData.specialCodes,
+    );
 
     return buyDto;
   }
