@@ -58,6 +58,13 @@ import { TransactionModule } from './transaction.module';
     SpecialCodeRepository,
     SpecialCodeService,
   ],
-  exports: [TransactionHelper, FeeService, SwissQRService, TransactionRequestService, SpecialExternalAccountService],
+  exports: [
+    TransactionHelper,
+    FeeService,
+    SwissQRService,
+    TransactionRequestService,
+    SpecialExternalAccountService,
+    SpecialCodeService,
+  ],
 })
 export class PaymentModule {}

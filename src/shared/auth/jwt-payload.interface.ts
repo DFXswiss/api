@@ -7,5 +7,6 @@ export interface JwtPayload {
   address?: string; // user/wallet address
   role: UserRole;
   blockchains?: Blockchain[];
+  specialCodes?: number[]; // special code id's
   ip: string;
 }

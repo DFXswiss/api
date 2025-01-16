@@ -62,6 +62,7 @@ export interface FeeRequestBase {
   to: Active;
   txVolume?: number;
   specialCodes: string[];
+  specialCodeIds: number[];
   allowCachedBlockchainFee: boolean;
 }
 
@@ -185,14 +186,6 @@ export class FeeService implements OnModuleInit {
         continue;
       }
     }
-  }
-
-  async addSpecialCodeUser(user: User, specialCode: string): Promise<void> {
-    const cachedFee = await this.getFeeBySpecialCode(specialCode);
-
-    await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
-
-    await this.userDataService.addFee(user.userData, cachedFee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
@@ -409,7 +402,7 @@ export class FeeService implements OnModuleInit {
     const wallet = request.user?.wallet;
     const userDataId = request.user?.userData?.id;
 
-    const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
+    const discountFeeIds = request.user?.userData?.specialCodeList ?? [];
 
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
@@ -419,6 +412,7 @@ export class FeeService implements OnModuleInit {
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.code.code) ||
+          request.specialCodeIds.includes(f.code.id) ||
           (f.wallet && f.wallet.id === wallet?.id),
       ),
     );

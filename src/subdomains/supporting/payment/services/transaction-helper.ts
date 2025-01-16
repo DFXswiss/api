@@ -392,6 +392,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       txVolume: txVolumeChf,
       specialCodes,
+      specialCodeIds: user?.userData.specialCodeList,
       allowCachedBlockchainFee,
     };
 

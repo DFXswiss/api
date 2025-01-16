@@ -297,7 +297,7 @@ export class UserData extends IEntity {
 
   // Fee / Discounts
   @Column({ length: 256, nullable: true })
-  individualFees?: string; // semicolon separated id's
+  specialCodes?: string; // semicolon separated id's
 
   // CT
   @Column({ length: 256, nullable: true })
@@ -398,9 +398,9 @@ export class UserData extends IEntity {
     };
   }
 
-  addFee(feeId: number): UpdateResult<UserData> {
+  addSpecialCode(specialCodeId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      individualFees: !this.individualFees ? feeId.toString() : `${this.individualFees};${feeId}`,
+      specialCodes: !this.specialCodes ? specialCodeId.toString() : `${this.specialCodes};${specialCodeId}`,
     };
 
     Object.assign(this, update);
@@ -408,9 +408,9 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
-  removeFee(feeId: number): UpdateResult<UserData> {
+  removeSpecialCode(specialCodeId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      individualFees: this.individualFeeList.filter((id) => id !== feeId).join(';'),
+      specialCodes: this.specialCodeList.filter((id) => id !== specialCodeId).join(';'),
     };
 
     Object.assign(this, update);
@@ -476,8 +476,8 @@ export class UserData extends IEntity {
     return this.kycType === KycType.DFX;
   }
 
-  get individualFeeList(): number[] | undefined {
-    return this.individualFees?.split(';')?.map(Number);
+  get specialCodeList(): number[] | undefined {
+    return this.specialCodes?.split(';')?.map(Number);
   }
 
   get kycClientList(): number[] {

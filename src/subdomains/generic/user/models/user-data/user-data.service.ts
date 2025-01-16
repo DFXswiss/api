@@ -678,15 +678,15 @@ export class UserDataService {
   // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
-    if (userData.individualFeeList?.includes(feeId)) return;
+    if (userData.specialCodeList?.includes(feeId)) return;
 
-    await this.userDataRepo.update(...userData.addFee(feeId));
+    await this.userDataRepo.update(...userData.addSpecialCode(feeId));
   }
 
   async removeFee(userData: UserData, feeId: number): Promise<void> {
-    if (!userData.individualFeeList?.includes(feeId)) throw new BadRequestException('Discount code already removed');
+    if (!userData.specialCodeList?.includes(feeId)) throw new BadRequestException('Discount code already removed');
 
-    await this.userDataRepo.update(...userData.removeFee(feeId));
+    await this.userDataRepo.update(...userData.removeSpecialCode(feeId));
   }
 
   // --- VOLUMES --- //
@@ -765,7 +765,7 @@ export class UserDataService {
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
       slave.kycSteps.length && `kycSteps ${slave.kycSteps.map((k) => k.id)}`,
-      slave.individualFees && `individualFees ${slave.individualFees}`,
+      slave.specialCodes && `individualFees ${slave.specialCodes}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
       slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
     ]
@@ -808,7 +808,7 @@ export class UserDataService {
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     master.supportIssues = master.supportIssues.concat(slave.supportIssues);
-    slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
+    slave.specialCodeList?.forEach((s) => !master.specialCodeList?.includes(s) && master.addSpecialCode(s));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
     // copy all documents
