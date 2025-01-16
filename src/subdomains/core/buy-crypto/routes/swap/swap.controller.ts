@@ -291,7 +291,7 @@ export class SwapController {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Swap, dto, swapDto, user.id);
+    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
 
     return swapDto;
   }
