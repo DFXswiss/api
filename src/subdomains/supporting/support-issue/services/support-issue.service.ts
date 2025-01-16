@@ -77,15 +77,13 @@ export class SupportIssueService {
       where: [
         {
           ...existingRequest,
-          transaction: { id: newIssue.transaction?.id ?? IsNull() },
+          transaction: { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid },
+          transactionRequest: { uid: newIssue.transactionRequest?.uid },
         },
         {
           ...existingRequest,
-          transaction: { uid: newIssue.transaction?.uid },
-        },
-        {
-          ...existingRequest,
-          transactionRequest: { uid: newIssue.transactionRequest?.uid ?? IsNull() },
+          transaction: IsNull(),
+          transactionRequest: IsNull(),
         },
       ],
       relations: { messages: true, limitRequest: true, userData: { wallet: true } },
