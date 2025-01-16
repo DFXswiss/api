@@ -51,7 +51,7 @@ export class GetSwapQuoteDto {
   @IsString()
   specialCode: string;
 
-  @ApiPropertyOptional({ description: 'Special codes' })
+  @ApiPropertyOptional({ description: 'Special codes', isArray: true })
   @IsOptional()
   @IsString()
   specialCodes: string[];
