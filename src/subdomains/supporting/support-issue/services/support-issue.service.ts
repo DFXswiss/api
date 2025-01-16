@@ -64,11 +64,7 @@ export class SupportIssueService {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
-    const newIssue = this.supportIssueRepo.create({
-      userData,
-      transactionRequest: { uid: dto.transaction?.quoteUid },
-      ...dto,
-    });
+    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
     const existingRequest: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },
@@ -82,7 +78,7 @@ export class SupportIssueService {
         {
           ...existingRequest,
           transaction: { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid },
-          transactionRequest: { uid: newIssue.transactionRequest?.uid },
+          transactionRequest: { uid: dto.transaction?.quoteUid },
         },
         {
           ...existingRequest,
