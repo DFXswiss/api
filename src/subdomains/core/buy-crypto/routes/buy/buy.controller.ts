@@ -354,7 +354,7 @@ export class BuyController {
     };
 
     await this.transactionRequestService.create(
-      TransactionRequestType.Buy,
+      TransactionRequestType.BUY,
       dto,
       buyDto,
       user.id,

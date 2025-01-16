@@ -54,6 +54,8 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
+  TX_REQUEST_UID_SYNC = 'TxRequestUidSync',
+  USER_DATA_WALLET_SYNC = 'UserDataWalletSync',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

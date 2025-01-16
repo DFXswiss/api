@@ -37,7 +37,7 @@ export class PayInNotificationService {
         returnTxId: Not(IsNull()),
         action: PayInAction.RETURN,
       },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: true, wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
@@ -50,6 +50,7 @@ export class PayInNotificationService {
             context: MailContext.CRYPTO_INPUT_RETURN,
             input: {
               userData: entity.route.user.userData,
+              wallet: entity.route.user.wallet,
               title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               table: {

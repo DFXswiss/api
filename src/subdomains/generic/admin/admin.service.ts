@@ -60,10 +60,11 @@ export class AdminService {
     }
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(3600)
   async completeLiquidityOrders() {
-    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.PAY_OUT)) return;
+
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;
       const pContext = context as unknown as PayoutOrderContext;

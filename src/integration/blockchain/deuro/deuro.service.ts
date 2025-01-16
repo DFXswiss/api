@@ -13,6 +13,7 @@ import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmUtil } from '../shared/evm/evm.util';
+import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
 import { DEuroClient } from './deuro-client';
 import {
   DEuroInfoDto,
@@ -23,15 +24,13 @@ import {
 } from './dto/deuro.dto';
 
 @Injectable()
-export class DEuroService implements OnModuleInit {
+export class DEuroService extends FrankencoinBasedService implements OnModuleInit {
   private readonly logger = new DfxLogger(DEuroService);
 
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
 
   private readonly client: DEuroClient;
-
-  private pricingService: PricingService;
 
   private usd: Fiat;
   private eur: Fiat;
@@ -44,6 +43,8 @@ export class DEuroService implements OnModuleInit {
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
+    super();
+
     const { deuroGatewayUrl, deuroApiKey, deuroChainId } = GetConfig().blockchain.deuro;
 
     this.client = new DEuroClient(http, deuroGatewayUrl, deuroApiKey);
@@ -51,7 +52,7 @@ export class DEuroService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.pricingService = this.moduleRef.get(PricingService, { strict: false });
+    this.setup(this.moduleRef.get(PricingService, { strict: false }));
 
     this.usd = await this.fiatService.getFiatByName('USD');
     this.eur = await this.fiatService.getFiatByName('EUR');
@@ -163,9 +164,18 @@ export class DEuroService implements OnModuleInit {
   }
 
   async getTvl(): Promise<number> {
-    // TODO: Frankencoin TVL comes from "https://api.llama.fi/tvl/frankencoin"
-    // TODO: and DEuro TVL comes from "?????"
-    return 0; //this.client.getTvl();
+    const positionV2s = await this.client.getPositionV2s();
+
+    const collaterals = positionV2s.map((p) => {
+      return {
+        collateral: p.collateral,
+        collateralSymbol: p.collateralSymbol,
+        collateralBalance: p.collateralBalance,
+        collateralDecimals: p.collateralDecimals,
+      };
+    });
+
+    return this.getTvlByCollaterals(collaterals);
   }
 
   async getDEuroInfo(): Promise<DEuroInfoDto> {
@@ -185,7 +195,7 @@ export class DEuroService implements OnModuleInit {
 
     const deuroLog = <DEuroLogDto>JSON.parse(maxDEuroLogEntity.message);
 
-    const priceUsdToEur = await this.pricingService.getPrice(this.usd, this.eur, true);
+    const priceUsdToEur = await this.getPrice(this.usd, this.eur);
 
     return {
       totalSupplyDeuro: deuroLog.totalSupply,

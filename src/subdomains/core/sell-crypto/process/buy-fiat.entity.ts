@@ -129,7 +129,7 @@ export class BuyFiat extends IEntity {
   totalFeeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  blockchainFee?: number;
+  blockchainFee?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   paymentLinkFee?: number;

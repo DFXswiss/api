@@ -64,7 +64,10 @@ export class RefRewardService {
 
     for (const [blockchain, users] of groupedUser.entries()) {
       const pendingBlockchainRewards = await this.rewardRepo.findOne({
-        where: { status: Not(In([RewardStatus.COMPLETE, RewardStatus.FAILED])), targetBlockchain: blockchain },
+        where: {
+          status: Not(In([RewardStatus.COMPLETE, RewardStatus.USER_SWITCH, RewardStatus.FAILED])),
+          targetBlockchain: blockchain,
+        },
       });
       if (pendingBlockchainRewards) continue;
 
@@ -110,7 +113,7 @@ export class RefRewardService {
   async getAllUserRewards(userIds: number[]): Promise<RefReward[]> {
     return this.rewardRepo.find({
       where: { user: { id: In(userIds) } },
-      relations: ['user'],
+      relations: { user: true },
       order: { id: 'DESC' },
     });
   }
@@ -126,14 +129,14 @@ export class RefRewardService {
       .createQueryBuilder('refReward')
       .select('SUM(amountInChf)', 'volume')
       .where('created >= :from', { from })
-      .andWhere('status != :rewardStatus', { rewardStatus: RewardStatus.FAILED })
+      .andWhere('status NOT IN (:...rewardStatus)', { rewardStatus: [RewardStatus.FAILED, RewardStatus.USER_SWITCH] })
       .getRawOne<{ volume: number }>();
 
     return volume ?? 0;
   }
 
   // --- HELPER METHODS --- //
-  private async updatePaidRefCredit(userIds: number[]): Promise<void> {
+  async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of userIds) {
@@ -141,7 +144,7 @@ export class RefRewardService {
         .createQueryBuilder('refReward')
         .select('SUM(amountInEur)', 'volume')
         .innerJoin('refReward.user', 'user')
-        .where('user.id = :id', { id })
+        .andWhere('refReward.status IN (:...status)', { status: [RewardStatus.COMPLETE, RewardStatus.USER_SWITCH] })
         .getRawOne<{ volume: number }>();
 
       await this.userService.updatePaidRefCredit(id, volume ?? 0);
@@ -149,7 +152,10 @@ export class RefRewardService {
   }
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
-    const refRewards = await this.rewardRepo.findBy({ outputDate: Between(dateFrom, dateTo) });
+    const refRewards = await this.rewardRepo.findBy({
+      outputDate: Between(dateFrom, dateTo),
+      status: Not(RewardStatus.USER_SWITCH),
+    });
 
     return refRewards.map((v) => ({
       id: v.id,

@@ -1,13 +1,16 @@
 import { IEntity } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
+import { Transaction } from './transaction.entity';
 
 export enum TransactionRequestType {
-  Buy = 'Buy',
-  Sell = 'Sell',
-  Swap = 'Swap',
+  BUY = 'Buy',
+  SELL = 'Sell',
+  SWAP = 'Swap',
 }
 
 @Entity()
@@ -17,6 +20,10 @@ export class TransactionRequest extends IEntity {
 
   @Column({ length: 256, nullable: true })
   usedSpecialCodes?: string; // Semicolon separated id's
+
+  // TODO: change to unique & nullable false
+  @Column({ length: 256, nullable: true })
+  uid: string;
 
   @Column({ type: 'integer' })
   routeId: number;
@@ -80,4 +87,16 @@ export class TransactionRequest extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
+
+  @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })
+  transaction?: Transaction;
+
+  @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transactionRequest)
+  supportIssues: SupportIssue[];
+
+  // --- ENTITY METHODS --- //
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
 }

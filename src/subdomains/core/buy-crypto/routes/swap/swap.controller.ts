@@ -292,7 +292,7 @@ export class SwapController {
     };
 
     await this.transactionRequestService.create(
-      TransactionRequestType.Swap,
+      TransactionRequestType.SWAP,
       dto,
       swapDto,
       user.id,

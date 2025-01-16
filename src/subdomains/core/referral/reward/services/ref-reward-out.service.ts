@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
@@ -9,6 +8,7 @@ import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
+import { RefRewardService } from './ref-reward.service';
 
 @Injectable()
 export class RefRewardOutService {
@@ -18,8 +18,8 @@ export class RefRewardOutService {
     private readonly refRewardRepo: RefRewardRepository,
     private readonly payoutService: PayoutService,
     private readonly assetService: AssetService,
-    private readonly userService: UserService,
     private readonly dexService: DexService,
+    private readonly refRewardService: RefRewardService,
   ) {}
 
   async checkPaidTransaction(): Promise<void> {
@@ -64,21 +64,6 @@ export class RefRewardOutService {
 
   //*** HELPER METHODS ***//
 
-  private async updatePaidRefCredit(userIds: number[]): Promise<void> {
-    userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
-
-    for (const id of userIds) {
-      const { volume } = await this.refRewardRepo
-        .createQueryBuilder('refReward')
-        .select('SUM(amountInEur)', 'volume')
-        .innerJoin('refReward.user', 'user')
-        .where('user.id = :id', { id })
-        .getRawOne<{ volume: number }>();
-
-      await this.userService.updatePaidRefCredit(id, volume ?? 0);
-    }
-  }
-
   private async doPayout(transaction: RefReward): Promise<void> {
     const asset = await this.assetService.getNativeAsset(transaction.targetBlockchain);
 
@@ -112,7 +97,7 @@ export class RefRewardOutService {
 
           await this.dexService.completeOrders(LiquidityOrderContext.REF_PAYOUT, tx.id.toString());
 
-          await this.updatePaidRefCredit([tx.user?.id]);
+          await this.refRewardService.updatePaidRefCredit([tx.user?.id]);
         }
       } catch (e) {
         this.logger.error(`Error on checking completion of ref-reward ${tx.id}:`, e);

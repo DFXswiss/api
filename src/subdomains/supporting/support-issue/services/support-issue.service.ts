@@ -8,10 +8,12 @@ import {
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
+import { QUOTE_UID_PREFIX, TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
+import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
@@ -25,10 +27,10 @@ import { LimitRequestService } from './limit-request.service';
 import { SupportDocumentService } from './support-document.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
 
+export const ISSUE_UID_PREFIX = 'I';
+
 @Injectable()
 export class SupportIssueService {
-  private readonly UID_PREFIX = 'I';
-
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
@@ -37,40 +39,89 @@ export class SupportIssueService {
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
+  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+    if (!dto?.transaction?.quoteUid) throw new BadRequestException('JWT Token or quoteUid missing');
+    const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
+      dto.transaction.quoteUid,
+      { user: { userData: true } },
+    );
+    if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
+
+    return this.createIssueInternal(transactionRequest.userData, dto);
+  }
+
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+    const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
+    if (!userData) throw new NotFoundException('UserData not found');
+
+    return this.createIssueInternal(userData, dto);
+  }
+
+  async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
     // mail is required
-    const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
+    const existingRequest: FindOptionsWhere<SupportIssue> = {
+      userData: { id: userData.id },
+      type: newIssue.type,
+      reason: newIssue.reason,
+      state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
+    };
+
     const existingIssue = await this.supportIssueRepo.findOne({
-      where: {
-        userData: { id: userDataId },
-        type: newIssue.type,
-        reason: newIssue.reason,
-        transaction: { id: newIssue.transaction?.id ?? IsNull() },
-        state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
-      },
-      relations: { messages: true, transaction: true, limitRequest: true },
+      where: [
+        {
+          ...existingRequest,
+          transaction: { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid },
+          transactionRequest: { uid: dto.transaction?.quoteUid },
+        },
+        {
+          ...existingRequest,
+          transaction: { id: IsNull() },
+          transactionRequest: { id: IsNull() },
+        },
+      ],
+      relations: { messages: true, limitRequest: true, userData: { wallet: true } },
     });
 
     if (!existingIssue) {
       // create UID
       const hash = Util.createHash(newIssue.type + new Date() + Util.randomId()).toUpperCase();
-      newIssue.uid = `${this.UID_PREFIX}${hash.slice(0, 16)}`;
+      newIssue.uid = `${ISSUE_UID_PREFIX}${hash.slice(0, 16)}`;
 
       // map transaction
       if (dto.transaction) {
-        if (dto.transaction.id) {
-          newIssue.transaction = await this.transactionService.getTransactionById(dto.transaction.id, {
-            user: { userData: true },
-          });
+        if (dto.transaction.id || dto.transaction.uid) {
+          newIssue.transaction = dto.transaction.id
+            ? await this.transactionService.getTransactionById(dto.transaction.id, {
+                user: { userData: true },
+              })
+            : await this.transactionService.getTransactionByUid(dto.transaction.uid, {
+                user: { userData: true },
+              });
+
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
+        } else if (dto.transaction.quoteUid) {
+          newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
+            dto.transaction.quoteUid,
+            { user: { userData: true }, transaction: true },
+          );
+
+          if (!newIssue.transactionRequest) throw new NotFoundException('Quote not found');
+          if (
+            !newIssue.transactionRequest.user ||
+            newIssue.transactionRequest.user.userData.id !== newIssue.userData.id
+          )
+            throw new ForbiddenException('You can only create support issue for your own quote');
+
+          if (newIssue.transactionRequest.transaction) newIssue.transaction = newIssue.transactionRequest.transaction;
         }
 
         newIssue.additionalInformation = dto.transaction;
@@ -101,14 +152,17 @@ export class SupportIssueService {
   }
 
   async createMessage(id: string, dto: CreateSupportMessageDto, userDataId?: number): Promise<SupportMessageDto> {
-    const issue = await this.supportIssueRepo.findOneBy(this.getIssueSearch(id, userDataId));
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { userData: { wallet: true } },
+    });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor });
   }
 
   async createMessageSupport(id: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
-    const issue = await this.supportIssueRepo.findOneBy({ id });
+    const issue = await this.supportIssueRepo.findOne({ where: { id }, relations: { userData: { wallet: true } } });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, dto);
@@ -193,7 +247,8 @@ export class SupportIssueService {
   }
 
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
-    if (id.startsWith(this.UID_PREFIX)) return { uid: id };
+    if (id.startsWith(ISSUE_UID_PREFIX)) return { uid: id };
+    if (id.startsWith(QUOTE_UID_PREFIX)) return { transactionRequest: { uid: id } };
     if (userDataId) return { id: +id, userData: { id: userDataId } };
 
     throw new UnauthorizedException();
