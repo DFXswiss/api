@@ -10,6 +10,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialCodeService } from 'src/subdomains/supporting/payment/services/special-code.service';
 import { UserDataRepository } from '../../user-data/user-data.repository';
 import { UserDataService } from '../../user-data/user-data.service';
 import { WalletService } from '../../wallet/wallet.service';
@@ -32,6 +33,7 @@ describe('UserService', () => {
   let fiatService: FiatService;
   let tfaService: TfaService;
   let siftService: SiftService;
+  let specialCodeService: SpecialCodeService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -47,6 +49,7 @@ describe('UserService', () => {
     fiatService = createMock<FiatService>();
     tfaService = createMock<TfaService>();
     siftService = createMock<SiftService>();
+    specialCodeService = createMock<SpecialCodeService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -64,6 +67,7 @@ describe('UserService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: TfaService, useValue: tfaService },
         { provide: SiftService, useValue: siftService },
+        { provide: SpecialCodeService, useValue: specialCodeService },
         TestUtil.provideConfig(),
       ],
     }).compile();
