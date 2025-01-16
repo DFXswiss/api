@@ -70,7 +70,6 @@ export class SupportIssueService {
       userData: { id: userData.id },
       type: newIssue.type,
       reason: newIssue.reason,
-      transactionRequest: { uid: newIssue.transactionRequest?.uid ?? IsNull() },
       state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
     };
 
@@ -83,6 +82,10 @@ export class SupportIssueService {
         {
           ...existingRequest,
           transaction: { uid: newIssue.transaction?.uid },
+        },
+        {
+          ...existingRequest,
+          transactionRequest: { uid: newIssue.transactionRequest?.uid ?? IsNull() },
         },
       ],
       relations: { messages: true, limitRequest: true, userData: { wallet: true } },
