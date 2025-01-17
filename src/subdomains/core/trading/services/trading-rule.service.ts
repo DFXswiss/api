@@ -42,7 +42,7 @@ export class TradingRuleService {
 
   async processRules() {
     const rules = await this.ruleRepo.findBy({
-      status: TradingRuleStatus.ACTIVE,
+      status: In([TradingRuleStatus.ACTIVE, TradingRuleStatus.PAUSED]),
     });
 
     for (const rule of rules) {
@@ -84,6 +84,8 @@ export class TradingRuleService {
       const tradingInfo = await this.tradingService.createTradingInfo(rule);
 
       if (tradingInfo) {
+        if (rule.status === TradingRuleStatus.PAUSED) tradingInfo.tradeRequired = false;
+
         if (tradingInfo.tradeRequired) {
           rule.processing();
           await this.ruleRepo.save(rule);
