@@ -30,7 +30,8 @@ export class TransactionService {
       entity.externalId = dto.request?.externalTransactionId;
 
       if (dto.resetMailSendDate) entity.mailSendDate = null;
-      if (dto.request) entity.supportIssues = [...entity.supportIssues, ...entity.request.supportIssues];
+      if (dto.request)
+        entity.supportIssues = [...(entity.supportIssues ?? []), ...(entity.request.supportIssues ?? [])];
     }
 
     entity = await this.repo.save(entity);
