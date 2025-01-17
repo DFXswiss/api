@@ -246,7 +246,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.downloadTargets.reverse();
+    const downloadTargets = Config.kyc.downloadTargets.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
@@ -267,10 +267,12 @@ export class UserDataService {
         continue;
       }
 
-      const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
+      const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
+
+      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of downloadTargets) {
+      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of applicableTargets) {
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
