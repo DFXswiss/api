@@ -283,8 +283,12 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentExchangeTx(minId = 1, type: BankTxType): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ id: MoreThanOrEqual(minId), type });
+  async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({
+      id: minId ? MoreThanOrEqual(minId) : undefined,
+      type,
+      created: !minId ? MoreThan(Util.daysBefore(21)) : undefined,
+    });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

@@ -231,22 +231,26 @@ export class LogJobService {
       ? await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined)
       : undefined;
 
-    const minBankTxId = Math.min(
-      ...[
-        financeLogPairIds?.fromKraken.chf.bankTxId,
-        financeLogPairIds?.fromKraken.eur.bankTxId,
-        financeLogPairIds?.toKraken.chf.bankTxId,
-        financeLogPairIds?.toKraken.eur.bankTxId,
-      ],
-    );
-    const minExchangeTxId = Math.min(
-      ...[
-        financeLogPairIds?.fromKraken.chf.exchangeTxId,
-        financeLogPairIds?.fromKraken.eur.exchangeTxId,
-        financeLogPairIds?.toKraken.chf.exchangeTxId,
-        financeLogPairIds?.toKraken.eur.exchangeTxId,
-      ],
-    );
+    const minBankTxId = useUnfilteredTx
+      ? Math.min(
+          ...[
+            financeLogPairIds?.fromKraken.chf.bankTxId,
+            financeLogPairIds?.fromKraken.eur.bankTxId,
+            financeLogPairIds?.toKraken.chf.bankTxId,
+            financeLogPairIds?.toKraken.eur.bankTxId,
+          ],
+        )
+      : undefined;
+    const minExchangeTxId = useUnfilteredTx
+      ? Math.min(
+          ...[
+            financeLogPairIds?.fromKraken.chf.exchangeTxId,
+            financeLogPairIds?.fromKraken.eur.exchangeTxId,
+            financeLogPairIds?.toKraken.chf.exchangeTxId,
+            financeLogPairIds?.toKraken.eur.exchangeTxId,
+          ],
+        )
+      : undefined;
 
     // pending internal balances
     // db requests
