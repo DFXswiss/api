@@ -144,6 +144,7 @@ export class RefRewardService {
         .createQueryBuilder('refReward')
         .select('SUM(amountInEur)', 'volume')
         .innerJoin('refReward.user', 'user')
+        .where('user.id = :id', { id })
         .andWhere('refReward.status IN (:...status)', { status: [RewardStatus.COMPLETE, RewardStatus.USER_SWITCH] })
         .getRawOne<{ volume: number }>();
 
