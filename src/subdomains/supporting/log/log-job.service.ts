@@ -390,19 +390,22 @@ export class LogJobService {
       // unfiltered lists
       const pendingChfKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
-        chfSenderExchangeTx,
+        chfSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.exchangeTxId),
         ExchangeTxType.WITHDRAWAL,
         maerkiChfBank.iban,
       );
       const pendingEurKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
-        eurSenderExchangeTx,
+        eurSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.exchangeTxId),
         ExchangeTxType.WITHDRAWAL,
         maerkiEurBank.iban,
       );
       const pendingKrakenMaerkiMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
-        [...eurReceiverBankTx, ...chfReceiverBankTx],
+        [
+          ...eurReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.bankTxId),
+          ...chfReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.bankTxId),
+        ],
         BankTxType.KRAKEN,
       );
 
@@ -430,18 +433,21 @@ export class LogJobService {
       // unfiltered lists
       const pendingMaerkiKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
-        [...chfSenderBankTx, ...recentEurMaerkiKrakenTx],
+        [
+          ...chfSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
+          ...eurSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.bankTxId),
+        ],
         BankTxType.KRAKEN,
       );
       const pendingChfMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
-        chfReceiverExchangeTx,
+        chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
         ExchangeTxType.DEPOSIT,
         maerkiChfBank.iban,
       );
       const pendingEurMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
-        eurReceiverExchangeTx,
+        eurReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.exchangeTxId),
         ExchangeTxType.DEPOSIT,
         maerkiEurBank.iban,
       );
