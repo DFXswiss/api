@@ -349,20 +349,24 @@ export class TransactionController {
       if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
 
-      const inputAmount = transaction.bankTx
-        ? transaction.bankTx.amount + transaction.bankTx.chargeAmount
-        : transaction.targetEntity.inputAmount;
+      const inputAmount = Util.roundReadable(
+        transaction.bankTx
+          ? transaction.bankTx.amount + transaction.bankTx.chargeAmount
+          : transaction.targetEntity.inputAmount,
+        !transaction.targetEntity.cryptoInput,
+      );
 
       const networkFeeAmount = transaction.targetEntity.cryptoInput
         ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false)
         : 0;
 
       const bankFeeAmount =
-        transaction.targetEntity.cryptoInput || transaction.checkoutTx
-          ? 0
-          : inputAmount - transaction.targetEntity.bankTx.amount;
+        transaction.targetEntity.cryptoInput || transaction.checkoutTx ? 0 : inputAmount - transaction.bankTx.amount;
 
-      const totalFeeAmount = networkFeeAmount + bankFeeAmount;
+      const totalFeeAmount = Util.roundReadable(
+        networkFeeAmount + bankFeeAmount,
+        !transaction.targetEntity.cryptoInput,
+      );
 
       if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
@@ -390,7 +394,7 @@ export class TransactionController {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
         inputAmount: Util.roundReadable(inputAmount, !transaction.targetEntity.cryptoInput),
         inputAsset: refundAsset,
-        refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, !transaction.targetEntity.cryptoInput),
+        refundAmount: inputAmount - totalFeeAmount,
         fee: {
           network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
           bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
