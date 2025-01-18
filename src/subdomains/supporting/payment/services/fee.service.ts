@@ -410,8 +410,10 @@ export class FeeService implements OnModuleInit {
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
         (f) =>
-          [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.BANK].includes(f.type) &&
+          [FeeType.BASE].includes(f.type) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.BANK, FeeType.SPECIAL].includes(
+            f.type,
+          ) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||
