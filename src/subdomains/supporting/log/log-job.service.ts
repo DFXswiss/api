@@ -226,10 +226,7 @@ export class LogJobService {
     const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
 
     const useUnfilteredTx = await this.settingService.getObj<boolean>('financeLogUnfilteredTx', false);
-
-    const financeLogPairIds = useUnfilteredTx
-      ? await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined)
-      : undefined;
+    const financeLogPairIds = await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined);
 
     const minBankTxId = useUnfilteredTx
       ? Math.min(
