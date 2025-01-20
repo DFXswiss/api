@@ -189,6 +189,10 @@ export class UserService {
         currency,
         wallet: user.wallet,
       }));
+
+    if (user.userData.status === UserDataStatus.KYC_ONLY)
+      await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
+
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));
 

@@ -23,9 +23,11 @@ export class SupportIssueController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
-    return this.supportIssueService.createIssue(jwt.account, { ...dto, author: CustomerAuthor });
+  @UseGuards(OptionalJwtAuthGuard)
+  async createIssue(@Body() dto: CreateSupportIssueDto, @GetJwt() jwt?: JwtPayload): Promise<SupportIssueDto> {
+    return jwt?.account
+      ? this.supportIssueService.createIssue(jwt.account, { ...dto, author: CustomerAuthor })
+      : this.supportIssueService.createTransactionRequestIssue({ ...dto, author: CustomerAuthor });
   }
 
   @Post('support')

@@ -21,7 +21,6 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -88,26 +87,6 @@ export class UserDataService {
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
   ) {}
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async syncWallet() {
-    if (DisabledProcess(Process.USER_DATA_WALLET_SYNC)) return;
-
-    const entities = await this.userDataRepo.find({
-      where: { wallet: { id: IsNull() }, users: { id: Not(IsNull()) } },
-      relations: { users: { wallet: true } },
-      take: 10000,
-    });
-
-    for (const entity of entities) {
-      try {
-        await this.userDataRepo.update(entity.id, { wallet: entity.users[0].wallet });
-      } catch (e) {
-        this.logger.error(`Error in userData wallet sync: ${entity.id}`, e);
-      }
-    }
-  }
 
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -248,7 +227,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.downloadTargets.reverse();
+    const downloadTargets = Config.kyc.downloadTargets.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
@@ -269,10 +248,12 @@ export class UserDataService {
         continue;
       }
 
-      const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
+      const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
+
+      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of downloadTargets) {
+      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of applicableTargets) {
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {

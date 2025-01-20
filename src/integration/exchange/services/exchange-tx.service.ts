@@ -9,7 +9,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOptionsRelations, In, MoreThan } from 'typeorm';
+import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -82,12 +82,13 @@ export class ExchangeTxService implements OnModuleInit {
     return this.exchangeTxRepo.find({ where: { created: MoreThan(from) }, relations });
   }
 
-  async getRecentExchangeTx(
-    exchange: ExchangeName,
-    types: ExchangeTxType[],
-    start = Util.daysBefore(21),
-  ): Promise<ExchangeTx[]> {
-    return this.exchangeTxRepo.findBy({ type: In(types), exchange, created: MoreThan(start) });
+  async getRecentExchangeTx(minId: number, exchange: ExchangeName, types: ExchangeTxType[]): Promise<ExchangeTx[]> {
+    return this.exchangeTxRepo.findBy({
+      id: minId ? MoreThanOrEqual(minId) : undefined,
+      type: In(types),
+      exchange,
+      created: !minId ? MoreThan(Util.daysBefore(21)) : undefined,
+    });
   }
 
   private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {
