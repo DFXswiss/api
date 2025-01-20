@@ -3,7 +3,7 @@ import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
 import { IdentType } from '../dto/ident-result-data.dto';
-import { SumSubWebhookType } from '../dto/sum-sub.dto';
+import { SumSubLevelName } from '../dto/sum-sub.dto';
 
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
@@ -70,7 +70,7 @@ export function getKycTypeIndex(stepType?: KycStepType): number {
 export function getIdentificationType(type: IdentType, companyId: string): KycIdentificationType | undefined {
   if (!companyId) return undefined;
   if (type === IdentType.SUM_SUB)
-    return companyId === SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED
+    return companyId === SumSubLevelName.CH_STANDARD_VIDEO
       ? KycIdentificationType.VIDEO_ID
       : KycIdentificationType.ONLINE_ID;
 
