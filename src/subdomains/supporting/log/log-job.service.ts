@@ -226,10 +226,7 @@ export class LogJobService {
     const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
 
     const useUnfilteredTx = await this.settingService.getObj<boolean>('financeLogUnfilteredTx', false);
-
-    const financeLogPairIds = useUnfilteredTx
-      ? await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined)
-      : undefined;
+    const financeLogPairIds = await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined);
 
     const minBankTxId = useUnfilteredTx
       ? Math.min(
@@ -754,12 +751,13 @@ export class LogJobService {
 
     before14Days.setHours(0, 0, 0, 0);
 
-    const filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
-    const filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+    let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
+    let filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
 
     if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
     if (!filtered14ReceiverTx?.length) {
       const filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
+
       const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
 
       return {
@@ -787,23 +785,36 @@ export class LogJobService {
       );
     }
 
+    filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
+
+    if (filtered14ReceiverTx.length > filtered21SenderTx.length) {
+      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx, true);
+
+      const senderTxLength = senderPair
+        ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
+        : filtered14ReceiverTx.length;
+
+      filtered14ReceiverTx = filtered14ReceiverTx.slice(filtered14ReceiverTx.length - senderTxLength);
+    }
+
     return {
       receiver: filtered14ReceiverTx.filter((r) => r.id >= filtered14ReceiverTx[receiverIndex]?.id ?? 0),
-      sender: (senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx).sort(
-        (a, b) => a.id - b.id,
-      ),
+      sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }
 
   private findSenderReceiverPair(
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
+    reverseSearch = false,
   ): { senderPair: BankTx | ExchangeTx; receiverIndex: number } {
     if (!receiverTx.length) return { receiverIndex: undefined, senderPair: undefined };
 
-    if (senderTx.length > 1)
-      senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
-    if (receiverTx.length > 1) receiverTx.sort((a, b) => a.id - b.id);
+    (senderTx[0] instanceof BankTx && !reverseSearch) || (!(senderTx[0] instanceof BankTx) && reverseSearch)
+      ? senderTx.sort((a, b) => a.id - b.id)
+      : senderTx.sort((a, b) => b.id - a.id);
+
+    !reverseSearch ? receiverTx.sort((a, b) => a.id - b.id) : receiverTx.sort((a, b) => b.id - a.id);
 
     let receiverIndex = 0;
 
@@ -824,6 +835,11 @@ export class LogJobService {
       if (!senderPair) {
         receiverIndex++;
       } else {
+        if (reverseSearch) {
+          senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+          receiverTx.sort((a, b) => a.id - b.id);
+        }
+
         return { senderPair, receiverIndex };
       }
     } while (receiverTx.length > receiverIndex);

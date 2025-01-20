@@ -14,7 +14,7 @@ export interface SumSubWebhookResult {
   correlationId?: string;
   externalUserId?: string;
   externalApplicantActionId?: string;
-  levelName?: string;
+  levelName?: SumSubLevelName;
   previousLevelName?: string;
   type?: SumSubWebhookType;
   reviewResult?: {
@@ -102,6 +102,11 @@ export enum ReviewStatus {
   QUEUED = 'queued',
   COMPLETED = 'completed',
   ON_HOLD = 'onHold',
+}
+
+export enum SumSubLevelName {
+  CH_STANDARD = 'CH-Standard',
+  CH_STANDARD_VIDEO = 'CH-Standard-Video',
 }
 
 export enum SumSubWebhookType {
@@ -221,7 +226,7 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
   [SumSubRejectionLabels.INCONSISTENT_PROFILE]: 'Data or documents of different persons were uploaded',
   [SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA]: 'Applicant data does not match the data in your documents',
   [SumSubRejectionLabels.ADDITIONAL_DOCUMENT_REQUIRED]: 'Additional documents are required to pass the check',
-  [SumSubRejectionLabels.AGE_REQUIREMENT_MISMATCH]: 'The age requirement is not met',
+  [SumSubRejectionLabels.AGE_REQUIREMENT_MISMATCH]: 'The age requirement (18 years) is not met',
   [SumSubRejectionLabels.REQUESTED_DATA_MISMATCH]:
     'Provided information does not match with the data from the document',
   [SumSubRejectionLabels.EXPERIENCE_REQUIREMENT_MISMATCH]: 'You do not have enough experience',

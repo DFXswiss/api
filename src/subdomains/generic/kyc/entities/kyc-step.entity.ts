@@ -310,7 +310,7 @@ export class KycStep extends IEntity {
             ? 'IDCARD'
             : 'PASSPORT'
           : undefined,
-        kycType: identResultData.webhook.type,
+        kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
     } else if (this.isManual) {

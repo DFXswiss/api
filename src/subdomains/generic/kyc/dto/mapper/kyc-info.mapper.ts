@@ -62,7 +62,7 @@ export class KycInfoMapper {
     const completedIdentSteps = steps.filter((s) => s.name === KycStepName.IDENT && s.isCompleted);
     const fullIdentStep =
       completedIdentSteps.find((s) => s.type === KycStepType.MANUAL) ??
-      steps.find((s) => s.type === KycStepType.VIDEO || s.type === KycStepType.SUMSUB_VIDEO);
+      completedIdentSteps.find((s) => s.type === KycStepType.VIDEO || s.type === KycStepType.SUMSUB_VIDEO);
 
     const groupedSteps = steps
       // hide all other ident steps, if full ident is completed
