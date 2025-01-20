@@ -43,7 +43,8 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   transactionRefundExpirySeconds = 30;
-  refRewardManualCheckLimit = 3000; //EUR
+  refRewardManualCheckLimit = 3000; // EUR
+  manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
 
   defaults = {
     currency: 'EUR',
