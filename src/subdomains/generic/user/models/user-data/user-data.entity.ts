@@ -164,30 +164,38 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   organizationName?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationStreet?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationHouseNumber?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationLocation?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationZip?: string;
 
+  // TODO remove
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersName?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersDomicile?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   accountOpenerAuthorization?: string;
 
@@ -202,9 +210,11 @@ export class UserData extends IEntity {
 
   // --- KYC --- //
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   legalEntity?: LegalEntity;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
 
@@ -217,6 +227,7 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
 
+  // TODO remove
   @Column({ nullable: true })
   complexOrgStructure?: boolean;
 
@@ -348,6 +359,7 @@ export class UserData extends IEntity {
   @ManyToOne(() => Wallet, { nullable: true })
   wallet: Wallet;
 
+  // TODO remove
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;

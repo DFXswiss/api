@@ -45,6 +45,13 @@ export class OrganizationService {
             location: entity.location,
             zip: entity.organizationZip,
             country: entity.organizationCountry,
+            allBeneficialOwnersName: entity.allBeneficialOwnersName,
+            allBeneficialOwnersDomicile: entity.allBeneficialOwnersDomicile,
+            accountOpenerAuthorization: entity.accountOpenerAuthorization,
+            complexOrgStructure: entity.complexOrgStructure,
+            accountOpener: entity.accountOpener,
+            legalEntity: entity.legalEntity,
+            signatoryPower: entity.signatoryPower,
           }));
 
         await this.userDataRepo.update(entity.id, { organization });

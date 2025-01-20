@@ -704,6 +704,13 @@ export class UserDataService {
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
         countryId: dto.organizationCountryId,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
       });
   }
 
