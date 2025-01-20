@@ -641,7 +641,6 @@ export class BuyCrypto extends IEntity {
       isComplete: false,
       outputAmount: null,
       outputDate: null,
-      priceSteps: null,
     };
 
     Object.assign(this, update);
