@@ -636,7 +636,7 @@ export class BuyCrypto extends IEntity {
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: null,
+      outputReferenceAmount: this.outputAmount ? null : undefined,
       batch: null,
       isComplete: false,
       outputAmount: null,
