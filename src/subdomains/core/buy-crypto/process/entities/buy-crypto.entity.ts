@@ -636,11 +636,12 @@ export class BuyCrypto extends IEntity {
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: this.outputAmount ? null : undefined,
+      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === 'DFX') ? undefined : null, // ignore reset when manual payout
       batch: null,
       isComplete: false,
       outputAmount: null,
       outputDate: null,
+      priceSteps: null,
     };
 
     Object.assign(this, update);
