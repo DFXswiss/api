@@ -2,11 +2,9 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
-import { GetConfig } from 'src/config/config';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { HttpService } from 'src/shared/services/http.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
@@ -15,6 +13,7 @@ import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
+import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import { DEuroClient } from './deuro-client';
 import {
   DEuroInfoDto,
@@ -34,28 +33,26 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   private usd: Fiat;
   private eur: Fiat;
 
+  private deuroClient: DEuroClient;
+
   constructor(
-    http: HttpService,
     private readonly moduleRef: ModuleRef,
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
-    const { deuroGatewayUrl, deuroApiKey, deuroWalletPrivateKey, deuroChainId } = GetConfig().blockchain.deuro;
-
-    super(DEuroClient, {
-      http,
-      gatewayUrl: deuroGatewayUrl,
-      apiKey: deuroApiKey,
-      walletPrivateKey: deuroWalletPrivateKey,
-      chainId: deuroChainId,
-    });
+    super();
   }
 
   async onModuleInit() {
-    this.setup(this.moduleRef.get(PricingService, { strict: false }));
+    this.setup(
+      this.moduleRef.get(PricingService, { strict: false }),
+      this.moduleRef.get(BlockchainRegistryService, { strict: false }),
+    );
 
     this.usd = await this.fiatService.getFiatByName('USD');
     this.eur = await this.fiatService.getFiatByName('EUR');
+
+    this.deuroClient = new DEuroClient(this.getEvmClient());
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -83,20 +80,16 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   }
 
   async getPositionV2s(): Promise<DEuroPositionDto[]> {
-    const client = this.getDefaultClient<DEuroClient>();
-
-    const positions = await client.getPositionV2s();
+    const positions = await this.deuroClient.getPositionV2s();
     return this.getPositions(positions);
   }
 
   private async getPositions(positions: DEuroPositionGraphDto[]): Promise<DEuroPositionDto[]> {
     const positionsResult: DEuroPositionDto[] = [];
 
-    const client = this.getDefaultClient<DEuroClient>();
-
     for (const position of positions) {
       try {
-        const deuroContract = client.getDEuroContract();
+        const deuroContract = this.deuroClient.getDEuroContract();
 
         const calculateAssignedReserve = await deuroContract.calculateAssignedReserve(
           position.minted,
@@ -134,10 +127,9 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   async getDEPS(): Promise<DEuroPoolSharesDto> {
     const equityContract = this.getEquityContract();
 
-    const client = this.getDefaultClient<DEuroClient>();
-    const deuroContract = client.getDEuroContract();
+    const deuroContract = this.deuroClient.getDEuroContract();
 
-    const deps = await client.getDEPS();
+    const deps = await this.deuroClient.getDEPS();
 
     try {
       const totalSupply = await equityContract.totalSupply();
@@ -163,18 +155,14 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   }
 
   private async getTotalSupply(): Promise<number> {
-    const client = this.getDefaultClient<DEuroClient>();
-
-    const deuroContract = client.getDEuroContract();
+    const deuroContract = this.deuroClient.getDEuroContract();
     const deuroTotalSupply = await deuroContract.totalSupply();
 
     return EvmUtil.fromWeiAmount(deuroTotalSupply);
   }
 
   getEquityContract(): Contract {
-    const client = this.getDefaultClient<DEuroClient>();
-
-    return client.getEquityContract();
+    return this.deuroClient.getEquityContract();
   }
 
   async getEquityPrice(): Promise<number> {
@@ -189,9 +177,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   }
 
   async getTvl(): Promise<number> {
-    const client = this.getDefaultClient<DEuroClient>();
-
-    const positionV2s = await client.getPositionV2s();
+    const positionV2s = await this.deuroClient.getPositionV2s();
 
     const collaterals = positionV2s.map((p) => {
       return {

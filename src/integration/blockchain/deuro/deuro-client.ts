@@ -2,13 +2,11 @@ import { ADDRESS, DecentralizedEUROABI, EquityABI } from '@deuro/eurocoin';
 import { Contract } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
-import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmClient } from '../shared/evm/evm-client';
 import { DEuroDepsGraphDto, DEuroPositionGraphDto } from './dto/deuro.dto';
 
-export class DEuroClient extends EvmClient {
-  constructor(params: EvmClientParams) {
-    super(params);
-  }
+export class DEuroClient {
+  constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
     const document = gql`
@@ -43,7 +41,7 @@ export class DEuroClient extends EvmClient {
   }
 
   async getDEPS(): Promise<DEuroDepsGraphDto> {
-    const address = ADDRESS[this.chainId].decentralizedEURO;
+    const address = ADDRESS[this.evmClient.chainId].decentralizedEURO;
 
     const document = gql`
       {
@@ -60,10 +58,10 @@ export class DEuroClient extends EvmClient {
   }
 
   getDEuroContract(): Contract {
-    return new Contract(ADDRESS[this.chainId].decentralizedEURO, DecentralizedEUROABI, this.wallet);
+    return new Contract(ADDRESS[this.evmClient.chainId].decentralizedEURO, DecentralizedEUROABI, this.evmClient.wallet);
   }
 
   getEquityContract(): Contract {
-    return new Contract(ADDRESS[this.chainId].equity, EquityABI, this.wallet);
+    return new Contract(ADDRESS[this.evmClient.chainId].equity, EquityABI, this.evmClient.wallet);
   }
 }

@@ -1,12 +1,11 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
+import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementBalanceService } from '../../../services/liquidity-management-balance.service';
@@ -25,7 +24,6 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     system: LiquidityManagementSystem,
     private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly frankencoinBasedService: FrankencoinBasedService,
-    private readonly assetService: AssetService,
   ) {
     super(system);
 
@@ -45,7 +43,7 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
 
     const txHash = order.correlationId;
 
-    const client = this.frankencoinBasedService.getDefaultClient();
+    const client = this.frankencoinBasedService.getEvmClient();
     const txReceipt = await client.getTxReceipt(txHash);
     if (!txReceipt) return false;
 
@@ -54,36 +52,34 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
 
   // --- COMMAND IMPLEMENTATIONS --- //
 
+  abstract getStableToken(): Promise<Asset>;
+
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const equityPrice = await this.frankencoinBasedService.getEquityPrice();
-    const zchfBuyingAmount = order.amount * equityPrice;
+    const stableBuyingAmount = order.amount * equityPrice;
 
-    const zchfToken = await this.assetService.getAssetByQuery({
-      name: 'ZCHF',
-      type: AssetType.TOKEN,
-      blockchain: Blockchain.ETHEREUM,
-    });
-    const zchfLiquidityBalances = await this.liquidityManagementBalanceService.getAllLiqBalancesForAssets([
-      zchfToken.id,
+    const stableToken = await this.getStableToken();
+    const stableLiquidityBalances = await this.liquidityManagementBalanceService.getAllLiqBalancesForAssets([
+      stableToken.id,
     ]);
-    const zchfTotalLiquidityBalance = Util.sum(zchfLiquidityBalances.map((b) => b.amount));
+    const stableTotalLiquidityBalance = Util.sum(stableLiquidityBalances.map((b) => b.amount));
 
-    if (zchfBuyingAmount > zchfTotalLiquidityBalance)
+    if (stableBuyingAmount > stableTotalLiquidityBalance)
       throw new OrderNotProcessableException(
-        `Not enough ZCHF liquidity balance: ${zchfBuyingAmount} > ${zchfTotalLiquidityBalance}`,
+        `Not enough ${stableToken.name} liquidity balance: ${stableBuyingAmount} > ${stableTotalLiquidityBalance}`,
       );
 
     try {
-      const zchfBuyingWeiAmount = EvmUtil.toWeiAmount(zchfBuyingAmount, zchfToken.decimals);
+      const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);
 
       const equityContract = this.frankencoinBasedService.getEquityContract();
-      const expectedShares = await equityContract.calculateShares(zchfBuyingWeiAmount);
-      const result = await equityContract.invest(zchfBuyingWeiAmount, expectedShares);
+      const expectedShares = await equityContract.calculateShares(stableBuyingWeiAmount);
+      const result = await equityContract.invest(stableBuyingWeiAmount, expectedShares);
 
       return result.hash;
     } catch (e) {
       this.logger.error(`Buy order ${order.id} failed:`, e);
-      throw new OrderNotProcessableException(`Buy order ${order.id} failed: ${e.message}`);
+      throw new OrderFailedException(`Buy order ${order.id} failed: ${e.message}`);
     }
   }
 }

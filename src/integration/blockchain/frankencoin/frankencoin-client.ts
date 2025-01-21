@@ -6,7 +6,7 @@ import FRANKENCOIN_EQUITY_ABI from '../shared/evm/abi/frankencoin-equity.abi.jso
 import FRANKENCOIN_POSITION_ABI from '../shared/evm/abi/frankencoin-position.abi.json';
 import FRANKENCOIN_STABLECOIN_BRIDGE_ABI from '../shared/evm/abi/frankencoin-stablecoin-bridge.abi.json';
 import FRANKENCOIN_ABI from '../shared/evm/abi/frankencoin.abi.json';
-import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmClient } from '../shared/evm/evm-client';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
@@ -16,10 +16,8 @@ import {
   FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 
-export class FrankencoinClient extends EvmClient {
-  constructor(params: EvmClientParams) {
-    super(params);
-  }
+export class FrankencoinClient {
+  constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV1s(): Promise<FrankencoinPositionGraphDto[]> {
     const document = gql`
@@ -223,22 +221,22 @@ export class FrankencoinClient extends EvmClient {
   }
 
   getErc20Contract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, ERC20_ABI, this.provider);
+    return new Contract(collateralAddress, ERC20_ABI, this.evmClient.wallet);
   }
 
   getFrankencoinContract(contractAddress: string): Contract {
-    return new Contract(contractAddress, FRANKENCOIN_ABI, this.wallet);
+    return new Contract(contractAddress, FRANKENCOIN_ABI, this.evmClient.wallet);
   }
 
   getPositionContract(positionAddress: string): Contract {
-    return new Contract(positionAddress, FRANKENCOIN_POSITION_ABI, this.provider);
+    return new Contract(positionAddress, FRANKENCOIN_POSITION_ABI, this.evmClient.wallet);
   }
 
   getEquityContract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.wallet);
+    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.evmClient.wallet);
   }
 
   getStablecoinBridgeContract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, FRANKENCOIN_STABLECOIN_BRIDGE_ABI, this.provider);
+    return new Contract(collateralAddress, FRANKENCOIN_STABLECOIN_BRIDGE_ABI, this.evmClient.wallet);
   }
 }

@@ -4,20 +4,23 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { EvmClient, EvmClientParams } from '../evm/evm-client';
-import { EvmService } from '../evm/evm.service';
+import { Blockchain } from '../enums/blockchain.enum';
+import { EvmClient } from '../evm/evm-client';
 import { EvmUtil } from '../evm/evm.util';
+import { BlockchainRegistryService } from '../services/blockchain-registry.service';
 import { FrankencoinBasedCollateralDto } from './frankencoin-based.dto';
 
-export abstract class FrankencoinBasedService extends EvmService {
+export abstract class FrankencoinBasedService {
   private pricingService: PricingService;
+  private registryService: BlockchainRegistryService;
 
-  constructor(client: new (params) => EvmClient, params: EvmClientParams) {
-    super(client, params);
+  getEvmClient(): EvmClient {
+    return this.registryService.getClient(Blockchain.ETHEREUM) as EvmClient;
   }
 
-  setup(pricingService: PricingService) {
+  setup(pricingService: PricingService, registryService: BlockchainRegistryService) {
     this.pricingService = pricingService;
+    this.registryService = registryService;
   }
 
   abstract getEquityContract(): Contract;

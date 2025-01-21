@@ -130,20 +130,12 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
-@secure()
-param zchfWalletPrivateKey string
-param zchfGatewayUrl string
-param zchfChainId string
 param zchfGraphUrl string
 param zchfContractAddress string
 param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
 
-@secure()
-param deuroWalletPrivateKey string
-param deuroGatewayUrl string
-param deuroChainId string
 param deuroGraphUrl string
 
 param ebel2XContractAddress string
@@ -892,18 +884,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
-          name: 'ZCHF_WALLET_PRIVATE_KEY'
-          value: zchfWalletPrivateKey
-        }
-        {
-          name: 'ZCHF_GATEWAY_URL'
-          value: zchfGatewayUrl
-        }
-        {
-          name: 'ZCHF_CHAIN_ID'
-          value: zchfChainId
-        }
-        {
           name: 'ZCHF_GRAPH_URL'
           value: zchfGraphUrl
         }
@@ -922,18 +902,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ZCHF_XCHF_CONTRACT_ADDRESS'
           value: zchfXchfContractAddress
-        }
-        {
-          name: 'DEURO_WALLET_PRIVATE_KEY'
-          value: deuroWalletPrivateKey
-        }
-        {
-          name: 'DEURO_GATEWAY_URL'
-          value: deuroGatewayUrl
-        }
-        {
-          name: 'DEURO_CHAIN_ID'
-          value: deuroChainId
         }
         {
           name: 'DEURO_GRAPH_URL'
