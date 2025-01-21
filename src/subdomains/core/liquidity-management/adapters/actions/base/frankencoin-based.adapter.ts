@@ -12,7 +12,7 @@ import { LiquidityManagementBalanceService } from '../../../services/liquidity-m
 import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
 export enum FrankencoinBasedAdapterCommands {
-  BUY = 'buy',
+  MINT = 'mint',
 }
 
 export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
@@ -27,7 +27,7 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
   ) {
     super(system);
 
-    this.commands.set(FrankencoinBasedAdapterCommands.BUY, this.buy.bind(this));
+    this.commands.set(FrankencoinBasedAdapterCommands.MINT, this.mint.bind(this));
   }
 
   validateParams(_command: string, _params: Record<string, unknown>): boolean {
@@ -39,22 +39,19 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    if (order.action.command !== FrankencoinBasedAdapterCommands.BUY) return false;
-
-    const txHash = order.correlationId;
+    if (order.action.command !== FrankencoinBasedAdapterCommands.MINT) return false;
 
     const client = this.frankencoinBasedService.getEvmClient();
-    const txReceipt = await client.getTxReceipt(txHash);
-    if (!txReceipt) return false;
+    const txHash = order.correlationId;
 
-    return !!txReceipt.status;
+    return client.isTxComplete(txHash);
   }
 
   // --- COMMAND IMPLEMENTATIONS --- //
 
   abstract getStableToken(): Promise<Asset>;
 
-  private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
+  private async mint(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const equityPrice = await this.frankencoinBasedService.getEquityPrice();
     const stableBuyingAmount = order.amount * equityPrice;
 
