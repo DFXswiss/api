@@ -36,6 +36,7 @@ import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
@@ -314,12 +315,12 @@ export class UserDataService {
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
     const update: Partial<UserData> = {
       accountType: data.accountType,
-      firstname: data.firstName,
-      surname: data.lastName,
-      street: data.address.street,
-      houseNumber: data.address.houseNumber,
-      location: data.address.city,
-      zip: data.address.zip,
+      firstname: transliterate(data.firstName),
+      surname: transliterate(data.lastName),
+      street: transliterate(data.address.street),
+      houseNumber: transliterate(data.address.houseNumber),
+      location: transliterate(data.address.city),
+      zip: transliterate(data.address.zip),
       country: data.address.country,
       phone: data.phone,
       organizationName: data.organizationName,
