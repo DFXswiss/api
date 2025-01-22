@@ -1,6 +1,13 @@
-import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -17,6 +24,7 @@ export class AdminService {
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
+    private readonly settingService: SettingService,
   ) {}
 
   // --- PAYOUT --- //
@@ -32,6 +40,10 @@ export class AdminService {
 
     const lContext = context as LiquidityOrderContext;
     const pContext = context as PayoutOrderContext;
+
+    const allowedAddresses = await this.settingService.getObj('manualPayoutAddresses', []);
+    if (!allowedAddresses.includes(address.toLowerCase()))
+      throw new BadRequestException('Payout address not permitted');
 
     try {
       // reserve liquidity
