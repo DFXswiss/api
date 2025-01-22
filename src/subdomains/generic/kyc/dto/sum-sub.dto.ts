@@ -77,7 +77,11 @@ export interface SumSubDataResult {
 
 export interface SumSubVideoData {
   id?: string;
-  videoIdentData?: { reviewStatus?: string; moderatorDisplayName?: string; compositions: SumSubComposition[] };
+  videoIdentData?: {
+    reviewStatus?: string;
+    moderatorDisplayName?: string;
+    compositions: SumSubComposition[];
+  };
 }
 
 export interface SumSubComposition {
