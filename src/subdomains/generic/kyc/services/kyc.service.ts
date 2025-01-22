@@ -19,7 +19,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { Between, In, IsNull, LessThan, Not } from 'typeorm';
+import { LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -1012,36 +1012,32 @@ export class KycService {
     }
   }
 
-  async syncIdentFiles(from: number, to: number, doSync: boolean): Promise<string> {
-    const completedIdentSteps = await this.kycStepRepo.find({
-      where: {
-        id: Between(from, to),
-        name: KycStepName.IDENT,
-        type: In([KycStepType.AUTO, KycStepType.VIDEO]),
-        status: KycStepStatus.COMPLETED,
-        transactionId: Not(IsNull()),
-      },
-      relations: { userData: true },
-    });
+  async syncIdentFiles(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
+    if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
-    const log = [];
+    const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
 
-    for (const step of completedIdentSteps) {
-      const id = `${step.id} - ${step.userData.id}`;
+    const documents = kycStep.isSumsub
+      ? await this.sumsubService.getDocuments(kycStep)
+      : await this.identService.getDocuments(kycStep);
 
-      try {
-        const userFiles = await this.documentService.listUserFiles(step.userData.id);
-        if (userFiles.some((f) => f.type === FileType.IDENTIFICATION && f.name.includes(step.transactionId))) {
-          log.push(`${id} OK`);
-        } else {
-          if (doSync) await this.downloadIdentDocuments(step.userData, step);
-          log.push(`${id} SYNC${doSync ? ' DONE' : ''}`);
-        }
-      } catch (e) {
-        log.push(`${id} SYNC ERROR: ${e.message}`);
+    for (const { name, content, contentType } of documents) {
+      const fileExists = userFiles.some(
+        (f) => f.type === FileType.IDENTIFICATION && f.name.includes(name) && f.contentType === contentType,
+      );
+
+      if (!fileExists) {
+        await this.documentService.uploadFile(
+          kycStep.userData,
+          FileType.IDENTIFICATION,
+          name,
+          content,
+          contentType,
+          true,
+          kycStep,
+        );
       }
     }
-
-    return log.join('\n');
   }
 }
