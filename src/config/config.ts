@@ -535,8 +535,6 @@ export class Configuration {
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
     frankencoin: {
-      zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
-      zchfApiKey: process.env.ALCHEMY_API_KEY,
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
@@ -546,9 +544,6 @@ export class Configuration {
       },
     },
     deuro: {
-      deuroGatewayUrl: process.env.DEURO_GATEWAY_URL,
-      deuroApiKey: process.env.ALCHEMY_API_KEY,
-      deuroChainId: +process.env.DEURO_CHAIN_ID,
       deuroGraphUrl: process.env.DEURO_GRAPH_URL,
     },
     ebel2x: {

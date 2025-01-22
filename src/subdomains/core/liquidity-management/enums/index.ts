@@ -14,6 +14,8 @@ export enum LiquidityManagementSystem {
   POLYGON_L2_BRIDGE = 'PolygonL2Bridge',
   BASE_L2_BRIDGE = 'BaseL2Bridge',
   LIQUIDITY_PIPELINE = 'LiquidityPipeline',
+  FRANKENCOIN = 'Frankencoin',
+  DEURO = 'DEuro',
 }
 
 export enum LiquidityManagementRuleStatus {

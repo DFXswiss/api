@@ -29,8 +29,8 @@ export interface EvmClientParams {
   apiKey: string;
   walletPrivateKey: string;
   chainId: ChainId;
-  swapContractAddress: string;
-  quoteContractAddress: string;
+  swapContractAddress?: string;
+  quoteContractAddress?: string;
 }
 
 interface UniswapPosition {
@@ -51,11 +51,11 @@ export enum Direction {
 export abstract class EvmClient extends BlockchainClient {
   protected http: HttpService;
   private readonly alchemyService: AlchemyService;
-  private readonly chainId: ChainId;
+  readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
-  protected wallet: ethers.Wallet;
+  readonly wallet: ethers.Wallet;
   private readonly nonce = new Map<string, number>();
   private readonly tokens = new AsyncCache<Token>();
   private readonly router: AlphaRouter;
