@@ -237,7 +237,7 @@ export class Configuration {
         },
         filter: (file: KycFile, userData: UserData) =>
           (userData.identificationType === KycIdentificationType.VIDEO_ID &&
-            file.contentType.startsWith(ContentType.MP3)) ||
+            (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
           (userData.identificationType === KycIdentificationType.ONLINE_ID &&
             file.name.includes('bankTransactionVerify') &&
             file.contentType.startsWith(ContentType.PDF)),
