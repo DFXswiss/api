@@ -24,7 +24,7 @@ export class UserDataRelationController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserData(@Param('id') id: string, @Body() dto: UpdateUserDataRelationDto): Promise<UserDataRelation> {
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDataRelationDto): Promise<UserDataRelation> {
     return this.userDataRelationService.updateUserDataRelation(+id, dto);
   }
 
