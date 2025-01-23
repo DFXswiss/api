@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -7,7 +6,6 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -15,6 +13,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { AmlError } from '../enums/aml-error.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 @Injectable()
@@ -86,11 +85,7 @@ export class AmlService {
     }
 
     // KYC file id
-    if (
-      !entity.userData.kycFileId &&
-      last24hVolume > Config.tradingLimits.dailyDefault &&
-      entity.userData.kycLevel >= KycLevel.LEVEL_50
-    ) {
+    if (!entity.userData.kycFileId && entity.comment.split(';').includes(AmlError.NO_KYC_FILE_ID)) {
       const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
       await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
     }

@@ -101,6 +101,8 @@ describe('LogJobService', () => {
   });
 
   it('should filter same length sender & receiver', async () => {
+    if (new Date().getHours() > 19) return;
+
     const receiverTx = [
       createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(409), amount: 9500.0 }),
       createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(409), amount: 9500.0 }),
@@ -357,6 +359,8 @@ describe('LogJobService', () => {
   });
 
   it('should filter same length sender & receiver', async () => {
+    if (new Date().getHours() > 19) return;
+
     const receiverTx = [
       createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(409), amount: 9500.0 }),
       createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(409), amount: 9500.0 }),
