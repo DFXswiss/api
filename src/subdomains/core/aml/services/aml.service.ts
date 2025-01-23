@@ -31,7 +31,6 @@ export class AmlService {
 
   async getAmlCheckInput(
     entity: BuyFiat | BuyCrypto,
-    last24hVolume: number,
   ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     let bankData = await this.getBankData(entity);
