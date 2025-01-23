@@ -798,7 +798,7 @@ export class LogJobService {
     }
 
     return {
-      receiver: filtered14ReceiverTx.filter((r) => r.id >= filtered14ReceiverTx[receiverIndex]?.id ?? 0),
+      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
       sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }
