@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -41,6 +42,8 @@ export enum SupportTable {
 
 @Injectable()
 export class GsService {
+  private readonly logger = new DfxLogger(GsService);
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
@@ -74,6 +77,8 @@ export class GsService {
       ]),
     );
 
+    const startTime = Date.now();
+
     let data = await this.getRawDbData({
       ...query,
       select: [
@@ -81,6 +86,13 @@ export class GsService {
         ...additionalSelect,
       ],
     });
+
+    const runTime = Date.now() - startTime;
+
+    if (runTime > 1000 * 3) {
+      this.logger.info(`DB Runtime: ${runTime} with query ${JSON.stringify(query)}`);
+      this.logger.info(`DB Number of data: ${data.length}`);
+    }
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);

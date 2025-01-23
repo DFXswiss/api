@@ -30,7 +30,7 @@ export class GsController {
       const runTime = Date.now() - startTime;
 
       if (runTime > 1000 * 3) {
-        this.logger.info(`GS Runtime: ${runTime} with query ${JSON.stringify(query)}`);
+        this.logger.info(`Endpoint Runtime: ${runTime} with query ${JSON.stringify(query)}`);
       }
     }
   }
