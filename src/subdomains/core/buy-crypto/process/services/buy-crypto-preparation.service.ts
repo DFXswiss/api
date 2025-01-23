@@ -106,15 +106,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
-        const last24hVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          Util.daysBefore(1, entity.transaction.created),
-          Util.daysAfter(1, entity.transaction.created),
-          entity.userData.users,
-        );
-
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity.checkoutTx ? entity.inputReferenceAmount : 0,
           inputReferenceCurrency,
@@ -166,7 +157,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
             minVolume,
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             referenceChfPrice.convert(entity.inputReferenceAmount, 2),
-            last24hVolume,
             last7dCheckoutVolume,
             last30dVolume,
             last365dVolume,

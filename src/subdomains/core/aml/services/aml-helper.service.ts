@@ -26,7 +26,6 @@ export class AmlHelperService {
     inputAsset: Active,
     minVolume: number,
     amountInChf: number,
-    last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -58,7 +57,7 @@ export class AmlHelperService {
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
-    if (last24hVolume > Config.tradingLimits.dailyDefault) {
+    if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
       if (!entity.userData.hasBankTxVerification) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
@@ -281,7 +280,6 @@ export class AmlHelperService {
     inputAsset: Active,
     minVolume: number,
     amountInChf: number,
-    last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -302,7 +300,6 @@ export class AmlHelperService {
       inputAsset,
       minVolume,
       amountInChf,
-      last24hVolume,
       last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,

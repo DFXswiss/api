@@ -615,7 +615,7 @@ export class TransactionHelper implements OnModuleInit {
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
-      txAmountChf > Config.tradingLimits.dailyDefault
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
 
