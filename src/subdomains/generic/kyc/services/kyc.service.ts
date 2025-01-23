@@ -16,6 +16,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -80,6 +81,8 @@ import { TfaLevel, TfaService } from './tfa.service';
 export class KycService {
   private readonly logger = new DfxLogger(KycService);
 
+  private readonly webhookQueue: QueueHandler;
+
   constructor(
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
@@ -99,7 +102,9 @@ export class KycService {
     private readonly webhookService: WebhookService,
     private readonly sumsubService: SumsubService,
     private readonly mailFactory: MailFactory,
-  ) {}
+  ) {
+    this.webhookQueue = new QueueHandler();
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   @Lock()
@@ -478,12 +483,14 @@ export class KycService {
 
     const data = await this.sumsubService.getApplicantData(dto.applicantId);
 
-    await this.updateIdent(
-      IdentType.SUM_SUB,
-      transactionId,
-      { webhook: dto, data },
-      result,
-      dto.reviewResult?.rejectLabels,
+    return this.webhookQueue.handle(() =>
+      this.updateIdent(
+        IdentType.SUM_SUB,
+        transactionId,
+        { webhook: dto, data },
+        result,
+        dto.reviewResult?.rejectLabels,
+      ),
     );
   }
 
