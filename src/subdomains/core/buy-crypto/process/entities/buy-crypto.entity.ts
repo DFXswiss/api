@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -636,7 +637,9 @@ export class BuyCrypto extends IEntity {
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === 'DFX') ? undefined : null, // ignore reset when manual payout
+      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === Config.manualPriceStepSourceName)
+        ? undefined
+        : null, // ignore reset when manual payout
       batch: null,
       isComplete: false,
       outputAmount: null,

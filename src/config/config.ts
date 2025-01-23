@@ -43,7 +43,8 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   transactionRefundExpirySeconds = 30;
-  refRewardManualCheckLimit = 3000; //EUR
+  refRewardManualCheckLimit = 3000; // EUR
+  manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
 
   defaults = {
     currency: 'EUR',
@@ -236,7 +237,7 @@ export class Configuration {
         },
         filter: (file: KycFile, userData: UserData) =>
           (userData.identificationType === KycIdentificationType.VIDEO_ID &&
-            file.contentType.startsWith(ContentType.MP3)) ||
+            (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
           (userData.identificationType === KycIdentificationType.ONLINE_ID &&
             file.name.includes('bankTransactionVerify') &&
             file.contentType.startsWith(ContentType.PDF)),
@@ -534,8 +535,6 @@ export class Configuration {
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
     frankencoin: {
-      zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
-      zchfApiKey: process.env.ALCHEMY_API_KEY,
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
@@ -545,9 +544,6 @@ export class Configuration {
       },
     },
     deuro: {
-      deuroGatewayUrl: process.env.DEURO_GATEWAY_URL,
-      deuroApiKey: process.env.ALCHEMY_API_KEY,
-      deuroChainId: +process.env.DEURO_CHAIN_ID,
       deuroGraphUrl: process.env.DEURO_GRAPH_URL,
     },
     ebel2x: {

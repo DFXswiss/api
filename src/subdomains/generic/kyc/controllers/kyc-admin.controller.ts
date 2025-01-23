@@ -76,11 +76,7 @@ export class KycAdminController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @ApiExcludeEndpoint()
-  async syncIdentFiles(
-    @Query('from') from: string,
-    @Query('to') to: string,
-    @Query('sync') sync: string,
-  ): Promise<string> {
-    return this.kycService.syncIdentFiles(+from, +to, sync === 'true');
+  async syncIdentFiles(@Query('step') step: string): Promise<void> {
+    return this.kycService.syncIdentFiles(+step);
   }
 }

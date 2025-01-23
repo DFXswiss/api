@@ -12,7 +12,9 @@ import { NotificationModule } from 'src/subdomains/supporting/notification/notif
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
+import { DEuroAdapter } from './adapters/actions/deuro.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
+import { FrankencoinAdapter } from './adapters/actions/frankencoin.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
 import { LiquidityPipelineAdapter } from './adapters/actions/liquidity-pipeline.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
@@ -89,6 +91,8 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BinanceAdapter,
     KrakenAdapter,
     LiquidityPipelineAdapter,
+    FrankencoinAdapter,
+    DEuroAdapter,
   ],
   exports: [LiquidityManagementService, LiquidityManagementBalanceService, LiquidityManagementPipelineService],
 })

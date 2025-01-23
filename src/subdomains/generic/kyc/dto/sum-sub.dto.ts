@@ -75,6 +75,21 @@ export interface SumSubDataResult {
   agreement?: { createdAt?: Date; source?: string; acceptedAt?: string; recordIds?: string[] };
 }
 
+export interface SumSubVideoData {
+  id?: string;
+  videoIdentData?: {
+    reviewStatus?: string;
+    moderatorDisplayName?: string;
+    compositions: SumSubComposition[];
+  };
+}
+
+export interface SumSubComposition {
+  compositionCreatedAt?: Date;
+  compositionDuration?: number;
+  compositionMediaId?: string;
+}
+
 export enum IdDocType {
   ID_CARD = 'ID_CARD',
   PASSPORT = 'PASSPORT',
