@@ -1024,7 +1024,8 @@ export class KycService {
 
     for (const { name, content, contentType } of documents) {
       const fileExists = userFiles.some(
-        (f) => f.type === FileType.IDENTIFICATION && f.name.includes(name) && f.contentType === contentType,
+        (f) =>
+          f.type === FileType.IDENTIFICATION && f.name.includes(kycStep.transactionId) && f.contentType === contentType,
       );
 
       if (!fileExists) {

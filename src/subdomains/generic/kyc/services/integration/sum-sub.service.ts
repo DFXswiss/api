@@ -39,53 +39,14 @@ export class SumsubService {
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
     const { webhook } = kycStep.getResult<SumsubResult>();
 
-    const documents = [];
-    const content = await this.callApi<string>(
-      `/resources/applicants/${webhook.applicantId}/summary/report?report=${
-        webhook.applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
-      }`,
-      'GET',
-      '{}',
-      'arraybuffer',
-    ).then(Buffer.from);
-
-    documents.push({ name: this.fileName(kycStep.transactionId, 'pdf'), content, contentType: ContentType.PDF });
+    const documents = [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
 
     if (kycStep.type === KycStepType.SUMSUB_VIDEO) {
       const videoMedia = await this.getVideoMedia(webhook.applicantId, kycStep.transactionId);
-      documents.push(videoMedia);
+      documents.push(...videoMedia);
     }
 
     return documents;
-  }
-
-  async getVideoMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {
-    const videoData = await this.getVideoData(applicantId);
-    const identDocuments = [];
-    for (const composition of videoData.videoIdentData?.compositions) {
-      const content = await this.callApi<string>(
-        `/resources/videoIdent/applicant/${applicantId}/media/${composition.compositionMediaId}`,
-        'GET',
-        '{}',
-        'arraybuffer',
-      ).then(Buffer.from);
-      identDocuments.push({
-        name: this.fileName(`${transactionId}-${composition.compositionMediaId}`, 'mp4'),
-        content,
-        contentType: ContentType.MP4,
-      });
-    }
-
-    return identDocuments;
-  }
-
-  async getVideoData(applicantId: string): Promise<SumSubVideoData> {
-    const applicant = await this.getApplicantData(applicantId);
-    return this.callApi<SumSubVideoData>(
-      `/resources/inspections/${applicant.inspectionId}?fields=videoIdentData`,
-      'GET',
-      '{}',
-    );
   }
 
   async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
@@ -111,6 +72,55 @@ export class SumsubService {
 
   static identUrl(kycStep: KycStep): string {
     return kycStep.sessionId;
+  }
+
+  // --- DOCUMENT HELPER METHODS --- //
+  private async getPdfMedia(
+    applicantId: string,
+    applicantType: ApplicantType,
+    transactionId: string,
+  ): Promise<IdentDocument> {
+    const content = await this.callApi<string>(
+      `/resources/applicants/${applicantId}/summary/report?report=${
+        applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
+      }`,
+      'GET',
+      '{}',
+      'arraybuffer',
+    ).then(Buffer.from);
+
+    return { name: this.fileName(transactionId, 'pdf'), content, contentType: ContentType.PDF };
+  }
+
+  private async getVideoMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {
+    const videoData = await this.getVideoData(applicantId);
+
+    const identDocuments = [];
+    for (const composition of videoData.videoIdentData?.compositions) {
+      const content = await this.callApi<string>(
+        `/resources/videoIdent/applicant/${applicantId}/media/${composition.compositionMediaId}`,
+        'GET',
+        '{}',
+        'arraybuffer',
+      ).then(Buffer.from);
+
+      identDocuments.push({
+        name: this.fileName(`${transactionId}-${composition.compositionMediaId}`, 'mp4'),
+        content,
+        contentType: ContentType.MP4,
+      });
+    }
+
+    return identDocuments;
+  }
+
+  private async getVideoData(applicantId: string): Promise<SumSubVideoData> {
+    const applicant = await this.getApplicantData(applicantId);
+    return this.callApi<SumSubVideoData>(
+      `/resources/inspections/${applicant.inspectionId}?fields=videoIdentData`,
+      'GET',
+      '{}',
+    );
   }
 
   // --- HELPER METHODS --- //
