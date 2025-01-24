@@ -84,7 +84,7 @@ export class AmlService {
     }
 
     // KYC file id
-    if (!entity.userData.kycFileId && entity.comment.split(';').includes(AmlError.NO_KYC_FILE_ID)) {
+    if (!entity.userData.kycFileId && entity.comment?.split(';')?.includes(AmlError.NO_KYC_FILE_ID)) {
       const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
       await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
     }
