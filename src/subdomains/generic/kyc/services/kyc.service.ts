@@ -511,7 +511,7 @@ export class KycService {
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
     if (!kycStep.isInProgress && !kycStep.isInReview) {
-      this.logger.verbose(`Received kyc webhook call dropped: ${kycStep.id}`);
+      this.logger.verbose(`Received KYC webhook call dropped: ${kycStep.id}`);
       return;
     }
 
