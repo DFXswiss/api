@@ -59,7 +59,7 @@
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
-                "daily_limit": "Vous avez dépassé la limite hors KYC",
+                "monthly_limit": "Vous avez dépassé la limite hors KYC",
                 "user_data_mismatch": "Le nom que vous avez indiqué à DFX ne correspond pas au nom du propriétaire de l'IBAN",
                 "iban_check": "L'IBAN n'est pas utilisable avec DFX",
                 "kyc_rejected": "Votre demande KYC a été rejetée",
@@ -90,9 +90,9 @@
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
         "pending": {
-            "daily_limit": {
-                "title": "Limite sur 24h dépassée",
-                "salutation": "Vous avez dépassé votre volume sur 24h",
+            "monthly_limit": {
+                "title": "Limite sur 30d dépassée",
+                "salutation": "Vous avez dépassé votre volume sur 30d",
                 "line1": "Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.",
                 "line2": "Nous traiterons votre transaction après la réussite du KYC.",
                 "line3": "Augmenter la limite avec vérification ? <br>Cliquez sur le lien suivant pour vous vérifier:<br>[url:{urlText}]",
@@ -123,7 +123,7 @@
                 "line1": "Pour utiliser notre compte bancaire au Luxembourg lors d'un virement instantané, une vérification complète doit être réalisée.",
                 "line2": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.",
+                "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire en Suisse jusqu'à 1 000 EUR par mois sans KYC via le système standard Sepa.",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "name_check_without_kyc": {

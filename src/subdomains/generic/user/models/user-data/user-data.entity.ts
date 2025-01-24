@@ -90,7 +90,7 @@ export enum BlankType {
 }
 
 export enum LimitPeriod {
-  DAY = 'Day',
+  MONTH = 'Month',
   YEAR = 'Year',
 }
 
@@ -500,9 +500,9 @@ export class UserData extends IEntity {
         period: LimitPeriod.YEAR,
       };
     } else if (this.isKycTerminated) {
-      return { limit: 0, period: LimitPeriod.DAY };
+      return { limit: 0, period: LimitPeriod.MONTH };
     } else {
-      return { limit: Config.tradingLimits.monthlyDefaultWoKyc, period: LimitPeriod.DAY };
+      return { limit: Config.tradingLimits.monthlyDefaultWoKyc, period: LimitPeriod.MONTH };
     }
   }
 

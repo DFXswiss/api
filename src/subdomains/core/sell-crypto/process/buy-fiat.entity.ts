@@ -500,7 +500,7 @@ export class BuyFiat extends IEntity {
 }
 
 export const BuyFiatAmlReasonPendingStates = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,

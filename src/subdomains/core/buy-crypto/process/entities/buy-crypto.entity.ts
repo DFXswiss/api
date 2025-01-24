@@ -651,7 +651,7 @@ export class BuyCrypto extends IEntity {
 }
 
 export const BuyCryptoAmlReasonPendingStates = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,
