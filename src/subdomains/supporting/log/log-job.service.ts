@@ -468,27 +468,27 @@ export class LogJobService {
       if (fromKraken !== fromKrakenUnfiltered) {
         errors.push(`fromKraken !== fromKrakenUnfiltered`);
         this.logger
-          .error(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
+          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
       if (toKraken !== toKrakenUnfiltered) {
         errors.push(`toKraken !== toKrakenUnfiltered`);
         this.logger
-          .error(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
+          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
       if (fromKraken < 0) {
         errors.push(`fromKraken < 0`);
-        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
         ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
         pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
         errors.push(`toKraken < 0`);
-        this.logger.error(
+        this.logger.verbose(
           `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
           ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
@@ -798,7 +798,7 @@ export class LogJobService {
     }
 
     return {
-      receiver: filtered14ReceiverTx.filter((r) => r.id >= filtered14ReceiverTx[receiverIndex]?.id ?? 0),
+      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
       sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }

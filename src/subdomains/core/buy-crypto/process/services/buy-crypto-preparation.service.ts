@@ -143,7 +143,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           entity.userData.users,
         );
 
-        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
+        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
         const ibanCountry =

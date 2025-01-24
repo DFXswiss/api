@@ -121,7 +121,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           entity.userData.users,
         );
 
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity, last24hVolume);
+        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
