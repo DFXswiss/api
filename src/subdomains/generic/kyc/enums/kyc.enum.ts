@@ -101,6 +101,7 @@ export enum KycStepStatus {
   MANUAL_REVIEW = 'ManualReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
+  PARTIALLY_APPROVED = 'PartiallyApproved',
   CANCELED = 'Canceled',
   IGNORED = 'Ignored',
   OUTDATED = 'Outdated',
