@@ -61,6 +61,6 @@ import { SellService } from './route/sell.service';
     BuyFiatPreparationService,
     BuyFiatJobService,
   ],
-  exports: [SellController, BuyFiatService, SellService],
+  exports: [SellController, BuyFiatService, SellService, BuyFiatNotificationService],
 })
 export class SellCryptoModule {}
