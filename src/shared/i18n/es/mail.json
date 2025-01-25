@@ -91,8 +91,8 @@
         },
         "pending": {
             "monthly_limit": {
-                "title": "Límite 30d superado",
-                "salutation": "Ha superado el límite de volumen de 30 días",
+                "title": "Límite de 30 días superado",
+                "salutation": "Ha superado su límite de volumen de 30 días",
                 "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
                 "line2": "Después de que pases el KYC empezaremos con tu transacción.",
                 "line3": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
@@ -123,7 +123,7 @@
                 "line1": "Para poder usar nuestra cuenta bancaria en Luxemburgo con la función instantánea SEPA, la verificación completa es desafortunadamente obligatoria.",
                 "line2": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line4": "Sin verificación, puede seguir utilizando nuestra cuenta bancaria de Suiza hasta 1.000 euros al mes sin KYC a través de Sepa estándar.",
+                "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al mes sin el KYC con transferencias SEPA ordinarias.",
                 "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "name_check_without_kyc": {

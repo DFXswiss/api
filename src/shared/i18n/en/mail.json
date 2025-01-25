@@ -91,8 +91,8 @@
         },
         "pending": {
             "monthly_limit": {
-                "title": "30d limit exceeded",
-                "salutation": "You have exceeded your 30d volume limit",
+                "title": "30 days limit exceeded",
+                "salutation": "You have exceeded your 30 days volume limit",
                 "line1": "Please verify yourself by KYC (know your customer) to increase your limit.",
                 "line2": "After a successful KYC we proceed with your transaction.",
                 "line3": "Increase limit with verification?<br>Click the following link to verify yourself:<br>[url:{urlText}]",

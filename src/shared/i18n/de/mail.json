@@ -91,8 +91,8 @@
         },
         "pending": {
             "monthly_limit": {
-                "title": "30d Limit überschritten",
-                "salutation": "Du hast dein 30d Volumenlimit überschritten",
+                "title": "30 Tage Limit überschritten",
+                "salutation": "Du hast dein 30 Tage Volumenlimit überschritten",
                 "line1": "Bitte verifiziere dich, um dein Limit zu erhöhen.",
                 "line2": "Nach der vollständigen Verifizierung wird deine Transaktion weiter bearbeitet.",
                 "line3": "Limit erhöhen mit Verifizierung?<br>Klicke den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",

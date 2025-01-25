@@ -563,7 +563,7 @@ export class TransactionHelper implements OnModuleInit {
       ? Config.tradingLimits.cardDefault
       : Config.tradingLimits.yearlyDefault;
 
-    return { kycLimit: kycLimit < 0 ? 0 : kycLimit, defaultLimit };
+    return { kycLimit: Math.max(0, kycLimit), defaultLimit };
   }
 
   private getTxError(
