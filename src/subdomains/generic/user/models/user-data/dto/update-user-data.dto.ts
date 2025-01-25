@@ -251,4 +251,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   paymentLinksConfig?: string;
+
+  @IsOptional()
+  @IsString()
+  postAmlCheck?: string;
 }
