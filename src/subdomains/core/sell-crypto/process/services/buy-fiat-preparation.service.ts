@@ -7,12 +7,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -38,11 +34,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
     private readonly amlService: AmlService,
-    private readonly userService: UserService,
-    private readonly payInService: PayInService,
-    private readonly userDataService: UserDataService,
-    private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly countryService: CountryService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
   ) {}
 
   onModuleInit() {
@@ -148,19 +141,12 @@ export class BuyFiatPreparationService implements OnModuleInit {
           ),
         );
 
-        await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
+        await this.amlService.postProcessing(entity, amlCheckBefore, last24hVolume);
 
-        if (amlCheckBefore !== entity.amlCheck) {
-          await this.buyFiatService.triggerWebhook(entity);
-          if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
-            await this.userDataService.triggerVideoIdent(entity.userData);
-        }
+        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 
-        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+        if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
           await this.buyFiatNotificationService.paymentProcessing(entity);
-
-        if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
-          await this.userService.activateUser(entity.user);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
       }

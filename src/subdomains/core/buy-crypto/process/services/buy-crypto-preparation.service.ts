@@ -11,12 +11,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -42,14 +38,11 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly fiatService: FiatService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly amlService: AmlService,
-    private readonly userService: UserService,
-    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly siftService: SiftService,
     private readonly countryService: CountryService,
-    private readonly payInService: PayInService,
-    private readonly userDataService: UserDataService,
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankService: BankService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
   onModuleInit() {
@@ -177,19 +170,12 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           ),
         );
 
-        if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
+        await this.amlService.postProcessing(entity, amlCheckBefore, last24hVolume);
 
-        if (amlCheckBefore !== entity.amlCheck) {
-          await this.buyCryptoWebhookService.triggerWebhook(entity);
-          if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
-            await this.userDataService.triggerVideoIdent(entity.userData);
-        }
+        if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-        if (amlCheckBefore === CheckStatus.PENDING && entity.amlCheck === CheckStatus.PASS)
+        if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
           await this.buyCryptoNotificationService.paymentProcessing(entity);
-
-        if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
-          await this.userService.activateUser(entity.user);
 
         // create sift transaction
         if (entity.amlCheck === CheckStatus.FAIL)
