@@ -17,11 +17,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { BuyCryptoNotificationService } from '../../buy-crypto/process/services/buy-crypto-notification.service';
-import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { BuyFiatNotificationService } from '../../sell-crypto/process/services/buy-fiat-notification.service';
-import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
@@ -37,31 +33,16 @@ export class AmlService {
     private readonly userDataService: UserDataService,
     private readonly countryService: CountryService,
     private readonly payInService: PayInService,
-    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
-    private readonly buyFiatService: BuyFiatService,
-    private readonly buyFiatNotificationService: BuyFiatNotificationService,
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
   ) {}
 
   async postProcessing(entity: BuyFiat | BuyCrypto, amlCheckBefore: CheckStatus, last24hVolume: number): Promise<void> {
     if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
-    if (amlCheckBefore !== entity.amlCheck) {
-      entity instanceof BuyCrypto
-        ? await this.buyCryptoWebhookService.triggerWebhook(entity)
-        : await this.buyFiatService.triggerWebhook(entity);
-
-      if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
-        await this.userDataService.triggerVideoIdent(entity.userData);
-    }
+    if (amlCheckBefore !== entity.amlCheck && entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+      await this.userDataService.triggerVideoIdent(entity.userData);
 
     if (entity.amlCheck === CheckStatus.PASS) {
-      if (amlCheckBefore === CheckStatus.PENDING)
-        entity instanceof BuyCrypto
-          ? await this.buyCryptoNotificationService.paymentProcessing(entity)
-          : await this.buyFiatNotificationService.paymentProcessing(entity);
-
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user);
 
       // KYC file id

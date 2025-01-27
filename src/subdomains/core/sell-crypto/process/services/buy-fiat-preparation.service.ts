@@ -17,6 +17,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
@@ -34,6 +35,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly buyFiatService: BuyFiatService,
     private readonly amlService: AmlService,
     private readonly countryService: CountryService,
+    private readonly buyFiatNotificationService: BuyFiatNotificationService,
   ) {}
 
   onModuleInit() {
@@ -140,6 +142,11 @@ export class BuyFiatPreparationService implements OnModuleInit {
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last24hVolume);
+
+        if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
+
+        if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
+          await this.buyFiatNotificationService.paymentProcessing(entity);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
       }

@@ -21,6 +21,8 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
@@ -39,6 +41,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly siftService: SiftService,
     private readonly countryService: CountryService,
     private readonly bankService: BankService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
   onModuleInit() {
@@ -167,6 +171,11 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last24hVolume);
+
+        if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
+
+        if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
+          await this.buyCryptoNotificationService.paymentProcessing(entity);
 
         // create sift transaction
         if (entity.amlCheck === CheckStatus.FAIL)
