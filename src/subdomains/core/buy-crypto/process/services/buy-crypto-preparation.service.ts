@@ -103,6 +103,9 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           isPayment,
         );
 
+        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
+        if (bankData && !bankData.comment) continue;
+
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
@@ -142,9 +145,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           Util.daysAfter(365, entity.transaction.created),
           entity.userData.users,
         );
-
-        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && !bankData.comment) continue;
 
         const ibanCountry =
           entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry

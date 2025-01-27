@@ -91,6 +91,9 @@ export class BuyFiatPreparationService implements OnModuleInit {
           isPayment,
         );
 
+        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        if (bankData && !bankData.comment) continue;
+
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
@@ -120,9 +123,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
           Util.daysAfter(365, entity.transaction.created),
           entity.userData.users,
         );
-
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && !bankData.comment) continue;
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
 
