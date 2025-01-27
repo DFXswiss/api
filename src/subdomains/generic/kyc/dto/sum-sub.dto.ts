@@ -142,6 +142,7 @@ export enum SumSubWebhookType {
   APPLICANT_LEVEL_CHANGED = 'applicantLevelChanged',
   APPLICANT_WORKFLOW_COMPLETED = 'applicantWorkflowCompleted',
   VIDEO_IDENT_STATUS_CHANGED = 'videoIdentStatusChanged',
+  VIDEO_IDENT_COMPOSITION_COMPLETED = 'videoIdentCompositionCompleted',
 }
 
 export enum SumSubRejectionLabels {
@@ -311,7 +312,13 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
       }
 
       if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
-        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.REVIEW : IdentShortResult.FAIL;
+      }
+      break;
+
+    case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
+      if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
+        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.REVIEW : IdentShortResult.FAIL;
       }
       break;
 
