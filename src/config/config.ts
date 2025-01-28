@@ -269,7 +269,8 @@ export class Configuration {
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFile, userData: UserData) =>
-          (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
+          (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
+            file.name.includes('FormularA')) ||
           (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
       },
       {
