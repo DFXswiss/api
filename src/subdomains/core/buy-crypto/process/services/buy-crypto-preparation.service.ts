@@ -160,7 +160,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           ),
         );
 
-        await this.amlService.postProcessing(entity, amlCheckBefore, last24hVolume);
+        await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 
