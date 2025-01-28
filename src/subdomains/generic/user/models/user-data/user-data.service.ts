@@ -796,6 +796,7 @@ export class UserDataService {
             KycStepStatus.INTERNAL_REVIEW,
             KycStepStatus.EXTERNAL_REVIEW,
             KycStepStatus.FINISHED,
+            KycStepStatus.PARTIALLY_APPROVED,
           ].includes(kycStep.status)
             ? KycStepStatus.CANCELED
             : undefined,

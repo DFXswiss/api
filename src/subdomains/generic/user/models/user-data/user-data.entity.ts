@@ -289,6 +289,9 @@ export class UserData extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   relatedUsers?: string;
 
+  @Column({ length: 256, nullable: true })
+  postAmlCheck?: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail?: string;
