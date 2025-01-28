@@ -1,4 +1,3 @@
-import { BadRequest } from 'ccxt';
 import { IdentShortResult } from './ident-result.dto';
 
 export interface SumsubResult {
@@ -294,36 +293,28 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
-  if (dto.reviewStatus === ReviewStatus.INIT) IdentShortResult.PENDING;
   switch (dto.type) {
     case SumSubWebhookType.APPLICANT_PENDING:
-      return IdentShortResult.REVIEW;
+    case SumSubWebhookType.APPLICANT_REVIEWED: {
+      switch (dto.reviewStatus) {
+        case ReviewStatus.INIT:
+          return IdentShortResult.PENDING;
 
-    case SumSubWebhookType.APPLICANT_REVIEWED:
-      return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+        case ReviewStatus.PENDING:
+          if (dto.levelName === SumSubLevelName.CH_STANDARD) return IdentShortResult.REVIEW;
+          break;
 
-    case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED:
-      if (dto.videoIdentReviewStatus === ReviewStatus.INIT) {
-        return IdentShortResult.PENDING;
-      }
-
-      if (dto.videoIdentReviewStatus === ReviewStatus.PENDING) {
-        return IdentShortResult.REVIEW;
-      }
-
-      if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
-        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+        case ReviewStatus.COMPLETED:
+          return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
+            ? IdentShortResult.SUCCESS
+            : IdentShortResult.FAIL;
       }
       break;
+    }
 
     case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
-      if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
-        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.MEDIA : IdentShortResult.FAIL;
-      }
+      if (dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
       break;
-
-    default:
-      throw new BadRequest(`Unknown webhook type: ${dto.type}`);
   }
 }
 

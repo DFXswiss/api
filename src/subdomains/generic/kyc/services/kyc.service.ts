@@ -39,7 +39,7 @@ import {
   getIdNowIdentReason,
   getIdentResult,
 } from '../dto/ident-result.dto';
-import { IdentStatus } from '../dto/ident.dto';
+import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
   KycContactData,
   KycFileData,
@@ -477,7 +477,10 @@ export class KycService {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
-    if (!result) throw new Error(`Received unknown sumsub ident result for transaction ${transactionId}: ${dto.type}`);
+    if (!result) {
+      this.logger.info(`Ignoring Sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
+      return;
+    }
 
     this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
 
@@ -540,8 +543,8 @@ export class KycService {
         break;
 
       case IdentShortResult.MEDIA:
-        await this.downloadIdentDocuments(user, kycStep);
-        break;
+        await this.downloadMedia(user, kycStep);
+        return;
 
       case IdentShortResult.FAIL:
         // retrigger personal data step, if data was wrong
@@ -1005,20 +1008,14 @@ export class KycService {
     await this.tfaService.checkVerification(user, ip, TfaLevel.STRICT);
   }
 
-  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix?: string) {
     const documents = await this.sumsubService.getDocuments(kycStep);
+    await this.storeDocuments(documents, user, kycStep, namePrefix);
+  }
 
-    for (const { name, content, contentType } of documents) {
-      await this.documentService.uploadFile(
-        user,
-        FileType.IDENTIFICATION,
-        `${namePrefix}${name}`,
-        content,
-        contentType,
-        true,
-        kycStep,
-      );
-    }
+  private async downloadMedia(user: UserData, kycStep: KycStep, namePrefix?: string) {
+    const documents = await this.sumsubService.getMedia(kycStep);
+    await this.storeDocuments(documents, user, kycStep, namePrefix);
   }
 
   async syncIdentFiles(stepId: number): Promise<void> {
@@ -1031,23 +1028,34 @@ export class KycService {
       ? await this.sumsubService.getDocuments(kycStep)
       : await this.identService.getDocuments(kycStep);
 
-    for (const { name, content, contentType } of documents) {
-      const fileExists = userFiles.some(
-        (f) =>
-          f.type === FileType.IDENTIFICATION && f.name.includes(kycStep.transactionId) && f.contentType === contentType,
-      );
+    const missingDocuments = documents.filter(
+      (d) =>
+        !userFiles.some(
+          (f) =>
+            f.type === FileType.IDENTIFICATION &&
+            f.name.includes(kycStep.transactionId) &&
+            f.contentType === d.contentType,
+        ),
+    );
+    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep);
+  }
 
-      if (!fileExists) {
-        await this.documentService.uploadFile(
-          kycStep.userData,
-          FileType.IDENTIFICATION,
-          name,
-          content,
-          contentType,
-          true,
-          kycStep,
-        );
-      }
+  private async storeDocuments(
+    documents: IdentDocument[],
+    user: UserData,
+    kycStep: KycStep,
+    namePrefix = '',
+  ): Promise<void> {
+    for (const { name, content, contentType } of documents) {
+      await this.documentService.uploadFile(
+        user,
+        FileType.IDENTIFICATION,
+        `${namePrefix}${name}`,
+        content,
+        contentType,
+        true,
+        kycStep,
+      );
     }
   }
 }
