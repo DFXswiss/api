@@ -28,7 +28,6 @@ export enum AmlError {
   TX_COUNTRY_NOT_ALLOWED = 'TxCountryNotAllowed',
   NO_BANK_TX_VERIFICATION = 'NoBankTxVerification',
   NO_LETTER = 'NoLetter',
-  NO_AML_LIST = 'NoAmlList',
   NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKYC',
   NAME_CHECK_WITH_BIRTHDAY = 'NameCheckWithBirthday',
   WEEKLY_LIMIT_REACHED = 'WeeklyLimitReached',
@@ -132,7 +131,6 @@ export const AmlErrorResult: {
   },
   [AmlError.NO_BANK_TX_VERIFICATION]: null,
   [AmlError.NO_LETTER]: null,
-  [AmlError.NO_AML_LIST]: null,
   [AmlError.NAME_CHECK_WITHOUT_KYC]: {
     type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
