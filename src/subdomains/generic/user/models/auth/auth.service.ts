@@ -24,7 +24,7 @@ import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialCodeService } from 'src/subdomains/supporting/payment/services/special-code.service';
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
 import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
@@ -71,7 +71,7 @@ export class AuthService {
     private readonly cryptoService: CryptoService,
     private readonly lightningService: LightningService,
     private readonly refService: RefService,
-    private readonly feeService: FeeService,
+    private readonly specialCodeService: SpecialCodeService,
     private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
     private readonly ipLogService: IpLogService,
@@ -188,7 +188,7 @@ export class AuthService {
 
     try {
       if (dto.specialCode || dto.discountCode)
-        await this.feeService.addSpecialCodeUser(user, dto.specialCode ?? dto.discountCode);
+        await this.specialCodeService.addSpecialCodeUser(user, dto.specialCode ?? dto.discountCode);
     } catch (e) {
       this.logger.warn(`Error while adding specialCode in user signIn ${user.id}:`, e);
     }
@@ -397,6 +397,7 @@ export class AuthService {
       role: user.role,
       account: user.userData.id,
       blockchains: user.blockchains,
+      specialCodes: user.userData.specialCodeList,
       ip,
     };
     return this.jwtService.sign(payload);
@@ -407,6 +408,7 @@ export class AuthService {
       role: UserRole.ACCOUNT,
       account: userData.id,
       blockchains: [],
+      specialCodes: userData.specialCodeList,
       ip,
     };
     return this.jwtService.sign(payload);

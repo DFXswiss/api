@@ -18,7 +18,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialCodeService } from 'src/subdomains/supporting/payment/services/special-code.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
 import { UserDataService } from '../user-data/user-data.service';
@@ -42,7 +42,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-    private readonly feeService: FeeService,
+    private readonly specialCodeService: SpecialCodeService,
     private readonly userDataService: UserDataService,
   ) {}
 
@@ -82,7 +82,7 @@ export class UserController {
   async addDiscountCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
     const user = await this.userService.getUser(jwt.user, { userData: true, wallet: true });
 
-    return this.feeService.addSpecialCodeUser(user, code);
+    return this.specialCodeService.addSpecialCodeUser(user, code);
   }
 
   @Put('specialCodes')
@@ -92,7 +92,7 @@ export class UserController {
   async addSpecialCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
     const user = await this.userService.getUser(jwt.user, { userData: true, wallet: true });
 
-    return this.feeService.addSpecialCodeUser(user, code);
+    return this.specialCodeService.addSpecialCodeUser(user, code);
   }
 
   @Post('change')

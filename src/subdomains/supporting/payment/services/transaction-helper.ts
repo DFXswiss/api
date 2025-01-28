@@ -16,7 +16,6 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -178,19 +177,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<InternalFeeDto & FeeDto> {
     // get fee
     const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(
-        user,
-        undefined,
-        paymentMethodIn,
-        paymentMethodOut,
-        bankIn,
-        bankOut,
-        from,
-        to,
-        inputAmountChf,
-        [],
-        false,
-      ),
+      this.getTxFee(user, paymentMethodIn, paymentMethodOut, bankIn, bankOut, from, to, inputAmountChf, [], false),
       this.getNetworkStartFee(to, false, user),
     ]);
 
@@ -235,7 +222,6 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     allowExpiredPrice: boolean,
     user?: User,
-    walletName?: string,
     specialCodes: string[] = [],
   ): Promise<TransactionDetails> {
     const txAsset = targetAmount ? to : from;
@@ -247,13 +233,10 @@ export class TransactionHelper implements OnModuleInit {
     const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
     const bankOut = this.getDefaultBankByPaymentMethod(paymentMethodOut);
 
-    const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
-
     // get fee
     const [fee, networkStartFee] = await Promise.all([
       this.getTxFee(
         user,
-        wallet,
         paymentMethodIn,
         paymentMethodOut,
         bankIn,
@@ -389,7 +372,6 @@ export class TransactionHelper implements OnModuleInit {
 
   private async getTxFee(
     user: User | undefined,
-    wallet: Wallet | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     bankIn: CardBankName | IbanBankName,
@@ -402,7 +384,6 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<InternalFeeDto> {
     const feeRequest: UserFeeRequest = {
       user,
-      wallet,
       paymentMethodIn,
       paymentMethodOut,
       bankIn,
@@ -411,6 +392,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       txVolume: txVolumeChf,
       specialCodes,
+      specialCodeIds: user?.userData.specialCodeList,
       allowCachedBlockchainFee,
     };
 

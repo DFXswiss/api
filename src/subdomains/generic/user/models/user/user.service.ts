@@ -26,6 +26,7 @@ import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SpecialCodeService } from 'src/subdomains/supporting/payment/services/special-code.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { SignUpDto } from '../auth/dto/auth-credentials.dto';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
@@ -60,6 +61,7 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
+    private readonly specialCodeService: SpecialCodeService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -197,7 +199,7 @@ export class UserService {
     userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));
 
     try {
-      if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
+      if (specialCode) await this.specialCodeService.addSpecialCodeUser(user, specialCode);
       if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
       this.logger.warn(`Error while adding specialCode to new user ${user.id}:`, e);
@@ -409,6 +411,7 @@ export class UserService {
       to,
       txVolume: undefined,
       specialCodes: [],
+      specialCodeIds: user.userData.specialCodeList,
       allowCachedBlockchainFee: true,
       bankIn,
       bankOut,

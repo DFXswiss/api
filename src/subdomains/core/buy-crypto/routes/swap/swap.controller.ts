@@ -93,6 +93,7 @@ export class SwapController {
       targetAsset,
       targetAmount,
       specialCode,
+      specialCodes,
     } = await this.paymentInfoService.swapCheck(dto);
 
     const {
@@ -117,8 +118,7 @@ export class SwapController {
       CryptoPaymentMethod.CRYPTO,
       true,
       undefined,
-      dto.wallet,
-      specialCode ? [specialCode] : [],
+      specialCodes ?? (specialCode ? [specialCode] : []),
     );
 
     return {
@@ -291,7 +291,13 @@ export class SwapController {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
+    await this.transactionRequestService.create(
+      TransactionRequestType.SWAP,
+      dto,
+      swapDto,
+      user.id,
+      user.userData.specialCodes,
+    );
 
     return swapDto;
   }

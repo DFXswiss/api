@@ -16,6 +16,9 @@ export class IpLog extends IEntity {
   @Column({ length: 256 })
   url: string;
 
+  @Column({ length: 256, nullable: true })
+  specialCode: string;
+
   @Column()
   result: boolean;
 

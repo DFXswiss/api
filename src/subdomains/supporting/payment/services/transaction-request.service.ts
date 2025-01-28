@@ -30,6 +30,7 @@ export class TransactionRequestService {
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
+    usedSpecialCodes: string,
   ): Promise<void> {
     try {
       const hash = Util.createHash(type + new Date() + Util.randomId()).toUpperCase();
@@ -52,6 +53,7 @@ export class TransactionRequestService {
         networkFee: response.fees.network,
         totalFee: response.fees.total,
         user: { id: userId },
+        usedSpecialCodes,
         uid,
       });
 

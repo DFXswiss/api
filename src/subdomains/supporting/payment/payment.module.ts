@@ -17,10 +17,12 @@ import { TransactionRequest } from './entities/transaction-request.entity';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
 import { BlockchainFeeRepository } from './repositories/blockchain-fee.repository';
 import { FeeRepository } from './repositories/fee.repository';
+import { SpecialCodeRepository } from './repositories/special-code.repository';
 import { SpecialExternalAccountRepository } from './repositories/special-external-account.repository';
 import { TransactionRequestRepository } from './repositories/transaction-request.repository';
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
 import { FeeService } from './services/fee.service';
+import { SpecialCodeService } from './services/special-code.service';
 import { SpecialExternalAccountService } from './services/special-external-account.service';
 import { SwissQRService } from './services/swiss-qr.service';
 import { TransactionHelper } from './services/transaction-helper';
@@ -53,7 +55,16 @@ import { TransactionModule } from './transaction.module';
     TransactionRequestService,
     SpecialExternalAccountService,
     SpecialExternalAccountRepository,
+    SpecialCodeRepository,
+    SpecialCodeService,
   ],
-  exports: [TransactionHelper, FeeService, SwissQRService, TransactionRequestService, SpecialExternalAccountService],
+  exports: [
+    TransactionHelper,
+    FeeService,
+    SwissQRService,
+    TransactionRequestService,
+    SpecialExternalAccountService,
+    SpecialCodeService,
+  ],
 })
 export class PaymentModule {}

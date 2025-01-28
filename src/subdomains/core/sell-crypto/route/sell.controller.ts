@@ -95,6 +95,7 @@ export class SellController {
       currency,
       targetAmount,
       specialCode,
+      specialCodes,
     } = await this.paymentInfoService.sellCheck(dto);
 
     const {
@@ -120,8 +121,7 @@ export class SellController {
       FiatPaymentMethod.BANK,
       true,
       undefined,
-      dto.wallet,
-      specialCode ? [specialCode] : [],
+      specialCodes ?? (specialCode ? [specialCode] : []),
     );
 
     return {
@@ -294,7 +294,13 @@ export class SellController {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
+    await this.transactionRequestService.create(
+      TransactionRequestType.SELL,
+      dto,
+      sellDto,
+      user.id,
+      user.userData.specialCodes,
+    );
 
     return sellDto;
   }
