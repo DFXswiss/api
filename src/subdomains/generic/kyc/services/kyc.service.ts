@@ -539,6 +539,10 @@ export class KycService {
         await this.downloadIdentDocuments(user, kycStep);
         break;
 
+      case IdentShortResult.MEDIA:
+        await this.downloadIdentDocuments(user, kycStep);
+        break;
+
       case IdentShortResult.FAIL:
         // retrigger personal data step, if data was wrong
         if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
@@ -1002,9 +1006,7 @@ export class KycService {
   }
 
   private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {
-    const documents = kycStep.isSumsub
-      ? await this.sumsubService.getDocuments(kycStep)
-      : await this.identService.getDocuments(kycStep);
+    const documents = await this.sumsubService.getDocuments(kycStep);
 
     for (const { name, content, contentType } of documents) {
       await this.documentService.uploadFile(

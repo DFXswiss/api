@@ -8,7 +8,13 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
-import { ApplicantType, SumSubDataResult, SumsubResult, SumSubVideoData } from '../../dto/sum-sub.dto';
+import {
+  ApplicantType,
+  SumSubDataResult,
+  SumsubResult,
+  SumSubVideoData,
+  SumSubWebhookType,
+} from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { KycStepType } from '../../enums/kyc.enum';
@@ -38,15 +44,9 @@ export class SumsubService {
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
     const { webhook } = kycStep.getResult<SumsubResult>();
-
-    const documents = [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
-
-    if (kycStep.type === KycStepType.SUMSUB_VIDEO) {
-      const videoMedia = await this.getVideoMedia(webhook.applicantId, kycStep.transactionId);
-      documents.push(...videoMedia);
-    }
-
-    return documents;
+    return webhook.type === SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED
+      ? this.getVideoMedia(webhook.applicantId, kycStep.transactionId)
+      : [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
   }
 
   async getApplicantData(applicantId: string): Promise<SumSubDataResult> {

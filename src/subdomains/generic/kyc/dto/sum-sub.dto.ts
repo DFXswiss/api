@@ -312,13 +312,13 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
       }
 
       if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
-        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.REVIEW : IdentShortResult.FAIL;
+        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
       }
       break;
 
     case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
       if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
-        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.REVIEW : IdentShortResult.FAIL;
+        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.MEDIA : IdentShortResult.FAIL;
       }
       break;
 
