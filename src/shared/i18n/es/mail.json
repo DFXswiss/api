@@ -92,7 +92,7 @@
         "pending": {
             "monthly_limit": {
                 "title": "Límite de 30 días superado",
-                "salutation": "Ha superado su límite de volumen de 30 días",
+                "salutation": "Ha superado tu límite de volumen de 30 días",
                 "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
                 "line2": "Después de que pases el KYC empezaremos con tu transacción.",
                 "line3": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
