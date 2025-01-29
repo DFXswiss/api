@@ -5,32 +5,10 @@ import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/l
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
+import { Department } from '../enums/department.enum';
+import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
+import { SupportIssueLog } from './support-issue-log.entity';
 import { SupportMessage } from './support-message.entity';
-
-export enum SupportIssueState {
-  CREATED = 'Created',
-  PENDING = 'Pending',
-  COMPLETED = 'Completed',
-}
-
-export enum SupportIssueType {
-  GENERIC_ISSUE = 'GenericIssue',
-  TRANSACTION_ISSUE = 'TransactionIssue',
-  KYC_ISSUE = 'KycIssue',
-  LIMIT_REQUEST = 'LimitRequest',
-  PARTNERSHIP_REQUEST = 'PartnershipRequest',
-  NOTIFICATION_OF_CHANGES = 'NotificationOfChanges',
-  BUG_REPORT = 'BugReport',
-}
-
-export enum SupportIssueReason {
-  OTHER = 'Other',
-  DATA_REQUEST = 'DataRequest',
-
-  // transaction
-  FUNDS_NOT_RECEIVED = 'FundsNotReceived',
-  TRANSACTION_MISSING = 'TransactionMissing',
-}
 
 @Entity()
 export class SupportIssue extends IEntity {
@@ -42,6 +20,12 @@ export class SupportIssue extends IEntity {
 
   @Column({ length: 256 })
   type: SupportIssueType;
+
+  @Column({ length: 256, nullable: true })
+  clerk?: string;
+
+  @Column({ length: 256, nullable: true })
+  department?: Department;
 
   @Column({ length: 256 })
   reason: SupportIssueReason;
@@ -67,6 +51,9 @@ export class SupportIssue extends IEntity {
   @OneToOne(() => LimitRequest, { nullable: true })
   @JoinColumn()
   limitRequest?: LimitRequest;
+
+  @OneToMany(() => SupportIssueLog, (l) => l.supportIssue)
+  logs: SupportIssueLog[];
 
   set additionalInformation(info: object) {
     this.information = JSON.stringify(info);

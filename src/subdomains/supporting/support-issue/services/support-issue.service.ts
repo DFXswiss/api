@@ -19,13 +19,16 @@ import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
+import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { SupportIssueState } from '../enums/support-issue.enum';
+import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { LimitRequestService } from './limit-request.service';
 import { SupportDocumentService } from './support-document.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
+import { SupportLogService } from './support-log.service';
 
 export const ISSUE_UID_PREFIX = 'I';
 
@@ -40,6 +43,7 @@ export class SupportIssueService {
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly supportLogService: SupportLogService,
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
@@ -147,6 +151,12 @@ export class SupportIssueService {
     if (!entity) throw new NotFoundException('Support issue not found');
 
     Object.assign(entity, dto);
+
+    await this.supportLogService.createSupportLog(entity.userData, {
+      type: SupportLogType.SUPPORT,
+      supportIssue: entity,
+      ...dto,
+    });
 
     return this.supportIssueRepo.save(entity);
   }
