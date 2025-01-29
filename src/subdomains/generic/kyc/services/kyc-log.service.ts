@@ -8,6 +8,7 @@ import { ContentType } from '../enums/content-type.enum';
 import { KycFileLogRepository } from '../repositories/kyc-file-log.repository';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { MailChangeLogRepository } from '../repositories/mail-change-log.repository';
+import { ManualLogRepository } from '../repositories/manual-log.repository';
 import { MergeLogRepository } from '../repositories/merge-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 
@@ -15,6 +16,7 @@ import { KycDocumentService } from './integration/kyc-document.service';
 export class KycLogService {
   constructor(
     private readonly kycLogRepo: KycLogRepository,
+    private readonly manualLogRepo: ManualLogRepository,
     private readonly mergeLogRepo: MergeLogRepository,
     private readonly kycFileLogRepo: KycFileLogRepository,
     private readonly mailChangeLogRepo: MailChangeLogRepository,
@@ -28,11 +30,11 @@ export class KycLogService {
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await this.mergeLogRepo.save(entity);
   }
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
-    const entity = this.kycLogRepo.create(dto);
+    const entity = this.manualLogRepo.create(dto);
 
     entity.result = `Created by user data ${creatorUserDataId}`;
 
@@ -52,7 +54,7 @@ export class KycLogService {
       );
     }
 
-    await this.kycLogRepo.save(entity);
+    await this.manualLogRepo.save(entity);
   }
 
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {
@@ -77,7 +79,7 @@ export class KycLogService {
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await this.mailChangeLogRepo.save(entity);
   }
 
   async createKycFileLog(log: string, user?: UserData) {
@@ -86,6 +88,6 @@ export class KycLogService {
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await this.kycFileLogRepo.save(entity);
   }
 }

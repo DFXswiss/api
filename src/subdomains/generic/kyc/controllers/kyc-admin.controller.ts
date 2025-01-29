@@ -50,14 +50,6 @@ export class KycAdminController {
     await this.kycAdminService.syncIdentStep(+id);
   }
 
-  @Put('log/:id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateLog(@Param('id') id: string, @Body() dto: UpdateKycLogDto): Promise<void> {
-    await this.kycLogService.updateLog(+id, dto);
-  }
-
   @Post('webhook')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -72,6 +64,14 @@ export class KycAdminController {
   @ApiExcludeEndpoint()
   async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
     await this.kycLogService.createLog(jwt.account, dto);
+  }
+
+  @Put('log/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateLog(@Param('id') id: string, @Body() dto: UpdateKycLogDto): Promise<void> {
+    await this.kycLogService.updateLog(+id, dto);
   }
 
   @Post('ident/file/sync')
