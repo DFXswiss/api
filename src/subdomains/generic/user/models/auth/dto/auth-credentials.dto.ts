@@ -37,8 +37,7 @@ export class SignInDto {
 
   @ApiPropertyOptional({ description: 'IP region filter' })
   @IsOptional()
-  @IsString()
-  region?: string;
+  region?: string | number;
 }
 
 export class OptionalSignUpDto {
