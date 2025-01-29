@@ -47,7 +47,7 @@ export class KycLogService {
       entity.pdfUrl = await this.kycDocumentService.uploadUserFile(
         entity.userData,
         FileType.USER_NOTES,
-        `Manual/${Util.isoDateTime(dto.eventDate)}_manual-upload_${Util.randomId()}_${dto.fileName}`,
+        `Manual/${Util.isoDateTime(new Date())}_manual-upload_${Util.randomId()}_${dto.fileName}`,
         buffer,
         contentType as ContentType,
         true,
