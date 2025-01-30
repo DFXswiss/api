@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -27,6 +28,10 @@ import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
+import { ConnectionPool } from 'mssql/lib/tedious/connection-pool';
+import { SqlServerConnectionOptions } from 'typeorm/driver/sqlserver/SqlServerConnectionOptions';
+import { SqlServerDriver } from 'typeorm/driver/sqlserver/SqlServerDriver';
+
 export enum SupportTable {
   USER_DATA = 'userData',
   USER = 'user',
@@ -43,6 +48,8 @@ export enum SupportTable {
 @Injectable()
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
+
+  private readonly dbConnectionPool: ConnectionPool;
 
   constructor(
     private readonly userDataService: UserDataService,
@@ -64,7 +71,10 @@ export class GsService {
     private readonly notificationService: NotificationService,
     private readonly limitRequestService: LimitRequestService,
     private readonly supportIssueService: SupportIssueService,
-  ) {}
+  ) {
+    const dbDriver = dataSource.driver as SqlServerDriver;
+    this.dbConnectionPool = dbDriver.master;
+  }
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
     const additionalSelect = Array.from(
@@ -89,6 +99,8 @@ export class GsService {
 
     const runTime = Date.now() - startTime;
 
+    this.checkConnectionPool(runTime, 'getDbData');
+
     if (runTime > 1000 * 3) {
       this.logger.info(`DB Runtime: ${runTime} with query ${JSON.stringify(query)}`);
       this.logger.info(`DB Number of data: ${data.length}`);
@@ -110,37 +122,51 @@ export class GsService {
   }
 
   async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
-    switch (query.table) {
-      case 'bank_tx':
-        return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
+    const startTime = Date.now();
+
+    try {
+      switch (query.table) {
+        case 'bank_tx':
+          return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
+      }
+    } finally {
+      const runTime = Date.now() - startTime;
+      this.checkConnectionPool(runTime, 'getExtendedDbData');
     }
   }
 
   async getSupportData(query: SupportDataQuery): Promise<SupportReturnData> {
-    const userData = await this.getUserData(query);
-    if (!userData) throw new NotFoundException('User data not found');
+    const startTime = Date.now();
 
-    const userIds = userData.users.map((u) => u.id);
-    const refCodes = userData.users.map((u) => u.ref);
+    try {
+      const userData = await this.getUserData(query);
+      if (!userData) throw new NotFoundException('User data not found');
 
-    const { supportIssues, supportMessages } = await this.supportIssueService.getUserIssues(userData.id);
+      const userIds = userData.users.map((u) => u.id);
+      const refCodes = userData.users.map((u) => u.ref);
 
-    return {
-      userData,
-      supportIssues,
-      supportMessages,
-      limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
-      kycSteps: await this.kycAdminService.getKycSteps(userData.id),
-      bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
-      notification: await this.notificationService.getMails(userData.id),
-      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
-      buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
-      buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
-      ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
-      refReward: await this.refRewardService.getAllUserRewards(userIds),
-      cryptoInput: await this.payInService.getAllUserTransactions(userIds),
-      bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
-    };
+      const { supportIssues, supportMessages } = await this.supportIssueService.getUserIssues(userData.id);
+
+      return {
+        userData,
+        supportIssues,
+        supportMessages,
+        limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
+        kycSteps: await this.kycAdminService.getKycSteps(userData.id),
+        bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
+        notification: await this.notificationService.getMails(userData.id),
+        documents: await this.getAllUserDocuments(userData.id, userData.accountType),
+        buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
+        buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
+        ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
+        refReward: await this.refRewardService.getAllUserRewards(userIds),
+        cryptoInput: await this.payInService.getAllUserTransactions(userIds),
+        bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
+      };
+    } finally {
+      const runTime = Date.now() - startTime;
+      this.checkConnectionPool(runTime, 'getSupportData');
+    }
   }
 
   //*** HELPER METHODS ***//
@@ -407,5 +433,28 @@ export class GsService {
 
   private toDotSeparation(str: string): string {
     return str.charAt(0).toLowerCase() + str.slice(1).split('_').join('.');
+  }
+
+  // Helper to check the current connection pool state
+  private checkConnectionPool(runtime: number, remark: string) {
+    // Info, if there is a pending connection
+    if (this.dbConnectionPool.pending > 0) {
+      this.logger.info(
+        `ConnectionPool with pending connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}/${runtime}ms/${remark}`,
+      );
+    }
+
+    // Warning, if there are all connections in use
+    const dbOptions = Config.database as SqlServerConnectionOptions;
+    const dbMaxPoolConnections = dbOptions.pool?.max ?? 10;
+
+    if (
+      dbMaxPoolConnections === this.dbConnectionPool.size &&
+      dbMaxPoolConnections === this.dbConnectionPool.borrowed
+    ) {
+      this.logger.warn(
+        `ConnectionPool with max. borrowed connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}/${runtime}ms/${remark}`,
+      );
+    }
   }
 }
