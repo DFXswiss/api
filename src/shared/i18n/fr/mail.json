@@ -30,6 +30,7 @@
             },
             "currency_exchange": "Par ailleurs: le compte bancaire {bankAccount} est un compte {bankAsset}, si vous envoyez {inputAsset}, il sera échangé directement à la banque et nous recevrons {bankAsset}.<br>Si possible, envoyez {bankAsset} directement sur ce compte bancaire."
         },
+        "warning": "Attention:<br><br><br>Il y a de plus en plus d'escrocs (généralement de jolies femmes) qui vous écrivent via les médias sociaux (par exemple linkedIn) et vous promettent des investissements apparemment lucratifs au bout d'un certain temps.<br>Soyez prudent et, en cas de doute, n'envoyez pas d'argent.<br><br>Il y a un risque de perte totale si vous suivez les instructions de cet inconnu et lui envoyez de l'argent, par exemple",
         "crypto_output": {
             "title": "Actif cryptographique payé",
             "salutation": "Vos avoirs en crypto-monnaie ont été payés à votre adresse"
