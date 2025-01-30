@@ -296,8 +296,17 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): QrBillData {
-    // creditor
-    const creditor: Creditor = {
+    return {
+      amount,
+      currency,
+      message: reference,
+      creditor: this.getCreditor(bankInfo),
+      debtor: this.getDebtor(request),
+    };
+  }
+
+  private getCreditor(bankInfo: BankInfoDto): Creditor {
+    return {
       account: bankInfo.iban,
       address: bankInfo.street,
       buildingNumber: bankInfo.number,
@@ -306,31 +315,23 @@ export class SwissQRService {
       name: bankInfo.name,
       zip: bankInfo.zip,
     };
+  }
 
-    // debtor
-    const userData = request?.user.userData.isDataComplete
-      ? { name: request.user.userData.completeName, address: request.user.userData.address }
-      : undefined;
+  private getDebtor(request: TransactionRequest): Debtor | undefined {
+    if (!request?.user.userData.isDataComplete) return undefined;
 
-    const debtor: Debtor = userData
-      ? {
-          address: userData.address.street,
-          city: userData.address.city,
-          country: userData.address.country.symbol,
-          name: userData.name,
-          zip: userData.address.zip,
-        }
-      : undefined;
-    if (userData && userData.address.houseNumber != null) debtor.buildingNumber = userData.address.houseNumber;
+    const name = request.user.userData.completeName;
+    const address = request.user.userData.address;
 
-    const data: QrBillData = {
-      amount,
-      currency,
-      message: reference,
-      creditor,
-      debtor,
+    const debtor: Debtor = {
+      name,
+      address: address.street,
+      city: address.city,
+      country: address.country.symbol,
+      zip: address.zip,
     };
+    if (address.houseNumber != null) debtor.buildingNumber = address.houseNumber;
 
-    return data;
+    return debtor;
   }
 }
