@@ -214,8 +214,9 @@ export class UserDataService {
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
-    await this.userDataRepo.update(userData.id, dto);
     Object.assign(userData, dto);
+
+    await this.userDataRepo.save(userData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
