@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
-import { Data as QrBillData } from 'swissqrbill/types';
+import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 
@@ -296,33 +296,39 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): QrBillData {
-    const debtor = request?.user.userData.isDataComplete
+    // creditor
+    const creditor: Creditor = {
+      account: bankInfo.iban,
+      address: bankInfo.street,
+      buildingNumber: bankInfo.number,
+      city: bankInfo.city,
+      country: bankInfo.iban.substring(0, 2).toUpperCase(),
+      name: bankInfo.name,
+      zip: bankInfo.zip,
+    };
+
+    // debtor
+    const userData = request?.user.userData.isDataComplete
       ? { name: request.user.userData.completeName, address: request.user.userData.address }
       : undefined;
+
+    const debtor: Debtor = userData
+      ? {
+          address: userData.address.street,
+          city: userData.address.city,
+          country: userData.address.country.symbol,
+          name: userData.name,
+          zip: userData.address.zip,
+        }
+      : undefined;
+    if (userData && userData.address.houseNumber != null) debtor.buildingNumber = userData.address.houseNumber;
 
     const data: QrBillData = {
       amount,
       currency,
       message: reference,
-      creditor: {
-        account: bankInfo.iban,
-        address: bankInfo.street,
-        buildingNumber: bankInfo.number,
-        city: bankInfo.city,
-        country: bankInfo.iban.substring(0, 2).toUpperCase(),
-        name: bankInfo.name,
-        zip: bankInfo.zip,
-      },
-      debtor: debtor
-        ? {
-            address: debtor.address.street,
-            buildingNumber: debtor.address.houseNumber,
-            city: debtor.address.city,
-            country: debtor.address.country.symbol,
-            name: debtor.name,
-            zip: debtor.address.zip,
-          }
-        : undefined,
+      creditor,
+      debtor,
     };
 
     return data;
