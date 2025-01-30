@@ -59,7 +59,7 @@
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
-                "daily_limit": "Excediste el límite sin verificación KYC",
+                "monthly_limit": "Excediste el límite sin verificación KYC",
                 "user_data_mismatch": "El nombre que compartiste a DFX no encaja con el nombre del propietario del IBAN",
                 "iban_check": "El IBAN no puede ser usado por DFX",
                 "kyc_rejected": "Tu propuesta de registro KYC fue rechazada",
@@ -90,9 +90,9 @@
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
         "pending": {
-            "daily_limit": {
-                "title": "Límite cada 24 excedido",
-                "salutation": "Has excedido tu volumen máximo durante 24 horas",
+            "monthly_limit": {
+                "title": "Límite de 30 días superado",
+                "salutation": "Ha superado tu límite de volumen de 30 días",
                 "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
                 "line2": "Después de que pases el KYC empezaremos con tu transacción.",
                 "line3": "Aumentar límite con verificación?<br>Haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
@@ -123,7 +123,7 @@
                 "line1": "Para poder usar nuestra cuenta bancaria en Luxemburgo con la función instantánea SEPA, la verificación completa es desafortunadamente obligatoria.",
                 "line2": "Por lo tanto, haga clic en el siguiente enlace para verificarse:<br>[url:{urlText}]",
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al día sin el KYC con transferencias SEPA ordinarias.",
+                "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al mes sin el KYC con transferencias SEPA ordinarias.",
                 "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
             "name_check_without_kyc": {
