@@ -14,6 +14,7 @@ import { KycFile } from './entities/kyc-file.entity';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
 import { MailChangeLog } from './entities/mail-change-log.entity';
+import { ManualLog } from './entities/manual-log.entity';
 import { MergeLog } from './entities/merge-log.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
 import { StepLog } from './entities/step-log.entity';
@@ -22,6 +23,7 @@ import { KycFileRepository } from './repositories/kyc-file.repository';
 import { KycLogRepository } from './repositories/kyc-log.repository';
 import { KycStepRepository } from './repositories/kyc-step.repository';
 import { MailChangeLogRepository } from './repositories/mail-change-log.repository';
+import { ManualLogRepository } from './repositories/manual-log.repository';
 import { MergeLogRepository } from './repositories/merge-log.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { StepLogRepository } from './repositories/step-log.repository';
@@ -42,7 +44,7 @@ import { TfaService } from './services/tfa.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog, MergeLog, MailChangeLog, KycFile]),
+    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog, MergeLog, MailChangeLog, ManualLog, KycFile]),
     SharedModule,
     NotificationModule,
     forwardRef(() => UserModule),
@@ -63,6 +65,7 @@ import { TfaService } from './services/tfa.service';
     StepLogRepository,
     TfaLogRepository,
     MergeLogRepository,
+    ManualLogRepository,
     MailChangeLogRepository,
     KycFileLogRepository,
     DilisenseService,
