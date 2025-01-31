@@ -161,6 +161,10 @@ export class Configuration {
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
     requestTimeout: 60000,
+    pool: {
+      min: +(process.env.SQL_POOL_MIN ?? 5),
+      max: +(process.env.SQL_POOL_MAX ?? 10),
+    },
   };
 
   i18n: I18nOptions = {
