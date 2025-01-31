@@ -543,4 +543,13 @@ export class Util {
   static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
     return Object.values(enumObj).find((e) => e.toLowerCase() === value?.toLowerCase());
   }
+
+  static createTimeString(times: number[], checkRuntime = 1): string | undefined {
+    const total = Util.round((Date.now() - times[0]) / 1000, 3);
+
+    if (total > checkRuntime) {
+      const timeString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
+      return `${timeString} (total ${total})`;
+    }
+  }
 }

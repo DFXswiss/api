@@ -32,6 +32,12 @@
     "dbCapacity": {
       "value": 5
     },
+    "dbPoolMin": {
+      "value": 5
+    },
+    "dbPoolMax": {
+      "value": 10
+    },
     "mailUser": {
       "value": "xxx"
     },
