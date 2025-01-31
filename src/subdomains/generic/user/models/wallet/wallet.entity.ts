@@ -34,6 +34,9 @@ export class Wallet extends IEntity {
   isKycClient: boolean;
 
   @Column({ default: false })
+  displayFraudWarning: boolean;
+
+  @Column({ default: false })
   usesDummyAddresses: boolean;
 
   @Column({ nullable: true })

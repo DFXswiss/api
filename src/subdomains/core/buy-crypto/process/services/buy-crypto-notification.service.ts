@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -23,7 +22,6 @@ export class BuyCryptoNotificationService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly notificationService: NotificationService,
-    private readonly settingService: SettingService,
   ) {}
 
   async sendNotificationMails(): Promise<void> {
@@ -88,8 +86,6 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.userData.mail) {
-          const mailWarningWalletIds = await this.settingService.getObj<number[]>('mailWarningWalletIds', []);
-
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: MailContext.BUY_CRYPTO_COMPLETED,
@@ -107,7 +103,7 @@ export class BuyCryptoNotificationService {
                   key: `${MailTranslationKey.GENERAL}.link`,
                   params: { url: entity.transaction.url, urlText: entity.transaction.url },
                 },
-                mailWarningWalletIds.includes(entity.user.wallet.id)
+                entity.user.wallet.displayFraudWarning
                   ? {
                       ...{ key: MailKey.SPACE, params: { value: '4' } },
                       ...{ key: `${MailTranslationKey.PAYMENT}.warning` },
