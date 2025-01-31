@@ -59,7 +59,7 @@
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
-                "daily_limit": "You exceeded the limit without KYC",
+                "monthly_limit": "You exceeded the limit without KYC",
                 "user_data_mismatch": "Your name you provided to DFX does not match the name of the owner of the IBAN",
                 "iban_check": "The IBAN cannot be used with DFX",
                 "kyc_rejected": "Your KYC Request was rejected",
@@ -90,9 +90,9 @@
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
         "pending": {
-            "daily_limit": {
-                "title": "24h limit exceeded",
-                "salutation": "You have exceeded your 24h volume limit",
+            "monthly_limit": {
+                "title": "30 days limit exceeded",
+                "salutation": "You have exceeded your 30 days volume limit",
                 "line1": "Please verify yourself by KYC (know your customer) to increase your limit.",
                 "line2": "After a successful KYC we proceed with your transaction.",
                 "line3": "Increase limit with verification?<br>Click the following link to verify yourself:<br>[url:{urlText}]",
@@ -123,7 +123,7 @@
                 "line1": "In order to use our bank account in Luxembourg with the SEPA Instant function, full verification is unfortunately mandatory.",
                 "line2": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line3": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
-                "line4": "Without verification, you can continue to use our bank account from Switzerland up to EUR 1,000 per day without KYC via standard Sepa.",
+                "line4": "Without verification, you can continue to use our bank account from Switzerland up to EUR 1,000 per month without KYC via standard Sepa.",
                 "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "name_check_without_kyc": {

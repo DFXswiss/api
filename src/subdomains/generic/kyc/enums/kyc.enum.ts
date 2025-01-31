@@ -61,6 +61,7 @@ export enum KycLogType {
   MAIL_CHANGE = 'MailChangeLog',
   TFA = 'TfaLog',
   FILE = 'KycFileLog',
+  MANUAL = 'Manual',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {

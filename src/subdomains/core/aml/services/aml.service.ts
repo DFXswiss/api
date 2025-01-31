@@ -36,7 +36,7 @@ export class AmlService {
     private readonly userService: UserService,
   ) {}
 
-  async postProcessing(entity: BuyFiat | BuyCrypto, amlCheckBefore: CheckStatus, last24hVolume: number): Promise<void> {
+  async postProcessing(entity: BuyFiat | BuyCrypto, amlCheckBefore: CheckStatus, last30dVolume: number): Promise<void> {
     if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
     if (amlCheckBefore !== entity.amlCheck && entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
@@ -49,7 +49,7 @@ export class AmlService {
       if (
         !entity.userData.kycFileId &&
         (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT) &&
-        last24hVolume > Config.tradingLimits.dailyDefault
+        last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc
       ) {
         const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
         await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });

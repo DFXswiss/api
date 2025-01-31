@@ -90,15 +90,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
-        const last24hVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          Util.daysBefore(1, entity.transaction.created),
-          Util.daysAfter(1, entity.transaction.created),
-          entity.userData.users,
-        );
-
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
@@ -132,7 +123,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
             minVolume,
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             referenceChfPrice.convert(entity.inputReferenceAmount, 2),
-            last24hVolume,
             last30dVolume,
             last365dVolume,
             bankData,
@@ -141,7 +131,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           ),
         );
 
-        await this.amlService.postProcessing(entity, amlCheckBefore, last24hVolume);
+        await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 

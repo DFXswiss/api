@@ -1,6 +1,8 @@
 import { Body, Controller, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
@@ -48,14 +50,6 @@ export class KycAdminController {
     await this.kycAdminService.syncIdentStep(+id);
   }
 
-  @Put('log/:id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateLog(@Param('id') id: string, @Body() dto: UpdateKycLogDto): Promise<void> {
-    await this.kycLogService.updateLog(+id, dto);
-  }
-
   @Post('webhook')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -68,8 +62,16 @@ export class KycAdminController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @ApiExcludeEndpoint()
-  async createLog(@Body() dto: CreateKycLogDto): Promise<void> {
-    await this.kycLogService.createLog(dto);
+  async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
+    await this.kycLogService.createLog(jwt.account, dto);
+  }
+
+  @Put('log/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateLog(@Param('id') id: string, @Body() dto: UpdateKycLogDto): Promise<void> {
+    await this.kycLogService.updateLog(+id, dto);
   }
 
   @Post('ident/file/sync')
