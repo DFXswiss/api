@@ -34,9 +34,11 @@ export class KycLogService {
   }
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
-    const entity = this.manualLogRepo.create(dto);
-
-    entity.result = `Created by user data ${creatorUserDataId}`;
+    const entity = this.manualLogRepo.create({
+      comment: dto.comment,
+      eventDate: dto.eventDate,
+      result: `Created by user data ${creatorUserDataId}`,
+    });
 
     entity.userData = await this.userDataService.getUserData(dto.userData.id);
     if (!entity.userData) throw new NotFoundException('UserData not found');
@@ -44,7 +46,7 @@ export class KycLogService {
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
-      entity.pdfUrl = await this.kycDocumentService.uploadUserFile(
+      const { file, url } = await this.kycDocumentService.uploadUserFile(
         entity.userData,
         FileType.USER_NOTES,
         `Manual/${Util.isoDateTime(new Date())}_manual-upload_${Util.randomId()}_${dto.fileName}`,
@@ -52,6 +54,9 @@ export class KycLogService {
         contentType as ContentType,
         true,
       );
+
+      entity.pdfUrl = url;
+      entity.file = file;
     }
 
     await this.manualLogRepo.save(entity);

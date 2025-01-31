@@ -92,7 +92,7 @@ export class KycService {
   ): Promise<boolean> {
     const userData = await this.getUser(code, userDataId);
 
-    const upload = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       userData,
       kycDocument,
       `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
@@ -100,7 +100,7 @@ export class KycService {
       document.mimetype as ContentType,
       false,
     );
-    return upload != '';
+    return url != '';
   }
 
   // --- KYC PROCESS --- //
