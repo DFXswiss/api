@@ -164,6 +164,7 @@ export class Configuration {
     pool: {
       min: +(process.env.SQL_POOL_MIN ?? 5),
       max: +(process.env.SQL_POOL_MAX ?? 10),
+      idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
     },
   };
 

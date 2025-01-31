@@ -43,4 +43,14 @@ export class MonitorConnectionPoolService {
       );
     }
   }
+
+  @Cron(CronExpression.EVERY_10_SECONDS)
+  @Lock()
+  monitorConnectionPoolStatic() {
+    if (DisabledProcess(Process.MONITOR_CONNECTION_POOL)) return;
+
+    this.logger.info(
+      `ConnectionPool connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}`,
+    );
+  }
 }
