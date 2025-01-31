@@ -1,8 +1,8 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { FileType, KycFile } from '../../dto/kyc-file.dto';
-import { KycFile as KycFileEntity } from '../../entities/kyc-file.entity';
+import { FileType, KycFileBlob } from '../../dto/kyc-file.dto';
+import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { FileCategory } from '../../enums/file-category.enum';
@@ -16,20 +16,20 @@ export class KycDocumentService {
     this.storageService = new AzureStorageService('kyc');
   }
 
-  async listUserFiles(userDataId: number): Promise<KycFile[]> {
+  async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {
     return this.listFilesByPrefix(`user/${userDataId}/`);
   }
 
-  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<KycFile[]> {
+  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<KycFileBlob[]> {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
-  async listFilesByPrefixes(prefixes: string[]): Promise<KycFile[]> {
+  async listFilesByPrefixes(prefixes: string[]): Promise<KycFileBlob[]> {
     const files = await Promise.all(prefixes.map((p) => this.listFilesByPrefix(p)));
     return files.flat();
   }
 
-  async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
+  async listFilesByPrefix(prefix: string): Promise<KycFileBlob[]> {
     const blobs = await this.storageService.listBlobs(prefix);
     return blobs.map((b) => {
       const [category, _, type, name] = this.fromFileId(b.name);
@@ -56,7 +56,7 @@ export class KycDocumentService {
     isProtected: boolean,
     kycStep?: KycStep,
     metadata?: Record<string, string>,
-  ): Promise<{ file: KycFileEntity; url: string }> {
+  ): Promise<{ file: KycFile; url: string }> {
     if (!this.isPermittedFileType(contentType))
       throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
 
@@ -72,7 +72,7 @@ export class KycDocumentService {
     isProtected: boolean,
     kycStep?: KycStep,
     metadata?: Record<string, string>,
-  ): Promise<{ file: KycFileEntity; url: string }> {
+  ): Promise<{ file: KycFile; url: string }> {
     const file = await this.kycFileService.createKycFile({
       name: name,
       type: type,

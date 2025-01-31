@@ -16,7 +16,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { KycFileBlob } from '../kyc/dto/kyc-file.dto';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
@@ -234,7 +234,7 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFile[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
     return [
       ...(await this.kycDocumentService.listUserFiles(userDataId)),
       ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
