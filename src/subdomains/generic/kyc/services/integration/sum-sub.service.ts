@@ -38,15 +38,12 @@ export class SumsubService {
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
     const { webhook } = kycStep.getResult<SumsubResult>();
+    return [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
+  }
 
-    const documents = [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
-
-    if (kycStep.type === KycStepType.SUMSUB_VIDEO) {
-      const videoMedia = await this.getVideoMedia(webhook.applicantId, kycStep.transactionId);
-      documents.push(...videoMedia);
-    }
-
-    return documents;
+  async getMedia(kycStep: KycStep): Promise<IdentDocument[]> {
+    const { webhook } = kycStep.getResult<SumsubResult>();
+    return this.getVideoMedia(webhook.applicantId, kycStep.transactionId);
   }
 
   async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
