@@ -437,24 +437,28 @@ export class GsService {
 
   // Helper to check the current connection pool state
   private checkConnectionPool(runtime: number, remark: string) {
-    // Info, if there is a pending connection
-    if (this.dbConnectionPool.pending > 0) {
-      this.logger.info(
-        `ConnectionPool with pending connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}/${runtime}ms/${remark}`,
-      );
-    }
+    try {
+      // Info, if there is a pending connection
+      if (this.dbConnectionPool.pending > 0) {
+        this.logger.info(
+          `ConnectionPool with pending connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}/${runtime}ms/${remark}`,
+        );
+      }
 
-    // Warning, if there are all connections in use
-    const dbOptions = Config.database as SqlServerConnectionOptions;
-    const dbMaxPoolConnections = dbOptions.pool?.max ?? 10;
+      // Warning, if there are all connections in use
+      const dbOptions = Config.database as SqlServerConnectionOptions;
+      const dbMaxPoolConnections = dbOptions.pool.max;
 
-    if (
-      dbMaxPoolConnections === this.dbConnectionPool.size &&
-      dbMaxPoolConnections === this.dbConnectionPool.borrowed
-    ) {
-      this.logger.warn(
-        `ConnectionPool with max. borrowed connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}/${runtime}ms/${remark}`,
-      );
+      if (
+        dbMaxPoolConnections === this.dbConnectionPool.size &&
+        dbMaxPoolConnections === this.dbConnectionPool.borrowed
+      ) {
+        this.logger.warn(
+          `ConnectionPool with max. borrowed connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}/${runtime}ms/${remark}`,
+        );
+      }
+    } catch (e) {
+      this.logger.error('Error while checking connection pool:', e);
     }
   }
 }
