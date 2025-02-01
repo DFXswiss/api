@@ -4,7 +4,7 @@ import { Department } from '../enums/department.enum';
 import { SupportIssueState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 
-export class SupportLogDto {
+export interface SupportLogDto {
   type: SupportLogType;
   message?: string;
   comment?: string;

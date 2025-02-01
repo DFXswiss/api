@@ -30,7 +30,14 @@ import { SupportIssueController } from './support-issue.controller';
 @Module({
   imports: [
     SharedModule,
-    TypeOrmModule.forFeature([SupportIssue, SupportMessage, LimitRequest]),
+    TypeOrmModule.forFeature([
+      SupportIssue,
+      SupportMessage,
+      LimitRequest,
+      SupportLog,
+      SupportIssueLog,
+      LimitRequestLog,
+    ]),
     TransactionModule,
     forwardRef(() => KycModule),
     forwardRef(() => UserModule),
