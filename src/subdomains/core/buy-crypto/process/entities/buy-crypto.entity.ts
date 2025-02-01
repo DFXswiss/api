@@ -458,7 +458,6 @@ export class BuyCrypto extends IEntity {
     minVolume: number,
     amountInEur: number,
     amountInChf: number,
-    last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -473,7 +472,6 @@ export class BuyCrypto extends IEntity {
         inputAsset,
         minVolume,
         amountInChf,
-        last24hVolume,
         last7dCheckoutVolume,
         last30dVolume,
         last365dVolume,
@@ -653,7 +651,7 @@ export class BuyCrypto extends IEntity {
 }
 
 export const BuyCryptoAmlReasonPendingStates = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,

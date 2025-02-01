@@ -11,7 +11,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { FileType, KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { FileType, KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -92,7 +92,7 @@ export class KycService {
   ): Promise<boolean> {
     const userData = await this.getUser(code, userDataId);
 
-    const upload = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       userData,
       kycDocument,
       `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
@@ -100,7 +100,7 @@ export class KycService {
       document.mimetype as ContentType,
       false,
     );
-    return upload != '';
+    return url != '';
   }
 
   // --- KYC PROCESS --- //
@@ -204,11 +204,11 @@ export class KycService {
     };
   }
 
-  private toKycFileDto(type: KycDocumentType, { contentType }: KycFile): KycFileDto {
+  private toKycFileDto(type: KycDocumentType, { contentType }: KycFileBlob): KycFileDto {
     return { type, contentType };
   }
 
-  private getFileFor(type: KycDocumentType, documents: KycFile[]): KycFile | undefined {
+  private getFileFor(type: KycDocumentType, documents: KycFileBlob[]): KycFileBlob | undefined {
     switch (type) {
       case KycDocumentType.IDENTIFICATION:
         return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);
