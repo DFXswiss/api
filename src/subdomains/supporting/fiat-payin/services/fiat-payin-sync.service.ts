@@ -74,6 +74,11 @@ export class FiatPayInSyncService {
   }
 
   async createCheckoutTx(payment: CheckoutPayment): Promise<CheckoutTx> {
+    const checkoutTx = await this.checkoutTxRepo.findOne({
+      where: { paymentId: payment.id },
+    });
+    if (checkoutTx) return checkoutTx;
+
     const tx = this.mapCheckoutPayment(payment);
 
     let entity = await this.checkoutTxRepo.findOne({
