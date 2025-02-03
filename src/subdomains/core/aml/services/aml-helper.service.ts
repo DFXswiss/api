@@ -139,7 +139,7 @@ export class AmlHelperService {
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
         if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
         if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
-        if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
+        if (bank && !bank.amlEnabled) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
         if (nationality && !nationality.checkoutEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
