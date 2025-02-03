@@ -202,7 +202,10 @@ export class AuthService {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
-        if (Config.environment !== Environment.LOC && !/^([\w-]*\.)*dfx.swiss$/.test(redirectUrl.host))
+        if (
+          Config.environment !== Environment.LOC &&
+          (!/^([\w-]*\.)*dfx.swiss$/.test(redirectUrl.host) || redirectUrl.protocol !== 'https:')
+        )
           throw new Error('Redirect URL not allowed');
       } catch (e) {
         throw new BadRequestException(e.message);
