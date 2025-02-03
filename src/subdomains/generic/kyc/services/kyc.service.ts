@@ -404,7 +404,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       fileType,
       data.fileName,
@@ -573,7 +573,7 @@ export class KycService {
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
-    const newUrl = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       FileType.IDENTIFICATION,
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
@@ -583,7 +583,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
+    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: url, document: undefined }));
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
