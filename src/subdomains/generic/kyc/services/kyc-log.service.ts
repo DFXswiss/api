@@ -5,36 +5,31 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { FileType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
-import { KycFileLogRepository } from '../repositories/kyc-file-log.repository';
+import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
-import { MailChangeLogRepository } from '../repositories/mail-change-log.repository';
-import { ManualLogRepository } from '../repositories/manual-log.repository';
-import { MergeLogRepository } from '../repositories/merge-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class KycLogService {
   constructor(
     private readonly kycLogRepo: KycLogRepository,
-    private readonly manualLogRepo: ManualLogRepository,
-    private readonly mergeLogRepo: MergeLogRepository,
-    private readonly kycFileLogRepo: KycFileLogRepository,
-    private readonly mailChangeLogRepo: MailChangeLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly kycDocumentService: KycDocumentService,
   ) {}
 
   async createMergeLog(user: UserData, log: string): Promise<void> {
-    const entity = this.mergeLogRepo.create({
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.MERGE,
       result: log,
       userData: user,
     });
 
-    await this.mergeLogRepo.save(entity);
+    await this.kycLogRepo.save(entity);
   }
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
-    const entity = this.manualLogRepo.create({
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.MANUAL,
       comment: dto.comment,
       eventDate: dto.eventDate,
       result: `Created by user data ${creatorUserDataId}`,
@@ -59,7 +54,7 @@ export class KycLogService {
       entity.file = file;
     }
 
-    await this.manualLogRepo.save(entity);
+    await this.kycLogRepo.save(entity);
   }
 
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {
@@ -79,20 +74,22 @@ export class KycLogService {
   async createMailChangeLog(user: UserData, oldMail: string, newMail: string) {
     if (oldMail === newMail) return;
 
-    const entity = this.mailChangeLogRepo.create({
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.MAIL_CHANGE,
       result: `${oldMail} -> ${newMail}`,
       userData: user,
     });
 
-    await this.mailChangeLogRepo.save(entity);
+    await this.kycLogRepo.save(entity);
   }
 
   async createKycFileLog(log: string, user?: UserData) {
-    const entity = this.kycFileLogRepo.create({
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.FILE,
       result: log,
       userData: user,
     });
 
-    await this.kycFileLogRepo.save(entity);
+    await this.kycLogRepo.save(entity);
   }
 }

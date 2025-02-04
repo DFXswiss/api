@@ -714,8 +714,8 @@ export class KycService {
         if (identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)))
           return { nextStep: undefined };
 
-        const userDataMergeRequestedStep = identSteps.find((i) =>
-          i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED),
+        const userDataMergeRequestedStep = identSteps.find(
+          (i) => i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED) && i.sequenceNumber >= 0,
         );
         if (userDataMergeRequestedStep) {
           const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
