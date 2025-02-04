@@ -1,17 +1,28 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { GetSwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
 import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/swap-payment-info.dto';
+import { TransactionRequestExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
-import { FindOptionsRelations, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, LessThan, MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
-import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
+import {
+  TransactionRequest,
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
 export const QUOTE_UID_PREFIX = 'Q';
@@ -23,7 +34,45 @@ export class TransactionRequestService {
   constructor(
     private readonly transactionRequestRepo: TransactionRequestRepository,
     private readonly siftService: SiftService,
+    private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
   ) {}
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
+  async txRequestStatusSync() {
+    if (DisabledProcess(Process.TX_REQUEST_STATUS_SYNC)) return;
+
+    const entities = await this.transactionRequestRepo.find({ where: { isComplete: true }, take: 5000 });
+
+    for (const entity of entities) {
+      try {
+        await this.transactionRequestRepo.update(entity.id, { status: TransactionRequestStatus.COMPLETED });
+      } catch (e) {
+        this.logger.error(`Error in TxRequest status sync for id ${entity.id}`, e);
+      }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Lock(7200)
+  async txRequestWaitingExpiryCheck() {
+    if (DisabledProcess(Process.TX_REQUEST_WAITING_EXPIRY)) return;
+
+    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
+    const entities = await this.transactionRequestRepo.findBy({
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      created: LessThan(expiryDate),
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.transactionRequestRepo.update(entity.id, { status: TransactionRequestStatus.CREATED });
+      } catch (e) {
+        this.logger.error(`Error in TxRequest waiting expiry check for id ${entity.id}`, e);
+      }
+    }
+  }
 
   async create(
     type: TransactionRequestType,
@@ -135,6 +184,31 @@ export class TransactionRequestService {
     return request;
   }
 
+  async getTransactionRequest(
+    id: number,
+    relations: FindOptionsRelations<TransactionRequest> = {},
+  ): Promise<TransactionRequest | undefined> {
+    return this.transactionRequestRepo.findOne({
+      where: { id },
+      relations,
+    });
+  }
+
+  async getWaitingTransactionRequest(
+    userDataId: number,
+    from = new Date(0),
+    to = new Date(),
+  ): Promise<TransactionRequest[]> {
+    return this.transactionRequestRepo.find({
+      where: {
+        status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+        user: { userData: { id: userDataId } },
+        created: Between(from, to),
+      },
+      relations: { user: { userData: true } },
+    });
+  }
+
   async getTransactionRequestByUid(
     uid: string,
     relations: FindOptionsRelations<TransactionRequest> = {},
@@ -166,7 +240,25 @@ export class TransactionRequestService {
   }
 
   async complete(id: number): Promise<void> {
-    await this.transactionRequestRepo.update(id, { isComplete: true });
+    await this.transactionRequestRepo.update(id, { isComplete: true, status: TransactionRequestStatus.COMPLETED });
+  }
+
+  async extendTransactionRequest(txRequest: TransactionRequest): Promise<TransactionRequestExtended> {
+    const sourceAssetEntity =
+      txRequest.type === TransactionRequestType.BUY
+        ? await this.fiatService.getFiat(txRequest.sourceId)
+        : await this.assetService.getAssetById(txRequest.sourceId);
+
+    const targetAssetEntity =
+      txRequest.type === TransactionRequestType.SELL
+        ? await this.fiatService.getFiat(txRequest.targetId)
+        : await this.assetService.getAssetById(txRequest.targetId);
+
+    return Object.assign(txRequest, { sourceAssetEntity, targetAssetEntity });
+  }
+
+  async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
+    await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
   }
 
   // --- HELPER METHODS --- //
