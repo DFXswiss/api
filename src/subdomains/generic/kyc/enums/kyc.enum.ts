@@ -106,6 +106,7 @@ export enum KycStepStatus {
   CANCELED = 'Canceled',
   IGNORED = 'Ignored',
   OUTDATED = 'Outdated',
+  PAUSED = 'Paused',
 }
 
 export enum UrlType {

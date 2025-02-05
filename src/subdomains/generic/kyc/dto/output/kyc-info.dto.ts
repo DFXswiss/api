@@ -11,6 +11,7 @@ export enum KycStepStatus {
   FAILED = 'Failed',
   COMPLETED = 'Completed',
   OUTDATED = 'Outdated',
+  SUPPORT_REQUEST = 'SupportRequest',
 }
 
 export enum KycStepReason {
