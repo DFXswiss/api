@@ -21,6 +21,7 @@ import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { Department } from '../enums/department.enum';
 import { SupportIssueState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -133,6 +134,7 @@ export class SupportIssueService {
 
       // create limit request
       if (dto.limitRequest) {
+        newIssue.department = Department.COMPLIANCE;
         newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
       }
     }
