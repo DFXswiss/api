@@ -77,7 +77,7 @@ export class KycInfoMapper {
       }, new Map<string, KycStep[]>());
 
     const visibleSteps = Array.from(groupedSteps.values()).map((steps) => {
-      const completedSteps = steps.filter((s) => s.status === KycStepStatus.COMPLETED);
+      const completedSteps = steps.filter((s) => s.isCompleted);
       return Util.maxObj(completedSteps.length ? completedSteps : steps, 'sequenceNumber');
     });
 
