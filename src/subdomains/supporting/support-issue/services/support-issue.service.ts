@@ -245,13 +245,13 @@ export class SupportIssueService {
 
     await this.messageRepo.save(entity);
 
-    if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
-
-    if (issue.state === SupportIssueState.COMPLETED) {
-      const update = { state: SupportIssueState.PENDING };
-      Object.assign(issue, update);
-      await this.supportIssueRepo.update(issue.id, update);
+    if (dto.author !== CustomerAuthor) {
+      await this.supportIssueRepo.update(...issue.setClerk(dto.author));
+      await this.supportIssueNotificationService.newSupportMessage(entity);
     }
+
+    if (issue.state === SupportIssueState.COMPLETED)
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueState.PENDING));
 
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }

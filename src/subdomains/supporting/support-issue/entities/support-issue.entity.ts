@@ -1,5 +1,5 @@
 import { Config } from 'src/config/config';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
@@ -54,6 +54,24 @@ export class SupportIssue extends IEntity {
 
   @OneToMany(() => SupportIssueLog, (l) => l.supportIssue)
   logs: SupportIssueLog[];
+
+  // --- ENTITY METHODS --- //
+
+  setState(state: SupportIssueState): UpdateResult<SupportIssue> {
+    const update: Partial<SupportIssue> = { state };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setClerk(clerk: string): UpdateResult<SupportIssue> {
+    const update: Partial<SupportIssue> = { clerk };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 
   set additionalInformation(info: object) {
     this.information = JSON.stringify(info);

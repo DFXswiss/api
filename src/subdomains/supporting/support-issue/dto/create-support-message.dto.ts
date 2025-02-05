@@ -4,7 +4,7 @@ import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 export class CreateSupportMessageDto {
   @IsOptional()
   @IsString()
-  author: string;
+  author?: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
