@@ -54,6 +54,7 @@ export class KycStepMapper {
     [EntityStatus.INTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
     [EntityStatus.MANUAL_REVIEW]: DtoStatus.IN_REVIEW,
     [EntityStatus.PARTIALLY_APPROVED]: DtoStatus.IN_REVIEW,
+    [EntityStatus.PAUSED]: DtoStatus.IN_REVIEW,
     [EntityStatus.FAILED]: DtoStatus.FAILED,
     [EntityStatus.CANCELED]: DtoStatus.FAILED,
     [EntityStatus.IGNORED]: DtoStatus.FAILED,
