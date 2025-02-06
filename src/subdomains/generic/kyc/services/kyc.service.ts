@@ -65,7 +65,8 @@ import {
 import { KycStep } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
-import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
@@ -222,7 +223,9 @@ export class KycService {
           errors.length === 1 &&
           entity.userData.accountType === AccountType.PERSONAL
         ) {
-          entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+          await this.userDataService.updateUserDataInternal(entity.userData, {
+            verifiedName: `${entity.userData.firstname} ${entity.userData.surname}`,
+          });
           entity.complete();
         } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
@@ -404,7 +407,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       fileType,
       data.fileName,
@@ -573,7 +576,7 @@ export class KycService {
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
-    const newUrl = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       FileType.IDENTIFICATION,
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
@@ -583,7 +586,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
+    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: url, document: undefined }));
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -714,8 +717,8 @@ export class KycService {
         if (identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)))
           return { nextStep: undefined };
 
-        const userDataMergeRequestedStep = identSteps.find((i) =>
-          i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED),
+        const userDataMergeRequestedStep = identSteps.find(
+          (i) => i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED) && i.sequenceNumber >= 0,
         );
         if (userDataMergeRequestedStep) {
           const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(

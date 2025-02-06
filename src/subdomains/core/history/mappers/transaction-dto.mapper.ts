@@ -41,7 +41,7 @@ export class TransactionDtoMapper {
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, isFiat(buyCrypto.inputAssetEntity)),
-      inputAsset: buyCrypto.inputAsset,
+      inputAsset: buyCrypto.inputAssetEntity.name,
       inputAssetId: buyCrypto.inputAssetEntity.id,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
@@ -58,7 +58,7 @@ export class TransactionDtoMapper {
             isFiat(buyCrypto.inputAssetEntity),
           )
         : null,
-      feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
+      feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAssetEntity.name : null,
       fees: TransactionDtoMapper.mapFees(buyCrypto),
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyCrypto?.cryptoInput
@@ -101,7 +101,7 @@ export class TransactionDtoMapper {
       type: TransactionType.SELL,
       ...getTransactionStateDetails(buyFiat),
       inputAmount: Util.roundReadable(buyFiat.inputAmount, isFiat(buyFiat.inputAssetEntity)),
-      inputAsset: buyFiat.inputAsset,
+      inputAsset: buyFiat.inputAssetEntity.name,
       inputAssetId: buyFiat.inputAssetEntity.id,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
@@ -119,7 +119,7 @@ export class TransactionDtoMapper {
             isFiat(buyFiat.inputAssetEntity),
           )
         : null,
-      feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
+      feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAssetEntity.name : null,
       fees: TransactionDtoMapper.mapFees(buyFiat),
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyFiat?.cryptoInput
@@ -170,7 +170,7 @@ export class TransactionDtoMapper {
         refReward.outputAmount != null
           ? Util.roundReadable(refReward.outputAmount, isFiat(refReward.outputAssetEntity))
           : null,
-      outputAsset: refReward.outputAsset,
+      outputAsset: refReward.outputAssetEntity.name,
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,

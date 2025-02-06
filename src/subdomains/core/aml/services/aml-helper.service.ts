@@ -139,7 +139,7 @@ export class AmlHelperService {
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
         if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
         if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
-        if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
+        if (bank && !bank.amlEnabled) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
         if (nationality && !nationality.checkoutEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
@@ -322,7 +322,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+      return {};
     }
 
     // Crucial error aml
@@ -364,8 +364,7 @@ export class AmlHelperService {
       };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
-      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10) return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { bankData, comment };
