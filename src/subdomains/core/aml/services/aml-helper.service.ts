@@ -250,7 +250,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 10000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        if (amountInChf > 100000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
         break;
     }
 
@@ -322,7 +322,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+      return {};
     }
 
     // Crucial error aml
@@ -364,8 +364,7 @@ export class AmlHelperService {
       };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
-      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10) return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { bankData, comment };

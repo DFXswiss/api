@@ -15,6 +15,7 @@ import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -276,7 +277,8 @@ export class Configuration {
         filter: (file: KycFileBlob, userData: UserData) =>
           (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
             file.name.includes('FormularA')) ||
-          (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+          (['operativ tätige Gesellschaft', 'Verein'].includes(userData.amlAccountType) &&
+            file.name.includes('FormularK')),
       },
       {
         folderName: '08_Onboardingdokument',
@@ -304,6 +306,41 @@ export class Configuration {
         filter: (file: KycFileBlob, userData: UserData) =>
           (file.category === FileCategory.USER && file.name.includes('postversand')) ||
           (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
+      },
+      {
+        folderName: '11_Handelsregisterauszug',
+        ignore: (userData: UserData) => userData.accountType !== AccountType.ORGANIZATION,
+        prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
+        filter: (file: KycFileBlob, userData: UserData) =>
+          userData.kycSteps.some(
+            (s) => s.name === KycStepName.COMMERCIAL_REGISTER && s.isCompleted && s.result === file.url,
+          ),
+      },
+      {
+        folderName: '12_Vollmacht',
+        ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
+        prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
+        filter: (file: KycFileBlob, userData: UserData) =>
+          userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
+      },
+      {
+        folderName: '13_Transaktionsliste Auditperiode 2025',
+        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+        fileTypes: [ContentType.PDF],
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2024'.toLowerCase()),
+      },
+      {
+        folderName: '14_Name Check',
+        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+        fileTypes: [ContentType.PDF],
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
+      },
+      {
+        folderName: '15_Travel Rule',
+        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+        fileTypes: [ContentType.PDF],
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
+        oldestFirst: true,
       },
     ],
   };

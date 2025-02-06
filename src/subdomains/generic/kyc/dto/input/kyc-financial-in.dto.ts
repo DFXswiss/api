@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsArray, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 
 export class KycFinancialResponse {
   @ApiProperty({ description: 'Question key' })
@@ -11,6 +12,7 @@ export class KycFinancialResponse {
   @ApiProperty({ description: 'Response value (option key(s) or plain text)' })
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   value: string;
 }
 

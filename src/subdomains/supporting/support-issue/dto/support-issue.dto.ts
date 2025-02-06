@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
 
 export class SupportMessageDto {
   @ApiProperty()
