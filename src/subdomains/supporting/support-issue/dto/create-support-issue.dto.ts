@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
-import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.entity';
+import { Util } from 'src/shared/utils/util';
+import { SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { CreateSupportMessageDto } from './create-support-message.dto';
 import { LimitRequestDto } from './limit-request.dto';
 
