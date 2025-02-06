@@ -1,4 +1,3 @@
-import { CronExpression } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
@@ -6,8 +5,6 @@ import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike }
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import sanitizeHtml from 'sanitize-html';
-import { DfxCronExpression } from './cron';
-import { CustomCronExpression } from './custom-cron-expression';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -408,36 +405,6 @@ export class Util {
 
   static async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  static async cronJobDelay(expression: DfxCronExpression): Promise<void> {
-    const random = Math.random() * 1000;
-
-    switch (expression) {
-      case CronExpression.EVERY_10_SECONDS:
-        return Util.delay(random * 5); // 0 .. 5 sec
-
-      case CustomCronExpression.EVERY_15_SECONDS:
-        return Util.delay(random * 5); // 0 .. 5 sec
-
-      case CronExpression.EVERY_30_SECONDS:
-        return Util.delay(random * 10); // 0 .. 10 sec
-
-      case CronExpression.EVERY_MINUTE:
-        return Util.delay(random * 10); // 0 .. 10 sec
-
-      case CronExpression.EVERY_5_MINUTES:
-        return Util.delay(random * 30); // 0 .. 30 sec
-
-      case CronExpression.EVERY_10_MINUTES:
-        return Util.delay(random * 30); // 0 .. 30 sec
-
-      case CustomCronExpression.EVERY_15_MINUTES:
-        return Util.delay(random * 30); // 0 .. 30 sec
-
-      case CronExpression.EVERY_HOUR:
-        return Util.delay(random * 60); // 0 .. 60 sec
-    }
   }
 
   static removeNullFields(entity: any): void {
