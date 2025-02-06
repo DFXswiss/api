@@ -322,7 +322,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+      return {};
     }
 
     // Crucial error aml
