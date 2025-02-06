@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
-import { KycStepName, KycStepType, UrlType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepType, UrlType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycLevel } from '../../../user/models/user-data/user-data.entity';
 import { TradingLimit } from '../../../user/models/user/dto/user.dto';
+import { KycStepName } from '../../enums/kyc-step-name.enum';
 
 export enum KycStepStatus {
   NOT_STARTED = 'NotStarted',

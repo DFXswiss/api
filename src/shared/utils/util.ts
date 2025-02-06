@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import sanitizeHtml from 'sanitize-html';
 import { DfxCronExpression } from './cron';
 import { CustomCronExpression } from './custom-cron-expression';
 
@@ -554,6 +555,12 @@ export class Util {
 
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
     return Boolean(value || value === '');
+  }
+
+  static sanitize({ value }: TransformFnParams): boolean | undefined {
+    return value
+      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
+      : value;
   }
 
   static fromBase64(file: string): { contentType: string; buffer: Buffer } {
