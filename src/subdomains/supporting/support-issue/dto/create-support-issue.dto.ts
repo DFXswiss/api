@@ -2,7 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
-import { SupportIssueReason, SupportIssueType } from '../entities/support-issue.entity';
+import { Department } from '../enums/department.enum';
+import { SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { CreateSupportMessageDto } from './create-support-message.dto';
 import { LimitRequestDto } from './limit-request.dto';
 
@@ -44,8 +45,11 @@ export class TransactionIssueDto {
 export class CreateSupportIssueBaseDto extends CreateSupportMessageDto {
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   author: string;
+
+  @IsOptional()
+  @IsEnum(Department)
+  department?: Department;
 
   @ApiProperty({ enum: SupportIssueType })
   @IsNotEmpty()

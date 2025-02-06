@@ -7,7 +7,7 @@ export class CreateSupportMessageDto {
   @IsOptional()
   @IsString()
   @Transform(Util.sanitize)
-  author: string;
+  author?: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
