@@ -5,7 +5,7 @@ export interface Context {
   method: string;
 }
 
-class LockClass {
+export class LockClass {
   private lockedSince?: number;
 
   static create(timeoutSeconds = Infinity): (task: () => Promise<void>, context?: Context) => Promise<void> {
