@@ -222,7 +222,9 @@ export class KycService {
           errors.length === 1 &&
           entity.userData.accountType === AccountType.PERSONAL
         ) {
-          entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+          await this.userDataService.updateUserDataInternal(entity.userData, {
+            verifiedName: `${entity.userData.firstname} ${entity.userData.surname}`,
+          });
           entity.complete();
         } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
