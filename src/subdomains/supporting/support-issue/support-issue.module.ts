@@ -13,9 +13,7 @@ import { SupportIssue } from './entities/support-issue.entity';
 import { SupportLog } from './entities/support-log.entity';
 import { SupportMessage } from './entities/support-message.entity';
 import { LimitRequestController } from './limit-request.controller';
-import { LimitRequestLogRepository } from './repositories/limit-request-log.repository';
 import { LimitRequestRepository } from './repositories/limit-request.repository';
-import { SupportIssueLogRepository } from './repositories/support-issue-log.repository';
 import { SupportIssueRepository } from './repositories/support-issue.repository';
 import { SupportLogRepository } from './repositories/support-log.repository';
 import { SupportMessageRepository } from './repositories/support-message.repository';
@@ -54,12 +52,7 @@ import { SupportIssueController } from './support-issue.controller';
     LimitRequestRepository,
     LimitRequestNotificationService,
     SupportDocumentService,
-    SupportLog,
     SupportLogRepository,
-    SupportIssueLog,
-    SupportIssueLogRepository,
-    LimitRequestLog,
-    LimitRequestLogRepository,
     SupportLogService,
   ],
   exports: [SupportIssueService, LimitRequestService],
