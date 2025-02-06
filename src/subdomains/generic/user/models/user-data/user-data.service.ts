@@ -210,7 +210,6 @@ export class UserDataService {
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
-    if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
