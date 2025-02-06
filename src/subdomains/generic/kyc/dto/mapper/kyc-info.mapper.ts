@@ -70,13 +70,16 @@ export class KycInfoMapper {
       // group by step and get step with highest sequence number
       .reduce((map, step) => {
         const key = step.type
-          ? `${step.name}-${step.type}`
+          ? `${step.name}-${step.type.replace('Sumsub', '')}`
           : Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`;
 
         return map.set(key, (map.get(key) ?? []).concat(step));
       }, new Map<string, KycStep[]>());
 
-    const visibleSteps = Array.from(groupedSteps.values()).map((steps) => Util.maxObj(steps, 'sequenceNumber'));
+    const visibleSteps = Array.from(groupedSteps.values()).map((steps) => {
+      const completedSteps = steps.filter((s) => s.isCompleted);
+      return Util.maxObj(completedSteps.length ? completedSteps : steps, 'sequenceNumber');
+    });
 
     return visibleSteps.sort((a, b) => {
       return getKycStepIndex(a.name) - getKycStepIndex(b.name) || getKycTypeIndex(a.type) - getKycTypeIndex(b.type);

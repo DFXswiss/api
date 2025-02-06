@@ -246,7 +246,11 @@ export class Util {
   }
 
   static isoDateTime(date: Date): string {
-    return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
+    return date.toISOString().split('.')[0].replace(/:/g, '-').replace(/T/g, '_');
+  }
+
+  static isoTime(date: Date): string {
+    return date.toISOString().split('.')[0].split('T')[1].replace(/:/g, '-');
   }
 
   static firstDayOfMonth(date = new Date()): Date {
