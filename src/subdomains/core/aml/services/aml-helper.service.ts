@@ -364,8 +364,7 @@ export class AmlHelperService {
       };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
-      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10) return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { bankData, comment };
