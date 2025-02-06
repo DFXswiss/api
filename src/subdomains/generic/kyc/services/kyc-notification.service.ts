@@ -11,7 +11,8 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepStatus } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()

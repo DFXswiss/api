@@ -28,7 +28,8 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -230,7 +231,7 @@ export class UserDataService {
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
-      const userData = await this.getUserData(userDataId);
+      const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData?.verifiedName) {
         errorLog += !userData
@@ -252,7 +253,7 @@ export class UserDataService {
       const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of applicableTargets) {
+      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound, oldestFirst } of applicableTargets) {
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -271,7 +272,9 @@ export class UserDataService {
           continue;
         }
 
-        const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+        const latestFile = files.reduce((l, c) =>
+          new Date(l.updated) > new Date(c.updated) !== Boolean(oldestFirst) ? l : c,
+        );
 
         try {
           const fileData = await this.documentService.downloadFile(

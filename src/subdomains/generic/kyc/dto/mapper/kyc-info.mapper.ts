@@ -3,14 +3,8 @@ import { Util } from 'src/shared/utils/util';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import {
-  KycStepName,
-  KycStepStatus,
-  KycStepType,
-  getKycStepIndex,
-  getKycTypeIndex,
-  requiredKycSteps,
-} from '../../enums/kyc.enum';
+import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
 import { KycLevelDto, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
