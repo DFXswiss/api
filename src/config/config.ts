@@ -345,7 +345,7 @@ export class Configuration {
         name: 'Transaktionsliste Auditperiode 2025',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2024'.toLowerCase()),
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
       },
       {
         id: 14,
