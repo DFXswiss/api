@@ -304,7 +304,6 @@ export class Configuration {
       {
         id: 9,
         name: 'Blockchain Check',
-        fileName: () => 'BlockchainCheck',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
@@ -344,7 +343,6 @@ export class Configuration {
       {
         id: 13,
         name: 'Transaktionsliste Auditperiode 2025',
-        fileName: () => 'Transaktionsliste_Auditperiode_2025',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2024'.toLowerCase()),
@@ -352,7 +350,6 @@ export class Configuration {
       {
         id: 14,
         name: 'Name Check',
-        fileName: () => 'NameCheck',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
@@ -360,7 +357,6 @@ export class Configuration {
       {
         id: 15,
         name: 'Travel Rule',
-        fileName: () => 'TravelRule',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
