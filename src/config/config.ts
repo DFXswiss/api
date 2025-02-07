@@ -215,13 +215,15 @@ export class Configuration {
 
     downloadTargets: [
       {
-        folderName: '01_Deckblatt',
+        id: 1,
+        name: 'Deckblatt',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.includes('GwGFileDeckblatt'),
       },
       {
-        folderName: '02_Identifikationsdokument',
+        id: 2,
+        name: 'Identifikationsdokument',
         prefixes: (userData: UserData) => [
           `user/${userData.id}/Identification`,
           `spider/${userData.id}/online-identification`,
@@ -230,7 +232,10 @@ export class Configuration {
         fileTypes: [ContentType.PDF],
       },
       {
-        folderName: '03_Banktransaktion oder Videoident Tonspur',
+        id: 3,
+        name: 'Banktransaktion oder Videoident Tonspur',
+        fileName: (file: KycFileBlob) =>
+          file.name.includes('bankTransactionVerify') ? 'Banktransaktion' : 'VideoIdentTonspur',
         prefixes: (userData: UserData) => {
           switch (userData.identificationType) {
             case KycIdentificationType.VIDEO_ID:
@@ -253,25 +258,30 @@ export class Configuration {
             : false,
       },
       {
-        folderName: '04_Identifizierungsformular',
+        id: 4,
+        name: 'Identifizierungsformular',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.includes('Identifizierungsformular'),
       },
       {
-        folderName: '05_Kundenprofil',
+        id: 5,
+        name: 'Kundenprofil',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.includes('Kundenprofil'),
       },
       {
-        folderName: '06_Risikoprofil',
+        id: 6,
+        name: 'Risikoprofil',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.includes('Risikoprofil'),
       },
       {
-        folderName: '07_Formular A oder K',
+        id: 7,
+        name: 'Formular A oder K',
+        fileName: (file: KycFileBlob) => (file.name.includes('FormularA') ? 'FormularA' : 'FormularK'),
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob, userData: UserData) =>
@@ -281,7 +291,9 @@ export class Configuration {
             file.name.includes('FormularK')),
       },
       {
-        folderName: '08_Onboardingdokument',
+        id: 8,
+        name: 'Onboardingdokument',
+        fileName: () => 'Onboarding',
         prefixes: (userData: UserData) => [
           `spider/${userData.id}/user-added-document`,
           `user/${userData.id}/UserNotes`,
@@ -290,13 +302,16 @@ export class Configuration {
         filter: (file: KycFileBlob) => file.name.toLowerCase().includes('onboarding'),
       },
       {
-        folderName: '09_Blockchain Check',
+        id: 9,
+        name: 'Blockchain Check',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
       },
       {
-        folderName: '10_Überprüfung der Wohnsitzadresse',
+        id: 10,
+        name: 'Überprüfung der Wohnsitzadresse',
+        fileName: () => 'Postversand',
         ignore: (userData: UserData) => userData.accountType === AccountType.ORGANIZATION,
         prefixes: (userData: UserData) => [
           `spider/${userData.id}/user-added-document`,
@@ -308,7 +323,8 @@ export class Configuration {
           (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
       },
       {
-        folderName: '11_Handelsregisterauszug',
+        id: 11,
+        name: 'Handelsregisterauszug',
         ignore: (userData: UserData) => userData.accountType !== AccountType.ORGANIZATION,
         prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
         filter: (file: KycFileBlob, userData: UserData) =>
@@ -317,26 +333,30 @@ export class Configuration {
           ),
       },
       {
-        folderName: '12_Vollmacht',
+        id: 12,
+        name: 'Vollmacht',
         ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
         prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
         filter: (file: KycFileBlob, userData: UserData) =>
           userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
       },
       {
-        folderName: '13_Transaktionsliste Auditperiode 2025',
+        id: 13,
+        name: 'Transaktionsliste Auditperiode 2025',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2024'.toLowerCase()),
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
       },
       {
-        folderName: '14_Name Check',
+        id: 14,
+        name: 'Name Check',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
       },
       {
-        folderName: '15_Travel Rule',
+        id: 15,
+        name: 'Travel Rule',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
         filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),

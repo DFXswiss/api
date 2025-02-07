@@ -210,7 +210,6 @@ export class UserDataService {
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
-    if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
@@ -253,7 +252,17 @@ export class UserDataService {
       const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound, oldestFirst } of applicableTargets) {
+      for (const {
+        id,
+        name,
+        fileName,
+        fileTypes,
+        prefixes,
+        filter,
+        handleFileNotFound,
+        oldestFirst,
+      } of applicableTargets) {
+        const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -283,7 +292,8 @@ export class UserDataService {
             latestFile.type,
             latestFile.name,
           );
-          subFolder.file(latestFile.name.replace(/\//g, '_'), fileData.data);
+          const filePath = `${userDataId}-${fileName?.(latestFile) ?? name}.${latestFile.name.split('.').pop()}`;
+          subFolder.file(filePath, fileData.data);
         } catch (error) {
           errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
         }
