@@ -16,7 +16,7 @@ export interface DfxCronParams extends DfxCronOptParams {
 
 export const DFX_CRONJOB_PARAMS = 'DFXCronjobParams';
 
-export function DfXCron(expression: DfxCronExpression, optional?: DfxCronOptParams) {
+export function DfxCron(expression: DfxCronExpression, optional?: DfxCronOptParams) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const methodRef = target[propertyKey];
 

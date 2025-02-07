@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { ConnectionPool } from 'mssql/lib/tedious/connection-pool';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { DataSource } from 'typeorm';
 import { SqlServerConnectionOptions } from 'typeorm/driver/sqlserver/SqlServerConnectionOptions';
 import { SqlServerDriver } from 'typeorm/driver/sqlserver/SqlServerDriver';
@@ -20,11 +20,8 @@ export class MonitorConnectionPoolService {
     this.dbConnectionPool = dbDriver.master;
   }
 
-  @Cron(CronExpression.EVERY_SECOND)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_SECOND, { process: Process.MONITOR_CONNECTION_POOL })
   monitorConnectionPool() {
-    if (DisabledProcess(Process.MONITOR_CONNECTION_POOL)) return;
-
     const dbOptions = Config.database as SqlServerConnectionOptions;
     const dbMaxPoolConnections = dbOptions.pool.max;
 
@@ -44,11 +41,8 @@ export class MonitorConnectionPoolService {
     }
   }
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.MONITOR_CONNECTION_POOL })
   monitorConnectionPoolStatic() {
-    if (DisabledProcess(Process.MONITOR_CONNECTION_POOL)) return;
-
     this.logger.info(
       `ConnectionPool connections: S${this.dbConnectionPool.size}/A${this.dbConnectionPool.available}/P${this.dbConnectionPool.pending}/B${this.dbConnectionPool.borrowed}`,
     );
