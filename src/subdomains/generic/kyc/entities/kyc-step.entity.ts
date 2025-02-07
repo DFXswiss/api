@@ -142,6 +142,8 @@ export class KycStep extends IEntity {
       KycStepStatus.INTERNAL_REVIEW,
       KycStepStatus.MANUAL_REVIEW,
       KycStepStatus.PARTIALLY_APPROVED,
+      KycStepStatus.DATA_REQUESTED,
+      KycStepStatus.PAUSED,
     ].includes(this.status);
   }
 
