@@ -252,16 +252,7 @@ export class UserDataService {
       const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const {
-        id,
-        name,
-        fileName,
-        fileTypes,
-        prefixes,
-        filter,
-        handleFileNotFound,
-        oldestFirst,
-      } of applicableTargets) {
+      for (const { id, name, fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
@@ -281,21 +272,19 @@ export class UserDataService {
           continue;
         }
 
-        const latestFile = files.reduce((l, c) =>
-          new Date(l.updated) > new Date(c.updated) !== Boolean(oldestFirst) ? l : c,
-        );
+        const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
         try {
           const fileData = await this.documentService.downloadFile(
-            latestFile.category,
+            selectedFile.category,
             userDataId,
-            latestFile.type,
-            latestFile.name,
+            selectedFile.type,
+            selectedFile.name,
           );
-          const filePath = `${userDataId}-${fileName?.(latestFile) ?? name}.${latestFile.name.split('.').pop()}`;
+          const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
           subFolder.file(filePath, fileData.data);
         } catch (error) {
-          errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
+          errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
         }
       }
     }

@@ -40,8 +40,8 @@ export class KycDocumentService {
         path: b.name,
         url: b.url,
         contentType: b.contentType as ContentType,
-        created: b.created,
-        updated: b.updated,
+        created: new Date(b.created),
+        updated: new Date(b.updated),
         metadata: b.metadata,
       };
     });
