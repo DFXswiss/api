@@ -586,7 +586,14 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: url, document: undefined }));
+    await this.kycStepRepo.update(
+      ...kycStep.internalReview({
+        ...dto,
+        documentUrl: url,
+        document: undefined,
+        birthday: Util.isoDate(dto.birthday),
+      }),
+    );
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
