@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
@@ -9,7 +9,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -57,8 +57,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_5_MINUTES)
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
   }

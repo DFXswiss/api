@@ -7,6 +7,7 @@ import { DFX_CRONJOB_PARAMS, DfxCronExpression, DfxCronParams } from 'src/shared
 import { LockClass } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
+import { DfxLogger } from './dfx-logger';
 
 interface CronJobData {
   instance: object;
@@ -17,6 +18,8 @@ interface CronJobData {
 
 @Injectable()
 export class DfxCronService implements OnModuleInit {
+  private readonly logger = new DfxLogger(DfxCronService);
+
   constructor(
     private readonly discovery: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
@@ -60,7 +63,7 @@ export class DfxCronService implements OnModuleInit {
     return async (...args: any) => {
       if (data.params.process && DisabledProcess(data.params.process)) return;
 
-      if (data.params.useDelay ?? true) await this.cronJobDelay(data.params.expression as CronExpression);
+      if (data.params.useDelay ?? true) await this.cronJobDelay(data.params.expression);
 
       await data.methodRef.apply(data.instance, args);
     };

@@ -1,9 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -15,21 +15,18 @@ export class StatisticService implements OnModuleInit {
   private statistic: StatisticDto;
 
   constructor(
-    private buyService: BuyService,
-    private sellService: SellService,
-    private settingService: SettingService,
-    private userService: UserService,
+    private readonly buyService: BuyService,
+    private readonly sellService: SellService,
+    private readonly settingService: SettingService,
+    private readonly userService: UserService,
   ) {}
 
   onModuleInit() {
     void this.doUpdate();
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.UPDATE_STATISTIC, timeout: 7200 })
   async doUpdate(): Promise<void> {
-    if (DisabledProcess(Process.UPDATE_STATISTIC)) return;
-
     this.statistic = {
       totalVolume: {
         buy: Util.round(await this.buyService.getTotalVolume(), Config.defaultVolumeDecimal),
