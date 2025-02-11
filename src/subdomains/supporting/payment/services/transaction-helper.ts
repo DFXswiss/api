@@ -14,6 +14,8 @@ import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
@@ -618,6 +620,13 @@ export class TransactionHelper implements OnModuleInit {
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
+
+    if (
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
+      user?.userData?.accountType === AccountType.ORGANIZATION &&
+      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
+    )
+      return QuoteError.VIDEO_IDENT_REQUIRED;
 
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;

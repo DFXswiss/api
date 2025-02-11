@@ -537,7 +537,10 @@ export class UserDataService {
 
   // --- KYC --- //
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
-    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStepType.AUTO);
+    const defaultIdent =
+      userData.accountType === AccountType.ORGANIZATION
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
