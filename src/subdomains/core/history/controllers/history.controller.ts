@@ -24,6 +24,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -40,12 +41,16 @@ import { TransactionController } from './transaction.controller';
 export class HistoryController {
   private files: { [key: number]: StreamableFile } = {};
 
+  private readonly coinTrackingQueue: QueueHandler;
+
   constructor(
     private readonly historyService: HistoryService,
     private readonly transactionController: TransactionController,
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
-  ) {}
+  ) {
+    this.coinTrackingQueue = QueueHandler.createParallelQueueHandler(5);
+  }
 
   // --- DEPRECATED ENDPOINTS --- //
   @Get()
@@ -69,6 +74,17 @@ export class HistoryController {
     @Headers('DFX-ACCESS-KEY') key: string,
     @Headers('DFX-ACCESS-SIGN') sign: string,
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
+  ): Promise<CoinTrackingApiHistoryDto[]> {
+    return this.coinTrackingQueue.handle<CoinTrackingApiHistoryDto[]>(async () =>
+      this.getCT(query, key, sign, timestamp),
+    );
+  }
+
+  private async getCT(
+    query: HistoryQuery,
+    key: string,
+    sign: string,
+    timestamp: string,
   ): Promise<CoinTrackingApiHistoryDto[]> {
     const user = key.endsWith('0')
       ? await this.userService.checkApiKey(key, sign, timestamp)
