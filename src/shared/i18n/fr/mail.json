@@ -85,7 +85,8 @@
                 "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX",
                 "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain",
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
-                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti"
+                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
+                "test_only": "Test"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
