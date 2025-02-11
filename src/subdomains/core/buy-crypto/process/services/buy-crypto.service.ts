@@ -88,6 +88,7 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    @Inject(forwardRef(() => AmlService))
     private readonly amlService: AmlService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
