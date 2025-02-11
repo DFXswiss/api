@@ -5,6 +5,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
@@ -29,7 +30,7 @@ export class KycAdminController {
   @Put('nameCheck/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updateNameCheckLog(@Param('id') id: string, @Body() dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
     return this.nameCheckService.updateLog(+id, dto);
   }
@@ -37,7 +38,7 @@ export class KycAdminController {
   @Put('step/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT), UserGuard)
   async updateKycStep(@Param('id') id: string, @Body() dto: UpdateKycStepDto): Promise<void> {
     await this.kycAdminService.updateKycStep(+id, dto);
   }
@@ -45,14 +46,14 @@ export class KycAdminController {
   @Put('step/:id/ident')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT), UserGuard)
   async syncIdentStep(@Param('id') id: string): Promise<void> {
     await this.kycAdminService.syncIdentStep(+id);
   }
 
   @Post('webhook')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   @ApiExcludeEndpoint()
   async triggerWebhook(@Body() dto: KycWebhookTriggerDto): Promise<void> {
     await this.kycAdminService.triggerWebhook(dto);
@@ -60,7 +61,7 @@ export class KycAdminController {
 
   @Post('log')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   @ApiExcludeEndpoint()
   async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
     await this.kycLogService.createLog(jwt.account, dto);
@@ -69,14 +70,14 @@ export class KycAdminController {
   @Put('log/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updateLog(@Param('id') id: string, @Body() dto: UpdateKycLogDto): Promise<void> {
     await this.kycLogService.updateLog(+id, dto);
   }
 
   @Post('ident/file/sync')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   @ApiExcludeEndpoint()
   async syncIdentFiles(@Query('step') step: string): Promise<void> {
     return this.kycService.syncIdentFiles(+step);

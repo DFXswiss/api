@@ -3,8 +3,9 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { MonitoringService } from './monitoring.service';
-import { SystemState, SubsystemState, Metric } from './system-state-snapshot.entity';
+import { Metric, SubsystemState, SystemState } from './system-state-snapshot.entity';
 
 @ApiTags('monitoring')
 @Controller('monitoring')
@@ -14,7 +15,7 @@ export class MonitoringController {
   @Get('data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async getSystemState(
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,
@@ -25,7 +26,7 @@ export class MonitoringController {
   @Post('data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async onWebhook(
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,

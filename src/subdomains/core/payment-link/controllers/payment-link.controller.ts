@@ -225,7 +225,7 @@ export class PaymentLinkController {
   @Put('payment/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updatePaymentLinkPayment(
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkPaymentDto,
@@ -236,7 +236,7 @@ export class PaymentLinkController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updatePaymentLinkAdmin(
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkInternalDto,

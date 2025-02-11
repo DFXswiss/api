@@ -9,6 +9,7 @@ import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from '../services/alchemy-webhook.service';
 import { AlchemyService } from '../services/alchemy.service';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Alchemy')
 @Controller('alchemy')
@@ -36,7 +37,7 @@ export class AlchemyController {
   @Post('syncTransactions')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async syncTransactions(@Body() dto: AlchemySyncTransactionsDto) {
     return this.alchemyService.syncTransactions(dto);
   }

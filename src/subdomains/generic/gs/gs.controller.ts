@@ -7,6 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @Controller('gs')
 export class GsController {
@@ -17,7 +18,7 @@ export class GsController {
   @Post('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async getDbData(@Body() query: DbQueryDto): Promise<DbReturnData> {
     const startTime = Date.now();
 
@@ -38,7 +39,7 @@ export class GsController {
   @Post('db/custom')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async getExtendedData(@Body() query: DbQueryBaseDto): Promise<DbReturnData> {
     return this.gsService.getExtendedDbData(query);
   }
@@ -46,7 +47,7 @@ export class GsController {
   @Get('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT), UserGuard)
   async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
     return this.gsService.getSupportData(query);
   }

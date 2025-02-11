@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AdminService } from './admin.service';
@@ -22,7 +23,7 @@ export class AdminController {
   @Post('mail')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
       if (dto.template === 'default') dto.template = 'user';
@@ -33,7 +34,7 @@ export class AdminController {
   @Post('sendLetter')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
     return this.letterService.sendLetter(sendLetterDto);
   }
@@ -41,7 +42,7 @@ export class AdminController {
   @Post('payout')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async payout(@Body() request: PayoutRequestDto): Promise<void> {
     return this.adminService.payout(request);
   }

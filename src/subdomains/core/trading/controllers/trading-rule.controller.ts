@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { UpdateTradingRuleDto } from '../dto/update-trading-rule.dto';
 import { TradingRuleService } from '../services/trading-rule.service';
 
@@ -14,7 +15,7 @@ export class TradingRuleController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateTradingRuleDto): Promise<void> {
     return this.tradingRuleService.updateTradingRule(+id, dto);
   }

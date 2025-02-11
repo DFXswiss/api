@@ -176,7 +176,7 @@ export class UserController {
   @Get('ref')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async getRefInfo(
     @Query() query: RefInfoQuery,
   ): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
@@ -186,7 +186,7 @@ export class UserController {
   @Get('volumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async getVolumes(@Query() query: VolumeQuery): Promise<{ buy: number; sell: number }> {
     return this.userService.getUserVolumes(query);
   }
@@ -194,7 +194,7 @@ export class UserController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updateUserAdmin(@Param('id') id: string, @Body() dto: UpdateUserAdminDto): Promise<User> {
     return this.userService.updateUserInternal(+id, dto);
   }

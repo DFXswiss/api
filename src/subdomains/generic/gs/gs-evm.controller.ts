@@ -8,6 +8,7 @@ import { EvmRawInputDataDto } from 'src/integration/blockchain/shared/evm/dto/ev
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { EvmRawTransactionDto } from '../../../integration/blockchain/shared/evm/dto/evm-raw-transaction.dto';
 import { GsEvmService } from './gs-evm.service';
 
@@ -18,7 +19,7 @@ export class GsEvmController {
   @Post('rawTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async sendRawTransaction(@Body() dto: EvmRawTransactionDto): Promise<ethers.providers.TransactionResponse> {
     return this.gsEvmService.sendRawTransaction(dto);
   }
@@ -26,7 +27,7 @@ export class GsEvmController {
   @Post('contractTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async sendContractTransaction(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
     return this.gsEvmService.sendContractTransaction(dto);
   }
@@ -34,7 +35,7 @@ export class GsEvmController {
   @Post('tokenTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async sendTokenTransaction(@Body() dto: EvmTokenTransactionDto): Promise<string> {
     return this.gsEvmService.sendTokenTransaction(dto);
   }
@@ -42,7 +43,7 @@ export class GsEvmController {
   @Post('coinTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async sendCoinTransaction(@Body() dto: EvmCoinTransactionDto): Promise<string> {
     return this.gsEvmService.sendCoinTransaction(dto);
   }
@@ -50,7 +51,7 @@ export class GsEvmController {
   @Post('bridgeApproval')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async approveBridge(@Body() dto: EvmBridgeApproval): Promise<string> {
     return this.gsEvmService.approveBridge(dto);
   }
@@ -58,7 +59,7 @@ export class GsEvmController {
   @Post('contractApproval')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async approveContract(@Body() dto: EvmContractApproval): Promise<string> {
     return this.gsEvmService.approveContract(dto);
   }

@@ -5,6 +5,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -13,7 +14,6 @@ import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateBankAccountDto, CreateBankAccountInternalDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
-import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Bank Account')
 @Controller('bankAccount')
@@ -54,7 +54,7 @@ export class BankAccountController {
   // --- IBAN --- //
   @Post('iban')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   @ApiExcludeEndpoint()
   async addBankAccountIban(@Body() dto: CreateBankAccountInternalDto): Promise<BankAccount> {
     return this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);

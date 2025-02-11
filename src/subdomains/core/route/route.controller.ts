@@ -40,7 +40,7 @@ export class RouteController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updateRoute(@Param('id') id: string, @Body() dto: UpdateRouteDto): Promise<Route> {
     return this.routeService.updateRoute(+id, dto);
   }

@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { CreateUserDataRelationDto } from './dto/create-user-data-relation.dto';
 import { UpdateUserDataRelationDto } from './dto/update-user-data-relation.dto';
 import { UserDataRelation } from './user-data-relation.entity';
@@ -16,21 +17,21 @@ export class UserDataRelationController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async create(@Body() dto: CreateUserDataRelationDto): Promise<UserDataRelation> {
     return this.userDataRelationService.createUserDataRelation(dto);
   }
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateUserDataRelationDto): Promise<UserDataRelation> {
     return this.userDataRelationService.updateUserDataRelation(+id, dto);
   }
 
   @Delete(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async delete(@Param('id') id: string): Promise<void> {
     return this.userDataRelationService.deleteUserDataRelation(+id);
   }

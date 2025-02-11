@@ -15,6 +15,7 @@ import { AssetDtoMapper } from './dto/asset-dto.mapper';
 import { AssetQueryDto } from './dto/asset-query.dto';
 import { AssetDetailDto } from './dto/asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Asset')
 @Controller('asset')
@@ -44,7 +45,7 @@ export class AssetController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
   async updateAsset(@Param('id') id: string, @Body() dto: UpdateAssetDto): Promise<Asset> {
     return this.assetService.updateAsset(+id, dto);
   }
