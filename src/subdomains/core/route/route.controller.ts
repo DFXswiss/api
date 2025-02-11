@@ -5,6 +5,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { RouteDto } from 'src/shared/dto/route.dto';
 import { BuyController } from '../buy-crypto/routes/buy/buy.controller';
 import { SwapController } from '../buy-crypto/routes/swap/swap.controller';
@@ -25,7 +26,7 @@ export class RouteController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: RouteDto })
   @ApiExcludeEndpoint()
   async getAllRoutes(@GetJwt() jwt: JwtPayload): Promise<RouteDto> {

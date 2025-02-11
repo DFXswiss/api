@@ -44,6 +44,7 @@ import { SellDto } from './dto/sell.dto';
 import { UpdateSellDto } from './dto/update-sell.dto';
 import { Sell } from './sell.entity';
 import { SellService } from './sell.service';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -61,7 +62,7 @@ export class SellController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
     return this.sellService.getUserSells(jwt.user).then((l) => this.toDtoList(l));
@@ -69,7 +70,7 @@ export class SellController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: SellDto })
   async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
     return this.sellService.get(jwt.user, +id).then((l) => this.toDto(l));
@@ -77,7 +78,7 @@ export class SellController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
     dto.currency ??= dto.fiat;
@@ -144,7 +145,7 @@ export class SellController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserGuard)
   @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -162,7 +163,7 @@ export class SellController {
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
@@ -178,7 +179,7 @@ export class SellController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
     return this.sellService.updateSell(jwt.user, +id, dto).then((s) => this.toDto(s));

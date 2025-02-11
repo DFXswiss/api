@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
@@ -11,7 +12,7 @@ export class CryptoRouteController {
   // --- DEPRECATED ENDPOINTS --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   @Redirect('swap', 301)
   async getAllCrypto(): Promise<void> {
@@ -20,7 +21,7 @@ export class CryptoRouteController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async getCrypto(@Param('id') id: string, @Res() res): Promise<void> {
     // Redirecting to swap
@@ -29,7 +30,7 @@ export class CryptoRouteController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   @Redirect('swap', 301)
   async createCrypto(): Promise<void> {
@@ -38,7 +39,7 @@ export class CryptoRouteController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async updateCryptoRoute(@Param('id') id: string, @Res() res): Promise<void> {
     // Redirecting to swap

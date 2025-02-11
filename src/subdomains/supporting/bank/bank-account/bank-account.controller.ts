@@ -13,6 +13,7 @@ import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateBankAccountDto, CreateBankAccountInternalDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Bank Account')
 @Controller('bankAccount')
@@ -24,7 +25,7 @@ export class BankAccountController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
     return this.bankDataService.getValidBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
@@ -32,7 +33,7 @@ export class BankAccountController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiCreatedResponse({ type: BankAccountDto })
   async createBankAccount(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBankAccountDto): Promise<BankAccountDto> {
     return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => this.toDto(b));
@@ -40,7 +41,7 @@ export class BankAccountController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ type: BankAccountDto })
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,

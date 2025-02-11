@@ -16,6 +16,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserGuard } from 'src/shared/auth/user.guard';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -49,7 +50,7 @@ export class UserController {
   // --- USER --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: UserDto })
   @ApiOperation({ deprecated: true })
   async getUserV1(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
@@ -58,7 +59,7 @@ export class UserController {
 
   @Get('detail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: UserDetailDto })
   @ApiOperation({ deprecated: true })
   async getUserDetailV1(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
@@ -67,7 +68,7 @@ export class UserController {
 
   @Put()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: UserDetailDto })
   @ApiOperation({ deprecated: true })
   async updateUserV1(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserDetailDto> {
@@ -76,7 +77,7 @@ export class UserController {
 
   @Put('discountCodes')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse()
   @ApiOperation({ deprecated: true, description: 'This endpoint is deprecated, use "specialCodes" instead.' })
   async addDiscountCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
@@ -87,7 +88,7 @@ export class UserController {
 
   @Put('specialCodes')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse()
   async addSpecialCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
     const user = await this.userService.getUser(jwt.user, { userData: true, wallet: true });
@@ -97,7 +98,7 @@ export class UserController {
 
   @Post('change')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ type: AuthResponseDto })
   async changeUser(
     @GetJwt() jwt: JwtPayload,
@@ -110,7 +111,7 @@ export class UserController {
   // TODO: temporary CC solution
   @Put('name')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto): Promise<void> {
     await this.userService.updateUserName(jwt.user, data);
@@ -118,7 +119,7 @@ export class UserController {
 
   @Post('data')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiCreatedResponse({ type: UserDetailDto })
   @ApiBadRequestResponse({ description: 'KYC already started' })
   @ApiConflictResponse({ description: 'Account already exists' })
@@ -128,7 +129,7 @@ export class UserController {
 
   @Delete()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
@@ -137,7 +138,7 @@ export class UserController {
 
   @Delete('account')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
@@ -206,7 +207,7 @@ export class UserV2Controller {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ type: UserV2Dto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
     return this.userService.getUserDtoV2(jwt.account, jwt.user);
@@ -214,7 +215,7 @@ export class UserV2Controller {
 
   @Put()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ type: UserV2Dto })
   async updateUser(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserV2Dto> {
     return this.userService.updateUser(jwt.account, newUser, jwt.user);
@@ -222,7 +223,7 @@ export class UserV2Controller {
 
   @Put('mail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ description: 'Verification code sent' })
   @ApiForbiddenResponse({ description: 'Missing 2FA' })
   @ApiConflictResponse({ description: 'Account already exists' })
@@ -236,7 +237,7 @@ export class UserV2Controller {
 
   @Post('mail/verify')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiCreatedResponse({ description: 'Email verification successful' })
   @ApiForbiddenResponse({ description: 'Invalid or expired mail verification token' })
   async verifyMail(@GetJwt() jwt: JwtPayload, @Body() dto: VerifyMailDto): Promise<UserV2Dto> {
@@ -245,7 +246,7 @@ export class UserV2Controller {
 
   @Put('addresses/:address')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse({ type: UserV2Dto })
   async updateAddress(
     @GetJwt() jwt: JwtPayload,
@@ -257,7 +258,7 @@ export class UserV2Controller {
 
   @Delete('addresses/:address')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse()
   async deleteAddress(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
     return this.userService.deactivateUser(jwt.account, address);
@@ -265,7 +266,7 @@ export class UserV2Controller {
 
   @Delete()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
   @ApiOkResponse()
   async deleteAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
     return this.userService.deactivateUser(jwt.account);
@@ -273,7 +274,7 @@ export class UserV2Controller {
 
   @Get('ref')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: ReferralDto })
   async getRef(@GetJwt() jwt: JwtPayload): Promise<ReferralDto> {
     return this.userService.getRefDtoV2(jwt.user);

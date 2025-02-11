@@ -42,6 +42,7 @@ import { SwapDto } from './dto/swap.dto';
 import { UpdateSwapDto } from './dto/update-swap.dto';
 import { Swap } from './swap.entity';
 import { SwapService } from './swap.service';
+import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Swap')
 @Controller('swap')
@@ -59,7 +60,7 @@ export class SwapController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async getAllSwap(@GetJwt() jwt: JwtPayload): Promise<SwapDto[]> {
     return this.swapService.getUserSwaps(jwt.user).then((l) => this.toDtoList(jwt.user, l));
@@ -67,7 +68,7 @@ export class SwapController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiOkResponse({ type: SwapDto })
   async getSwap(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
     return this.swapService.get(jwt.user, +id).then((l) => this.toDto(jwt.user, l));
@@ -75,7 +76,7 @@ export class SwapController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async createSwap(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSwapDto): Promise<SwapDto> {
     dto.targetAsset ??= dto.asset;
@@ -140,7 +141,7 @@ export class SwapController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserGuard)
   @ApiOkResponse({ type: SwapPaymentInfoDto })
   async createSwapWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -158,7 +159,7 @@ export class SwapController {
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSwap(
     @GetJwt() jwt: JwtPayload,
@@ -174,7 +175,7 @@ export class SwapController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserGuard)
   @ApiExcludeEndpoint()
   async updateSwapRoute(
     @GetJwt() jwt: JwtPayload,
