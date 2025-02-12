@@ -57,7 +57,11 @@ export class BuyFiatJobService {
     const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
 
     for (const buyFiats of sellGroups.values()) {
-      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats });
+      await this.fiatOutputService.createInternal(
+        'BuyFiat',
+        { buyFiats },
+        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      );
     }
   }
 

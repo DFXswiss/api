@@ -16,10 +16,11 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { Between, In, IsNull, LessThan, Not } from 'typeorm';
+import { LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -38,7 +39,7 @@ import {
   getIdNowIdentReason,
   getIdentResult,
 } from '../dto/ident-result.dto';
-import { IdentStatus } from '../dto/ident.dto';
+import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
   KycContactData,
   KycFileData,
@@ -64,7 +65,8 @@ import {
 import { KycStep } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
-import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
@@ -79,6 +81,8 @@ import { TfaLevel, TfaService } from './tfa.service';
 @Injectable()
 export class KycService {
   private readonly logger = new DfxLogger(KycService);
+
+  private readonly webhookQueue: QueueHandler;
 
   constructor(
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
@@ -99,7 +103,9 @@ export class KycService {
     private readonly webhookService: WebhookService,
     private readonly sumsubService: SumsubService,
     private readonly mailFactory: MailFactory,
-  ) {}
+  ) {
+    this.webhookQueue = new QueueHandler();
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   @Lock()
@@ -217,7 +223,9 @@ export class KycService {
           errors.length === 1 &&
           entity.userData.accountType === AccountType.PERSONAL
         ) {
-          entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+          await this.userDataService.updateUserDataInternal(entity.userData, {
+            verifiedName: `${entity.userData.firstname} ${entity.userData.surname}`,
+          });
           entity.complete();
         } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
@@ -399,7 +407,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       fileType,
       data.fileName,
@@ -472,18 +480,23 @@ export class KycService {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
-    if (!result) throw new Error(`Received unknown sumsub ident result for transaction ${transactionId}: ${dto.type}`);
+    if (!result) {
+      this.logger.info(`Ignoring Sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
+      return;
+    }
 
     this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
 
     const data = await this.sumsubService.getApplicantData(dto.applicantId);
 
-    await this.updateIdent(
-      IdentType.SUM_SUB,
-      transactionId,
-      { webhook: dto, data },
-      result,
-      dto.reviewResult?.rejectLabels,
+    return this.webhookQueue.handle(() =>
+      this.updateIdent(
+        IdentType.SUM_SUB,
+        transactionId,
+        { webhook: dto, data },
+        result,
+        dto.reviewResult?.rejectLabels,
+      ),
     );
   }
 
@@ -504,7 +517,7 @@ export class KycService {
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
     if (!kycStep.isInProgress && !kycStep.isInReview) {
-      this.logger.verbose(`Received kyc webhook call dropped: ${kycStep.id}`);
+      this.logger.verbose(`Received KYC webhook call dropped: ${kycStep.id}`);
       return;
     }
 
@@ -531,6 +544,10 @@ export class KycService {
         await this.kycStepRepo.update(...kycStep.internalReview(dto));
         await this.downloadIdentDocuments(user, kycStep);
         break;
+
+      case IdentShortResult.MEDIA:
+        await this.downloadMedia(user, kycStep);
+        return;
 
       case IdentShortResult.FAIL:
         // retrigger personal data step, if data was wrong
@@ -559,7 +576,7 @@ export class KycService {
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
-    const newUrl = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       FileType.IDENTIFICATION,
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
@@ -569,7 +586,14 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
+    await this.kycStepRepo.update(
+      ...kycStep.internalReview({
+        ...dto,
+        documentUrl: url,
+        document: undefined,
+        birthday: Util.isoDate(dto.birthday),
+      }),
+    );
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -700,8 +724,8 @@ export class KycService {
         if (identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)))
           return { nextStep: undefined };
 
-        const userDataMergeRequestedStep = identSteps.find((i) =>
-          i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED),
+        const userDataMergeRequestedStep = identSteps.find(
+          (i) => i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED) && i.sequenceNumber >= 0,
         );
         if (userDataMergeRequestedStep) {
           const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
@@ -994,11 +1018,44 @@ export class KycService {
     await this.tfaService.checkVerification(user, ip, TfaLevel.STRICT);
   }
 
-  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix?: string) {
+    const documents = await this.sumsubService.getDocuments(kycStep);
+    await this.storeDocuments(documents, user, kycStep, namePrefix);
+  }
+
+  private async downloadMedia(user: UserData, kycStep: KycStep, namePrefix?: string) {
+    const documents = await this.sumsubService.getMedia(kycStep);
+    await this.storeDocuments(documents, user, kycStep, namePrefix);
+  }
+
+  async syncIdentFiles(stepId: number): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
+    if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
+
+    const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
+
     const documents = kycStep.isSumsub
       ? await this.sumsubService.getDocuments(kycStep)
       : await this.identService.getDocuments(kycStep);
 
+    const missingDocuments = documents.filter(
+      (d) =>
+        !userFiles.some(
+          (f) =>
+            f.type === FileType.IDENTIFICATION &&
+            f.name.includes(kycStep.transactionId) &&
+            f.contentType === d.contentType,
+        ),
+    );
+    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep);
+  }
+
+  private async storeDocuments(
+    documents: IdentDocument[],
+    user: UserData,
+    kycStep: KycStep,
+    namePrefix = '',
+  ): Promise<void> {
     for (const { name, content, contentType } of documents) {
       await this.documentService.uploadFile(
         user,
@@ -1010,38 +1067,5 @@ export class KycService {
         kycStep,
       );
     }
-  }
-
-  async syncIdentFiles(from: number, to: number, doSync: boolean): Promise<string> {
-    const completedIdentSteps = await this.kycStepRepo.find({
-      where: {
-        id: Between(from, to),
-        name: KycStepName.IDENT,
-        type: In([KycStepType.AUTO, KycStepType.VIDEO]),
-        status: KycStepStatus.COMPLETED,
-        transactionId: Not(IsNull()),
-      },
-      relations: { userData: true },
-    });
-
-    const log = [];
-
-    for (const step of completedIdentSteps) {
-      const id = `${step.id} - ${step.userData.id}`;
-
-      try {
-        const userFiles = await this.documentService.listUserFiles(step.userData.id);
-        if (userFiles.some((f) => f.type === FileType.IDENTIFICATION && f.name.includes(step.transactionId))) {
-          log.push(`${id} OK`);
-        } else {
-          if (doSync) await this.downloadIdentDocuments(step.userData, step);
-          log.push(`${id} SYNC${doSync ? ' DONE' : ''}`);
-        }
-      } catch (e) {
-        log.push(`${id} SYNC ERROR: ${e.message}`);
-      }
-    }
-
-    return log.join('\n');
   }
 }

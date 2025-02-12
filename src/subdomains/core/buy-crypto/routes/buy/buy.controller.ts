@@ -174,11 +174,8 @@ export class BuyController {
 
     times.push(Date.now());
 
-    const total = Util.round((Date.now() - times[0]) / 1000, 3);
-    if (total > 1) {
-      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`Buy info${dto.exactPrice ? ' exact' : ''} request times: ${timesString} (total ${total})`);
-    }
+    const timeString = Util.createTimeString(times);
+    if (timeString) this.logger.verbose(`Buy info${dto.exactPrice ? ' exact' : ''} request times: ${timeString}`);
 
     return infos;
   }
@@ -269,7 +266,11 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+    const times = [Date.now()];
+
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
+
+    times.push(Date.now());
 
     const {
       timestamp,
@@ -297,12 +298,17 @@ export class BuyController {
       !dto.exactPrice,
       user,
     );
+
+    times.push(Date.now());
+
     const bankInfo = await this.getBankInfo({
       amount: amount,
       currency: dto.currency.name,
       paymentMethod: dto.paymentMethod,
       userData: user.userData,
     });
+
+    times.push(Date.now());
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
@@ -353,7 +359,14 @@ export class BuyController {
         ),
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Buy, dto, buyDto, user.id);
+    times.push(Date.now());
+
+    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id);
+
+    times.push(Date.now());
+
+    const timeString = Util.createTimeString(times);
+    if (timeString) this.logger.verbose(`Buy info to payment request times: ${timeString}`);
 
     return buyDto;
   }

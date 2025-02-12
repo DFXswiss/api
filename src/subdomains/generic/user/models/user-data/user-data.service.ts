@@ -21,7 +21,6 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -29,7 +28,8 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -86,26 +86,6 @@ export class UserDataService {
     private readonly kycAdminService: KycAdminService,
     private readonly tfaService: TfaService,
   ) {}
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async syncWallet() {
-    if (DisabledProcess(Process.USER_DATA_WALLET_SYNC)) return;
-
-    const entities = await this.userDataRepo.find({
-      where: { wallet: { id: IsNull() }, users: { id: Not(IsNull()) } },
-      relations: { users: { wallet: true } },
-      take: 10000,
-    });
-
-    for (const entity of entities) {
-      try {
-        await this.userDataRepo.update(entity.id, { wallet: entity.users[0].wallet });
-      } catch (e) {
-        this.logger.error(`Error in userData wallet sync: ${entity.id}`, e);
-      }
-    }
-  }
 
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -230,13 +210,13 @@ export class UserDataService {
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
-    if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
-    await this.userDataRepo.update(userData.id, dto);
     Object.assign(userData, dto);
+
+    await this.userDataRepo.save(userData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -246,11 +226,11 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.downloadTargets.reverse();
+    const downloadTargets = Config.kyc.downloadTargets.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
-      const userData = await this.getUserData(userDataId);
+      const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData?.verifiedName) {
         errorLog += !userData
@@ -267,10 +247,13 @@ export class UserDataService {
         continue;
       }
 
-      const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
+      const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
+
+      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of downloadTargets) {
+      for (const { id, name, fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of applicableTargets) {
+        const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -289,18 +272,19 @@ export class UserDataService {
           continue;
         }
 
-        const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+        const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
         try {
           const fileData = await this.documentService.downloadFile(
-            latestFile.category,
+            selectedFile.category,
             userDataId,
-            latestFile.type,
-            latestFile.name,
+            selectedFile.type,
+            selectedFile.name,
           );
-          subFolder.file(latestFile.name.replace(/\//g, '_'), fileData.data);
+          const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+          subFolder.file(filePath, fileData.data);
         } catch (error) {
-          errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
+          errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
         }
       }
     }
@@ -815,6 +799,9 @@ export class UserDataService {
             KycStepStatus.INTERNAL_REVIEW,
             KycStepStatus.EXTERNAL_REVIEW,
             KycStepStatus.FINISHED,
+            KycStepStatus.PARTIALLY_APPROVED,
+            KycStepStatus.DATA_REQUESTED,
+            KycStepStatus.PAUSED,
           ].includes(kycStep.status)
             ? KycStepStatus.CANCELED
             : undefined,

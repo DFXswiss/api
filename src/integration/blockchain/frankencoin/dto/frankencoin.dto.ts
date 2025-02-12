@@ -1,18 +1,18 @@
-export interface FrankencoinPositionGraphDto {
+import { FrankencoinBasedCollateralDto } from '../../shared/frankencoin/frankencoin-based.dto';
+
+export interface FrankencoinPositionGraphDto extends FrankencoinBasedCollateralDto {
   id: string;
   position: string;
   owner: string;
   zchf: string;
-  collateral: string;
   price: string;
-  collateralSymbol: string;
-  collateralBalance: string;
-  collateralDecimals: number;
   limitForClones: string;
   availableForClones: string;
   minted: string;
   reserveContribution: number;
   expiration: string;
+  closed: boolean;
+  denied: boolean;
 }
 
 export interface FrankencoinChallengeGraphDto {

@@ -7,14 +7,18 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 @Injectable()
@@ -28,11 +32,33 @@ export class AmlService {
     private readonly nameCheckService: NameCheckService,
     private readonly userDataService: UserDataService,
     private readonly countryService: CountryService,
+    private readonly payInService: PayInService,
+    private readonly userService: UserService,
   ) {}
+
+  async postProcessing(entity: BuyFiat | BuyCrypto, amlCheckBefore: CheckStatus, last30dVolume: number): Promise<void> {
+    if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
+
+    if (amlCheckBefore !== entity.amlCheck && entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+      await this.userDataService.triggerVideoIdent(entity.userData);
+
+    if (entity.amlCheck === CheckStatus.PASS) {
+      if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user);
+
+      // KYC file id
+      if (
+        !entity.userData.kycFileId &&
+        (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT) &&
+        last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc
+      ) {
+        const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
+        await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
+      }
+    }
+  }
 
   async getAmlCheckInput(
     entity: BuyFiat | BuyCrypto,
-    last24hVolume: number,
   ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     let bankData = await this.getBankData(entity);
@@ -83,16 +109,6 @@ export class AmlService {
     if (!entity.userData.verifiedCountry) {
       const verifiedCountry = await this.getVerifiedCountry(entity);
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
-    }
-
-    // KYC file id
-    if (
-      !entity.userData.kycFileId &&
-      last24hVolume > Config.tradingLimits.dailyDefault &&
-      entity.userData.kycLevel >= KycLevel.LEVEL_50
-    ) {
-      const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
-      await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
     }
 
     if (entity instanceof BuyFiat) return { bankData, blacklist };

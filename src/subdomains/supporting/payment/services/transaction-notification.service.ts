@@ -108,13 +108,17 @@ export class TransactionNotificationService {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
         mailSendDate: IsNull(),
       },
-      relations: { bankTx: true, user: { wallet: true } },
+      relations: { bankTx: true },
     });
     if (entities.length === 0) return;
 
     for (const entity of entities) {
       try {
-        const bankData = await this.bankDataService.getVerifiedBankDataWithIban(entity.bankTx.senderAccount);
+        const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+          entity.bankTx.senderAccount,
+          undefined,
+          { userData: { wallet: true } },
+        );
         if (!bankData) continue;
 
         if (bankData.userData.mail) {
@@ -123,7 +127,7 @@ export class TransactionNotificationService {
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
-              wallet: entity.user.wallet,
+              wallet: bankData.userData.wallet,
               title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
               salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
               texts: [

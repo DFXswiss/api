@@ -11,7 +11,8 @@ import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/pay
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -90,7 +91,7 @@ export enum BlankType {
 }
 
 export enum LimitPeriod {
-  DAY = 'Day',
+  MONTH = 'Month',
   YEAR = 'Year',
 }
 
@@ -288,6 +289,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   relatedUsers?: string;
+
+  @Column({ length: 256, nullable: true })
+  postAmlCheck?: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -500,9 +504,9 @@ export class UserData extends IEntity {
         period: LimitPeriod.YEAR,
       };
     } else if (this.isKycTerminated) {
-      return { limit: 0, period: LimitPeriod.DAY };
+      return { limit: 0, period: LimitPeriod.MONTH };
     } else {
-      return { limit: Config.tradingLimits.dailyDefault, period: LimitPeriod.DAY };
+      return { limit: Config.tradingLimits.monthlyDefaultWoKyc, period: LimitPeriod.MONTH };
     }
   }
 

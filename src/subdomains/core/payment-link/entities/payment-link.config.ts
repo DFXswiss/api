@@ -16,4 +16,6 @@ export interface PaymentLinkConfig {
   recipient?: PaymentLinkRecipientDto;
   paymentTimeout: number;
   payoutFrequency?: PayoutFrequency;
+  ep2ReportContainer?: string;
+  autoConfirmSecs?: number;
 }

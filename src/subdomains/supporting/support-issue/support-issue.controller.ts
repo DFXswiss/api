@@ -14,6 +14,7 @@ import { SupportIssueDto, SupportMessageDto } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
+import { Department } from './enums/department.enum';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -23,9 +24,12 @@ export class SupportIssueController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
-    return this.supportIssueService.createIssue(jwt.account, { ...dto, author: CustomerAuthor });
+  @UseGuards(OptionalJwtAuthGuard)
+  async createIssue(@Body() dto: CreateSupportIssueDto, @GetJwt() jwt?: JwtPayload): Promise<SupportIssueDto> {
+    const input: CreateSupportIssueDto = { ...dto, author: CustomerAuthor, department: Department.SUPPORT };
+    return jwt?.account
+      ? this.supportIssueService.createIssue(jwt.account, input)
+      : this.supportIssueService.createTransactionRequestIssue(input);
   }
 
   @Post('support')

@@ -1,4 +1,3 @@
-import { BadRequest } from 'ccxt';
 import { IdentShortResult } from './ident-result.dto';
 
 export interface SumsubResult {
@@ -14,7 +13,7 @@ export interface SumSubWebhookResult {
   correlationId?: string;
   externalUserId?: string;
   externalApplicantActionId?: string;
-  levelName?: string;
+  levelName?: SumSubLevelName;
   previousLevelName?: string;
   type?: SumSubWebhookType;
   reviewResult?: {
@@ -75,6 +74,21 @@ export interface SumSubDataResult {
   agreement?: { createdAt?: Date; source?: string; acceptedAt?: string; recordIds?: string[] };
 }
 
+export interface SumSubVideoData {
+  id?: string;
+  videoIdentData?: {
+    reviewStatus?: string;
+    moderatorDisplayName?: string;
+    compositions: SumSubComposition[];
+  };
+}
+
+export interface SumSubComposition {
+  compositionCreatedAt?: Date;
+  compositionDuration?: number;
+  compositionMediaId?: string;
+}
+
 export enum IdDocType {
   ID_CARD = 'ID_CARD',
   PASSPORT = 'PASSPORT',
@@ -104,6 +118,11 @@ export enum ReviewStatus {
   ON_HOLD = 'onHold',
 }
 
+export enum SumSubLevelName {
+  CH_STANDARD = 'CH-Standard',
+  CH_STANDARD_VIDEO = 'CH-Standard-Video',
+}
+
 export enum SumSubWebhookType {
   APPLICANT_CREATED = 'applicantCreated',
   APPLICANT_PENDING = 'applicantPending',
@@ -122,6 +141,7 @@ export enum SumSubWebhookType {
   APPLICANT_LEVEL_CHANGED = 'applicantLevelChanged',
   APPLICANT_WORKFLOW_COMPLETED = 'applicantWorkflowCompleted',
   VIDEO_IDENT_STATUS_CHANGED = 'videoIdentStatusChanged',
+  VIDEO_IDENT_COMPOSITION_COMPLETED = 'videoIdentCompositionCompleted',
 }
 
 export enum SumSubRejectionLabels {
@@ -221,7 +241,7 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
   [SumSubRejectionLabels.INCONSISTENT_PROFILE]: 'Data or documents of different persons were uploaded',
   [SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA]: 'Applicant data does not match the data in your documents',
   [SumSubRejectionLabels.ADDITIONAL_DOCUMENT_REQUIRED]: 'Additional documents are required to pass the check',
-  [SumSubRejectionLabels.AGE_REQUIREMENT_MISMATCH]: 'The age requirement is not met',
+  [SumSubRejectionLabels.AGE_REQUIREMENT_MISMATCH]: 'The age requirement (18 years) is not met',
   [SumSubRejectionLabels.REQUESTED_DATA_MISMATCH]:
     'Provided information does not match with the data from the document',
   [SumSubRejectionLabels.EXPERIENCE_REQUIREMENT_MISMATCH]: 'You do not have enough experience',
@@ -273,30 +293,28 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
-  if (dto.reviewStatus === ReviewStatus.INIT) IdentShortResult.PENDING;
   switch (dto.type) {
     case SumSubWebhookType.APPLICANT_PENDING:
-      return IdentShortResult.REVIEW;
+    case SumSubWebhookType.APPLICANT_REVIEWED: {
+      switch (dto.reviewStatus) {
+        case ReviewStatus.INIT:
+          return IdentShortResult.PENDING;
 
-    case SumSubWebhookType.APPLICANT_REVIEWED:
-      return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+        case ReviewStatus.PENDING:
+          if (dto.levelName === SumSubLevelName.CH_STANDARD) return IdentShortResult.REVIEW;
+          break;
 
-    case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED:
-      if (dto.videoIdentReviewStatus === ReviewStatus.INIT) {
-        return IdentShortResult.PENDING;
-      }
-
-      if (dto.videoIdentReviewStatus === ReviewStatus.PENDING) {
-        return IdentShortResult.REVIEW;
-      }
-
-      if (dto.videoIdentReviewStatus === ReviewStatus.COMPLETED) {
-        return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN ? IdentShortResult.SUCCESS : IdentShortResult.FAIL;
+        case ReviewStatus.COMPLETED:
+          return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
+            ? IdentShortResult.SUCCESS
+            : IdentShortResult.FAIL;
       }
       break;
+    }
 
-    default:
-      throw new BadRequest(`Unknown webhook type: ${dto.type}`);
+    case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
+      if (dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
+      break;
   }
 }
 

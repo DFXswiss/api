@@ -19,7 +19,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -283,8 +283,12 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentExchangeTx(type: BankTxType, start = Util.daysBefore(21)): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ type, created: MoreThan(start) });
+  async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({
+      id: minId ? MoreThanOrEqual(minId) : undefined,
+      type,
+      created: !minId ? MoreThan(Util.daysBefore(21)) : undefined,
+    });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

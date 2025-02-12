@@ -8,9 +8,11 @@ import { WebhookService } from '../../../generic/user/services/webhook/webhook.s
 import { LimitRequestDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
-import { SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
+import { SupportLogType } from '../enums/support-log.enum';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
+import { SupportLogService } from './support-log.service';
 
 @Injectable()
 export class LimitRequestService {
@@ -21,6 +23,7 @@ export class LimitRequestService {
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
     private readonly supportIssueRepo: SupportIssueRepository,
+    private readonly supportLogService: SupportLogService,
   ) {}
 
   async increaseLimitInternal(dto: LimitRequestDto, userData: UserData): Promise<LimitRequest> {
@@ -68,6 +71,12 @@ export class LimitRequestService {
     }
 
     Util.removeNullFields(entity);
+
+    await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
+      type: SupportLogType.LIMIT_REQUEST,
+      limitRequest: entity,
+      ...update,
+    });
 
     return this.limitRequestRepo.save({ ...update, ...entity });
   }

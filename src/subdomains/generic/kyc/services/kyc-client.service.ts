@@ -9,7 +9,7 @@ import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { PaymentWebhookData } from '../../user/services/webhook/dto/payment-webhook.dto';
 import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
-import { FileType, KycClientDataDto, KycFile, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { FileType, KycClientDataDto, KycFileBlob, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycDocumentService } from './integration/kyc-document.service';
@@ -103,7 +103,7 @@ export class KycClientService {
     });
   }
 
-  private getFileFor(type: KycReportType, documents: KycFile[]): KycFile | undefined {
+  private getFileFor(type: KycReportType, documents: KycFileBlob[]): KycFileBlob | undefined {
     switch (type) {
       case KycReportType.IDENTIFICATION:
         return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);
@@ -120,7 +120,7 @@ export class KycClientService {
     };
   }
 
-  private toKycFileDto(type: KycReportType, { contentType }: KycFile): KycReportDto {
+  private toKycFileDto(type: KycReportType, { contentType }: KycFileBlob): KycReportDto {
     return { type, contentType };
   }
 }

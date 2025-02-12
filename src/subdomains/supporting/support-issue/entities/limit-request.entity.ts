@@ -1,7 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Column, Entity, OneToOne } from 'typeorm';
+import { Column, Entity, OneToMany, OneToOne } from 'typeorm';
+import { LimitRequestLog } from './limit-request-log.entity';
 
 export enum InvestmentDate {
   NOW = 'Now',
@@ -59,6 +60,9 @@ export class LimitRequest extends IEntity {
 
   @OneToOne(() => SupportIssue, (supportIssue) => supportIssue.limitRequest, { nullable: false, eager: true })
   supportIssue: SupportIssue;
+
+  @OneToMany(() => LimitRequestLog, (l) => l.limitRequest)
+  logs: LimitRequestLog[];
 
   // Methods
   sendMail(): UpdateResult<LimitRequest> {
