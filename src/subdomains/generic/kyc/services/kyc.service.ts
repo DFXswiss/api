@@ -1008,10 +1008,12 @@ export class KycService {
   }
 
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
-    const stepsWith2fa = [KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
-    if (stepsWith2fa.some((s) => user.getPendingStepWith(s))) {
-      await this.verify2fa(user, ip);
-    }
+    const has2faSteps = user.kycSteps.some(
+      (s) =>
+        (s.name === KycStepName.FINANCIAL_DATA || (s.name === KycStepName.IDENT && s.type !== KycStepType.MANUAL)) &&
+        s.isInProgress,
+    );
+    if (has2faSteps) await this.verify2fa(user, ip);
   }
 
   private async verify2fa(user: UserData, ip: string): Promise<void> {
