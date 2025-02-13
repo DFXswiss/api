@@ -885,7 +885,7 @@ export class UserDataService {
       select: ['id'],
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
-        { buyFiat: { sell: { user: { userData: { id: userDataId } } } } },
+        { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
       ],
       relations: [
         'buyCrypto',

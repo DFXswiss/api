@@ -35,8 +35,7 @@ export class BuyFiat extends IEntity {
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
-  @OneToOne(() => BankTx, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => BankTx, { nullable: true })
   bankTx?: BankTx;
 
   @ManyToOne(() => BankData, { nullable: true })
@@ -354,6 +353,19 @@ export class BuyFiat extends IEntity {
       outputAmount,
       outputReferenceAmount: this.outputReferenceAmount ?? outputAmount,
       priceSteps: this.priceSteps,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  complete(remittanceInfo: string, outputDate: Date, bankTx: BankTx): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      remittanceInfo,
+      outputDate,
+      bankTx,
+      isComplete: true,
     };
 
     Object.assign(this, update);

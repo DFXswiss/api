@@ -6,7 +6,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
 import { BankTxRepeat } from '../../bank-tx-repeat/bank-tx-repeat.entity';
@@ -209,8 +209,8 @@ export class BankTx extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.chargebackBankTx, { nullable: true })
   buyCryptoChargeback?: BuyCrypto;
 
-  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
-  buyFiat?: BuyFiat;
+  @OneToMany(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
+  buyFiats?: BuyFiat[];
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
@@ -219,7 +219,11 @@ export class BankTx extends IEntity {
   //*** GETTER METHODS ***//
 
   get user(): User {
-    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiat?.user;
+    return (
+      this.buyCrypto?.user ??
+      this.buyCryptoChargeback?.user ??
+      (this.buyFiats.length === 1 ? this.buyFiats?.[0].user : undefined)
+    );
   }
 
   get feeAmountChf(): number {
