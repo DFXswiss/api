@@ -239,7 +239,9 @@ export class UserDataService {
         continue;
       }
 
-      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${
+        userData.verifiedName
+      }`.replace(/\./g, '');
       const parentFolder = zip.folder(baseFolderName);
 
       if (!parentFolder) {

@@ -61,7 +61,7 @@ export class FiatOutputService {
     if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
 
     const entities = await this.fiatOutputRepo.find({
-      where: { reportCreated: false, outputDate: Not(IsNull()) },
+      where: { reportCreated: false, isComplete: true },
       relations: {
         buyFiats: { transaction: { user: { userData: true } }, cryptoInput: { paymentLinkPayment: { link: true } } },
       },
