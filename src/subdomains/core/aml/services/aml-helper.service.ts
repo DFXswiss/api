@@ -4,6 +4,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -63,6 +64,11 @@ export class AmlHelperService {
       if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
         errors.push(AmlError.NO_LETTER);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+      if (
+        entity.userData.accountType === AccountType.ORGANIZATION &&
+        entity.userData.identificationType === KycIdentificationType.ONLINE_ID
+      )
+        errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
 
     // AmlRule asset/fiat check

@@ -8,4 +8,5 @@ export enum QuoteError {
   LIMIT_EXCEEDED = 'LimitExceeded',
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   NAME_REQUIRED = 'NameRequired',
+  VIDEO_IDENT_REQUIRED = 'VideoIdentRequired',
 }

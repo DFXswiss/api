@@ -66,12 +66,16 @@ export class DfxCronService implements OnModuleInit {
 
       if (data.params.useDelay ?? true) await this.cronJobDelay(data.params.expression);
 
-      const cronJobName = `${data.instance.constructor.name}::${data.methodName}`;
       const starttime = Date.now();
 
       await data.methodRef.apply(data.instance, args);
 
-      this.logger.info(`Cron Job: ${cronJobName} / Runtime: ${Date.now() - starttime}`);
+      const runtime = Date.now() - starttime;
+
+      if (runtime > 500) {
+        const cronJobName = `${data.instance.constructor.name}::${data.methodName}`;
+        this.logger.info(`Cron Job: ${cronJobName} / Runtime: ${runtime}`);
+      }
     };
   }
 
