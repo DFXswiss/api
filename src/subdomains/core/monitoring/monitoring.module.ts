@@ -16,6 +16,7 @@ import { AmlObserver } from './observers/aml.observer';
 import { BankObserver } from './observers/bank.observer';
 import { BankingBotObserver } from './observers/banking-bot.observer';
 import { CheckoutObserver } from './observers/checkout.observer';
+import { ExchangeObserver } from './observers/exchange.observer';
 import { ExternalServicesObserver } from './observers/external-services.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
@@ -50,6 +51,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     ExternalServicesObserver,
     CheckoutObserver,
     AmlObserver,
+    ExchangeObserver,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],
