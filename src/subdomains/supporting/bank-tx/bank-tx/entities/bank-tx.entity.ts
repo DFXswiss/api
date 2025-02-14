@@ -219,11 +219,7 @@ export class BankTx extends IEntity {
   //*** GETTER METHODS ***//
 
   get user(): User {
-    return (
-      this.buyCrypto?.user ??
-      this.buyCryptoChargeback?.user ??
-      (this.buyFiats.length === 1 ? this.buyFiats?.[0].user : undefined)
-    );
+    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
   }
 
   get feeAmountChf(): number {
