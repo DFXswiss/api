@@ -516,6 +516,13 @@ export class KycService {
 
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
+
+    if (result === IdentShortResult.MEDIA) {
+      await this.downloadMedia(user, kycStep);
+      this.logger.info(`Media download finished for KYC step: ${kycStep.id}`);
+      return;
+    }
+
     if (!kycStep.isInProgress && !kycStep.isInReview) {
       this.logger.verbose(`Received KYC webhook call dropped: ${kycStep.id}`);
       return;
@@ -544,10 +551,6 @@ export class KycService {
         await this.kycStepRepo.update(...kycStep.internalReview(dto));
         await this.downloadIdentDocuments(user, kycStep);
         break;
-
-      case IdentShortResult.MEDIA:
-        await this.downloadMedia(user, kycStep);
-        return;
 
       case IdentShortResult.FAIL:
         // retrigger personal data step, if data was wrong
