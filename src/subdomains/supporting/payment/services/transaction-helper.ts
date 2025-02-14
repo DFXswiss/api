@@ -610,6 +610,9 @@ export class TransactionHelper implements OnModuleInit {
     if (user && txAmountChf > kycLimitChf) return QuoteError.LIMIT_EXCEEDED;
 
     // verification checks
+    if (paymentMethodIn === FiatPaymentMethod.CARD && user && !user.userData.completeName)
+      return QuoteError.NAME_REQUIRED;
+
     if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
