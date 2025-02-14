@@ -252,6 +252,7 @@ export class BankTxService {
       .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
         remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
+      .orderBy('id', 'DESC')
       .getOne();
   }
 
