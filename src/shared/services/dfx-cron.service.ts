@@ -66,6 +66,9 @@ export class DfxCronService implements OnModuleInit {
 
       if (data.params.useDelay ?? true) await this.cronJobDelay(data.params.expression);
 
+      const cronJobName = `${data.instance.constructor.name}::${data.methodName}`;
+      this.logger.info(`Cron Job: ${cronJobName}`);
+
       await data.methodRef.apply(data.instance, args);
     };
   }
