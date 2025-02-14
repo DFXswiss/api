@@ -1,10 +1,14 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  TransactionRequest,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import {
   KycRequiredReason,
   LimitExceededReason,
@@ -33,7 +37,13 @@ export class RefRewardExtended extends RefReward {
   outputAssetEntity: Active;
 }
 
+export class TransactionRequestExtended extends TransactionRequest {
+  sourceAssetEntity: Active;
+  targetAssetEntity: Active;
+}
+
 export class TransactionDtoMapper {
+  // BuyCrypto
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
       id: buyCrypto.transaction.id,
@@ -94,6 +104,7 @@ export class TransactionDtoMapper {
     return buyCryptos.map(TransactionDtoMapper.mapBuyCryptoTransaction);
   }
 
+  // BuyFiat
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
     const dto: TransactionDto = {
       id: buyFiat.transaction.id,
@@ -153,6 +164,59 @@ export class TransactionDtoMapper {
     return buyFiats.map(TransactionDtoMapper.mapBuyFiatTransaction);
   }
 
+  // Waiting TxRequest
+  static mapTxRequestTransaction(txRequest: TransactionRequestExtended): TransactionDto {
+    const dto: TransactionDto = {
+      id: null,
+      uid: txRequest.uid,
+      type: Object.values(TransactionType).find((t) => t === txRequest.type.toString()),
+      ...getTransactionStateDetails(txRequest),
+      inputAmount: Util.roundReadable(txRequest.amount, isFiat(txRequest.sourceAssetEntity)),
+      inputAsset: txRequest.sourceAssetEntity.name,
+      inputAssetId: txRequest.sourceAssetEntity.id,
+      inputBlockchain: isAsset(txRequest.sourceAssetEntity) ? txRequest.sourceAssetEntity.blockchain : null,
+      inputPaymentMethod: txRequest.sourcePaymentMethod,
+      outputAmount: null,
+      outputAsset: txRequest.targetAssetEntity?.name,
+      outputAssetId: txRequest.targetAssetEntity?.id,
+      outputBlockchain: isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity?.blockchain : null,
+      outputPaymentMethod: txRequest.targetPaymentMethod,
+      priceSteps: null,
+      feeAmount: txRequest.totalFee
+        ? Util.roundReadable(txRequest.totalFee * txRequest.amount, isFiat(txRequest.sourceAssetEntity))
+        : null,
+      feeAsset: txRequest.totalFee ? txRequest.sourceAssetEntity.name : null,
+      fees: TransactionDtoMapper.mapFees(txRequest),
+      inputTxId: null,
+      inputTxUrl: null,
+      outputTxId: null,
+      outputTxUrl: null,
+      outputDate: null,
+      chargebackAmount: null,
+      chargebackTarget: null,
+      chargebackTxId: null,
+      chargebackTxUrl: null,
+      chargebackDate: null,
+      date: txRequest.created,
+      externalTransactionId: null,
+    };
+
+    return Object.assign(new TransactionDto(), dto);
+  }
+
+  static mapTxRequestTransactionDetail(txRequest: TransactionRequestExtended): TransactionDetailDto {
+    return {
+      ...this.mapTxRequestTransaction(txRequest),
+      sourceAccount: null,
+      targetAccount: txRequest.type === TransactionRequestType.BUY ? txRequest.user?.address : null, // TODO: load route relation for iban?
+    };
+  }
+
+  static mapTxRequestTransactions(txRequests: TransactionRequestExtended[]): TransactionDto[] {
+    return txRequests.map(TransactionDtoMapper.mapTxRequestTransaction);
+  }
+
+  // RefReward
   static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
     const dto: TransactionDto = {
       id: refReward.transaction.id,
@@ -206,6 +270,7 @@ export class TransactionDtoMapper {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
   }
 
+  // UnassignedTx
   static mapUnassignedTransaction(tx: BankTx, currency: Fiat): UnassignedTransactionDto {
     return {
       id: tx.transaction.id,
@@ -228,7 +293,23 @@ export class TransactionDtoMapper {
     };
   }
 
-  private static mapFees(entity: BuyCryptoExtended | BuyFiatExtended): FeeDto {
+  // Fees
+  private static mapFees(entity: BuyCryptoExtended | BuyFiatExtended | TransactionRequestExtended): FeeDto {
+    if (entity instanceof TransactionRequestExtended) {
+      if (entity.rate == null) return null;
+
+      return {
+        rate: entity.rate,
+        bank: 0,
+        fixed: 0,
+        min: 0,
+        network: entity.networkFee,
+        dfx: entity.dfxFee,
+        total: entity.totalFee,
+        networkStart: 0,
+      };
+    }
+
     if (entity.percentFee == null) return null;
 
     const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
@@ -280,11 +361,15 @@ export const RefRewardStatusMapper: {
   [RewardStatus.USER_SWITCH]: TransactionState.FAILED,
 };
 
-function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
+function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | TransactionRequest): {
   state: TransactionState;
   reason: TransactionReason;
   chargebackTxId?: string;
 } {
+  if (entity instanceof TransactionRequest) {
+    return { state: TransactionState.WAITING_FOR_PAYMENT, reason: null };
+  }
+
   if (entity instanceof RefReward) {
     return { state: RefRewardStatusMapper[entity.status], reason: null };
   }
