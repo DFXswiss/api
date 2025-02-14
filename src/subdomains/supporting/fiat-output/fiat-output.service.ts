@@ -1,9 +1,9 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
@@ -33,11 +33,8 @@ export class FiatOutputService {
     private readonly ep2ReportService: Ep2ReportService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async fillFiatOutput() {
-    if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
-
     const entities = await this.fiatOutputRepo.find({
       where: { amount: Not(IsNull()), isComplete: false, bankTx: { id: IsNull() } },
       relations: { bankTx: true },
@@ -55,11 +52,8 @@ export class FiatOutputService {
     }
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async generateReports() {
-    if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
-
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },
       relations: {

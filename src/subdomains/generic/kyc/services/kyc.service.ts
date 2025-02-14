@@ -6,7 +6,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -15,7 +15,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -107,11 +107,8 @@ export class KycService {
     this.webhookQueue = new QueueHandler();
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.KYC })
   async checkIdentSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
-
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
@@ -133,11 +130,8 @@ export class KycService {
     }
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.KYC })
   async reviewKycSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
-
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();
   }
