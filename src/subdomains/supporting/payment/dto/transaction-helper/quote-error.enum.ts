@@ -7,4 +7,5 @@ export enum QuoteError {
   KYC_REQUIRED_INSTANT = 'KycRequiredInstant',
   LIMIT_EXCEEDED = 'LimitExceeded',
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
+  VIDEO_IDENT_REQUIRED = 'VideoIdentRequired',
 }
