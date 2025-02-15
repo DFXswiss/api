@@ -6,6 +6,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
@@ -35,7 +36,7 @@ export class SupportIssueController {
   @Post('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT), UserActiveGuard)
   async createIssueBySupport(
     @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
@@ -88,7 +89,7 @@ export class SupportIssueController {
   // --- SUPPORT --- //
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async updateSupportIssue(@Param('id') id: string, @Body() dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     return this.supportIssueService.updateIssue(+id, dto);

@@ -2,6 +2,7 @@ import { Controller, Get, NotFoundException, Put, Query, UseGuards } from '@nest
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -23,7 +24,7 @@ export class PricingController {
   @Get('price')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getPrice(@Query() dto: PriceRequest): Promise<Price> {
     const from = await this.getCurrency(dto.fromType, +dto.fromId);
     const to = await this.getCurrency(dto.toType, +dto.toId);
@@ -35,7 +36,7 @@ export class PricingController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getRawPrice(@Query() dto: PriceRequestRaw): Promise<Price> {
     return this.pricingService.getPriceFrom(dto.source, dto.from, dto.to, dto.param);
   }
@@ -43,7 +44,7 @@ export class PricingController {
   @Put()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updatePrices(): Promise<void> {
     return this.pricingService.updatePrices();
   }

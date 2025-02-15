@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nest
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RouteDto } from 'src/shared/dto/route.dto';
 import { BuyController } from '../buy-crypto/routes/buy/buy.controller';
@@ -25,7 +26,7 @@ export class RouteController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: RouteDto })
   @ApiExcludeEndpoint()
   async getAllRoutes(@GetJwt() jwt: JwtPayload): Promise<RouteDto> {
@@ -39,7 +40,7 @@ export class RouteController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateRoute(@Param('id') id: string, @Body() dto: UpdateRouteDto): Promise<Route> {
     return this.routeService.updateRoute(+id, dto);
   }

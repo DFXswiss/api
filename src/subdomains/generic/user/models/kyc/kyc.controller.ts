@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
@@ -21,7 +22,7 @@ export class KycController {
   // --- TRANSFER --- //
   @Put('transfer')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async transferKycDataV1(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
@@ -31,7 +32,7 @@ export class KycController {
   // --- JWT Calls --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async getKycProgressV1(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
@@ -40,7 +41,7 @@ export class KycController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async requestKycV1(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
@@ -49,7 +50,7 @@ export class KycController {
 
   @Get('countries')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiOperation({ deprecated: true })
   async getKycCountriesV1(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {

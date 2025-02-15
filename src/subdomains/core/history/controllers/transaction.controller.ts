@@ -30,6 +30,7 @@ import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
@@ -246,7 +247,7 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
     const buys = await this.buyService.getUserDataBuys(jwt.account);
@@ -261,7 +262,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
