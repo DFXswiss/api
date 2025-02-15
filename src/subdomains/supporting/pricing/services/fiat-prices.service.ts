@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { PricingService } from './pricing.service';
 
 @Injectable()
@@ -13,11 +13,8 @@ export class FiatPricesService {
   constructor(private readonly fiatService: FiatService, private readonly pricingService: PricingService) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
-    if (DisabledProcess(Process.PRICING)) return;
-
     const chf = await this.fiatService.getFiatByName('CHF');
 
     const fiats = await this.fiatService.getActiveFiat();

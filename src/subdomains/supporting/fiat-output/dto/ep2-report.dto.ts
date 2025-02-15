@@ -8,8 +8,6 @@ export interface EP2Report {
     '@_specversion': '0740';
 
     'ep2:rafrsp': {
-      '@_msgnum': '3795';
-
       'ep2:RAFHead': {
         'ep2:MctID': string;
         'ep2:PeEndDate': string;
@@ -37,6 +35,5 @@ export interface Ep2Transaction {
   'ep2:TrxCurrC': string;
   'ep2:TrxDate': string;
   'ep2:TrxTime': string;
-  'ep2:TrxOri': number;
   'ep2:TrxRefNum': string;
 }

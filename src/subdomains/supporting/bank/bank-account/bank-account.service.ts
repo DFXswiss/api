@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
@@ -36,22 +36,16 @@ export class BankAccountService {
 
   // --- INTERNAL METHODS --- //
 
-  @Cron(CronExpression.EVERY_WEEK)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_WEEK, { process: Process.BANK_ACCOUNT, timeout: 3600 })
   async checkFailedBankAccounts(): Promise<void> {
-    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
-
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
       await this.reloadBankAccount(bankAccount);
     }
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadUncheckedBankAccounts(): Promise<void> {
-    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
-
     const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull() });
     for (const bankAccount of bankAccounts) {
       await this.reloadBankAccount(bankAccount);

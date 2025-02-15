@@ -1,12 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { randomBytes } from 'crypto';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import {
@@ -28,15 +28,12 @@ export interface AuthCacheDto {
 
 @Injectable()
 export class AuthLnUrlService {
-  private authCache: Map<string, AuthCacheDto> = new Map();
+  private readonly authCache: Map<string, AuthCacheDto> = new Map();
 
   constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.LNURL_AUTH_CACHE })
   processCleanupAccessToken() {
-    if (DisabledProcess(Process.LNURL_AUTH_CACHE)) return;
-
     const before30SecTime = Util.secondsBefore(30).getTime();
 
     const keysToBeDeleted = [...this.authCache.entries()]
@@ -46,11 +43,8 @@ export class AuthLnUrlService {
     keysToBeDeleted.forEach((k) => this.authCache.delete(k));
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LNURL_AUTH_CACHE })
   processCleanupAuthCache() {
-    if (DisabledProcess(Process.LNURL_AUTH_CACHE)) return;
-
     const before5MinTime = Util.minutesBefore(5).getTime();
 
     const keysToBeDeleted = [...this.authCache.entries()]

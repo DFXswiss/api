@@ -30,6 +30,7 @@
             },
             "currency_exchange": "Par ailleurs: le compte bancaire {bankAccount} est un compte {bankAsset}, si vous envoyez {inputAsset}, il sera échangé directement à la banque et nous recevrons {bankAsset}.<br>Si possible, envoyez {bankAsset} directement sur ce compte bancaire."
         },
+        "warning": "Attention:<br><br><br>Il y a de plus en plus d'escrocs (généralement de jolies femmes) qui vous écrivent via les médias sociaux (par exemple linkedIn) et vous promettent des investissements apparemment lucratifs au bout d'un certain temps.<br>Soyez prudent et, en cas de doute, n'envoyez pas d'argent.<br><br>Il y a un risque de perte totale si vous suivez les instructions de cet inconnu et lui envoyez de l'argent, par exemple",
         "crypto_output": {
             "title": "Actif cryptographique payé",
             "salutation": "Vos avoirs en crypto-monnaie ont été payés à votre adresse"
@@ -85,7 +86,8 @@
                 "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX",
                 "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain",
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
-                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti"
+                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
+                "test_only": "Test"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },

@@ -28,6 +28,7 @@ export enum AmlReason {
   USER_DELETED = 'UserDeleted',
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
+  TEST_ONLY = 'TestOnly',
 }
 
 export const KycAmlReasons = [

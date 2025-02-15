@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -45,10 +45,8 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     this.emit(data);
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(360)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 360 })
   async fetch(): Promise<NodesState> {
-    if (DisabledProcess(Process.MONITORING)) return;
     const previousState = this.data;
 
     let state = await this.getState(previousState);

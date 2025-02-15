@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -49,6 +50,7 @@ describe('BuyFiatService', () => {
   let payInService: PayInService;
   let userDataService: UserDataService;
   let buyFiatNotificationService: BuyFiatNotificationService;
+  let amlService: AmlService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -66,6 +68,7 @@ describe('BuyFiatService', () => {
     payInService = createMock<PayInService>();
     userDataService = createMock<UserDataService>();
     buyFiatNotificationService = createMock<BuyFiatNotificationService>();
+    amlService = createMock<AmlService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -86,6 +89,7 @@ describe('BuyFiatService', () => {
         { provide: PayInService, useValue: payInService },
         { provide: UserDataService, useValue: userDataService },
         { provide: BuyFiatNotificationService, useValue: buyFiatNotificationService },
+        { provide: AmlService, useValue: amlService },
       ],
     }).compile();
 

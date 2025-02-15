@@ -17,8 +17,6 @@ export class Ep2ReportService {
         '@_specversion': '0740',
 
         'ep2:rafrsp': {
-          '@_msgnum': '3795',
-
           'ep2:RAFHead': {
             'ep2:MctID': `${entity.buyFiats[0].userData.id}`,
             'ep2:PeEndDate': this.ep2Date(entity.created),
@@ -29,7 +27,7 @@ export class Ep2ReportService {
             'ep2:bdrecdet': entity.buyFiats.map((bf) => {
               const tx: Ep2Transaction = {
                 'ep2:AcqPayDate': this.ep2Date(bf.outputDate),
-                'ep2:AmtFee': this.ep2Amount(bf.totalFeeAmountChf),
+                'ep2:AmtFee': this.ep2Amount(bf.amountInChf * (bf.paymentLinkFee ?? 0)),
                 'ep2:AmtFeeCurrC': 'CHF',
                 'ep2:AmtSettlement': this.ep2Amount(bf.amountInChf),
                 'ep2:AmtSettlementCurrC': 'CHF',
@@ -41,7 +39,6 @@ export class Ep2ReportService {
                 'ep2:TrxCurrC': 'CHF',
                 'ep2:TrxDate': this.ep2Date(bf.cryptoInput.created),
                 'ep2:TrxTime': this.ep2Time(bf.cryptoInput.created),
-                'ep2:TrxOri': 0,
                 'ep2:TrxRefNum': bf.cryptoInput.paymentLinkPayment.externalId,
               };
 

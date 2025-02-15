@@ -735,6 +735,8 @@ export class Configuration {
     entityId: process.env.CKO_ENTITY_ID,
   };
 
+  cronJobDelay = process.env.CRON_JOB_DELAY?.split(';').map(Number) ?? [];
+
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {
     const versionString = `v${version}`;

@@ -6,12 +6,12 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
@@ -19,6 +19,7 @@ import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
@@ -62,9 +63,10 @@ describe('BuyCryptoService', () => {
   let checkoutTxService: CheckoutTxService;
   let payInService: PayInService;
   let fiatOutputService: FiatOutputService;
-  let userDataService: UserDataService;
   let transactionUtilService: TransactionUtilService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
+  let amlService: AmlService;
+  let transactionHelper: TransactionHelper;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -86,9 +88,10 @@ describe('BuyCryptoService', () => {
     checkoutTxService = createMock<CheckoutTxService>();
     payInService = createMock<PayInService>();
     fiatOutputService = createMock<FiatOutputService>();
-    userDataService = createMock<UserDataService>();
     transactionUtilService = createMock<TransactionUtilService>();
     buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
+    amlService = createMock<AmlService>();
+    transactionHelper = createMock<TransactionHelper>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -113,9 +116,10 @@ describe('BuyCryptoService', () => {
         { provide: CheckoutTxService, useValue: checkoutTxService },
         { provide: PayInService, useValue: payInService },
         { provide: FiatOutputService, useValue: fiatOutputService },
-        { provide: UserDataService, useValue: userDataService },
         { provide: TransactionUtilService, useValue: transactionUtilService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
+        { provide: AmlService, useValue: amlService },
+        { provide: TransactionHelper, useValue: transactionHelper },
       ],
     }).compile();
 

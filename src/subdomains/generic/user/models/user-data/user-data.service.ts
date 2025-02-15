@@ -8,7 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
@@ -21,7 +21,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -37,6 +37,7 @@ import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
@@ -239,7 +240,9 @@ export class UserDataService {
         continue;
       }
 
-      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${
+        userData.verifiedName
+      }`.replace(/\./g, '');
       const parentFolder = zip.folder(baseFolderName);
 
       if (!parentFolder) {
@@ -317,12 +320,12 @@ export class UserDataService {
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
     const update: Partial<UserData> = {
       accountType: data.accountType,
-      firstname: data.firstName,
-      surname: data.lastName,
-      street: data.address.street,
-      houseNumber: data.address.houseNumber,
-      location: data.address.city,
-      zip: data.address.zip,
+      firstname: transliterate(data.firstName),
+      surname: transliterate(data.lastName),
+      street: transliterate(data.address.street),
+      houseNumber: transliterate(data.address.houseNumber),
+      location: transliterate(data.address.city),
+      zip: transliterate(data.address.zip),
       country: data.address.country,
       phone: data.phone,
       organizationName: data.organizationName,
@@ -537,7 +540,10 @@ export class UserDataService {
 
   // --- KYC --- //
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
-    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStepType.AUTO);
+    const defaultIdent =
+      userData.accountType === AccountType.ORGANIZATION
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
@@ -695,8 +701,7 @@ export class UserDataService {
   }
 
   // --- VOLUMES --- //
-  @Cron(CronExpression.EVERY_YEAR)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });

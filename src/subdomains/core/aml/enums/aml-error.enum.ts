@@ -46,6 +46,7 @@ export enum AmlError {
   IP_MISMATCH = 'IpMismatch',
   SUSPICIOUS_MAIL = 'SuspiciousMail',
   CARD_NAME_MISMATCH = 'CardNameMismatch',
+  VIDEO_IDENT_MISSING = 'VideoIdentMissing',
 }
 
 export enum AmlErrorType {
@@ -192,5 +193,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
+  },
+  [AmlError.VIDEO_IDENT_MISSING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.VIDEO_IDENT_NEEDED,
   },
 };

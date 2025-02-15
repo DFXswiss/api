@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { Sanction } from '../entities/sanction.entity';
 import { SanctionRepository } from '../repositories/sanction.repository';
@@ -37,11 +37,8 @@ export class SanctionService {
   constructor(private readonly http: HttpService, private readonly sanctionRepo: SanctionRepository) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_WEEKEND)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_WEEKEND, { process: Process.SANCTION_SYNC })
   async syncList() {
-    if (DisabledProcess(Process.SANCTION_SYNC)) return;
-
     const filePath = Config.environment === Environment.LOC ? this.fileName : `/home/${this.fileName}`;
 
     await this.http.downloadFile(this.fileUrl, filePath);

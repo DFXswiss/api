@@ -99,6 +99,7 @@
     "secp256k1": "^5.0.0",
     "swagger-ui-express": "^4.6.2",
     "swissqrbill": "^4.0.2",
+    "transliteration": "^2.3.5",
     "typeorm": "^0.3.12",
     "viem": "^1.0.6",
     "xoauth2": "^1.2.0",

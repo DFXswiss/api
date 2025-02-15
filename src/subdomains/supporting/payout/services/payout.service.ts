@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -90,10 +90,8 @@ export class PayoutService {
   }
 
   //*** JOBS ***//
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.PAY_OUT, timeout: 1800 })
   async processOrders(): Promise<void> {
-    if (DisabledProcess(Process.PAY_OUT)) return;
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();

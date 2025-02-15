@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -26,11 +26,8 @@ export class UserObserver extends MetricObserver<UserData> {
     super(monitoringService, 'user', 'kyc');
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<UserData> {
-    if (DisabledProcess(Process.MONITORING)) return;
-
     const data = await this.getUser();
 
     this.emit(data);

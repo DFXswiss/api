@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { CronExpression } from '@nestjs/schedule';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -14,21 +14,15 @@ export class PaymentCronService {
     private readonly paymentQuoteService: PaymentQuoteService,
   ) {}
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.PAYMENT_EXPIRATION })
   async processPendingPayments(): Promise<void> {
-    if (DisabledProcess(Process.PAYMENT_EXPIRATION)) return;
-
     await this.paymentLinkPaymentService.processExpiredPayments();
     await this.paymentActivationService.processExpiredActivations();
     await this.paymentQuoteService.processExpiredQuotes();
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_CONFIRMATIONS })
   async checkTxConfirmations(): Promise<void> {
-    if (DisabledProcess(Process.PAYMENT_CONFIRMATIONS)) return;
-
     await this.paymentLinkPaymentService.checkTxConfirmations();
   }
 }

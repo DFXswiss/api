@@ -93,6 +93,7 @@ export const TransactionReasonMapper: {
   [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
   [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
   [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
+  [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
 };
 
 export class UnassignedTransactionDto {

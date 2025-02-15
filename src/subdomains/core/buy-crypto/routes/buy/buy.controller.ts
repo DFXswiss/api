@@ -24,7 +24,6 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -350,13 +349,6 @@ export class BuyController {
               user.userData.language,
             )
           : undefined,
-      // TODO: temporary CC solution
-      nameRequired:
-        dto.paymentMethod === FiatPaymentMethod.CARD &&
-        !(
-          user.userData.status === UserDataStatus.ACTIVE ||
-          (Boolean(user.userData.firstname) && Boolean(user.userData.surname))
-        ),
     };
 
     times.push(Date.now());

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 
@@ -31,11 +31,8 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
     super(monitoringService, 'externalServices', 'combined');
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
   async fetch() {
-    if (DisabledProcess(Process.MONITORING)) return;
-
     const data = await this.getExternalServices();
 
     this.emit(data);
