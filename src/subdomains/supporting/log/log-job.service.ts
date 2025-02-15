@@ -19,6 +19,10 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import {
+  LiquidityManagementBridges,
+  LiquidityManagementExchanges,
+} from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -210,7 +214,12 @@ export class LogJobService {
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
     // pending balances
-    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingExchangeTx();
+    const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+
+    const pendingExchangeOrders = pendingOrders.filter((o) => LiquidityManagementExchanges.includes(o.action.system));
+    const pendingBridgeOrders = pendingOrders.filter(
+      (o) => LiquidityManagementBridges.includes(o.action.system) && ['withdraw', 'deposit'].includes(o.action.command),
+    );
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
@@ -347,6 +356,10 @@ export class LogJobService {
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        0,
+      );
+      const bridgeOrder = pendingBridgeOrders.reduce(
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
         0,
       );
@@ -497,6 +510,7 @@ export class LogJobService {
       const totalPlusPending =
         cryptoInput +
         exchangeOrder +
+        bridgeOrder +
         pendingOlkyMaerkiAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
@@ -551,6 +565,7 @@ export class LogJobService {
                 total: this.getJsonValue(totalPlusPending, isFiat(curr), true),
                 cryptoInput: this.getJsonValue(cryptoInput, isFiat(curr)),
                 exchangeOrder: this.getJsonValue(exchangeOrder, isFiat(curr)),
+                bridgeOrder: this.getJsonValue(bridgeOrder, isFiat(curr)),
                 fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, isFiat(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, isFiat(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, isFiat(curr)),
