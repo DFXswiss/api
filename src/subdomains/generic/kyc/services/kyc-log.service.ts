@@ -1,20 +1,27 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
+import { FileType } from '../dto/kyc-file.dto';
+import { ContentType } from '../enums/content-type.enum';
 import { KycFileLogRepository } from '../repositories/kyc-file-log.repository';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { MailChangeLogRepository } from '../repositories/mail-change-log.repository';
+import { ManualLogRepository } from '../repositories/manual-log.repository';
 import { MergeLogRepository } from '../repositories/merge-log.repository';
+import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class KycLogService {
   constructor(
     private readonly kycLogRepo: KycLogRepository,
+    private readonly manualLogRepo: ManualLogRepository,
     private readonly mergeLogRepo: MergeLogRepository,
     private readonly kycFileLogRepo: KycFileLogRepository,
     private readonly mailChangeLogRepo: MailChangeLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
+    private readonly kycDocumentService: KycDocumentService,
   ) {}
 
   async createMergeLog(user: UserData, log: string): Promise<void> {
@@ -23,16 +30,36 @@ export class KycLogService {
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await this.mergeLogRepo.save(entity);
   }
 
-  async createLog(dto: CreateKycLogDto): Promise<void> {
-    const entity = this.kycLogRepo.create(dto);
+  async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
+    const entity = this.manualLogRepo.create({
+      comment: dto.comment,
+      eventDate: dto.eventDate,
+      result: `Created by user data ${creatorUserDataId}`,
+    });
 
     entity.userData = await this.userDataService.getUserData(dto.userData.id);
     if (!entity.userData) throw new NotFoundException('UserData not found');
 
-    await this.kycLogRepo.save(entity);
+    if (dto.file) {
+      const { contentType, buffer } = Util.fromBase64(dto.file);
+
+      const { file, url } = await this.kycDocumentService.uploadUserFile(
+        entity.userData,
+        FileType.USER_NOTES,
+        `Manual/${Util.isoDateTime(new Date())}_manual-upload_${Util.randomId()}_${dto.fileName}`,
+        buffer,
+        contentType as ContentType,
+        true,
+      );
+
+      entity.pdfUrl = url;
+      entity.file = file;
+    }
+
+    await this.manualLogRepo.save(entity);
   }
 
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {
@@ -57,7 +84,7 @@ export class KycLogService {
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await this.mailChangeLogRepo.save(entity);
   }
 
   async createKycFileLog(log: string, user?: UserData) {
@@ -66,6 +93,6 @@ export class KycLogService {
       userData: user,
     });
 
-    await this.kycLogRepo.save(entity);
+    await this.kycFileLogRepo.save(entity);
   }
 }

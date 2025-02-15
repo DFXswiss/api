@@ -12,7 +12,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
-import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -92,7 +92,7 @@ export class Configuration {
   ];
 
   tradingLimits = {
-    dailyDefault: 1000, // CHF
+    monthlyDefaultWoKyc: 1000, // CHF
     weeklyAmlRule: 5000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
@@ -161,6 +161,11 @@ export class Configuration {
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
     requestTimeout: 60000,
+    pool: {
+      min: +(process.env.SQL_POOL_MIN ?? 5),
+      max: +(process.env.SQL_POOL_MAX ?? 10),
+      idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
+    },
   };
 
   i18n: I18nOptions = {
@@ -212,7 +217,7 @@ export class Configuration {
         folderName: '01_Deckblatt',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('GwGFileDeckblatt'),
+        filter: (file: KycFileBlob) => file.name.includes('GwGFileDeckblatt'),
       },
       {
         folderName: '02_Identifikationsdokument',
@@ -235,7 +240,7 @@ export class Configuration {
               return [];
           }
         },
-        filter: (file: KycFile, userData: UserData) =>
+        filter: (file: KycFileBlob, userData: UserData) =>
           (userData.identificationType === KycIdentificationType.VIDEO_ID &&
             (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
           (userData.identificationType === KycIdentificationType.ONLINE_ID &&
@@ -250,25 +255,25 @@ export class Configuration {
         folderName: '04_Identifizierungsformular',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
+        filter: (file: KycFileBlob) => file.name.includes('Identifizierungsformular'),
       },
       {
         folderName: '05_Kundenprofil',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('Kundenprofil'),
+        filter: (file: KycFileBlob) => file.name.includes('Kundenprofil'),
       },
       {
         folderName: '06_Risikoprofil',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('Risikoprofil'),
+        filter: (file: KycFileBlob) => file.name.includes('Risikoprofil'),
       },
       {
         folderName: '07_Formular A oder K',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile, userData: UserData) =>
+        filter: (file: KycFileBlob, userData: UserData) =>
           (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
             file.name.includes('FormularA')) ||
           (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
@@ -280,13 +285,13 @@ export class Configuration {
           `user/${userData.id}/UserNotes`,
         ],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.toLowerCase().includes('onboarding'),
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('onboarding'),
       },
       {
         folderName: '09_Blockchain Check',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('blockchainAddressAnalyse'),
+        filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
       },
       {
         folderName: '10_Überprüfung der Wohnsitzadresse',
@@ -296,7 +301,7 @@ export class Configuration {
           `user/${userData.id}/UserNotes`,
         ],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile, userData: UserData) =>
+        filter: (file: KycFileBlob, userData: UserData) =>
           (file.category === FileCategory.USER && file.name.includes('postversand')) ||
           (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
       },

@@ -552,18 +552,18 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
-    const volume24h =
+    const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
-        ? await this.getVolumeSince(Util.daysBefore(1), new Date(), [user])
+        ? await this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user])
         : 0;
 
-    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume24h;
+    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume30d;
 
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
       : Config.tradingLimits.yearlyDefault;
 
-    return { kycLimit, defaultLimit };
+    return { kycLimit: Math.max(0, kycLimit), defaultLimit };
   }
 
   private getTxError(
@@ -615,7 +615,7 @@ export class TransactionHelper implements OnModuleInit {
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
-      txAmountChf > Config.tradingLimits.dailyDefault
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
 
