@@ -2,8 +2,8 @@ import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserGuard } from 'src/shared/auth/user.guard';
 import { WalletDto } from './dto/wallet.dto';
 import { Wallet } from './wallet.entity';
 import { WalletService } from './wallet.service';
@@ -17,7 +17,7 @@ export class WalletController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async createWallet(@Body() dto: WalletDto): Promise<Wallet> {
     return this.walletService.createWallet(dto);
   }
@@ -25,7 +25,7 @@ export class WalletController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateWallet(@Param('id') id: string, @Body() wallet: WalletDto): Promise<Wallet> {
     return this.walletService.updateWallet(+id, wallet);
   }

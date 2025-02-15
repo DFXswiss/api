@@ -14,6 +14,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, ExchangeError, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -26,7 +27,6 @@ import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from '../services/exchange-registry.service';
 import { ExchangeService, OrderSide } from '../services/exchange.service';
-import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -40,7 +40,7 @@ export class ExchangeController {
   @Get(':exchange/balances')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getBalance(@Param('exchange') exchange: string): Promise<Balances> {
     return this.call(exchange, (e) => e.getBalances());
   }
@@ -48,7 +48,7 @@ export class ExchangeController {
   @Get(':exchange/price')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   getPrice(@Param('exchange') exchange: string, @Query('from') from: string, @Query('to') to: string): Promise<Price> {
     return this.call(exchange, (e) => e.getPrice(from.toUpperCase(), to.toUpperCase()));
   }
@@ -56,7 +56,7 @@ export class ExchangeController {
   @Get(':exchange/trade')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getTrades(
     @Param('exchange') exchange: string,
     @Query('from') from: string,
@@ -68,7 +68,7 @@ export class ExchangeController {
   @Get(':exchange/trade/history')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getTradeHistory(
     @Param('exchange') exchange: string,
     @Query('from') from: string,
@@ -80,7 +80,7 @@ export class ExchangeController {
   @Post(':exchange/trade')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
     // start and register trade
     const orderId = await this.call(exchange, (e) => e.sell(from.toUpperCase(), to.toUpperCase(), amount));
@@ -100,7 +100,7 @@ export class ExchangeController {
   @Get('trade/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getTrade(@Param('id') tradeId: string): Promise<TradeResult> {
     const trade = this.trades[+tradeId];
     if (!trade) throw new NotFoundException('Trade not found');
@@ -112,7 +112,7 @@ export class ExchangeController {
   @Post(':exchange/withdraw')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async withdrawFunds(
     @Param('exchange') exchange: string,
     @Body() withdrawalDto: WithdrawalOrder,
@@ -128,7 +128,7 @@ export class ExchangeController {
   @Get(':exchange/withdraw/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getWithdraw(
     @Param('exchange') exchange: string,
     @Param('id') id: string,

@@ -2,8 +2,8 @@ import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@n
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserGuard } from 'src/shared/auth/user.guard';
 import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
 import { BuyFiat } from './buy-fiat.entity';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
@@ -16,7 +16,7 @@ export class BuyFiatController {
 
   @Post(':id/webhook')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   @ApiExcludeEndpoint()
   async triggerWebhook(@Param('id') id: string): Promise<void> {
     return this.buyFiatService.triggerWebhookManual(+id);
@@ -24,7 +24,7 @@ export class BuyFiatController {
 
   @Post(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   @ApiExcludeEndpoint()
   async refundBuyFiat(@Param('id') id: string, @Body() dto: RefundInternalDto): Promise<void> {
     return this.buyFiatService.refundBuyFiat(+id, dto);
@@ -33,7 +33,7 @@ export class BuyFiatController {
   @Put('volumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
     return this.buyFiatService.updateVolumes(start ? +start : undefined, end ? +end : undefined);
   }
@@ -41,7 +41,7 @@ export class BuyFiatController {
   @Put('refVolumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateRefVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
     return this.buyFiatService.updateRefVolumes(start ? +start : undefined, end ? +end : undefined);
   }
@@ -49,7 +49,7 @@ export class BuyFiatController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     return this.buyFiatService.update(+id, dto);
   }
@@ -57,7 +57,7 @@ export class BuyFiatController {
   @Delete(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async resetAmlCheck(@Param('id') id: string): Promise<void> {
     return this.buyFiatService.resetAmlCheck(+id);
   }

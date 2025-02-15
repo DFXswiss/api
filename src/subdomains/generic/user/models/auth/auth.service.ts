@@ -397,7 +397,7 @@ export class AuthService {
       role: user.role,
       userStatus: user.status,
       account: user.userData.id,
-      userDataStatus: user.userData.status,
+      accountStatus: user.userData.status,
       blockchains: user.blockchains,
       ip,
     };
@@ -408,7 +408,7 @@ export class AuthService {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,
-      userDataStatus: userData.status,
+      accountStatus: userData.status,
       blockchains: [],
       ip,
     };

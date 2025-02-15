@@ -33,8 +33,8 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserGuard } from 'src/shared/auth/user.guard';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -80,7 +80,7 @@ export class KycController {
   // --- 2FA --- //
   @Get('2fa')
   @ApiOkResponse({ description: '2FA active' })
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
     return this.tfaService.check(jwt.account, ip, level);
   }

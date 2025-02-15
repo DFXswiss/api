@@ -2,8 +2,8 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserGuard } from 'src/shared/auth/user.guard';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from '../services/liquidity-management-balance.service';
 
@@ -15,7 +15,7 @@ export class LiquidityBalanceController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getBalances(): Promise<LiquidityBalance[]> {
     return this.service.getBalances();
   }

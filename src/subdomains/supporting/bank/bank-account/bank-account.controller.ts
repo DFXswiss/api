@@ -4,8 +4,8 @@ import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, A
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserGuard } from 'src/shared/auth/user.guard';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -25,7 +25,7 @@ export class BankAccountController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
     return this.bankDataService.getValidBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
@@ -33,7 +33,7 @@ export class BankAccountController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiCreatedResponse({ type: BankAccountDto })
   async createBankAccount(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBankAccountDto): Promise<BankAccountDto> {
     return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => this.toDto(b));
@@ -41,7 +41,7 @@ export class BankAccountController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiOkResponse({ type: BankAccountDto })
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,
@@ -54,7 +54,7 @@ export class BankAccountController {
   // --- IBAN --- //
   @Post('iban')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   @ApiExcludeEndpoint()
   async addBankAccountIban(@Body() dto: CreateBankAccountInternalDto): Promise<BankAccount> {
     return this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);

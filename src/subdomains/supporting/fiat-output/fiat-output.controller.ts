@@ -2,8 +2,8 @@ import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserGuard } from 'src/shared/auth/user.guard';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
 import { FiatOutput } from './fiat-output.entity';
@@ -17,7 +17,7 @@ export class FiatOutputController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async create(@Body() dto: CreateFiatOutputDto): Promise<FiatOutput> {
     return this.fiatOutputService.create(dto);
   }
@@ -25,7 +25,7 @@ export class FiatOutputController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateFiatOutputDto): Promise<FiatOutput> {
     return this.fiatOutputService.update(+id, dto);
   }

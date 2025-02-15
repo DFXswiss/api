@@ -11,5 +11,5 @@ export interface JwtPayload {
   blockchains?: Blockchain[];
   ip: string;
   userStatus?: UserStatus;
-  userDataStatus?: UserDataStatus;
+  accountStatus?: UserDataStatus;
 }

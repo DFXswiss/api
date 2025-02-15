@@ -3,7 +3,7 @@ import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/use
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 
 @Injectable()
-export class UserGuard implements CanActivate {
+export class UserActiveGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const userStatus = req.user.userStatus;

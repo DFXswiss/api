@@ -3,13 +3,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from '../services/alchemy-webhook.service';
 import { AlchemyService } from '../services/alchemy.service';
-import { UserGuard } from 'src/shared/auth/user.guard';
 
 @ApiTags('Alchemy')
 @Controller('alchemy')
@@ -37,7 +37,7 @@ export class AlchemyController {
   @Post('syncTransactions')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async syncTransactions(@Body() dto: AlchemySyncTransactionsDto) {
     return this.alchemyService.syncTransactions(dto);
   }
