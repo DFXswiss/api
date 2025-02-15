@@ -138,6 +138,17 @@ export class FeeService implements OnModuleInit {
       fee.assets = assets.join(';');
     }
 
+    if (dto.excludedAssetIds) {
+      const assets = [];
+
+      for (const assetId of dto.excludedAssetIds) {
+        const asset = await this.assetService.getAssetById(assetId);
+        if (!asset) throw new NotFoundException(`Asset with id ${assetId} not found`);
+        assets.push(asset.id);
+      }
+      fee.excludedAssets = assets.join(';');
+    }
+
     if (dto.fiatIds) {
       const fiats = [];
 
