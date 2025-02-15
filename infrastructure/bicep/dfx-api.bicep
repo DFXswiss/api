@@ -16,6 +16,8 @@ param dbAdminLogin string
 param dbAdminPassword string
 param dbTier string
 param dbCapacity int
+param dbPoolMin int
+param dbPoolMax int
 
 @secure()
 param jwtSecret string = newGuid()
@@ -530,6 +532,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SQL_DB'
           value: sqlDbName
+        }
+        {
+          name: 'SQL_POOL_MIN'
+          value: dbPoolMin
+        }
+        {
+          name: 'SQL_POOL_MAX'
+          value: dbPoolMax
         }
         {
           name: 'JWT_SECRET'

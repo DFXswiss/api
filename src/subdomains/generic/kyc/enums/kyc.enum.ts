@@ -4,22 +4,7 @@ import { KycIdentificationType } from '../../user/models/user-data/kyc-identific
 import { LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
 import { IdentType } from '../dto/ident-result-data.dto';
 import { SumSubLevelName } from '../dto/sum-sub.dto';
-
-export enum KycStepName {
-  CONTACT_DATA = 'ContactData',
-  PERSONAL_DATA = 'PersonalData',
-  NATIONALITY_DATA = 'NationalityData',
-  LEGAL_ENTITY = 'LegalEntity',
-  STOCK_REGISTER = 'StockRegister',
-  COMMERCIAL_REGISTER = 'CommercialRegister',
-  SIGNATORY_POWER = 'SignatoryPower',
-  AUTHORITY = 'Authority',
-  IDENT = 'Ident',
-  FINANCIAL_DATA = 'FinancialData',
-  ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
-  RESIDENCE_PERMIT = 'ResidencePermit',
-  DFX_APPROVAL = 'DfxApproval',
-}
+import { KycStepName } from './kyc-step-name.enum';
 
 export function getKycStepIndex(stepName: KycStepName): number {
   return Object.values(KycStepName).indexOf(stepName);
@@ -61,6 +46,7 @@ export enum KycLogType {
   MAIL_CHANGE = 'MailChangeLog',
   TFA = 'TfaLog',
   FILE = 'KycFileLog',
+  MANUAL = 'ManualLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {
@@ -101,9 +87,12 @@ export enum KycStepStatus {
   MANUAL_REVIEW = 'ManualReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
+  PARTIALLY_APPROVED = 'PartiallyApproved',
   CANCELED = 'Canceled',
   IGNORED = 'Ignored',
   OUTDATED = 'Outdated',
+  DATA_REQUESTED = 'DataRequested',
+  PAUSED = 'Paused',
 }
 
 export enum UrlType {

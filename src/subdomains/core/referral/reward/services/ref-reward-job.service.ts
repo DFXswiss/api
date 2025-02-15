@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { CronExpression } from '@nestjs/schedule';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardNotificationService } from './ref-reward-notification.service';
 import { RefRewardOutService } from './ref-reward-out.service';
@@ -16,19 +16,13 @@ export class RefRewardJobService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { process: Process.REF_PAYOUT, timeout: 1800 })
   async createPendingRefRewards() {
-    if (DisabledProcess(Process.REF_PAYOUT)) return;
-
     await this.refRewardService.createPendingRefRewards();
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.REF_PAYOUT, timeout: 1800 })
   async processPendingRefRewards() {
-    if (DisabledProcess(Process.REF_PAYOUT)) return;
-
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.checkPaidTransaction();
     await this.refRewardOutService.payoutNewTransactions();

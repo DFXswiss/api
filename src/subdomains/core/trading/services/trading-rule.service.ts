@@ -69,11 +69,6 @@ export class TradingRuleService {
 
   private async executeRule(rule: TradingRule): Promise<void> {
     try {
-      if (!rule.isActive()) {
-        this.logger.error(`Could not execute rule ${rule.id}: status is ${rule.status}`);
-        return;
-      }
-
       if (rule.leftAsset.blockchain !== rule.rightAsset.blockchain) {
         rule.deactivate();
         await this.ruleRepo.save(rule);

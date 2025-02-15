@@ -9,6 +9,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { MonitorConnectionPoolService } from './monitor-connection-pool.service';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
 import { AmlObserver } from './observers/aml.observer';
@@ -39,6 +40,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
   providers: [
     SystemStateSnapshotRepository,
     MonitoringService,
+    MonitorConnectionPoolService,
     NodeBalanceObserver,
     NodeHealthObserver,
     PaymentObserver,

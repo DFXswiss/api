@@ -1,6 +1,6 @@
 export enum AmlReason {
   NA = 'NA',
-  DAILY_LIMIT = 'DailyLimit',
+  MONTHLY_LIMIT = 'MonthlyLimit',
   ANNUAL_LIMIT = 'AnnualLimit',
   USER_DATA_MISMATCH = 'UserDataMismatch',
   IBAN_CHECK = 'IbanCheck',
@@ -28,10 +28,11 @@ export enum AmlReason {
   USER_DELETED = 'UserDeleted',
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
+  TEST_ONLY = 'TestOnly',
 }
 
 export const KycAmlReasons = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,

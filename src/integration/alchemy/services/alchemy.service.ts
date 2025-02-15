@@ -17,6 +17,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { AlchemyAssetTransfersDto } from '../dto/alchemy-asset-transfers.dto';
 import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto';
@@ -71,9 +72,12 @@ export class AlchemyService {
 
     const contractAddresses = assets.filter((a) => a.chainId != null).map((a) => a.chainId);
 
-    const tokenBalancesResponse = await alchemy.core.getTokenBalances(address, contractAddresses);
+    return Util.retry(async () => {
+      const response = await alchemy.core.getTokenBalances(address, contractAddresses);
+      if (!response) throw new Error(`Failed to get token balances for address ${address} on chain ${chainId}`);
 
-    return tokenBalancesResponse?.tokenBalances ?? [];
+      return response.tokenBalances;
+    }, 3);
   }
 
   async getBlockNumber(blockchain: Blockchain): Promise<number> {

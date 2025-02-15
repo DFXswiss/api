@@ -6,7 +6,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -15,7 +15,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -39,7 +39,7 @@ import {
   getIdNowIdentReason,
   getIdentResult,
 } from '../dto/ident-result.dto';
-import { IdentStatus } from '../dto/ident.dto';
+import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
   KycContactData,
   KycFileData,
@@ -65,7 +65,8 @@ import {
 import { KycStep } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
-import { KycStepName, KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
@@ -106,11 +107,8 @@ export class KycService {
     this.webhookQueue = new QueueHandler();
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.KYC })
   async checkIdentSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
-
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
@@ -132,11 +130,8 @@ export class KycService {
     }
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.KYC })
   async reviewKycSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
-
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();
   }
@@ -222,7 +217,9 @@ export class KycService {
           errors.length === 1 &&
           entity.userData.accountType === AccountType.PERSONAL
         ) {
-          entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+          await this.userDataService.updateUserDataInternal(entity.userData, {
+            verifiedName: `${entity.userData.firstname} ${entity.userData.surname}`,
+          });
           entity.complete();
         } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
@@ -404,7 +401,7 @@ export class KycService {
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
-    const url = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       fileType,
       data.fileName,
@@ -477,7 +474,10 @@ export class KycService {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
-    if (!result) throw new Error(`Received unknown sumsub ident result for transaction ${transactionId}: ${dto.type}`);
+    if (!result) {
+      this.logger.info(`Ignoring Sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
+      return;
+    }
 
     this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
 
@@ -510,8 +510,15 @@ export class KycService {
 
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
+
+    if (result === IdentShortResult.MEDIA) {
+      await this.downloadMedia(user, kycStep);
+      this.logger.info(`Media download finished for KYC step: ${kycStep.id}`);
+      return;
+    }
+
     if (!kycStep.isInProgress && !kycStep.isInReview) {
-      this.logger.verbose(`Received kyc webhook call dropped: ${kycStep.id}`);
+      this.logger.verbose(`Received KYC webhook call dropped: ${kycStep.id}`);
       return;
     }
 
@@ -566,7 +573,7 @@ export class KycService {
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
     const { contentType, buffer } = Util.fromBase64(dto.document.file);
-    const newUrl = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       user,
       FileType.IDENTIFICATION,
       `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
@@ -576,7 +583,14 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview({ ...dto, documentUrl: newUrl, document: undefined }));
+    await this.kycStepRepo.update(
+      ...kycStep.internalReview({
+        ...dto,
+        documentUrl: url,
+        document: undefined,
+        birthday: Util.isoDate(dto.birthday),
+      }),
+    );
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -707,8 +721,8 @@ export class KycService {
         if (identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)))
           return { nextStep: undefined };
 
-        const userDataMergeRequestedStep = identSteps.find((i) =>
-          i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED),
+        const userDataMergeRequestedStep = identSteps.find(
+          (i) => i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED) && i.sequenceNumber >= 0,
         );
         if (userDataMergeRequestedStep) {
           const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
@@ -991,32 +1005,26 @@ export class KycService {
   }
 
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
-    const stepsWith2fa = [KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
-    if (stepsWith2fa.some((s) => user.getPendingStepWith(s))) {
-      await this.verify2fa(user, ip);
-    }
+    const has2faSteps = user.kycSteps.some(
+      (s) =>
+        (s.name === KycStepName.FINANCIAL_DATA || (s.name === KycStepName.IDENT && s.type !== KycStepType.MANUAL)) &&
+        s.isInProgress,
+    );
+    if (has2faSteps) await this.verify2fa(user, ip);
   }
 
   private async verify2fa(user: UserData, ip: string): Promise<void> {
     await this.tfaService.checkVerification(user, ip, TfaLevel.STRICT);
   }
 
-  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {
-    const documents = kycStep.isSumsub
-      ? await this.sumsubService.getDocuments(kycStep)
-      : await this.identService.getDocuments(kycStep);
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix?: string) {
+    const documents = await this.sumsubService.getDocuments(kycStep);
+    await this.storeDocuments(documents, user, kycStep, namePrefix);
+  }
 
-    for (const { name, content, contentType } of documents) {
-      await this.documentService.uploadFile(
-        user,
-        FileType.IDENTIFICATION,
-        `${namePrefix}${name}`,
-        content,
-        contentType,
-        true,
-        kycStep,
-      );
-    }
+  private async downloadMedia(user: UserData, kycStep: KycStep, namePrefix?: string) {
+    const documents = await this.sumsubService.getMedia(kycStep);
+    await this.storeDocuments(documents, user, kycStep, namePrefix);
   }
 
   async syncIdentFiles(stepId: number): Promise<void> {
@@ -1029,23 +1037,34 @@ export class KycService {
       ? await this.sumsubService.getDocuments(kycStep)
       : await this.identService.getDocuments(kycStep);
 
-    for (const { name, content, contentType } of documents) {
-      const fileExists = userFiles.some(
-        (f) =>
-          f.type === FileType.IDENTIFICATION && f.name.includes(kycStep.transactionId) && f.contentType === contentType,
-      );
+    const missingDocuments = documents.filter(
+      (d) =>
+        !userFiles.some(
+          (f) =>
+            f.type === FileType.IDENTIFICATION &&
+            f.name.includes(kycStep.transactionId) &&
+            f.contentType === d.contentType,
+        ),
+    );
+    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep);
+  }
 
-      if (!fileExists) {
-        await this.documentService.uploadFile(
-          kycStep.userData,
-          FileType.IDENTIFICATION,
-          name,
-          content,
-          contentType,
-          true,
-          kycStep,
-        );
-      }
+  private async storeDocuments(
+    documents: IdentDocument[],
+    user: UserData,
+    kycStep: KycStep,
+    namePrefix = '',
+  ): Promise<void> {
+    for (const { name, content, contentType } of documents) {
+      await this.documentService.uploadFile(
+        user,
+        FileType.IDENTIFICATION,
+        `${namePrefix}${name}`,
+        content,
+        contentType,
+        true,
+        kycStep,
+      );
     }
   }
 }

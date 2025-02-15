@@ -12,9 +12,10 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
-import { KycFile } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -92,7 +93,7 @@ export class Configuration {
   ];
 
   tradingLimits = {
-    dailyDefault: 1000, // CHF
+    monthlyDefaultWoKyc: 1000, // CHF
     weeklyAmlRule: 5000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
@@ -161,6 +162,11 @@ export class Configuration {
     migrations: ['migration/*.js'],
     connectionTimeout: 30000,
     requestTimeout: 60000,
+    pool: {
+      min: +(process.env.SQL_POOL_MIN ?? 5),
+      max: +(process.env.SQL_POOL_MAX ?? 10),
+      idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
+    },
   };
 
   i18n: I18nOptions = {
@@ -209,13 +215,15 @@ export class Configuration {
 
     downloadTargets: [
       {
-        folderName: '01_Deckblatt',
+        id: 1,
+        name: 'Deckblatt',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('GwGFileDeckblatt'),
+        filter: (file: KycFileBlob) => file.name.includes('GwGFileDeckblatt'),
       },
       {
-        folderName: '02_Identifikationsdokument',
+        id: 2,
+        name: 'Identifikationsdokument',
         prefixes: (userData: UserData) => [
           `user/${userData.id}/Identification`,
           `spider/${userData.id}/online-identification`,
@@ -224,7 +232,10 @@ export class Configuration {
         fileTypes: [ContentType.PDF],
       },
       {
-        folderName: '03_Banktransaktion oder Videoident Tonspur',
+        id: 3,
+        name: 'Banktransaktion oder Videoident Tonspur',
+        fileName: (file: KycFileBlob) =>
+          file.name.includes('bankTransactionVerify') ? 'Banktransaktion' : 'VideoIdentTonspur',
         prefixes: (userData: UserData) => {
           switch (userData.identificationType) {
             case KycIdentificationType.VIDEO_ID:
@@ -235,7 +246,7 @@ export class Configuration {
               return [];
           }
         },
-        filter: (file: KycFile, userData: UserData) =>
+        filter: (file: KycFileBlob, userData: UserData) =>
           (userData.identificationType === KycIdentificationType.VIDEO_ID &&
             (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
           (userData.identificationType === KycIdentificationType.ONLINE_ID &&
@@ -247,57 +258,109 @@ export class Configuration {
             : false,
       },
       {
-        folderName: '04_Identifizierungsformular',
+        id: 4,
+        name: 'Identifizierungsformular',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('Identifizierungsformular'),
+        filter: (file: KycFileBlob) => file.name.includes('Identifizierungsformular'),
       },
       {
-        folderName: '05_Kundenprofil',
+        id: 5,
+        name: 'Kundenprofil',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('Kundenprofil'),
+        filter: (file: KycFileBlob) => file.name.includes('Kundenprofil'),
       },
       {
-        folderName: '06_Risikoprofil',
+        id: 6,
+        name: 'Risikoprofil',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('Risikoprofil'),
+        filter: (file: KycFileBlob) => file.name.includes('Risikoprofil'),
       },
       {
-        folderName: '07_Formular A oder K',
+        id: 7,
+        name: 'Formular A oder K',
+        fileName: (file: KycFileBlob) => (file.name.includes('FormularA') ? 'FormularA' : 'FormularK'),
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile, userData: UserData) =>
-          (userData.amlAccountType === 'natural person' && file.name.includes('FormularA')) ||
-          (userData.amlAccountType === 'operativ tätige Gesellschaft' && file.name.includes('FormularK')),
+        filter: (file: KycFileBlob, userData: UserData) =>
+          (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
+            file.name.includes('FormularA')) ||
+          (['operativ tätige Gesellschaft', 'Verein'].includes(userData.amlAccountType) &&
+            file.name.includes('FormularK')),
       },
       {
-        folderName: '08_Onboardingdokument',
+        id: 8,
+        name: 'Onboardingdokument',
+        fileName: () => 'Onboarding',
         prefixes: (userData: UserData) => [
           `spider/${userData.id}/user-added-document`,
           `user/${userData.id}/UserNotes`,
         ],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.toLowerCase().includes('onboarding'),
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('onboarding'),
       },
       {
-        folderName: '09_Blockchain Check',
+        id: 9,
+        name: 'Blockchain Check',
         prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile) => file.name.includes('blockchainAddressAnalyse'),
+        filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
       },
       {
-        folderName: '10_Überprüfung der Wohnsitzadresse',
+        id: 10,
+        name: 'Überprüfung der Wohnsitzadresse',
+        fileName: () => 'Postversand',
         ignore: (userData: UserData) => userData.accountType === AccountType.ORGANIZATION,
         prefixes: (userData: UserData) => [
           `spider/${userData.id}/user-added-document`,
           `user/${userData.id}/UserNotes`,
         ],
         fileTypes: [ContentType.PDF],
-        filter: (file: KycFile, userData: UserData) =>
+        filter: (file: KycFileBlob, userData: UserData) =>
           (file.category === FileCategory.USER && file.name.includes('postversand')) ||
           (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
+      },
+      {
+        id: 11,
+        name: 'Handelsregisterauszug',
+        ignore: (userData: UserData) => userData.accountType !== AccountType.ORGANIZATION,
+        prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
+        filter: (file: KycFileBlob, userData: UserData) =>
+          userData.kycSteps.some(
+            (s) => s.name === KycStepName.COMMERCIAL_REGISTER && s.isCompleted && s.result === file.url,
+          ),
+      },
+      {
+        id: 12,
+        name: 'Vollmacht',
+        ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
+        prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
+        filter: (file: KycFileBlob, userData: UserData) =>
+          userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
+      },
+      {
+        id: 13,
+        name: 'Transaktionsliste Auditperiode 2025',
+        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+        fileTypes: [ContentType.PDF],
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
+      },
+      {
+        id: 14,
+        name: 'Name Check',
+        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+        fileTypes: [ContentType.PDF],
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
+      },
+      {
+        id: 15,
+        name: 'Travel Rule',
+        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+        fileTypes: [ContentType.PDF],
+        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
+        sort: (a: KycFileBlob, b: KycFileBlob) => (a.name.split('-')[0] < b.name.split('-')[0] ? a : b),
       },
     ],
   };
@@ -671,6 +734,8 @@ export class Configuration {
   checkout = {
     entityId: process.env.CKO_ENTITY_ID,
   };
+
+  cronJobDelay = process.env.CRON_JOB_DELAY?.split(';').map(Number) ?? [];
 
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {

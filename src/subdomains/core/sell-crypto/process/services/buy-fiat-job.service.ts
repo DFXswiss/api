@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -22,11 +22,8 @@ export class BuyFiatJobService {
   ) {}
 
   // --- CHECK BUY FIAT --- //
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BUY_FIAT, timeout: 7200 })
   async addFiatOutputs(): Promise<void> {
-    if (DisabledProcess(Process.BUY_FIAT)) return;
-
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } }, cryptoInput: true },
       where: {
@@ -57,14 +54,16 @@ export class BuyFiatJobService {
     const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
 
     for (const buyFiats of sellGroups.values()) {
-      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats });
+      await this.fiatOutputService.createInternal(
+        'BuyFiat',
+        { buyFiats },
+        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      );
     }
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BUY_FIAT, timeout: 1800 })
   async checkCryptoPayIn() {
-    if (DisabledProcess(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
     await this.buyFiatRegistrationService.syncReturnTxId();
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyFiatPreparationService.doAmlCheck();
