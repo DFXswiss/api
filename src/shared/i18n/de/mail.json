@@ -30,6 +30,7 @@
             },
             "currency_exchange": "Übrigens: Das {bankAccount} Bankkonto ist ein {bankAsset}-Konto, wenn du {inputAsset} schickst wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>Wenn möglich schicke also direkt {bankAsset} zu diesem Bankkonto."
         },
+        "warning": "Achtung:<br><br><br>Es sind vermehrt Betrüger (i.d.R hübsche Frauen) unterwegs, welche dich per Social Media (zB. linkedIn) anschreiben und dir nach einiger Zeit scheinbar lukrative Investments versprechen.<br>Sei achtsam und sende im Zweifelsfall kein Geld.<br><br>Ein Totalverlust droht, wenn du den Anweisungen dieser fremden Person folgst und ihnen z.B. Geld schickst.",
         "crypto_output": {
             "title": "Krypto-Asset verschickt",
             "salutation": "Deine Krypto-Assets wurden an deine Adresse ausgezahlt"

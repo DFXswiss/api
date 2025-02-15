@@ -30,6 +30,7 @@
             },
             "currency_exchange": "A proposito: il conto bancario {bankAccount} è un conto {bankAsset}, se inviate {inputAsset} questo sarà scambiato direttamente in banca e noi riceveremo {bankAsset}.<br>Se possibile, inviate {bankAsset} direttamente a questo conto bancario."
         },
+        "warning": "Attenzione:<br><br><br>C'è un numero crescente di truffatori (di solito belle donne) che vi scrivono attraverso i social media (ad esempio linkedIn) e vi promettono investimenti apparentemente redditizi dopo un po' di tempo.<br>Fate attenzione e, in caso di dubbio, non inviate denaro.<br><br>C'è il rischio di una perdita totale se si seguono le istruzioni di questo sconosciuto e gli si invia del denaro, ad esempio",
         "crypto_output": {
             "title": "Attività in criptovaluta pagata",
             "salutation": "Le vostre attività in criptovaluta sono state pagate al vostro indirizzo"
