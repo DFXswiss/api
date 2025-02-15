@@ -72,5 +72,6 @@ export class BuyFiatJobService {
       await this.buyFiatPreparationService.fillPaymentLinkPayments();
     }
     await this.buyFiatPreparationService.setOutput();
+    await this.buyFiatPreparationService.complete();
   }
 }

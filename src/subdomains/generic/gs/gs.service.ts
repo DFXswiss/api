@@ -294,7 +294,7 @@ export class GsService {
         return this.bankTxService
           .getBankTxByKey(query.key, query.value)
           .then((bankTx) =>
-            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
+            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiats?.[0]?.sell.user.userData,
           );
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
