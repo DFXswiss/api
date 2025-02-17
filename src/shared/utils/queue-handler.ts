@@ -49,14 +49,13 @@ export class QueueHandler {
   constructor(
     private readonly queueTimeout?: number,
     private readonly itemTimeout?: number,
-    private readonly workParallel = false,
-    private readonly maxWorkParallel = Infinity,
+    private readonly maxWorkParallel = 1,
   ) {
     void this.doWork();
   }
 
-  static createParallelQueueHandler(maxWorkParallel = Infinity): QueueHandler {
-    return new QueueHandler(undefined, undefined, true, maxWorkParallel);
+  static createParallelQueueHandler(maxWorkParallel = 1): QueueHandler {
+    return new QueueHandler(undefined, undefined, maxWorkParallel);
   }
 
   async handle<T>(action: () => Promise<T>): Promise<T> {
@@ -78,23 +77,15 @@ export class QueueHandler {
   private async doWork() {
     while (this.isRunning) {
       try {
-        if (this.queue.length > 0) {
+        if (this.queue.length > 0 && this.workParallelCounter < this.maxWorkParallel) {
           const work = this.queue.shift().doWork(this.itemTimeout);
-          this.workParallel ? await this.checkWorkParallel(work) : await work;
+
+          this.workParallelCounter++;
+          void work.finally(() => this.workParallelCounter--);
         } else {
-          this.workParallelCounter = 0;
           await Util.delay(10);
         }
       } catch {}
-    }
-  }
-
-  private async checkWorkParallel(work: Promise<void>): Promise<void> {
-    this.workParallelCounter++;
-
-    if (this.workParallelCounter === this.maxWorkParallel) {
-      await work;
-      this.workParallelCounter = 0;
     }
   }
 }
