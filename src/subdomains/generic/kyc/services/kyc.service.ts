@@ -56,6 +56,7 @@ import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.dto';
 import {
+  SumSubBlockLabels,
   SumSubRejectionLabels,
   SumSubWebhookResult,
   SumsubResult,
@@ -718,7 +719,12 @@ export class KycService {
 
       case KycStepName.IDENT:
         const identSteps = user.getStepsWith(KycStepName.IDENT);
-        if (identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)))
+        if (
+          identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
+          identSteps.some((i) =>
+            i.getResult<SumsubResult>()?.webhook.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
+          )
+        )
           return { nextStep: undefined };
 
         const userDataMergeRequestedStep = identSteps.find(
