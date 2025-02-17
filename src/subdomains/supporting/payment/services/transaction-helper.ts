@@ -621,19 +621,19 @@ export class TransactionHelper implements OnModuleInit {
       return QuoteError.NAME_REQUIRED;
 
     if (
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
+      user?.userData?.accountType === AccountType.ORGANIZATION &&
+      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
+    )
+      return QuoteError.VIDEO_IDENT_REQUIRED;
+
+    if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
-
-    if (
-      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
-      user?.userData?.accountType === AccountType.ORGANIZATION &&
-      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
-    )
-      return QuoteError.VIDEO_IDENT_REQUIRED;
 
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;
