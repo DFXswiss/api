@@ -463,9 +463,13 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  private getInputAmount(outputAmount: number, rate: number, { fee: { min, fixed, network } }: TxSpec): number {
-    const inputAmountNormal = (outputAmount + fixed + network) / (1 - rate);
-    const inputAmountWithMinFee = outputAmount + network + min;
+  private getInputAmount(
+    outputAmount: number,
+    rate: number,
+    { fee: { min, fixed, network, bankFixed, networkStart } }: TxSpec,
+  ): number {
+    const inputAmountNormal = (outputAmount + fixed + network + bankFixed + networkStart) / (1 - rate);
+    const inputAmountWithMinFee = outputAmount + network + bankFixed + networkStart + min;
 
     return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
