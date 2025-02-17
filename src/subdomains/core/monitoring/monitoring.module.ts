@@ -8,6 +8,7 @@ import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
+import { FiatPayInModule } from 'src/subdomains/supporting/fiat-payin/fiat-payin.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { MonitorConnectionPoolService } from './monitor-connection-pool.service';
 import { MonitoringController } from './monitoring.controller';
@@ -36,6 +37,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     LetterModule,
     IntegrationModule,
     LightningModule,
+    FiatPayInModule,
   ],
   providers: [
     SystemStateSnapshotRepository,

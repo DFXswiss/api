@@ -5,11 +5,11 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -72,11 +72,8 @@ export class AdminService {
     }
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_OUT, timeout: 3600 })
   async completeLiquidityOrders() {
-    if (DisabledProcess(Process.PAY_OUT)) return;
-
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;
       const pContext = context as unknown as PayoutOrderContext;

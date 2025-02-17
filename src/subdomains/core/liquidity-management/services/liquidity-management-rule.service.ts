@@ -1,12 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -108,11 +108,8 @@ export class LiquidityManagementRuleService {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
   async reactivateRules(): Promise<void> {
-    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
-
     const rules = await this.ruleRepo.findBy({
       status: LiquidityManagementRuleStatus.PAUSED,
       reactivationTime: Not(IsNull()),

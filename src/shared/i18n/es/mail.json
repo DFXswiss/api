@@ -30,6 +30,7 @@
             },
             "currency_exchange": "Por cierto: La cuenta bancaria {bankAccount} es una cuenta {bankAsset}, si envías {inputAsset} este será canjeado directamente en el banco y recibiremos {bankAsset}.<br>Si es posible, envía {bankAsset} directamente a esta cuenta bancaria."
         },
+        "warning": "Precaución:<br><br><br>Cada vez hay más estafadores (normalmente mujeres guapas) que te escriben a través de las redes sociales (por ejemplo, linkedIn) y te prometen inversiones aparentemente lucrativas al cabo de un tiempo.<br>Tenga cuidado y, en caso de duda, no envíe dinero.<br><br>Existe el riesgo de pérdida total si sigue las instrucciones de este desconocido y le envía dinero, por ejemplo",
         "crypto_output": {
             "title": "Criptoactivo pagado",
             "salutation": "Sus cripto activos han sido pagados a su dirección"
@@ -85,7 +86,8 @@
                 "card_name_mismatch": "El nombre de la tarjeta de crédito no coincide con el nombre del titular de la cuenta DFX",
                 "user_deactivated": "Tu dirección de blockchain vinculada ha sido eliminada irrevocablemente por ti. Puede seguir utilizando DFX con otras direcciones de blockchain",
                 "video_ident_needed": "Usted debe completar su KYC con la identificación de vídeo para la transacción",
-                "missing_liquidity": "DFX no pudo negociar la cantidad requerida de tokens en el plazo especificado"
+                "missing_liquidity": "DFX no pudo negociar la cantidad requerida de tokens en el plazo especificado",
+                "test_only": "Prueba"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },

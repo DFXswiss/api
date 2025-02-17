@@ -6,7 +6,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -15,7 +15,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -107,11 +107,8 @@ export class KycService {
     this.webhookQueue = new QueueHandler();
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.KYC })
   async checkIdentSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
-
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
@@ -133,11 +130,8 @@ export class KycService {
     }
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.KYC })
   async reviewKycSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
-
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();
   }
@@ -516,6 +510,13 @@ export class KycService {
 
     const user = transaction.user;
     const kycStep = user.getStepOrThrow(transaction.stepId);
+
+    if (result === IdentShortResult.MEDIA) {
+      await this.downloadMedia(user, kycStep);
+      this.logger.info(`Media download finished for KYC step: ${kycStep.id}`);
+      return;
+    }
+
     if (!kycStep.isInProgress && !kycStep.isInReview) {
       this.logger.verbose(`Received KYC webhook call dropped: ${kycStep.id}`);
       return;
@@ -544,10 +545,6 @@ export class KycService {
         await this.kycStepRepo.update(...kycStep.internalReview(dto));
         await this.downloadIdentDocuments(user, kycStep);
         break;
-
-      case IdentShortResult.MEDIA:
-        await this.downloadMedia(user, kycStep);
-        return;
 
       case IdentShortResult.FAIL:
         // retrigger personal data step, if data was wrong
@@ -1008,10 +1005,12 @@ export class KycService {
   }
 
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
-    const stepsWith2fa = [KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
-    if (stepsWith2fa.some((s) => user.getPendingStepWith(s))) {
-      await this.verify2fa(user, ip);
-    }
+    const has2faSteps = user.kycSteps.some(
+      (s) =>
+        (s.name === KycStepName.FINANCIAL_DATA || (s.name === KycStepName.IDENT && s.type !== KycStepType.MANUAL)) &&
+        s.isInProgress,
+    );
+    if (has2faSteps) await this.verify2fa(user, ip);
   }
 
   private async verify2fa(user: UserData, ip: string): Promise<void> {

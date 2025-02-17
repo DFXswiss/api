@@ -30,6 +30,7 @@
             },
             "currency_exchange": "By the way: The {bankAccount} bank account is a {bankAsset} account, if you send {inputAsset} this will be exchanged directly at the bank and we will receive {bankAsset}.<br>If possible, send {bankAsset} to this bank account."
         },
+        "warning": "Caution:<br><br><br>There are an increasing number of scammers (usually pretty women) who write to you via social media (e.g. linkedIn) and promise you seemingly lucrative investments after a while.<br>Be careful and, if in doubt, do not send money.<br><br>There is a risk of total loss if you follow the instructions of this stranger and send them money, for example",
         "crypto_output": {
             "title": "Crypto asset paid out",
             "salutation": "Your crypto assets have been paid out to your address"
@@ -85,7 +86,8 @@
                 "card_name_mismatch": "The given credit card name does not match the name of the DFX account holder",
                 "user_deactivated": "Your linked blockchain address has been irrevocably deleted by you. You can still use DFX with other blockchain addresses",
                 "video_ident_needed": "You must complete your KYC with Video-Ident for the transaction",
-                "missing_liquidity": "DFX was unable to trade the required amount of tokens within the specified time"
+                "missing_liquidity": "DFX was unable to trade the required amount of tokens within the specified time",
+                "test_only": "Test"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },

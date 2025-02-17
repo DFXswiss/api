@@ -6,11 +6,11 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-sell.dto';
@@ -174,8 +174,7 @@ export class SellService {
   }
 
   // --- VOLUMES --- //
-  @Cron(CronExpression.EVERY_YEAR)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
