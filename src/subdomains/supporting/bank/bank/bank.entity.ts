@@ -25,4 +25,7 @@ export class Bank extends IEntity {
 
   @Column({ default: false })
   sctInst: boolean;
+
+  @Column({ default: true })
+  amlEnabled: boolean;
 }

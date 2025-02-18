@@ -4,10 +4,10 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   SpecialExternalAccount,
@@ -26,7 +26,6 @@ export class AmlHelperService {
     inputAsset: Active,
     minVolume: number,
     amountInChf: number,
-    last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -58,16 +57,18 @@ export class AmlHelperService {
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
-    if (last24hVolume > Config.tradingLimits.dailyDefault) {
+    if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
       if (!entity.userData.hasBankTxVerification) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
       if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
         errors.push(AmlError.NO_LETTER);
-      if (!entity.userData.amlListAddedDate) errors.push(AmlError.NO_AML_LIST);
-      if (!entity.userData.kycFileId && (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT))
-        errors.push(AmlError.NO_KYC_FILE_ID);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+      if (
+        entity.userData.accountType === AccountType.ORGANIZATION &&
+        entity.userData.identificationType === KycIdentificationType.ONLINE_ID
+      )
+        errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
 
     // AmlRule asset/fiat check
@@ -144,7 +145,7 @@ export class AmlHelperService {
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
         if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
         if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
-        if (bank && !bank.receive) errors.push(AmlError.BANK_DEACTIVATED);
+        if (bank && !bank.amlEnabled) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
         if (nationality && !nationality.checkoutEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
@@ -255,7 +256,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 10000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        if (amountInChf > 100000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
         break;
     }
 
@@ -281,7 +282,6 @@ export class AmlHelperService {
     inputAsset: Active,
     minVolume: number,
     amountInChf: number,
-    last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -302,7 +302,6 @@ export class AmlHelperService {
       inputAsset,
       minVolume,
       amountInChf,
-      last24hVolume,
       last7dCheckoutVolume,
       last30dVolume,
       last365dVolume,
@@ -329,7 +328,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+      return {};
     }
 
     // Crucial error aml
@@ -371,8 +370,7 @@ export class AmlHelperService {
       };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
-      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10) return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { bankData, comment };

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
@@ -105,7 +106,7 @@ export class BuyCryptoBatchService {
           tx.priceStepsObject = [
             ...tx.inputPriceStep,
             PriceStep.create(
-              'DFX',
+              Config.manualPriceStepSourceName,
               tx.inputReferenceAsset,
               tx.outputReferenceAsset.name,
               tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,

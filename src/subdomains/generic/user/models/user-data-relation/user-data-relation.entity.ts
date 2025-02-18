@@ -8,7 +8,7 @@ export class UserDataRelation extends IEntity {
   @Column({ length: 256 })
   relation: UserDataRelationState;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   signatory: SignatoryState;
 
   // --- REFERENCES --- //

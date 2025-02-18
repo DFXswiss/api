@@ -14,7 +14,8 @@ import { IdNowResult } from '../../dto/ident-result.dto';
 import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
-import { KycStepName, KycStepType } from '../../enums/kyc.enum';
+import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class IdentService {

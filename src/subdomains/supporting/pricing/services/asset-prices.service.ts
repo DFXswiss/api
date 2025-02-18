@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { PricingService } from './pricing.service';
 
 @Injectable()
@@ -18,11 +18,8 @@ export class AssetPricesService {
   ) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
-    if (DisabledProcess(Process.PRICING)) return;
-
     const usd = await this.fiatService.getFiatByName('USD');
     const chf = await this.fiatService.getFiatByName('CHF');
 
@@ -40,11 +37,8 @@ export class AssetPricesService {
     }
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PRICING, timeout: 3600 })
   async updatePaymentPrices() {
-    if (DisabledProcess(Process.PRICING)) return;
-
     const relevantFiats = await this.fiatService.getActiveFiat();
     const relevantAssets = await this.assetService.getPaymentAssets();
 

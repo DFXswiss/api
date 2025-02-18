@@ -366,7 +366,6 @@ export class BuyFiat extends IEntity {
     minVolume: number,
     amountInEur: number,
     amountInChf: number,
-    last24hVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -379,7 +378,6 @@ export class BuyFiat extends IEntity {
         inputAsset,
         minVolume,
         amountInChf,
-        last24hVolume,
         0,
         last30dVolume,
         last365dVolume,
@@ -502,7 +500,7 @@ export class BuyFiat extends IEntity {
 }
 
 export const BuyFiatAmlReasonPendingStates = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,

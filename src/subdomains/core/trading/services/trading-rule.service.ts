@@ -42,7 +42,7 @@ export class TradingRuleService {
 
   async processRules() {
     const rules = await this.ruleRepo.findBy({
-      status: In([TradingRuleStatus.ACTIVE, TradingRuleStatus.PAUSED]),
+      status: In([TradingRuleStatus.ACTIVE, TradingRuleStatus.PROCESSING, TradingRuleStatus.PAUSED]),
     });
 
     for (const rule of rules) {
@@ -69,11 +69,6 @@ export class TradingRuleService {
 
   private async executeRule(rule: TradingRule): Promise<void> {
     try {
-      if (!rule.isActive()) {
-        this.logger.error(`Could not execute rule ${rule.id}: status is ${rule.status}`);
-        return;
-      }
-
       if (rule.leftAsset.blockchain !== rule.rightAsset.blockchain) {
         rule.deactivate();
         await this.ruleRepo.save(rule);
@@ -84,7 +79,7 @@ export class TradingRuleService {
       const tradingInfo = await this.tradingService.createTradingInfo(rule);
 
       if (tradingInfo) {
-        if (rule.status === TradingRuleStatus.PAUSED) tradingInfo.tradeRequired = false;
+        if (rule.status !== TradingRuleStatus.ACTIVE) tradingInfo.tradeRequired = false;
 
         if (tradingInfo.tradeRequired) {
           rule.processing();

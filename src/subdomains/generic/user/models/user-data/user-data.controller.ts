@@ -114,7 +114,7 @@ export class UserDataController {
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
     const userData = await this.userDataService.getUserData(+id);
 
-    const url = await this.documentService.uploadUserFile(
+    const { url } = await this.documentService.uploadUserFile(
       userData,
       dto.documentType,
       dto.originalName,

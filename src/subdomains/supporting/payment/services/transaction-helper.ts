@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
@@ -9,11 +9,13 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
@@ -57,8 +59,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_5_MINUTES)
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
   }
@@ -431,7 +432,7 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
-    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
+    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, bankFeeRate, sourceSpecs);
     const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, bankFeeRate, sourceSpecs, isFiat(from));
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
@@ -462,9 +463,14 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  private getInputAmount(outputAmount: number, rate: number, { fee: { min, fixed, network } }: TxSpec): number {
-    const inputAmountNormal = (outputAmount + fixed + network) / (1 - rate);
-    const inputAmountWithMinFee = outputAmount + network + min;
+  private getInputAmount(
+    outputAmount: number,
+    rate: number,
+    bankRate: number,
+    { fee: { min, fixed, network, bankFixed, networkStart } }: TxSpec,
+  ): number {
+    const inputAmountNormal = (outputAmount + fixed + network + bankFixed + networkStart) / (1 - (rate + bankRate));
+    const inputAmountWithMinFee = outputAmount + network + bankFixed + networkStart + min;
 
     return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
@@ -552,18 +558,18 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
-    const volume24h =
+    const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
-        ? await this.getVolumeSince(Util.daysBefore(1), new Date(), [user])
+        ? await this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user])
         : 0;
 
-    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume24h;
+    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume30d;
 
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
       : Config.tradingLimits.yearlyDefault;
 
-    return { kycLimit, defaultLimit };
+    return { kycLimit: Math.max(0, kycLimit), defaultLimit };
   }
 
   private getTxError(
@@ -612,10 +618,25 @@ export class TransactionHelper implements OnModuleInit {
 
     // verification checks
     if (
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      user &&
+      !user.userData.completeName &&
+      !user.userData.verifiedName
+    )
+      return QuoteError.NAME_REQUIRED;
+
+    if (
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
+      user?.userData?.accountType === AccountType.ORGANIZATION &&
+      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
+    )
+      return QuoteError.VIDEO_IDENT_REQUIRED;
+
+    if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
-      txAmountChf > Config.tradingLimits.dailyDefault
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
 

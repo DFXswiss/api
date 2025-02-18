@@ -8,4 +8,5 @@ export enum ContentType {
   XML = 'text/xml',
   ZIP = 'application/zip',
   MP3 = 'audio/mpeg',
+  MP4 = 'video/mp4',
 }

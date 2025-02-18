@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -14,11 +14,15 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import {
+  LiquidityManagementBridges,
+  LiquidityManagementExchanges,
+} from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -77,11 +81,8 @@ export class LogJobService {
     private readonly payoutService: PayoutService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
-    if (DisabledProcess(Process.TRADING_LOG)) return;
-
     // trading log
     const tradingLog = await this.getTradingLog();
 
@@ -213,7 +214,12 @@ export class LogJobService {
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
     // pending balances
-    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingExchangeTx();
+    const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+
+    const pendingExchangeOrders = pendingOrders.filter((o) => LiquidityManagementExchanges.includes(o.action.system));
+    const pendingBridgeOrders = pendingOrders.filter(
+      (o) => LiquidityManagementBridges.includes(o.action.system) && ['withdraw', 'deposit'].includes(o.action.command),
+    );
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
@@ -353,6 +359,10 @@ export class LogJobService {
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
         0,
       );
+      const bridgeOrder = pendingBridgeOrders.reduce(
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        0,
+      );
 
       // Olky to Maerki
       const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
@@ -468,27 +478,27 @@ export class LogJobService {
       if (fromKraken !== fromKrakenUnfiltered) {
         errors.push(`fromKraken !== fromKrakenUnfiltered`);
         this.logger
-          .error(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
+          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
       if (toKraken !== toKrakenUnfiltered) {
         errors.push(`toKraken !== toKrakenUnfiltered`);
         this.logger
-          .error(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
+          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
       if (fromKraken < 0) {
         errors.push(`fromKraken < 0`);
-        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
         ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
         pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
         errors.push(`toKraken < 0`);
-        this.logger.error(
+        this.logger.verbose(
           `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
           ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
@@ -500,6 +510,7 @@ export class LogJobService {
       const totalPlusPending =
         cryptoInput +
         exchangeOrder +
+        bridgeOrder +
         pendingOlkyMaerkiAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
@@ -554,6 +565,7 @@ export class LogJobService {
                 total: this.getJsonValue(totalPlusPending, isFiat(curr), true),
                 cryptoInput: this.getJsonValue(cryptoInput, isFiat(curr)),
                 exchangeOrder: this.getJsonValue(exchangeOrder, isFiat(curr)),
+                bridgeOrder: this.getJsonValue(bridgeOrder, isFiat(curr)),
                 fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, isFiat(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, isFiat(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, isFiat(curr)),
@@ -798,7 +810,7 @@ export class LogJobService {
     }
 
     return {
-      receiver: filtered14ReceiverTx.filter((r) => r.id >= filtered14ReceiverTx[receiverIndex]?.id ?? 0),
+      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
       sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }
