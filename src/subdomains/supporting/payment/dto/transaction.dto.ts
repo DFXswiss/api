@@ -16,10 +16,13 @@ export enum TransactionType {
 export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
+  LIQUIDITY_PENDING = 'LiquidityPending',
   AML_PENDING = 'AmlPending',
   KYC_REQUIRED = 'KycRequired',
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
+  PRICE_UNDETERMINABLE = 'PriceUndeterminable',
+  PAYOUT_PENDING = 'PayoutPending',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
   RETURN_PENDING = 'ReturnPending',
