@@ -12,14 +12,27 @@ export type KeyType<T, U> = {
 
 type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
+export enum AmountType {
+  ASSET = 'Asset',
+  FIAT = 'Fiat',
+  ASSET_FEE = 'AssetFee',
+  FIAT_FEE = 'FiatFee',
+}
+
 export class Util {
   // --- MATH --- //
-  static roundReadable(amount: number, isFiat: boolean, assetPrecision?: number): number {
-    return isFiat
-      ? amount < 0.01
-        ? this.round(amount, 2)
-        : this.ceil(amount, 2)
-      : this.roundByPrecision(amount, assetPrecision ?? 5);
+  static roundReadable(amount: number, type: AmountType, assetPrecision?: number): number {
+    switch (type) {
+      case AmountType.ASSET:
+      case AmountType.ASSET_FEE:
+        return this.round(amount, assetPrecision ?? 5);
+
+      case AmountType.FIAT:
+        return this.round(amount, 2);
+
+      case AmountType.FIAT_FEE:
+        return amount < 0.01 ? this.round(amount, 2) : this.ceil(amount, 2);
+    }
   }
 
   static round(amount: number, decimals: number): number {

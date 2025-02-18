@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 
 export class Price {
   source: string;
@@ -96,7 +96,7 @@ export class PriceStep {
     priceStep.source = source;
     priceStep.from = from;
     priceStep.to = to;
-    priceStep.price = Util.roundReadable(_price, false);
+    priceStep.price = Util.roundReadable(_price, AmountType.ASSET);
     priceStep.timestamp = _timestamp;
 
     return priceStep;
