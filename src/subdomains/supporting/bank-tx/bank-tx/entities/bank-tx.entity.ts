@@ -107,6 +107,15 @@ export class BankTx extends IEntity {
   chargeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
+  senderChargeAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  senderChargeCurrency?: string;
+
+  @Column({ type: 'float', nullable: true })
+  senderChargeAmountChf?: number;
+
+  @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
 
   @Column({ type: 'float', nullable: true })
