@@ -16,7 +16,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import {
@@ -868,7 +868,9 @@ export class LogJobService {
   }
 
   private getJsonValue(value: number | undefined, isFiat: boolean, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, isFiat, 8);
+    return (!returnZero && !value) || value < 0
+      ? undefined
+      : Util.roundReadable(value, isFiat ? AmountType.FIAT : AmountType.ASSET, 8);
   }
 
   private isFinancialTypeFiat(financialType: string): boolean {

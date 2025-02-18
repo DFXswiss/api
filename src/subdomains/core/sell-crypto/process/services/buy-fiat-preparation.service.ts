@@ -4,7 +4,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -219,7 +219,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       try {
         const inputCurrency = entity.cryptoInput.asset;
         const outputCurrency = entity.outputAsset;
-        const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
+        const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, AmountType.FIAT);
 
         if (outputCurrency.id !== entity.paymentLinkPayment.currency.id) throw new Error('Payment currency mismatch');
 

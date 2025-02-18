@@ -1,7 +1,7 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Active, amountType, feeAmountType } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -40,13 +40,14 @@ export class TransactionDtoMapper {
       uid: buyCrypto.transaction.uid,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
-      inputAmount: Util.roundReadable(buyCrypto.inputAmount, isFiat(buyCrypto.inputAssetEntity)),
+      inputAmount: Util.roundReadable(buyCrypto.inputAmount, amountType(buyCrypto.inputAssetEntity)),
       inputAsset: buyCrypto.inputAssetEntity.name,
       inputAssetId: buyCrypto.inputAssetEntity.id,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
-      outputAmount: buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, false) : null,
+      outputAmount:
+        buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, AmountType.ASSET) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
       outputBlockchain: buyCrypto.outputAsset?.blockchain,
@@ -55,7 +56,7 @@ export class TransactionDtoMapper {
       feeAmount: buyCrypto.totalFeeAmount
         ? Util.roundReadable(
             buyCrypto.totalFeeAmount * (buyCrypto.inputAmount / buyCrypto.inputReferenceAmount),
-            isFiat(buyCrypto.inputAssetEntity),
+            amountType(buyCrypto.inputAssetEntity),
           )
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAssetEntity.name : null,
@@ -100,13 +101,13 @@ export class TransactionDtoMapper {
       uid: buyFiat.transaction.uid,
       type: TransactionType.SELL,
       ...getTransactionStateDetails(buyFiat),
-      inputAmount: Util.roundReadable(buyFiat.inputAmount, isFiat(buyFiat.inputAssetEntity)),
+      inputAmount: Util.roundReadable(buyFiat.inputAmount, amountType(buyFiat.inputAssetEntity)),
       inputAsset: buyFiat.inputAssetEntity.name,
       inputAssetId: buyFiat.inputAssetEntity.id,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
-      outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, true) : null,
+      outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, AmountType.FIAT) : null,
       outputAsset: buyFiat.outputAsset?.name,
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
@@ -116,7 +117,7 @@ export class TransactionDtoMapper {
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
             buyFiat.totalFeeAmount * (buyFiat.inputAmount / buyFiat.inputReferenceAmount),
-            isFiat(buyFiat.inputAssetEntity),
+            amountType(buyFiat.inputAssetEntity),
           )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAssetEntity.name : null,
@@ -168,7 +169,7 @@ export class TransactionDtoMapper {
       rate: null,
       outputAmount:
         refReward.outputAmount != null
-          ? Util.roundReadable(refReward.outputAmount, isFiat(refReward.outputAssetEntity))
+          ? Util.roundReadable(refReward.outputAmount, amountType(refReward.outputAssetEntity))
           : null,
       outputAsset: refReward.outputAssetEntity.name,
       outputAssetId: refReward.outputAssetEntity?.id,
@@ -239,29 +240,29 @@ export class TransactionDtoMapper {
       rate: entity.percentFee,
       bank:
         entity.bankFeeAmount != null
-          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       fixed:
         entity.absoluteFeeAmount != null
-          ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       min:
         entity.minFeeAmount != null
-          ? Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.minFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
-      network: Util.roundReadable(blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)),
+      network: Util.roundReadable(blockchainFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
       dfx:
         entity.totalFeeAmount != null
           ? Util.roundReadable(
               (entity.totalFeeAmount - (blockchainFee + networkStartFee)) * referencePrice,
-              isFiat(entity.inputAssetEntity),
+              feeAmountType(entity.inputAssetEntity),
             )
           : null,
       total:
         entity.totalFeeAmount != null
-          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
-      networkStart: Util.roundReadable(networkStartFee * referencePrice, isFiat(entity.inputAssetEntity)),
+      networkStart: Util.roundReadable(networkStartFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
     };
   }
 }
