@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -24,8 +24,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     super(monitoringService, 'exchange', 'volume');
   }
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
   async fetch() {
     if (DisabledProcess(Process.MONITORING)) return;
 
@@ -56,7 +55,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   }
 
   private async getVolume30(exchange: ExchangeName): Promise<number> {
-    return this.repos.exchangeTx.sum('vol', {
+    return this.repos.exchangeTx.sum('amount', {
       exchange,
       type: ExchangeTxType.TRADE,
       created: MoreThan(Util.daysBefore(30)),
