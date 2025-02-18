@@ -100,8 +100,11 @@ export class UnassignedTransactionDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'UID  of the transaction' })
   uid: string;
+
+  @ApiPropertyOptional({ description: 'UID of the request of the transaction' })
+  requestUid?: string;
 
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;

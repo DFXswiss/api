@@ -123,13 +123,12 @@ export class TransactionController {
   }
 
   @Get('single')
-  @ApiExcludeEndpoint()
   async getSingleTransaction(
     @Query('uid') uid?: string,
-    @Query('external-id') externalId?: string,
+    @Query('request-uid') requestUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, externalId, ckoId });
+    const transaction = await this.getTransaction({ uid, requestUid, ckoId });
 
     const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -208,7 +207,7 @@ export class TransactionController {
     @Query('request-id') requestId?: string,
     @Query('external-id') externalId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, requestId, externalId });
+    const transaction = await this.getTransaction({ id, uid, requestId, externalId }, jwt.account);
 
     if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
@@ -542,19 +541,24 @@ export class TransactionController {
     }).then((list) => list.filter((dto) => dto));
   }
 
-  private async getTransaction({
-    id,
-    uid,
-    requestId,
-    externalId,
-    ckoId,
-  }: {
-    id?: string;
-    uid?: string;
-    requestId?: string;
-    externalId?: string;
-    ckoId?: string;
-  }): Promise<Transaction | undefined> {
+  private async getTransaction(
+    {
+      id,
+      uid,
+      requestUid,
+      requestId,
+      externalId,
+      ckoId,
+    }: {
+      id?: string;
+      uid?: string;
+      requestUid?: string;
+      requestId?: string;
+      externalId?: string;
+      ckoId?: string;
+    },
+    accountId?: number,
+  ): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
@@ -563,13 +567,16 @@ export class TransactionController {
       cryptoInput: true,
       checkoutTx: true,
       user: { userData: true },
+      request: true,
     };
 
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
+    if (requestUid) transaction = await this.transactionService.getTransactionByRequestUid(requestUid, relations);
     if (requestId) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
-    if (externalId) transaction = await this.transactionService.getTransactionByExternalId(externalId, relations);
+    if (externalId)
+      transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return transaction;
