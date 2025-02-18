@@ -599,7 +599,7 @@ export class TransactionHelper implements OnModuleInit {
     if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
       return QuoteError.KYC_REQUIRED;
 
-    if (isBuy && AmlHelperService.amlRuleUserCheck([user?.wallet.amlRule], user, paymentMethodIn))
+    if (isBuy && AmlHelperService.amlRuleUserCheck(user?.wallet.amlRuleList, user, paymentMethodIn))
       return QuoteError.KYC_REQUIRED;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
