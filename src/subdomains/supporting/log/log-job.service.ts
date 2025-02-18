@@ -9,7 +9,7 @@ import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockch
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
-import { isFiat } from 'src/shared/models/active';
+import { amountType } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -110,9 +110,9 @@ export class LogJobService {
         tradings: tradingLog,
         balancesByFinancialType,
         balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true, true),
-          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, true, true),
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
+          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, AmountType.FIAT, true),
         },
         changes: changeLog,
       }),
@@ -144,10 +144,10 @@ export class LogJobService {
       );
 
       acc[financialType] = {
-        plusBalance: this.getJsonValue(plusBalance, this.isFinancialTypeFiat(financialType), true),
-        plusBalanceChf: this.getJsonValue(plusBalanceChf, true, true),
-        minusBalance: this.getJsonValue(minusBalance, this.isFinancialTypeFiat(financialType), true),
-        minusBalanceChf: this.getJsonValue(minusBalanceChf, true, true),
+        plusBalance: this.getJsonValue(plusBalance, this.financialTypeAmountType(financialType), true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
+        minusBalance: this.getJsonValue(minusBalance, this.financialTypeAmountType(financialType), true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
       };
 
       return acc;
@@ -558,17 +558,17 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus, isFiat(curr), true),
-          liquidity: this.getJsonValue(liquidity, isFiat(curr)),
+          total: this.getJsonValue(totalPlus, amountType(curr), true),
+          liquidity: this.getJsonValue(liquidity, amountType(curr)),
           pending: totalPlusPending
             ? {
-                total: this.getJsonValue(totalPlusPending, isFiat(curr), true),
-                cryptoInput: this.getJsonValue(cryptoInput, isFiat(curr)),
-                exchangeOrder: this.getJsonValue(exchangeOrder, isFiat(curr)),
-                bridgeOrder: this.getJsonValue(bridgeOrder, isFiat(curr)),
-                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, isFiat(curr)),
-                fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, isFiat(curr)),
-                toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, isFiat(curr)),
+                total: this.getJsonValue(totalPlusPending, amountType(curr), true),
+                cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
+                exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
+                bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
+                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, amountType(curr)),
+                fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
+                toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
               }
             : undefined,
           monitoring: errors.length
@@ -581,21 +581,21 @@ export class LogJobService {
             : undefined,
         },
         minusBalance: {
-          total: this.getJsonValue(totalMinus, isFiat(curr), true),
-          debt: this.getJsonValue(manualDebtPosition, isFiat(curr)),
+          total: this.getJsonValue(totalMinus, amountType(curr), true),
+          debt: this.getJsonValue(manualDebtPosition, amountType(curr)),
           pending: totalMinusPending
             ? {
-                total: this.getJsonValue(totalMinusPending, isFiat(curr), true),
-                buyFiat: this.getJsonValue(buyFiat, isFiat(curr)),
-                buyFiatPass: this.getJsonValue(buyFiatPass, isFiat(curr)),
-                buyCrypto: this.getJsonValue(buyCrypto, isFiat(curr)),
-                buyCryptoPass: this.getJsonValue(buyCryptoPass, isFiat(curr)),
-                bankTxNull: this.getJsonValue(bankTxNull, isFiat(curr)),
-                bankTxPending: this.getJsonValue(bankTxPending, isFiat(curr)),
-                bankTxUnknown: this.getJsonValue(bankTxUnknown, isFiat(curr)),
-                bankTxGSheet: this.getJsonValue(bankTxGSheet, isFiat(curr)),
-                bankTxRepeat: this.getJsonValue(bankTxRepeat, isFiat(curr)),
-                bankTxReturn: this.getJsonValue(bankTxReturn, isFiat(curr)),
+                total: this.getJsonValue(totalMinusPending, amountType(curr), true),
+                buyFiat: this.getJsonValue(buyFiat, amountType(curr)),
+                buyFiatPass: this.getJsonValue(buyFiatPass, amountType(curr)),
+                buyCrypto: this.getJsonValue(buyCrypto, amountType(curr)),
+                buyCryptoPass: this.getJsonValue(buyCryptoPass, amountType(curr)),
+                bankTxNull: this.getJsonValue(bankTxNull, amountType(curr)),
+                bankTxPending: this.getJsonValue(bankTxPending, amountType(curr)),
+                bankTxUnknown: this.getJsonValue(bankTxUnknown, amountType(curr)),
+                bankTxGSheet: this.getJsonValue(bankTxGSheet, amountType(curr)),
+                bankTxRepeat: this.getJsonValue(bankTxRepeat, amountType(curr)),
+                bankTxReturn: this.getJsonValue(bankTxReturn, amountType(curr)),
               }
             : undefined,
         },
@@ -867,13 +867,11 @@ export class LogJobService {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined, isFiat: boolean, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0
-      ? undefined
-      : Util.roundReadable(value, isFiat ? AmountType.FIAT : AmountType.ASSET, 8);
+  private getJsonValue(value: number | undefined, amountType: AmountType, returnZero = false): number | undefined {
+    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, amountType, 8);
   }
 
-  private isFinancialTypeFiat(financialType: string): boolean {
-    return ['EUR', 'USD', 'CHF'].includes(financialType);
+  private financialTypeAmountType(financialType: string): AmountType {
+    return ['EUR', 'USD', 'CHF'].includes(financialType) ? AmountType.FIAT : AmountType.ASSET;
   }
 }
