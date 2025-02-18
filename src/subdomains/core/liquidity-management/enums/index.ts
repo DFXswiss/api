@@ -46,3 +46,11 @@ export enum LiquidityOptimizationType {
   DEFICIT = 'Deficit',
   REDUNDANCY = 'Redundancy',
 }
+
+export const LiquidityManagementExchanges = [LiquidityManagementSystem.KRAKEN, LiquidityManagementSystem.BINANCE];
+export const LiquidityManagementBridges = [
+  LiquidityManagementSystem.BASE_L2_BRIDGE,
+  LiquidityManagementSystem.POLYGON_L2_BRIDGE,
+  LiquidityManagementSystem.ARBITRUM_L2_BRIDGE,
+  LiquidityManagementSystem.OPTIMISM_L2_BRIDGE,
+];
