@@ -175,9 +175,6 @@ export class AuthService {
   }
 
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
-    if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
-      throw new ConflictException('User is deactivated or blocked');
-
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
       if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
         throw new UnauthorizedException('Invalid credentials');
@@ -399,7 +396,9 @@ export class AuthService {
       user: user.id,
       address: user.address,
       role: user.role,
+      userStatus: user.status,
       account: user.userData.id,
+      accountStatus: user.userData.status,
       blockchains: user.blockchains,
       ip,
     };
@@ -410,6 +409,7 @@ export class AuthService {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,
+      accountStatus: userData.status,
       blockchains: [],
       ip,
     };
