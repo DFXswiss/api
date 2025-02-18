@@ -44,7 +44,7 @@ export class LnUrlForwardService {
       return this.paymentLinkService.createPayRequest(
         id,
         Util.toEnum(PaymentStandard, params.standard),
-        params.waitTimeout,
+        params.timeout,
       );
     }
 

@@ -196,7 +196,7 @@ export class PaymentLinkService {
   async createPayRequest(
     uniqueId: string,
     standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
-    waitTimeout = 10000,
+    waitTimeout = 10,
   ): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.waitForPendingPayment(uniqueId, waitTimeout);
     if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentErrorResponse(uniqueId, standardParam));
@@ -242,7 +242,7 @@ export class PaymentLinkService {
       () => this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId),
       (p) => p?.status === PaymentLinkPaymentStatus.PENDING,
       1000,
-      timeout,
+      timeout * 1000,
     );
   }
 
