@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Votre équipe DFX",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://services.dfx.swiss/support].",
+        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://app.dfx.swiss/support].",
         "thanks": "Merci beaucoup pour votre confiance",
         "welcome": "Bonjour {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
@@ -107,7 +107,7 @@
                 "line1": "Veuillez demander une nouvelle limite annuelle.",
                 "line2": "Nous traiterons votre transaction après<br> l'augmentation de votre limite.",
                 "line3": "Augmenter la limite ?",
-                "line4": "Vous pouvez demander un relèvement de limite en cliquant sur le lien suivant:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line4": "Vous pouvez demander un relèvement de limite en cliquant sur le lien suivant:<br>[url:https://app.dfx.swiss/support/issue?issue-type=LimitRequest]",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "annual_limit_without_kyc": {
@@ -228,7 +228,7 @@
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
             "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
-            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://services.dfx.swiss/support]."
+            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://app.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",
@@ -269,6 +269,6 @@
             "salutation": "Vous avez demandé à changer votre adresse e-mail"
         },
         "message": "Votre code de vérification est:<br>{code}",
-        "closing": "Le code de vérification est valable pendant {expiration} minutes. Veuillez ne pas partager ce code de vérification avec d'autres personnes. Si vous n'avez pas demandé de code de vérification, veuillez contacter immédiatement le service d'assistance via [url:https://services.dfx.swiss/support]."
+        "closing": "Le code de vérification est valable pendant {expiration} minutes. Veuillez ne pas partager ce code de vérification avec d'autres personnes. Si vous n'avez pas demandé de code de vérification, veuillez contacter immédiatement le service d'assistance via [url:https://app.dfx.swiss/support]."
     }
 }

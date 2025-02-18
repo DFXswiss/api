@@ -30,7 +30,7 @@
       "assets": { "title": "Vermögen", "description": "Wie gross ist Dein totales Vermögen?" },
       "notification_of_changes": {
         "title": "Mitteilung von Änderungen",
-        "description": "Ich bestätige, dass ich bei relevanten Änderungen meinerseits diese unverzüglich an DFX via services.dfx.swiss/support/issue mitteile."
+        "description": "Ich bestätige, dass ich bei relevanten Änderungen meinerseits diese unverzüglich an DFX via app.dfx.swiss/support/issue mitteile."
       }
     },
     "option": {
