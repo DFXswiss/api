@@ -55,7 +55,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   }
 
   private async getVolume30(exchange: ExchangeName): Promise<number> {
-    return this.repos.exchangeTx.sum('amount', {
+    return this.repos.exchangeTx.sum('amountChf', {
       exchange,
       type: ExchangeTxType.TRADE,
       created: MoreThan(Util.daysBefore(30)),
