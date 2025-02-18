@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config, Environment } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -200,11 +200,7 @@ export class AuthService {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
-        if (
-          Config.environment !== Environment.LOC &&
-          (!/^([\w-]*\.)*dfx.swiss$/.test(redirectUrl.host) || redirectUrl.protocol !== 'https:')
-        )
-          throw new Error('Redirect URL not allowed');
+        if (redirectUrl.origin !== Config.frontend.services) throw new Error('Redirect URL not allowed');
       } catch (e) {
         throw new BadRequestException(e.message);
       }
