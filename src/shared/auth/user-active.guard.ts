@@ -7,13 +7,11 @@ export class UserActiveGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const userStatus = req.user.userStatus;
-    const userDataStatus = req.user.userDataStatus;
+    const accountStatus = req.user.userDataStatus;
 
     return (
-      userStatus !== UserStatus.BLOCKED &&
-      userStatus !== UserStatus.DELETED &&
-      userDataStatus !== UserDataStatus.BLOCKED &&
-      userDataStatus !== UserDataStatus.DEACTIVATED
+      ![UserStatus.BLOCKED, UserStatus.DELETED].includes(userStatus) &&
+      ![UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED].includes(accountStatus)
     );
   }
 }
