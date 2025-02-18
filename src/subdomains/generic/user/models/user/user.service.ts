@@ -260,7 +260,7 @@ export class UserService {
   async updateUserData(id: number, dto: KycInputDataDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({
       where: { id },
-      relations: { userData: { users: true, organization: true }, wallet: true },
+      relations: { userData: { users: true }, wallet: true },
     });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0 || (user.userData.mail && user.userData.mail !== dto.mail))
       throw new BadRequestException('KYC already started, mail already set');

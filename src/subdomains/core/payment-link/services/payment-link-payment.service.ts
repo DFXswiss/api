@@ -112,7 +112,7 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: { route: { deposit: true, user: { userData: { organization: true } } } },
+        link: { route: { deposit: true, user: { userData: true } } },
       },
     });
   }

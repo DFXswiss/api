@@ -26,12 +26,9 @@ export class OrganizationService {
   async syncOrganization() {
     if (DisabledProcess(Process.ORGANIZATION_SYNC)) return;
 
-    const entities = await this.userDataRepo.find({
-      where: {
-        organization: { id: IsNull() },
-        accountType: In([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP]),
-      },
-      relations: { organization: true },
+    const entities = await this.userDataRepo.findBy({
+      organization: { id: IsNull() },
+      accountType: In([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP]),
     });
 
     for (const entity of entities) {

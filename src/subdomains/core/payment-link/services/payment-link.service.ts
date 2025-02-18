@@ -279,7 +279,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { uniqueId, status: PaymentLinkStatus.ACTIVE },
-      relations: { route: { user: { userData: { organization: true } } } },
+      relations: { route: { user: { userData: true } } },
     });
 
     if (!paymentLink) return `Active payment link not found by id ${uniqueId}`;

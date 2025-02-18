@@ -368,7 +368,7 @@ export class UserData extends IEntity {
   @JoinColumn()
   accountOpener?: UserData;
 
-  @ManyToOne(() => Organization, { nullable: true })
+  @ManyToOne(() => Organization, { nullable: true, eager: true })
   organization: Organization;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)

@@ -370,7 +370,7 @@ export class UserDataService {
         countryId: update.organizationCountry?.id,
       };
 
-      userData.organization = !userData.organization
+      update.organization = !userData.organization
         ? await this.organizationService.createOrganization(organizationData)
         : await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
     }
