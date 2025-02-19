@@ -30,12 +30,13 @@ import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -246,7 +247,7 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
     const buys = await this.buyService.getUserDataBuys(jwt.account);
@@ -261,7 +262,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
@@ -331,10 +332,10 @@ export class TransactionController {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
         inputAmount,
         inputAsset: refundAsset,
-        refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, true),
+        refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, AmountType.FIAT),
         fee: {
           network: 0,
-          bank: Util.roundReadable(bankFeeAmount, true),
+          bank: Util.roundReadable(bankFeeAmount, AmountType.FIAT_FEE),
         },
         refundAsset,
         refundTarget,
@@ -350,11 +351,14 @@ export class TransactionController {
       if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
 
+      const amountType = transaction.targetEntity.cryptoInput ? AmountType.ASSET : AmountType.FIAT;
+      const feeAmountType = transaction.targetEntity.cryptoInput ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
+
       const inputAmount = Util.roundReadable(
         transaction.bankTx
           ? transaction.bankTx.amount + transaction.bankTx.chargeAmount
           : transaction.targetEntity.inputAmount,
-        !transaction.targetEntity.cryptoInput,
+        amountType,
       );
 
       const networkFeeAmount = transaction.targetEntity.cryptoInput
@@ -364,10 +368,7 @@ export class TransactionController {
       const bankFeeAmount =
         transaction.targetEntity.cryptoInput || transaction.checkoutTx ? 0 : inputAmount - transaction.bankTx.amount;
 
-      const totalFeeAmount = Util.roundReadable(
-        networkFeeAmount + bankFeeAmount,
-        !transaction.targetEntity.cryptoInput,
-      );
+      const totalFeeAmount = Util.roundReadable(networkFeeAmount + bankFeeAmount, feeAmountType);
 
       if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
@@ -393,12 +394,12 @@ export class TransactionController {
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-        inputAmount: Util.roundReadable(inputAmount, !transaction.targetEntity.cryptoInput),
+        inputAmount: Util.roundReadable(inputAmount, amountType),
         inputAsset: refundAsset,
         refundAmount: inputAmount - totalFeeAmount,
         fee: {
-          network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
-          bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
+          network: Util.roundReadable(networkFeeAmount, feeAmountType),
+          bank: Util.roundReadable(bankFeeAmount, feeAmountType),
         },
         refundAsset,
         refundTarget,

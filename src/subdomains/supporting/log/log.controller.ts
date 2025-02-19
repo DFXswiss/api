@@ -2,6 +2,7 @@ import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateLogDto, UpdateLogDto } from './dto/create-log.dto';
 import { Log } from './log.entity';
@@ -15,7 +16,7 @@ export class LogController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT), UserActiveGuard)
   async create(@Body() dto: CreateLogDto): Promise<Log> {
     return this.logService.create(dto);
   }
@@ -23,7 +24,7 @@ export class LogController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateLogDto): Promise<Log> {
     return this.logService.update(+id, dto);
   }

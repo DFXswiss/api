@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Your DFX Team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "If you have any questions,<br>we are happy to help you at [url:https://services.dfx.swiss/support].",
+        "support": "If you have any questions,<br>we are happy to help you at [url:https://app.dfx.swiss/support].",
         "thanks": "Thank you very much for your trust",
         "welcome": "Hi {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
@@ -107,7 +107,7 @@
                 "line1": "Please apply for a new annual limit.",
                 "line2": "Once the new limit has been approved,<br> we proceed with your transaction.",
                 "line3": "Increase the limit?",
-                "line4": "You can apply for a limit increase via the following link:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line4": "You can apply for a limit increase via the following link:<br>[url:https://app.dfx.swiss/support/issue?issue-type=LimitRequest]",
                 "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             },
             "annual_limit_without_kyc": {
@@ -228,7 +228,7 @@
             "title": "Confirm mail",
             "salutation": "Confirm your mail",
             "message": "Click the following link to confirm your mail for another account:<br>[url:{urlText}]",
-            "closing": "If you have not entered your mail in another DFX account, please contact support immediately at [url:https://services.dfx.swiss/support]."
+            "closing": "If you have not entered your mail in another DFX account, please contact support immediately at [url:https://app.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Address added to account",
@@ -269,6 +269,6 @@
             "salutation": "You have requested to change your email address"
         },
         "message": "Your verification code is:<br>{code}",
-        "closing": "The verification code is valid for {expiration} minutes. Please do not share this verification code with other people. If you have not requested a verification code, please contact support immediately via [url:https://services.dfx.swiss/support]."
+        "closing": "The verification code is valid for {expiration} minutes. Please do not share this verification code with other people. If you have not requested a verification code, please contact support immediately via [url:https://app.dfx.swiss/support]."
     }
 }

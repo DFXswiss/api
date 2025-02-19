@@ -40,6 +40,8 @@ export class QueueHandler {
 
   private isRunning = true;
 
+  private workParallelCounter = 0;
+
   /**
    * @param queueTimeout Max. item in queue time (incl. execution time)
    * @param itemTimeout Max. item execution time
@@ -47,9 +49,13 @@ export class QueueHandler {
   constructor(
     private readonly queueTimeout?: number,
     private readonly itemTimeout?: number,
-    private workParallel = false,
+    private readonly maxWorkParallel = 1,
   ) {
     void this.doWork();
+  }
+
+  static createParallelQueueHandler(maxWorkParallel = 1): QueueHandler {
+    return new QueueHandler(undefined, undefined, maxWorkParallel);
   }
 
   async handle<T>(action: () => Promise<T>): Promise<T> {
@@ -71,9 +77,11 @@ export class QueueHandler {
   private async doWork() {
     while (this.isRunning) {
       try {
-        if (this.queue.length > 0) {
+        if (this.queue.length > 0 && this.workParallelCounter < this.maxWorkParallel) {
           const work = this.queue.shift().doWork(this.itemTimeout);
-          if (!this.workParallel) await work;
+
+          this.workParallelCounter++;
+          void work.finally(() => this.workParallelCounter--);
         } else {
           await Util.delay(10);
         }

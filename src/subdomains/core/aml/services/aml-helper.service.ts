@@ -98,13 +98,15 @@ export class AmlHelperService {
 
       if (
         entity.userData.hasSuspiciousMail &&
-        entity.user.wallet.amlRule !== AmlRule.RULE_5 &&
+        !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
         entity.userData.status === UserDataStatus.NA &&
         (entity.checkoutTx || (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
       )
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
-      errors.push(this.amlRuleCheck(entity.user.wallet.amlRule, entity, amountInChf, last7dCheckoutVolume));
+      for (const amlRule of entity.user.wallet.amlRuleList) {
+        errors.push(this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume));
+      }
 
       if (entity.bankTx) {
         // bank
