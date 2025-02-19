@@ -40,3 +40,8 @@ export class UpdateLogDto {
   @IsBoolean()
   valid: boolean;
 }
+
+export interface LogCleanupSetting {
+  system: string;
+  subsystem: string;
+}
