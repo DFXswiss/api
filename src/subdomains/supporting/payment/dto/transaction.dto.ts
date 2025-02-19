@@ -22,7 +22,7 @@ export enum TransactionState {
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
   PRICE_UNDETERMINABLE = 'PriceUndeterminable',
-  PAYOUT_PENDING = 'PayoutPending',
+  PAYOUT_IN_PROGRESS = 'PayoutInProgress',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
   RETURN_PENDING = 'ReturnPending',

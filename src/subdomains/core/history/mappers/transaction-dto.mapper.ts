@@ -274,8 +274,8 @@ export const RefRewardStatusMapper: {
   [RewardStatus.PREPARED]: TransactionState.CREATED,
   [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
   [RewardStatus.PENDING_LIQUIDITY]: TransactionState.LIQUIDITY_PENDING,
-  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PAYOUT_PENDING,
-  [RewardStatus.PAYING_OUT]: TransactionState.PAYOUT_PENDING,
+  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PAYOUT_IN_PROGRESS,
+  [RewardStatus.PAYING_OUT]: TransactionState.PAYOUT_IN_PROGRESS,
   [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
   [RewardStatus.USER_SWITCH]: TransactionState.FAILED,
@@ -327,7 +327,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
             entity.status,
           )
         )
-          return { state: TransactionState.PAYOUT_PENDING, reason };
+          return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
         break;
     }
 
@@ -353,7 +353,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
-        if (entity.fiatOutput) return { state: TransactionState.PAYOUT_PENDING, reason };
+        if (entity.fiatOutput) return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
 
         break;
     }
