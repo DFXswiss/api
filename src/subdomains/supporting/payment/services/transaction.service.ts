@@ -80,7 +80,7 @@ export class TransactionService {
           checkoutTx: true,
           cryptoInput: true,
         },
-        buyFiat: { sell: true, cryptoInput: true, bankTx: true },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
       },
     });

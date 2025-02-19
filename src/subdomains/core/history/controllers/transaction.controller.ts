@@ -557,7 +557,7 @@ export class TransactionController {
   }): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
