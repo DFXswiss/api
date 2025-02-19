@@ -77,7 +77,7 @@ export class OrganizationService {
     return this.organizationRepo.save(entity);
   }
 
-  async getOrganizationByName(name: string, zip): Promise<Organization> {
+  async getOrganizationByName(name: string, zip: string): Promise<Organization> {
     return this.organizationRepo.findOneBy({ name, zip });
   }
 }

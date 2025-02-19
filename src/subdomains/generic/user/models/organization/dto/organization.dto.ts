@@ -1,7 +1,7 @@
 import { Country } from 'src/shared/models/country/country.entity';
 import { LegalEntity, SignatoryPower, UserData } from '../../user-data/user-data.entity';
 
-export class OrganizationDto {
+export interface OrganizationDto {
   name?: string;
   street?: string;
   houseNumber?: string;
