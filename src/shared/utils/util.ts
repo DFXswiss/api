@@ -25,7 +25,7 @@ export class Util {
     switch (type) {
       case AmountType.ASSET:
       case AmountType.ASSET_FEE:
-        return this.round(amount, assetPrecision ?? 5);
+        return this.roundByPrecision(amount, assetPrecision ?? 5);
 
       case AmountType.FIAT:
         return this.round(amount, 2);
