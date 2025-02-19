@@ -42,6 +42,7 @@ import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
@@ -85,6 +86,7 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
+    private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
   ) {}
 
@@ -358,6 +360,19 @@ export class UserDataService {
       update.organizationLocation = null;
       update.organizationZip = null;
       update.organizationCountry = null;
+    } else {
+      const organizationData = {
+        name: update.organizationName,
+        street: update.organizationStreet,
+        location: update.organizationLocation,
+        houseNumber: update.organizationHouseNumber,
+        zip: update.organizationZip,
+        countryId: update.organizationCountry?.id,
+      };
+
+      update.organization = !userData.organization
+        ? await this.organizationService.createOrganization(organizationData)
+        : await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
     }
 
     for (const user of userData.users) {
@@ -670,6 +685,23 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
+
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
+      userData.organization = await this.organizationService.createOrganization({
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        countryId: dto.organizationCountryId,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
   }
 
   // --- KYC CLIENTS --- //
