@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { In, IsNull } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -21,11 +21,8 @@ export class OrganizationService {
     private readonly userDataRepo: UserDataRepository,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.ORGANIZATION_SYNC, timeout: 1800 })
   async syncOrganization() {
-    if (DisabledProcess(Process.ORGANIZATION_SYNC)) return;
-
     const entities = await this.userDataRepo.findBy({
       organization: { id: IsNull() },
       accountType: In([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP]),
