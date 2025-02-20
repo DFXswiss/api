@@ -27,6 +27,6 @@ export class BuyFiatJobService {
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BUY_FIAT, timeout: 7200 })
   async addFiatOutputs(): Promise<void> {
-    await this.buyFiatPreparationService.addFiatOutputs;
+    await this.buyFiatPreparationService.addFiatOutputs();
   }
 }
