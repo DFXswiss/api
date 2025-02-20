@@ -123,12 +123,16 @@ export class TransactionController {
   }
 
   @Get('single')
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order UID', required: false })
+  @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
     @Query('uid') uid?: string,
-    @Query('request-uid') requestUid?: string,
+    @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, requestUid, ckoId });
+    const transaction = await this.getTransaction({ uid, orderUid, ckoId });
 
     const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -200,14 +204,16 @@ export class TransactionController {
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
   @ApiQuery({ name: 'request-id', description: 'Transaction request ID', required: false })
   @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order UID', required: false })
   async getSingleTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id?: string,
     @Query('uid') uid?: string,
     @Query('request-id') requestId?: string,
     @Query('external-id') externalId?: string,
+    @Query('order-uid') orderUid?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, requestId, externalId }, jwt.account);
+    const transaction = await this.getTransaction({ id, uid, requestId, orderUid, externalId }, jwt.account);
 
     if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
@@ -545,14 +551,14 @@ export class TransactionController {
     {
       id,
       uid,
-      requestUid,
+      orderUid,
       requestId,
       externalId,
       ckoId,
     }: {
       id?: string;
       uid?: string;
-      requestUid?: string;
+      orderUid?: string;
       requestId?: string;
       externalId?: string;
       ckoId?: string;
@@ -573,9 +579,9 @@ export class TransactionController {
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (requestUid) transaction = await this.transactionService.getTransactionByRequestUid(requestUid, relations);
+    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
     if (requestId) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
-    if (externalId)
+    if (externalId && accountId)
       transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
