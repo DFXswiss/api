@@ -312,6 +312,30 @@ export class BuyFiatPreparationService implements OnModuleInit {
     }
   }
 
+  async complete(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        isComplete: false,
+        fiatOutput: {
+          remittanceInfo: Not(IsNull()),
+          outputDate: Not(IsNull()),
+          bankTx: { id: Not(IsNull()) },
+        },
+      },
+      relations: { fiatOutput: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyFiatRepo.update(
+          ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.bankTx),
+        );
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} completion:`, e);
+      }
+    }
+  }
+
   async addFiatOutputs(): Promise<void> {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } }, cryptoInput: true },

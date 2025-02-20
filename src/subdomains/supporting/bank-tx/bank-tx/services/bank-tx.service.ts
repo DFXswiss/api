@@ -171,7 +171,7 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiat: { sell: { user: true } },
+        buyFiats: { sell: { user: true } },
         buyCryptoChargeback: { buy: { user: true }, cryptoRoute: { user: true } },
       },
     });
