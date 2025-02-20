@@ -256,6 +256,10 @@ export class BankTxService {
       .getOne();
   }
 
+  async getBankTxById(id: number): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({ id });
+  }
+
   async getPendingTx(): Promise<BankTx[]> {
     return this.bankTxRepo.findBy([
       { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
