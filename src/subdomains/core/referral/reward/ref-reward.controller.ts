@@ -2,6 +2,7 @@ import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
@@ -15,7 +16,7 @@ export class RefRewardController {
   @Put('volumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateVolumes(): Promise<void> {
     return this.refRewardService.updateVolumes();
   }
@@ -23,7 +24,7 @@ export class RefRewardController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateRefReward(@Param('id') id: string, @Body() dto: UpdateRefRewardDto): Promise<RefReward> {
     return this.refRewardService.updateRefReward(+id, dto);
   }
@@ -31,7 +32,7 @@ export class RefRewardController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async createPendingRefRewards(): Promise<void> {
     return this.refRewardService.createPendingRefRewards();
   }

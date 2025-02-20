@@ -18,6 +18,7 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
@@ -159,33 +160,43 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
 
+  // --- ORGANIZATION DATA --- //
+  // TODO remove after sync
   @Column({ length: 256, nullable: true })
   organizationName?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationStreet?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationHouseNumber?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationLocation?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationZip?: string;
 
+  // TODO remove
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersName?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersDomicile?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   accountOpenerAuthorization?: string;
 
@@ -200,9 +211,11 @@ export class UserData extends IEntity {
 
   // --- KYC --- //
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   legalEntity?: LegalEntity;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
 
@@ -215,6 +228,7 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
 
+  // TODO remove
   @Column({ nullable: true })
   complexOrgStructure?: boolean;
 
@@ -349,9 +363,13 @@ export class UserData extends IEntity {
   @ManyToOne(() => Wallet, { nullable: true })
   wallet: Wallet;
 
+  // TODO remove
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;
+
+  @ManyToOne(() => Organization, { nullable: true, eager: true })
+  organization: Organization;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
@@ -545,7 +563,7 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    return this.accountType === AccountType.ORGANIZATION
+    return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,

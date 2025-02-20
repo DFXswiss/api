@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { IsNull, Not } from 'typeorm';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
@@ -303,8 +303,7 @@ export class DexService {
   }
 
   //*** JOBS ***//
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
   async finalizePurchaseOrders(): Promise<void> {
     const standingOrders = await this.liquidityOrderRepo.findBy({
       isReady: false,

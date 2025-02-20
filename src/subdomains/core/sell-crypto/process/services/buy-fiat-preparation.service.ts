@@ -4,17 +4,19 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
@@ -36,6 +38,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly amlService: AmlService,
     private readonly countryService: CountryService,
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
 
   onModuleInit() {
@@ -219,7 +222,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       try {
         const inputCurrency = entity.cryptoInput.asset;
         const outputCurrency = entity.outputAsset;
-        const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, true);
+        const outputReferenceAmount = Util.roundReadable(entity.paymentLinkPayment.amount, AmountType.FIAT);
 
         if (outputCurrency.id !== entity.paymentLinkPayment.currency.id) throw new Error('Payment currency mismatch');
 
@@ -330,6 +333,45 @@ export class BuyFiatPreparationService implements OnModuleInit {
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} completion:`, e);
       }
+    }
+  }
+
+  async addFiatOutputs(): Promise<void> {
+    const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
+      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } }, cryptoInput: true },
+      where: {
+        amlCheck: CheckStatus.PASS,
+        fiatOutput: IsNull(),
+        cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+      },
+    });
+
+    // immediate payouts
+    const immediateOutputs = buyFiatsWithoutOutput.filter(
+      (bf) =>
+        !bf.userData.paymentLinksConfigObj.payoutFrequency ||
+        bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.IMMEDIATE,
+    );
+
+    for (const buyFiat of immediateOutputs) {
+      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats: [buyFiat] });
+    }
+
+    // daily payouts
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const dailyOutputs = buyFiatsWithoutOutput.filter(
+      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
+    );
+    const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
+
+    for (const buyFiats of sellGroups.values()) {
+      await this.fiatOutputService.createInternal(
+        'BuyFiat',
+        { buyFiats },
+        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      );
     }
   }
 }
