@@ -48,9 +48,9 @@ export class SupportIssueService {
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
-    if (!dto?.transaction?.quoteUid) throw new BadRequestException('JWT Token or quoteUid missing');
+    if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-      dto.transaction.quoteUid,
+      dto.transaction.orderUid,
       { user: { userData: true } },
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
@@ -83,7 +83,7 @@ export class SupportIssueService {
         {
           ...existingRequest,
           transaction: { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid },
-          transactionRequest: { uid: dto.transaction?.quoteUid },
+          transactionRequest: { uid: dto.transaction?.orderUid },
         },
         {
           ...existingRequest,
@@ -113,9 +113,9 @@ export class SupportIssueService {
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
-        } else if (dto.transaction.quoteUid) {
+        } else if (dto.transaction.orderUid) {
           newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-            dto.transaction.quoteUid,
+            dto.transaction.orderUid,
             { user: { userData: true }, transaction: true },
           );
 
