@@ -171,7 +171,7 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiat: { sell: { user: true } },
+        buyFiats: { sell: { user: true } },
         buyCryptoChargeback: { buy: { user: true }, cryptoRoute: { user: true } },
       },
     });
@@ -254,6 +254,10 @@ export class BankTxService {
       })
       .orderBy('id', 'DESC')
       .getOne();
+  }
+
+  async getBankTxById(id: number): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({ id });
   }
 
   async getPendingTx(): Promise<BankTx[]> {

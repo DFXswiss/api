@@ -123,13 +123,16 @@ export class TransactionController {
   }
 
   @Get('single')
-  @ApiExcludeEndpoint()
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
+  @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
     @Query('uid') uid?: string,
-    @Query('external-id') externalId?: string,
+    @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, externalId, ckoId });
+    const transaction = await this.getTransaction({ uid, orderUid, ckoId });
 
     const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -199,16 +202,18 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDetailDto })
   @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
-  @ApiQuery({ name: 'request-id', description: 'Transaction request ID', required: false })
+  @ApiQuery({ name: 'order-id', description: 'Transaction order ID', required: false })
   @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
   async getSingleTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id?: string,
     @Query('uid') uid?: string,
-    @Query('request-id') requestId?: string,
+    @Query('order-id') orderId?: string,
     @Query('external-id') externalId?: string,
+    @Query('order-uid') orderUid?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, requestId, externalId });
+    const transaction = await this.getTransaction({ id, uid, orderId, orderUid, externalId }, jwt.account);
 
     if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
@@ -542,34 +547,42 @@ export class TransactionController {
     }).then((list) => list.filter((dto) => dto));
   }
 
-  private async getTransaction({
-    id,
-    uid,
-    requestId,
-    externalId,
-    ckoId,
-  }: {
-    id?: string;
-    uid?: string;
-    requestId?: string;
-    externalId?: string;
-    ckoId?: string;
-  }): Promise<Transaction | undefined> {
+  private async getTransaction(
+    {
+      id,
+      uid,
+      orderUid,
+      orderId,
+      externalId,
+      ckoId,
+    }: {
+      id?: string;
+      uid?: string;
+      orderUid?: string;
+      orderId?: string;
+      externalId?: string;
+      ckoId?: string;
+    },
+    accountId?: number,
+  ): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
       checkoutTx: true,
       user: { userData: true },
+      request: true,
     };
 
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (requestId) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
-    if (externalId) transaction = await this.transactionService.getTransactionByExternalId(externalId, relations);
+    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if (orderId) transaction = await this.transactionService.getTransactionByRequestId(+orderId, relations);
+    if (externalId && accountId)
+      transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return transaction;

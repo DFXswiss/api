@@ -38,6 +38,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyCrypto.transaction.id,
       uid: buyCrypto.transaction.uid,
+      orderUid: buyCrypto.transaction.request?.uid,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, amountType(buyCrypto.inputAssetEntity)),
@@ -99,6 +100,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyFiat.transaction.id,
       uid: buyFiat.transaction.uid,
+      orderUid: buyFiat.transaction.request?.uid,
       type: TransactionType.SELL,
       ...getTransactionStateDetails(buyFiat),
       inputAmount: Util.roundReadable(buyFiat.inputAmount, amountType(buyFiat.inputAssetEntity)),
@@ -158,6 +160,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: refReward.transaction.id,
       uid: refReward.transaction.uid,
+      orderUid: null,
       type: TransactionType.REFERRAL,
       ...getTransactionStateDetails(refReward),
       inputAmount: null,
@@ -211,6 +214,7 @@ export class TransactionDtoMapper {
     return {
       id: tx.transaction.id,
       uid: tx.transaction.uid,
+      orderUid: tx.transaction.request?.uid,
       type: TransactionType.BUY,
       state: TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
@@ -273,9 +277,9 @@ export const RefRewardStatusMapper: {
   [RewardStatus.CREATED]: TransactionState.CREATED,
   [RewardStatus.PREPARED]: TransactionState.CREATED,
   [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
-  [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
-  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
-  [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.PENDING_LIQUIDITY]: TransactionState.LIQUIDITY_PENDING,
+  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PAYOUT_IN_PROGRESS,
+  [RewardStatus.PAYING_OUT]: TransactionState.PAYOUT_IN_PROGRESS,
   [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
   [RewardStatus.USER_SWITCH]: TransactionState.FAILED,
@@ -295,6 +299,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
       case null:
+        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -317,6 +322,16 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
         if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE)
           return { state: TransactionState.FEE_TOO_HIGH, reason };
+        if ([BuyCryptoStatus.MISSING_LIQUIDITY, BuyCryptoStatus.PENDING_LIQUIDITY].includes(entity.status))
+          return { state: TransactionState.LIQUIDITY_PENDING, reason };
+        if ([BuyCryptoStatus.PRICE_INVALID, BuyCryptoStatus.PRICE_SLIPPAGE].includes(entity.status))
+          return { state: TransactionState.PRICE_UNDETERMINABLE, reason };
+        if (
+          [BuyCryptoStatus.BATCHED, BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT].includes(
+            entity.status,
+          )
+        )
+          return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
         break;
     }
 
@@ -326,6 +341,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyFiat) {
     switch (entity.amlCheck) {
       case null:
+        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -341,6 +357,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
+        if (entity.fiatOutput) return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
+
         break;
     }
 

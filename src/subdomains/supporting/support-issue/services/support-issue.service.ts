@@ -48,9 +48,9 @@ export class SupportIssueService {
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
-    if (!dto?.transaction?.quoteUid) throw new BadRequestException('JWT Token or quoteUid missing');
+    if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-      dto.transaction.quoteUid,
+      dto.transaction.orderUid,
       { user: { userData: true } },
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
@@ -71,26 +71,23 @@ export class SupportIssueService {
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
-    const existingRequest: FindOptionsWhere<SupportIssue> = {
+    const existingWhere: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },
-      type: newIssue.type,
-      reason: newIssue.reason,
+      type: dto.type,
+      reason: dto.reason,
       state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
     };
 
+    if (dto.transaction?.id || dto.transaction?.uid || dto.transaction?.orderUid) {
+      existingWhere.transaction = { id: dto.transaction?.id, uid: dto.transaction?.uid };
+      existingWhere.transactionRequest = { uid: dto.transaction?.orderUid };
+    } else {
+      existingWhere.transaction = { id: IsNull() };
+      existingWhere.transactionRequest = { id: IsNull() };
+    }
+
     const existingIssue = await this.supportIssueRepo.findOne({
-      where: [
-        {
-          ...existingRequest,
-          transaction: { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid },
-          transactionRequest: { uid: dto.transaction?.quoteUid },
-        },
-        {
-          ...existingRequest,
-          transaction: { id: IsNull() },
-          transactionRequest: { id: IsNull() },
-        },
-      ],
+      where: existingWhere,
       relations: { messages: true, limitRequest: true, userData: { wallet: true } },
     });
 
@@ -113,9 +110,9 @@ export class SupportIssueService {
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
-        } else if (dto.transaction.quoteUid) {
+        } else if (dto.transaction.orderUid) {
           newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-            dto.transaction.quoteUid,
+            dto.transaction.orderUid,
             { user: { userData: true }, transaction: true },
           );
 
