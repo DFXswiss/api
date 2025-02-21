@@ -73,13 +73,13 @@ export class SupportIssueService {
 
     const existingWhere: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },
-      type: newIssue.type,
-      reason: newIssue.reason,
+      type: dto.type,
+      reason: dto.reason,
       state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
     };
 
-    if (newIssue.transaction?.id || newIssue.transaction?.uid || dto.transaction?.orderUid) {
-      existingWhere.transaction = { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid };
+    if (dto.transaction?.id || dto.transaction?.uid || dto.transaction?.orderUid) {
+      existingWhere.transaction = { id: dto.transaction?.id, uid: dto.transaction?.uid };
       existingWhere.transactionRequest = { uid: dto.transaction?.orderUid };
     } else {
       existingWhere.transaction = { id: IsNull() };
