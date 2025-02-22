@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { In, IsNull, Not } from 'typeorm';
 import { BlockchainRegistryService } from '../services/blockchain-registry.service';
 
@@ -19,12 +19,8 @@ export class EvmDecimalsService {
   ) {}
 
   // --- JOBS --- //
-
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.ASSET_DECIMALS, timeout: 1800 })
   async setDecimals() {
-    if (DisabledProcess(Process.ASSET_DECIMALS)) return;
-
     const assets = await this.repoFactory.asset.findBy({
       chainId: Not(IsNull()),
       blockchain: In(CryptoService.EthereumBasedChains),

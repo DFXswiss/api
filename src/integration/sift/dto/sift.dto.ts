@@ -1003,7 +1003,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: DeclineCategory.INVALID,
   [AmlReason.BANK_NOT_ALLOWED]: DeclineCategory.RISKY,
   [AmlReason.COUNTRY_NOT_ALLOWED]: DeclineCategory.RISKY,
-  [AmlReason.DAILY_LIMIT]: DeclineCategory.OTHER,
+  [AmlReason.MONTHLY_LIMIT]: DeclineCategory.OTHER,
   [AmlReason.FEE_TOO_HIGH]: DeclineCategory.OTHER,
   [AmlReason.HIGH_RISK_BLOCKED]: DeclineCategory.RISKY,
   [AmlReason.HIGH_RISK_KYC_NEEDED]: DeclineCategory.RISKY,
@@ -1026,6 +1026,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.USER_DELETED]: DeclineCategory.OTHER,
   [AmlReason.VIDEO_IDENT_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.MISSING_LIQUIDITY]: DeclineCategory.OTHER,
+  [AmlReason.TEST_ONLY]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

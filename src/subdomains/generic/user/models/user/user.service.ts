@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -16,7 +16,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -189,6 +189,10 @@ export class UserService {
         currency,
         wallet: user.wallet,
       }));
+
+    if (user.userData.status === UserDataStatus.KYC_ONLY)
+      await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
+
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, userData?.kycLevel));
 
@@ -248,6 +252,7 @@ export class UserService {
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
+    if (user.userData.completeName) throw new BadRequestException('Name is already set');
 
     await this.userDataService.updateUserName(user.userData, dto);
   }
@@ -317,8 +322,7 @@ export class UserService {
   }
 
   // --- VOLUMES --- //
-  @Cron(CronExpression.EVERY_YEAR)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     await this.userRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });

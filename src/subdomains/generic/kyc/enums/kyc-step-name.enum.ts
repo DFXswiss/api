@@ -1,0 +1,15 @@
+export enum KycStepName {
+  CONTACT_DATA = 'ContactData',
+  PERSONAL_DATA = 'PersonalData',
+  NATIONALITY_DATA = 'NationalityData',
+  LEGAL_ENTITY = 'LegalEntity',
+  STOCK_REGISTER = 'StockRegister',
+  COMMERCIAL_REGISTER = 'CommercialRegister',
+  SIGNATORY_POWER = 'SignatoryPower',
+  AUTHORITY = 'Authority',
+  IDENT = 'Ident',
+  FINANCIAL_DATA = 'FinancialData',
+  ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
+  RESIDENCE_PERMIT = 'ResidencePermit',
+  DFX_APPROVAL = 'DfxApproval',
+}

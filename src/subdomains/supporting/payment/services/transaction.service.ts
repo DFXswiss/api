@@ -21,14 +21,17 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    let entity = await this.getTransactionById(id);
+    let entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
+
     if (!(dto instanceof UpdateTransactionDto)) {
       entity.externalId = dto.request?.externalTransactionId;
 
       if (dto.resetMailSendDate) entity.mailSendDate = null;
+      if (dto.request)
+        entity.supportIssues = [...(entity.supportIssues ?? []), ...(entity.request.supportIssues ?? [])];
     }
 
     entity = await this.repo.save(entity);
@@ -51,11 +54,19 @@ export class TransactionService {
     return this.repo.findOne({ where: { request: { id: requestId } }, relations });
   }
 
+  async getTransactionByRequestUid(
+    requestUid: string,
+    relations: FindOptionsRelations<Transaction>,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { request: { uid: requestUid } }, relations });
+  }
+
   async getTransactionByExternalId(
     externalId: string,
+    accountId: number,
     relations: FindOptionsRelations<Transaction> = {},
   ): Promise<Transaction> {
-    return this.repo.findOne({ where: { externalId }, relations });
+    return this.repo.findOne({ where: { externalId, user: { userData: { id: accountId } } }, relations });
   }
 
   async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -77,7 +88,7 @@ export class TransactionService {
           checkoutTx: true,
           cryptoInput: true,
         },
-        buyFiat: { sell: true, cryptoInput: true, bankTx: true },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
       },
     });

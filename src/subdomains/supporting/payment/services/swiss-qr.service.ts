@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
-import { Data as QrBillData } from 'swissqrbill/types';
+import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 
@@ -296,35 +296,42 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): QrBillData {
-    const debtor = request?.user.userData.isDataComplete
-      ? { name: request.user.userData.completeName, address: request.user.userData.address }
-      : undefined;
-
-    const data: QrBillData = {
+    return {
       amount,
       currency,
       message: reference,
-      creditor: {
-        account: bankInfo.iban,
-        address: bankInfo.street,
-        buildingNumber: bankInfo.number,
-        city: bankInfo.city,
-        country: bankInfo.iban.substring(0, 2).toUpperCase(),
-        name: bankInfo.name,
-        zip: bankInfo.zip,
-      },
-      debtor: debtor
-        ? {
-            address: debtor.address.street,
-            buildingNumber: debtor.address.houseNumber,
-            city: debtor.address.city,
-            country: debtor.address.country.symbol,
-            name: debtor.name,
-            zip: debtor.address.zip,
-          }
-        : undefined,
+      creditor: this.getCreditor(bankInfo),
+      debtor: this.getDebtor(request),
     };
+  }
 
-    return data;
+  private getCreditor(bankInfo: BankInfoDto): Creditor {
+    return {
+      account: bankInfo.iban,
+      address: bankInfo.street,
+      buildingNumber: bankInfo.number,
+      city: bankInfo.city,
+      country: bankInfo.iban.substring(0, 2).toUpperCase(),
+      name: bankInfo.name,
+      zip: bankInfo.zip,
+    };
+  }
+
+  private getDebtor(request: TransactionRequest): Debtor | undefined {
+    if (!request?.user.userData.isDataComplete) return undefined;
+
+    const name = request.user.userData.completeName;
+    const address = request.user.userData.address;
+
+    const debtor: Debtor = {
+      name,
+      address: address.street,
+      city: address.city,
+      country: address.country.symbol,
+      zip: address.zip,
+    };
+    if (address.houseNumber != null) debtor.buildingNumber = address.houseNumber;
+
+    return debtor;
   }
 }

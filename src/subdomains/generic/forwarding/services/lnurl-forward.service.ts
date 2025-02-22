@@ -41,7 +41,11 @@ export class LnUrlForwardService {
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
-      return this.paymentLinkService.createPayRequest(id, Util.toEnum(PaymentStandard, params.standard));
+      return this.paymentLinkService.createPayRequest(
+        id,
+        Util.toEnum(PaymentStandard, params.standard),
+        params.timeout,
+      );
     }
 
     return this.createLnurlpPayRequest(id);

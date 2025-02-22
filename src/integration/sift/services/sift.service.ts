@@ -97,7 +97,7 @@ export class SiftService {
       $payment_methods: [{ $payment_type: SiftPaymentMethodMap[order.sourcePaymentMethod] }],
       $digital_orders: [
         this.createDigitalOrder(
-          order.type === TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
+          order.type === TransactionRequestType.SELL ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
           sourceCurrency,
           targetCurrency,
           order.estimatedAmount,

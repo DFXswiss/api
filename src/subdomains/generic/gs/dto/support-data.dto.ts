@@ -8,7 +8,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { LimitRequest } from '../../../supporting/support-issue/entities/limit-request.entity';
-import { KycFile } from '../../kyc/dto/kyc-file.dto';
+import { KycFileBlob } from '../../kyc/dto/kyc-file.dto';
 import { KycStep } from '../../kyc/entities/kyc-step.entity';
 import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -22,7 +22,7 @@ export class SupportReturnData {
   kycSteps: KycStep[];
   bankData: BankData[];
   notification: Notification[];
-  documents: KycFile[];
+  documents: KycFileBlob[];
   buyCrypto: BuyCrypto[];
   buyFiat: BuyFiat[];
   ref: BuyCrypto[];

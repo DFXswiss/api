@@ -1,12 +1,12 @@
-import { Contract, ethers } from 'ethers';
+import { Contract } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
-import { HttpService } from 'src/shared/services/http.service';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import FRANKENCOIN_EQUITY_ABI from '../shared/evm/abi/frankencoin-equity.abi.json';
 import FRANKENCOIN_POSITION_ABI from '../shared/evm/abi/frankencoin-position.abi.json';
 import FRANKENCOIN_STABLECOIN_BRIDGE_ABI from '../shared/evm/abi/frankencoin-stablecoin-bridge.abi.json';
 import FRANKENCOIN_ABI from '../shared/evm/abi/frankencoin.abi.json';
+import { EvmClient } from '../shared/evm/evm-client';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
@@ -17,16 +17,7 @@ import {
 } from './dto/frankencoin.dto';
 
 export class FrankencoinClient {
-  private provider: ethers.providers.JsonRpcProvider;
-
-  constructor(private readonly http: HttpService, gatewayUrl: string, apiKey: string) {
-    const providerUrl = `${gatewayUrl}/${apiKey}`;
-    this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
-  }
-
-  async getTvl(): Promise<number> {
-    return this.http.get<number>(`${Config.blockchain.frankencoin.zchfTvlUrl}`);
-  }
+  constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV1s(): Promise<FrankencoinPositionGraphDto[]> {
     const document = gql`
@@ -47,6 +38,8 @@ export class FrankencoinClient {
             minted
             reserveContribution
             expiration
+            closed
+            denied
           }
         }
       }
@@ -77,6 +70,8 @@ export class FrankencoinClient {
             minted
             reserveContribution
             expiration
+            closed
+            denied
           }
         }
       }
@@ -226,22 +221,22 @@ export class FrankencoinClient {
   }
 
   getErc20Contract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, ERC20_ABI, this.provider);
+    return new Contract(collateralAddress, ERC20_ABI, this.evmClient.wallet);
   }
 
   getFrankencoinContract(contractAddress: string): Contract {
-    return new Contract(contractAddress, FRANKENCOIN_ABI, this.provider);
+    return new Contract(contractAddress, FRANKENCOIN_ABI, this.evmClient.wallet);
   }
 
   getPositionContract(positionAddress: string): Contract {
-    return new Contract(positionAddress, FRANKENCOIN_POSITION_ABI, this.provider);
+    return new Contract(positionAddress, FRANKENCOIN_POSITION_ABI, this.evmClient.wallet);
   }
 
   getEquityContract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.provider);
+    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.evmClient.wallet);
   }
 
   getStablecoinBridgeContract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, FRANKENCOIN_STABLECOIN_BRIDGE_ABI, this.provider);
+    return new Contract(collateralAddress, FRANKENCOIN_STABLECOIN_BRIDGE_ABI, this.evmClient.wallet);
   }
 }

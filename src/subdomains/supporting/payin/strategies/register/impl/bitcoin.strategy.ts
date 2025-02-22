@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { BitcoinUTXO } from 'src/integration/blockchain/ain/node/dto/btc-transaction.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { PayInEntry } from '../../../interfaces';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { RegisterStrategy } from './base/register.strategy';
@@ -24,11 +24,8 @@ export class BitcoinStrategy extends RegisterStrategy {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
     await this.processNewPayInEntries();
   }
 

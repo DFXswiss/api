@@ -76,6 +76,7 @@ export class SepaParser implements OnModuleInit {
         `CUSTOM/${file.BkToCstmrStmt.Stmt?.Acct?.Id?.IBAN}/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
       const creditDebitIndicator = this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd);
+      const currency = this.toString(entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy']);
 
       let data: Partial<BankTx> = {};
       try {
@@ -87,7 +88,7 @@ export class SepaParser implements OnModuleInit {
           instructionId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.InstrId),
           txId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.TxId),
           amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
-          currency: this.toString(entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy']),
+          currency,
           creditDebitIndicator,
           instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['#text'],
           instructedCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy']),
@@ -98,6 +99,7 @@ export class SepaParser implements OnModuleInit {
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
           ...(await this.getTotalCharge(
             creditDebitIndicator === SepaCdi.CREDIT ? entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd : entry?.Chrgs?.Rcrd,
+            currency,
           )),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
@@ -116,35 +118,60 @@ export class SepaParser implements OnModuleInit {
     });
   }
 
-  private async getTotalCharge(charges: ChargeRecord | ChargeRecord[] | undefined): Promise<{
+  private async getTotalCharge(
+    charges: ChargeRecord | ChargeRecord[] | undefined,
+    currency: string,
+  ): Promise<{
     chargeAmount: number;
     chargeAmountChf: number;
     chargeCurrency: string;
+    senderChargeAmount: number;
+    senderChargeAmountChf: number;
+    senderChargeCurrency: string;
   }> {
     let chargeAmount = 0;
     let chargeAmountChf = 0;
-    const chargeCurrencies = new Set<string>();
 
-    if (!charges) return { chargeAmount, chargeAmountChf, chargeCurrency: Config.defaults.currency };
+    let senderChargeAmount = 0;
+    let senderChargeAmountChf = 0;
+
+    if (!charges)
+      return {
+        chargeAmount,
+        chargeAmountChf,
+        chargeCurrency: Config.defaults.currency,
+        senderChargeAmount,
+        senderChargeAmountChf,
+        senderChargeCurrency: Config.defaults.currency,
+      };
 
     charges = (Array.isArray(charges) ? charges : [charges]).filter((c) => +c.Amt['#text'] !== 0);
 
+    const referenceCurrency = await this.fiatService.getFiatByName(currency);
+
     for (const charge of charges) {
       const currency = charge.Amt['@_Ccy'];
-      const amount = charge.CdtDbtInd === SepaCdi.DEBIT ? +charge.Amt['#text'] : -+charge.Amt['#text'];
-
       const chargeCurrency = await this.fiatService.getFiatByName(currency);
       const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, true);
+      const chargeReferencePrice = await this.pricingService.getPrice(chargeCurrency, referenceCurrency, true);
+      const amount = +charge.Amt['#text'];
 
-      chargeAmount += amount;
-      chargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);
-      chargeCurrencies.add(currency);
+      if (charge.CdtDbtInd === SepaCdi.DEBIT) {
+        chargeAmount += chargeReferencePrice.convert(amount, Config.defaultVolumeDecimal);
+        chargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);
+      } else {
+        senderChargeAmount += chargeReferencePrice.convert(amount, Config.defaultVolumeDecimal);
+        senderChargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);
+      }
     }
 
     return {
       chargeAmount: Util.round(chargeAmount, Config.defaultVolumeDecimal),
       chargeAmountChf: Util.round(chargeAmountChf, Config.defaultVolumeDecimal),
-      chargeCurrency: Array.from(chargeCurrencies).join(','),
+      chargeCurrency: currency,
+      senderChargeAmount: Util.round(senderChargeAmount, Config.defaultVolumeDecimal),
+      senderChargeAmountChf: Util.round(senderChargeAmountChf, Config.defaultVolumeDecimal),
+      senderChargeCurrency: currency,
     };
   }
 

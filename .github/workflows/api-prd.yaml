@@ -8,7 +8,7 @@ on:
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-prd
   AZURE_WEBAPP_PACKAGE_PATH: '.'
-  NODE_VERSION: '16.x'
+  NODE_VERSION: '20.x'
 
 jobs:
   build-and-deploy:
