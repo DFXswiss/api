@@ -623,7 +623,6 @@ export class Configuration {
         XMR: 0.000001,
       },
     },
-    forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.001),
   };
 
   buy = {
