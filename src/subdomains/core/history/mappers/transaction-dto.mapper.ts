@@ -1,5 +1,5 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
+import { Active, amountType, feeAmountType, isAsset } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -67,7 +67,7 @@ export class TransactionDtoMapper {
       feeAmount: buyCrypto.totalFeeAmount
         ? Util.roundReadable(
             buyCrypto.totalFeeAmount * (buyCrypto.inputAmount / buyCrypto.inputReferenceAmount),
-            amountType(buyCrypto.inputAssetEntity),
+            feeAmountType(buyCrypto.inputAssetEntity),
           )
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAssetEntity.name : null,
@@ -130,7 +130,7 @@ export class TransactionDtoMapper {
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
             buyFiat.totalFeeAmount * (buyFiat.inputAmount / buyFiat.inputReferenceAmount),
-            amountType(buyFiat.inputAssetEntity),
+            feeAmountType(buyFiat.inputAssetEntity),
           )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAssetEntity.name : null,
@@ -174,7 +174,7 @@ export class TransactionDtoMapper {
       uid: txRequest.uid,
       type: Object.values(TransactionType).find((t) => t === txRequest.type.toString()),
       ...getTransactionStateDetails(txRequest),
-      inputAmount: Util.roundReadable(txRequest.amount, isFiat(txRequest.sourceAssetEntity)),
+      inputAmount: Util.roundReadable(txRequest.amount, amountType(txRequest.sourceAssetEntity)),
       inputAsset: txRequest.sourceAssetEntity.name,
       inputAssetId: txRequest.sourceAssetEntity.id,
       inputBlockchain: isAsset(txRequest.sourceAssetEntity) ? txRequest.sourceAssetEntity.blockchain : null,
@@ -186,7 +186,7 @@ export class TransactionDtoMapper {
       outputPaymentMethod: txRequest.targetPaymentMethod,
       priceSteps: null,
       feeAmount: txRequest.totalFee
-        ? Util.roundReadable(txRequest.totalFee * txRequest.amount, isFiat(txRequest.sourceAssetEntity))
+        ? Util.roundReadable(txRequest.totalFee * txRequest.amount, feeAmountType(txRequest.sourceAssetEntity))
         : null,
       feeAsset: txRequest.totalFee ? txRequest.sourceAssetEntity.name : null,
       fees: TransactionDtoMapper.mapFees(txRequest),
