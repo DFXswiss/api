@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { KycFileLog } from '../entities/kyc-file-log.entity';
+import { SupportLog } from '../entities/support-log.entity';
 
 @Injectable()
-export class KycFileLogRepository extends BaseRepository<KycFileLog> {
+export class SupportLogRepository extends BaseRepository<SupportLog> {
   constructor(manager: EntityManager) {
-    super(KycFileLog, manager);
+    super(SupportLog, manager);
   }
 }

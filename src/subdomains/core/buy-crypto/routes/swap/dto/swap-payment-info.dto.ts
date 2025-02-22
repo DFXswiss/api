@@ -7,8 +7,11 @@ import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-he
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class SwapPaymentInfoDto {
-  @ApiProperty({ description: 'Transaction request ID' })
+  @ApiProperty({ description: 'Transaction order ID' })
   id: number;
+
+  @ApiProperty({ description: 'UID of the transaction order' })
+  uid?: string;
 
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;

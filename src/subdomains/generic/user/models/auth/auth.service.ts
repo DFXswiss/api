@@ -6,9 +6,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config, Environment } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -19,6 +19,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -80,7 +81,7 @@ export class AuthService {
     private readonly geoLocationService: GeoLocationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @DfxCron(CronExpression.EVERY_MINUTE)
   checkLists() {
     for (const [key, challenge] of this.challengeList.entries()) {
       if (!this.isChallengeValid(challenge)) {
@@ -174,8 +175,6 @@ export class AuthService {
   }
 
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
-    if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
-      throw new ConflictException('User is deactivated or blocked');
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
       if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
         throw new UnauthorizedException('Invalid credentials');
@@ -201,8 +200,7 @@ export class AuthService {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
-        if (Config.environment !== Environment.LOC && !/^([\w-]*\.)*dfx.swiss$/.test(redirectUrl.host))
-          throw new Error('Redirect URL not allowed');
+        if (redirectUrl.origin !== Config.frontend.services) throw new Error('Redirect URL not allowed');
       } catch (e) {
         throw new BadRequestException(e.message);
       }
@@ -394,7 +392,9 @@ export class AuthService {
       user: user.id,
       address: user.address,
       role: user.role,
+      userStatus: user.status,
       account: user.userData.id,
+      accountStatus: user.userData.status,
       blockchains: user.blockchains,
       ip,
     };
@@ -405,6 +405,7 @@ export class AuthService {
     const payload: JwtPayload = {
       role: UserRole.ACCOUNT,
       account: userData.id,
+      accountStatus: userData.status,
       blockchains: [],
       ip,
     };

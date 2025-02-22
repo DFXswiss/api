@@ -1,12 +1,11 @@
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
-import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycType } from '../../user-data/user-data.entity';
 
 export class WalletDto {
   @IsOptional()
-  @IsEnum(AmlRule)
-  amlRule: AmlRule;
+  @IsString()
+  amlRules: string;
 
   @IsOptional()
   @IsString()

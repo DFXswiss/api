@@ -1,8 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { Blockchain } from '../enums/blockchain.enum';
 import { BlockchainRegistryService } from '../services/blockchain-registry.service';
@@ -38,11 +38,8 @@ export class EvmGasPriceService implements OnModuleInit {
 
   // --- JOBS --- //
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_GAS_PRICE })
   async processGasPrice(): Promise<void> {
-    if (DisabledProcess(Process.UPDATE_GAS_PRICE)) return;
-
     await this.updateGasPrice();
   }
 

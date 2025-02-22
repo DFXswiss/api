@@ -9,10 +9,12 @@ import { GetSwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swa
 import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/swap-payment-info.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
-import { MoreThan } from 'typeorm';
+import { FindOptionsRelations, MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
+
+export const QUOTE_UID_PREFIX = 'Q';
 
 @Injectable()
 export class TransactionRequestService {
@@ -30,9 +32,12 @@ export class TransactionRequestService {
     userId: number,
   ): Promise<void> {
     try {
+      const hash = Util.createHash(type + new Date() + Util.randomId()).toUpperCase();
+      const uid = `${QUOTE_UID_PREFIX}${hash.slice(0, 16)}`;
+
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
-        type: type,
+        type,
         routeId: response.routeId,
         amount: response.amount,
         estimatedAmount: response.estimatedAmount,
@@ -47,6 +52,7 @@ export class TransactionRequestService {
         networkFee: response.fees.network,
         totalFee: response.fees.total,
         user: { id: userId },
+        uid,
       });
 
       let sourceCurrencyName: string;
@@ -55,7 +61,7 @@ export class TransactionRequestService {
       let siftOrder: boolean;
 
       switch (type) {
-        case TransactionRequestType.Buy:
+        case TransactionRequestType.BUY:
           const buyRequest = request as GetBuyPaymentInfoDto;
           const buyResponse = response as BuyPaymentInfoDto;
 
@@ -70,7 +76,7 @@ export class TransactionRequestService {
           siftOrder = true;
           break;
 
-        case TransactionRequestType.Sell:
+        case TransactionRequestType.SELL:
           const sellResponse = response as SellPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
@@ -82,7 +88,7 @@ export class TransactionRequestService {
           blockchain = sellResponse.asset.blockchain;
           break;
 
-        case TransactionRequestType.Swap:
+        case TransactionRequestType.SWAP:
           const convertResponse = response as SwapPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
@@ -97,6 +103,7 @@ export class TransactionRequestService {
       // save
       await this.transactionRequestRepo.save(transactionRequest);
       response.id = transactionRequest.id;
+      response.uid = uid;
 
       // create order at sift (without waiting)
       if (siftOrder)
@@ -126,6 +133,13 @@ export class TransactionRequestService {
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 
     return request;
+  }
+
+  async getTransactionRequestByUid(
+    uid: string,
+    relations: FindOptionsRelations<TransactionRequest> = {},
+  ): Promise<TransactionRequest | undefined> {
+    return this.transactionRequestRepo.findOne({ where: { uid }, relations });
   }
 
   async findAndComplete(

@@ -6,12 +6,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -19,7 +19,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -88,8 +88,7 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600 })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
@@ -172,7 +171,7 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiat: { sell: { user: { userData: true } } },
+        buyFiats: { sell: { user: { userData: true } } },
         buyCryptoChargeback: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
       },
     });
@@ -254,7 +253,12 @@ export class BankTxService {
       .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
         remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
+      .orderBy('id', 'DESC')
       .getOne();
+  }
+
+  async getBankTxById(id: number): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({ id });
   }
 
   async getPendingTx(): Promise<BankTx[]> {
@@ -284,8 +288,12 @@ export class BankTxService {
     ]);
   }
 
-  async getRecentExchangeTx(type: BankTxType, start = Util.daysBefore(21)): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy({ type, created: MoreThan(start) });
+  async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
+    return this.bankTxRepo.findBy({
+      id: minId ? MoreThanOrEqual(minId) : undefined,
+      type,
+      created: !minId ? MoreThan(Util.daysBefore(21)) : undefined,
+    });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

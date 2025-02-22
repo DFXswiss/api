@@ -1,8 +1,9 @@
+import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -162,7 +163,7 @@ export class BuyCrypto extends IEntity {
   inputReferenceAmountMinusFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  blockchainFee?: number;
+  blockchainFee?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   paymentLinkFee?: number;
@@ -457,7 +458,6 @@ export class BuyCrypto extends IEntity {
     minVolume: number,
     amountInEur: number,
     amountInChf: number,
-    last24hVolume: number,
     last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
@@ -472,7 +472,6 @@ export class BuyCrypto extends IEntity {
         inputAsset,
         minVolume,
         amountInChf,
-        last24hVolume,
         last7dCheckoutVolume,
         last30dVolume,
         last365dVolume,
@@ -574,10 +573,11 @@ export class BuyCrypto extends IEntity {
     const exchangeRate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
     const rate = this.inputAmount / this.outputAmount;
+    const amountType = this.isCryptoCryptoTransaction ? AmountType.ASSET : AmountType.FIAT;
 
     return {
-      exchangeRate: Util.roundReadable(exchangeRate, !this.isCryptoCryptoTransaction),
-      rate: Util.roundReadable(rate, !this.isCryptoCryptoTransaction),
+      exchangeRate: Util.roundReadable(exchangeRate, amountType),
+      rate: Util.roundReadable(rate, amountType),
     };
   }
 
@@ -636,7 +636,9 @@ export class BuyCrypto extends IEntity {
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: null,
+      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === Config.manualPriceStepSourceName)
+        ? undefined
+        : null, // ignore reset when manual payout
       batch: null,
       isComplete: false,
       outputAmount: null,
@@ -650,7 +652,7 @@ export class BuyCrypto extends IEntity {
 }
 
 export const BuyCryptoAmlReasonPendingStates = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,

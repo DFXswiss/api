@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -15,7 +16,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { KycFileBlob } from '../kyc/dto/kyc-file.dto';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
@@ -41,6 +42,8 @@ export enum SupportTable {
 
 @Injectable()
 export class GsService {
+  private readonly logger = new DfxLogger(GsService);
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
@@ -74,6 +77,8 @@ export class GsService {
       ]),
     );
 
+    const startTime = Date.now();
+
     let data = await this.getRawDbData({
       ...query,
       select: [
@@ -81,6 +86,13 @@ export class GsService {
         ...additionalSelect,
       ],
     });
+
+    const runTime = Date.now() - startTime;
+
+    if (runTime > 1000 * 3) {
+      this.logger.info(`DB Runtime: ${runTime} with query ${JSON.stringify(query)}`);
+      this.logger.info(`DB Number of data: ${data.length}`);
+    }
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
       await this.setUserDataDocs(data, query.select, query.sorting);
@@ -222,7 +234,7 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFile[]> {
+  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
     return [
       ...(await this.kycDocumentService.listUserFiles(userDataId)),
       ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
@@ -282,7 +294,7 @@ export class GsService {
         return this.bankTxService
           .getBankTxByKey(query.key, query.value)
           .then((bankTx) =>
-            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
+            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiats?.[0]?.sell.user.userData,
           );
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService

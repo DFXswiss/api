@@ -6,8 +6,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
@@ -32,7 +33,6 @@ import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payme
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
-import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -170,7 +170,17 @@ export class PaymentLinkPaymentService {
       link: paymentLink,
     });
 
-    return this.doSave(payment, false);
+    const savedPayment = await this.doSave(payment, false);
+
+    // auto confirm (DEV only)
+    if (Config.environment !== Environment.PRD && paymentLink.configObj.autoConfirmSecs != null) {
+      setTimeout(async () => {
+        payment.amount === 0.01 ? payment.cancel() : payment.complete();
+        await this.doSave(payment, true);
+      }, paymentLink.configObj.autoConfirmSecs * 1000);
+    }
+
+    return savedPayment;
   }
 
   async confirmPayment(payment: PaymentLinkPayment): Promise<void> {
