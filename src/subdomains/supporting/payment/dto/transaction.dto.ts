@@ -16,10 +16,13 @@ export enum TransactionType {
 export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
+  LIQUIDITY_PENDING = 'LiquidityPending',
   AML_PENDING = 'AmlPending',
   KYC_REQUIRED = 'KycRequired',
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
+  PRICE_UNDETERMINABLE = 'PriceUndeterminable',
+  PAYOUT_IN_PROGRESS = 'PayoutInProgress',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
   RETURN_PENDING = 'ReturnPending',
@@ -94,14 +97,18 @@ export const TransactionReasonMapper: {
   [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
   [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
   [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
+  [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
 };
 
 export class UnassignedTransactionDto {
   @ApiPropertyOptional()
   id?: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'UID of the transaction' })
   uid: string;
+
+  @ApiPropertyOptional({ description: 'UID of the order of the transaction' })
+  orderUid?: string;
 
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;

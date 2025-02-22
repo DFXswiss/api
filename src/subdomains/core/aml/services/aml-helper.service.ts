@@ -4,6 +4,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -63,6 +64,11 @@ export class AmlHelperService {
       if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
         errors.push(AmlError.NO_LETTER);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+      if (
+        entity.userData.accountType === AccountType.ORGANIZATION &&
+        entity.userData.identificationType === KycIdentificationType.ONLINE_ID
+      )
+        errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
 
     // AmlRule asset/fiat check
@@ -92,13 +98,15 @@ export class AmlHelperService {
 
       if (
         entity.userData.hasSuspiciousMail &&
-        entity.user.wallet.amlRule !== AmlRule.RULE_5 &&
+        !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
         entity.userData.status === UserDataStatus.NA &&
         (entity.checkoutTx || (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
       )
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
-      errors.push(this.amlRuleCheck(entity.user.wallet.amlRule, entity, amountInChf, last7dCheckoutVolume));
+      for (const amlRule of entity.user.wallet.amlRuleList) {
+        errors.push(this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume));
+      }
 
       if (entity.bankTx) {
         // bank
@@ -250,7 +258,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 10000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        if (amountInChf > 100000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
         break;
     }
 
@@ -322,7 +330,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (amlResults.some((e) => e.amlReason === AmlReason.MANUAL_CHECK)) return {};
+      return {};
     }
 
     // Crucial error aml
@@ -364,8 +372,7 @@ export class AmlHelperService {
       };
 
     // GSheet
-    if (Util.minutesDiff(entity.created) >= 10 && entity.amlCheck !== CheckStatus.PENDING)
-      return { bankData, amlCheck: CheckStatus.GSHEET, comment };
+    if (Util.minutesDiff(entity.created) >= 10) return { bankData, amlCheck: CheckStatus.GSHEET, comment };
 
     // No Result - only comment
     return { bankData, comment };

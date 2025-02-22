@@ -54,11 +54,19 @@ export class TransactionService {
     return this.repo.findOne({ where: { request: { id: requestId } }, relations });
   }
 
+  async getTransactionByRequestUid(
+    requestUid: string,
+    relations: FindOptionsRelations<Transaction>,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { request: { uid: requestUid } }, relations });
+  }
+
   async getTransactionByExternalId(
     externalId: string,
+    accountId: number,
     relations: FindOptionsRelations<Transaction> = {},
   ): Promise<Transaction> {
-    return this.repo.findOne({ where: { externalId }, relations });
+    return this.repo.findOne({ where: { externalId, user: { userData: { id: accountId } } }, relations });
   }
 
   async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -80,7 +88,7 @@ export class TransactionService {
           checkoutTx: true,
           cryptoInput: true,
         },
-        buyFiat: { sell: true, cryptoInput: true, bankTx: true },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
       },
     });

@@ -1,8 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -24,8 +24,7 @@ export class BuyService {
   ) {}
 
   // --- VOLUMES --- //
-  @Cron(CronExpression.EVERY_YEAR)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }

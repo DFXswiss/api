@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 import { PaymentStandard } from '../enums';
 
 export class CreateInvoicePaymentDto {
@@ -35,11 +36,13 @@ export class CreateInvoicePaymentDto {
   @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.message || !(b.m || b.externalId || b.e)))
   message: string;
 
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.m || !(b.message || b.externalId || b.e)))
   m: string;
 

@@ -1,12 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
@@ -55,11 +55,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     this.deuroClient = new DEuroClient(this.getEvmClient());
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.DEURO_LOG_INFO })
   async processLogInfo(): Promise<void> {
-    if (DisabledProcess(Process.DEURO_LOG_INFO)) return;
-
     const logMessage: DEuroLogDto = {
       positionV2s: await this.getPositionV2s(),
       poolShares: await this.getDEPS(),

@@ -19,13 +19,17 @@ import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueState } from '../entities/support-issue.entity';
+import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { Department } from '../enums/department.enum';
+import { SupportIssueState } from '../enums/support-issue.enum';
+import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { LimitRequestService } from './limit-request.service';
 import { SupportDocumentService } from './support-document.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
+import { SupportLogService } from './support-log.service';
 
 export const ISSUE_UID_PREFIX = 'I';
 
@@ -40,12 +44,13 @@ export class SupportIssueService {
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
     private readonly limitRequestService: LimitRequestService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly supportLogService: SupportLogService,
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
-    if (!dto?.transaction?.quoteUid) throw new BadRequestException('JWT Token or quoteUid missing');
+    if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-      dto.transaction.quoteUid,
+      dto.transaction.orderUid,
       { user: { userData: true } },
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
@@ -66,26 +71,23 @@ export class SupportIssueService {
 
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
-    const existingRequest: FindOptionsWhere<SupportIssue> = {
+    const existingWhere: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },
-      type: newIssue.type,
-      reason: newIssue.reason,
+      type: dto.type,
+      reason: dto.reason,
       state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
     };
 
+    if (dto.transaction?.id || dto.transaction?.uid || dto.transaction?.orderUid) {
+      existingWhere.transaction = { id: dto.transaction?.id, uid: dto.transaction?.uid };
+      existingWhere.transactionRequest = { uid: dto.transaction?.orderUid };
+    } else {
+      existingWhere.transaction = { id: IsNull() };
+      existingWhere.transactionRequest = { id: IsNull() };
+    }
+
     const existingIssue = await this.supportIssueRepo.findOne({
-      where: [
-        {
-          ...existingRequest,
-          transaction: { id: newIssue.transaction?.id, uid: newIssue.transaction?.uid },
-          transactionRequest: { uid: dto.transaction?.quoteUid },
-        },
-        {
-          ...existingRequest,
-          transaction: { id: IsNull() },
-          transactionRequest: { id: IsNull() },
-        },
-      ],
+      where: existingWhere,
       relations: { messages: true, limitRequest: true, userData: { wallet: true } },
     });
 
@@ -96,9 +98,21 @@ export class SupportIssueService {
 
       // map transaction
       if (dto.transaction) {
-        if (dto.transaction.quoteUid || dto.transaction.uid?.startsWith(QUOTE_UID_PREFIX)) {
+        if (dto.transaction.id || dto.transaction.uid) {
+          newIssue.transaction = dto.transaction.id
+            ? await this.transactionService.getTransactionById(dto.transaction.id, {
+                user: { userData: true },
+              })
+            : await this.transactionService.getTransactionByUid(dto.transaction.uid, {
+                user: { userData: true },
+              });
+
+          if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
+          if (!newIssue.transaction.user || newIssue.transaction.user.userData.id !== newIssue.userData.id)
+            throw new ForbiddenException('You can only create support issue for your own transaction');
+        } else if (dto.transaction.orderUid || dto.transaction.uid?.startsWith(QUOTE_UID_PREFIX)) {
           newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
-            dto.transaction.quoteUid ?? dto.transaction.uid,
+            dto.transaction.orderUid ?? dto.transaction.uid,
             { user: { userData: true }, transaction: true },
           );
 
@@ -129,6 +143,7 @@ export class SupportIssueService {
 
       // create limit request
       if (dto.limitRequest) {
+        newIssue.department = Department.COMPLIANCE;
         newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
       }
     }
@@ -147,6 +162,12 @@ export class SupportIssueService {
     if (!entity) throw new NotFoundException('Support issue not found');
 
     Object.assign(entity, dto);
+
+    await this.supportLogService.createSupportLog(entity.userData, {
+      type: SupportLogType.SUPPORT,
+      supportIssue: entity,
+      ...dto,
+    });
 
     return this.supportIssueRepo.save(entity);
   }
@@ -235,13 +256,13 @@ export class SupportIssueService {
 
     await this.messageRepo.save(entity);
 
-    if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
-
-    if (issue.state === SupportIssueState.COMPLETED) {
-      const update = { state: SupportIssueState.PENDING };
-      Object.assign(issue, update);
-      await this.supportIssueRepo.update(issue.id, update);
+    if (dto.author !== CustomerAuthor) {
+      await this.supportIssueRepo.update(...issue.setClerk(dto.author));
+      await this.supportIssueNotificationService.newSupportMessage(entity);
     }
+
+    if (issue.state === SupportIssueState.COMPLETED)
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueState.PENDING));
 
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }

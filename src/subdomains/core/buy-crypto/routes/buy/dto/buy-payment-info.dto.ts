@@ -39,10 +39,10 @@ export class BankInfoDto {
 }
 
 export class BuyPaymentInfoDto extends BankInfoDto {
-  @ApiProperty({ description: 'Transaction request ID' })
+  @ApiProperty({ description: 'Transaction order ID' })
   id: number;
 
-  @ApiProperty({ description: 'UID of the transaction request' })
+  @ApiProperty({ description: 'UID of the transaction order' })
   uid?: string;
 
   @ApiProperty({ description: 'Price timestamp' })
@@ -112,7 +112,6 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   paymentRequest?: string;
 
   paymentLink?: string;
-  nameRequired?: boolean;
 
   @ApiProperty()
   isValid: boolean;

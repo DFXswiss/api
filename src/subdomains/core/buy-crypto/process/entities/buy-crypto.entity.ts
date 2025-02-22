@@ -3,7 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -573,10 +573,11 @@ export class BuyCrypto extends IEntity {
     const exchangeRate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
     const rate = this.inputAmount / this.outputAmount;
+    const amountType = this.isCryptoCryptoTransaction ? AmountType.ASSET : AmountType.FIAT;
 
     return {
-      exchangeRate: Util.roundReadable(exchangeRate, !this.isCryptoCryptoTransaction),
-      rate: Util.roundReadable(rate, !this.isCryptoCryptoTransaction),
+      exchangeRate: Util.roundReadable(exchangeRate, amountType),
+      rate: Util.roundReadable(rate, amountType),
     };
   }
 

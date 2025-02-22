@@ -6,12 +6,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -88,8 +88,7 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock(3600)
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600 })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
@@ -172,7 +171,7 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiat: { sell: { user: true } },
+        buyFiats: { sell: { user: true } },
         buyCryptoChargeback: { buy: { user: true }, cryptoRoute: { user: true } },
       },
     });
@@ -253,7 +252,12 @@ export class BankTxService {
       .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
         remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
+      .orderBy('id', 'DESC')
       .getOne();
+  }
+
+  async getBankTxById(id: number): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({ id });
   }
 
   async getPendingTx(): Promise<BankTx[]> {

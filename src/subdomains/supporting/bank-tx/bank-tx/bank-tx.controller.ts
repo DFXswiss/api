@@ -14,6 +14,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
@@ -31,7 +32,7 @@ export class BankTxController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT), UserActiveGuard)
   @UseInterceptors(FilesInterceptor('files'))
   async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<(BankTxBatch | Error)[]> {
     const batches = [];
@@ -51,7 +52,7 @@ export class BankTxController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateBankTxDto): Promise<BankTx> {
     return this.bankTxService.update(+id, dto);
   }
@@ -59,7 +60,7 @@ export class BankTxController {
   @Delete(':id/buyCrypto')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async reset(@Param('id') id: string): Promise<void> {
     return this.bankTxService.reset(+id);
   }

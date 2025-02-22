@@ -27,8 +27,7 @@ export class TransactionRequest extends IEntity {
   @Column({ length: 256, default: TransactionRequestStatus.CREATED })
   status: TransactionRequestStatus;
 
-  // TODO: change to unique & nullable false
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, unique: true })
   uid: string;
 
   @Column({ type: 'integer' })

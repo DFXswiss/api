@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
@@ -23,10 +23,8 @@ export class WebhookNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.WEBHOOK, timeout: 1800 })
   async sendWebhooks() {
-    if (DisabledProcess(Process.WEBHOOK)) return;
     await this.sendOpenWebhooks();
   }
 
