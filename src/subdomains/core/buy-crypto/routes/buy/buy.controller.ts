@@ -29,7 +29,10 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -210,6 +213,21 @@ export class BuyController {
         request,
       ),
     };
+  }
+
+  @Put('/paymentInfos/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse()
+  async confirmTransactionRequest(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
+      throw new ConflictException('Transaction request is already confirmed');
+    if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)
+      throw new BadRequestException('Transaction request too old to confirm');
+
+    await this.transactionRequestService.confirmTransactionRequest(request);
   }
 
   @Put(':id')
