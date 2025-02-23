@@ -300,8 +300,9 @@ export class TransactionController {
       checkoutTx: true,
       bankTxReturn: true,
       user: { userData: true },
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: true },
+      userData: true,
+      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: { route: { user: true } } },
     });
 
     if (!transaction || !transaction.refundTargetEntity) throw new NotFoundException('Transaction not found');
@@ -317,9 +318,14 @@ export class TransactionController {
       if (!bankData) throw new ForbiddenException('You can only refund your own transaction');
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
+
+      userData = await this.userDataService.getUserData(jwt.account);
+      await this.transactionService.updateInternal(transaction, { userData });
     } else {
       // Assigned transaction
-      if (jwt.account !== transaction.userData.id)
+
+      // TODO remove userData from user after sync
+      if (jwt.account !== (transaction.userData.id ?? transaction.user.userData.id))
         throw new ForbiddenException('You can only refund your own transaction');
       if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.refundTargetEntity.amlCheck))
         throw new BadRequestException('You can only refund failed or pending transactions');
@@ -365,7 +371,7 @@ export class TransactionController {
       bankTxReturn: true,
       user: { userData: true },
       buyCrypto: {
-        transaction: { user: { userData: true } },
+        transaction: { user: { userData: true }, userData: true },
         cryptoInput: { route: { user: true } },
         bankTx: true,
         checkoutTx: true,
@@ -375,7 +381,8 @@ export class TransactionController {
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
-    if (transaction.targetEntity && jwt.account !== transaction.userData.id)
+    // TODO remove userData from user after sync
+    if (transaction.targetEntity && jwt.account !== (transaction.userData.id ?? transaction.user.userData.id))
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity) {
       const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
@@ -391,6 +398,7 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {
+      // TODO remove userData request after userData sync
       const userData = await this.userDataService.getUserData(jwt.account);
       transaction.bankTxReturn = await this.bankTxService
         .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN }, userData)

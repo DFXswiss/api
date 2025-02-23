@@ -16,6 +16,7 @@ import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { Organization } from '../organization/organization.entity';
@@ -362,6 +363,9 @@ export class UserData extends IEntity {
   // References
   @ManyToOne(() => Wallet, { nullable: true })
   wallet: Wallet;
+
+  @OneToMany(() => Transaction, (tx) => tx.userData)
+  transactions: Transaction[];
 
   // TODO remove
   @ManyToOne(() => UserData, { nullable: true })

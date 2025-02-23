@@ -116,6 +116,9 @@ export class Transaction extends IEntity {
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user?: User;
 
+  @ManyToOne(() => UserData, (userData) => userData.transactions, { nullable: true })
+  userData: UserData;
+
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   request?: TransactionRequest;
@@ -163,9 +166,5 @@ export class Transaction extends IEntity {
 
   get refundTargetEntity(): BuyCrypto | BuyFiat | BankTx | undefined {
     return this.buyCrypto ?? this.buyFiat ?? (!this.type && this.bankTx) ?? undefined;
-  }
-
-  get userData(): UserData {
-    return this.user?.userData;
   }
 }
