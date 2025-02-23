@@ -56,7 +56,6 @@ export enum Process {
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TRANSACTION_USER_SYNC = 'TransactionUserSync',
-  USER_DATA_WALLET_SYNC = 'UserDataWalletSync',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
 }
