@@ -116,7 +116,7 @@ export class Transaction extends IEntity {
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user?: User;
 
-  @ManyToOne(() => UserData, (userData) => userData.kycSteps, { nullable: true })
+  @ManyToOne(() => UserData, (userData) => userData.transactions, { nullable: true })
   userData: UserData;
 
   @OneToOne(() => TransactionRequest, { nullable: true })

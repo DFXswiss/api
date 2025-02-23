@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
@@ -17,11 +17,8 @@ export class TransactionService {
 
   constructor(private readonly repo: TransactionRepository) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRANSACTION_USER_SYNC, timeout: 1800 })
   async syncUserData(): Promise<void> {
-    if (DisabledProcess(Process.TRANSACTION_USER_SYNC)) return;
-
     const entities = await this.repo.find({
       where: { user: { id: Not(IsNull()) }, userData: { id: IsNull() } },
       relations: { user: { userData: true }, userData: true },
