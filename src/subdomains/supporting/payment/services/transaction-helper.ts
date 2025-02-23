@@ -391,8 +391,10 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    const amountType = refundEntity.cryptoInput ? AmountType.ASSET : AmountType.FIAT;
-    const feeAmountType = refundEntity.cryptoInput ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
+    const amountType =
+      !(refundEntity instanceof BankTx) && refundEntity.cryptoInput ? AmountType.ASSET : AmountType.FIAT;
+    const feeAmountType =
+      !(refundEntity instanceof BankTx) && refundEntity.cryptoInput ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
 
     const inputAmount = Util.roundReadable(
       refundEntity instanceof BankTx ? refundEntity.amount + refundEntity.chargeAmount : refundEntity.inputAmount,
