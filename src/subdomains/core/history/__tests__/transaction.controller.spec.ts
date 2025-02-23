@@ -106,6 +106,7 @@ describe('TransactionController', () => {
           amlCheck: CheckStatus.FAIL,
           bankTx: createDefaultBankTx(),
         }),
+        bankTx: createDefaultBankTx(),
       }),
     );
 

@@ -407,7 +407,7 @@ export class TransactionController {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
         inputAmount: Util.roundReadable(inputAmount, amountType),
         inputAsset: refundAsset,
-        refundAmount: inputAmount - totalFeeAmount,
+        refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
         fee: {
           network: Util.roundReadable(networkFeeAmount, feeAmountType),
           bank: Util.roundReadable(bankFeeAmount, feeAmountType),
