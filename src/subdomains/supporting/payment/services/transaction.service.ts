@@ -47,7 +47,7 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    let entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
+    const entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
     if (!entity) throw new Error('Transaction not found');
 
     return this.updateInternal(entity, dto);
