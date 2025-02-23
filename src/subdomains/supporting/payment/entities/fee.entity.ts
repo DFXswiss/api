@@ -63,6 +63,9 @@ export class Fee extends IEntity {
   assets?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
+  excludedAssets?: string; // semicolon separated id's
+
+  @Column({ length: 'MAX', nullable: true })
   fiats?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
@@ -171,6 +174,7 @@ export class Fee extends IEntity {
       (!this.paymentMethodsIn || this.paymentMethodsIn.includes(request.paymentMethodIn)) &&
       (!this.paymentMethodsOut || this.paymentMethodsOut.includes(request.paymentMethodOut)) &&
       (!this.assetList?.length || assets.some((a) => this.assetList.includes(a.id))) &&
+      (!this.excludedAssetList?.length || assets.every((a) => !this.excludedAssetList.includes(a.id))) &&
       (!this.fiatList?.length || fiats.some((f) => this.fiatList.includes(f.id))) &&
       (!this.bank || (banks.includes(this.bank.name) && fiats.some((f) => f.name === this.bank.currency))) &&
       (!this.financialTypeList?.length ||
@@ -207,6 +211,10 @@ export class Fee extends IEntity {
 
   get assetList(): number[] {
     return this.assets?.split(';')?.map(Number);
+  }
+
+  get excludedAssetList(): number[] {
+    return this.excludedAssets?.split(';')?.map(Number);
   }
 
   get fiatList(): number[] {

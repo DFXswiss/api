@@ -11,10 +11,10 @@ import { PaymentLink } from '../entities/payment-link.entity';
 export class PaymentWebhookService {
   private readonly logger = new DfxLogger(PaymentWebhookService);
 
-  private webhookSendQueue: QueueHandler;
+  private readonly webhookSendQueue: QueueHandler;
 
   constructor(private readonly http: HttpService) {
-    this.webhookSendQueue = new QueueHandler(undefined, undefined, true);
+    this.webhookSendQueue = QueueHandler.createParallelQueueHandler(10);
   }
 
   async sendWebhook(paymentLink: PaymentLink): Promise<void> {

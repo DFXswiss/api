@@ -7,7 +7,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
 import { BankTxRepeat } from '../../bank-tx-repeat/bank-tx-repeat.entity';
@@ -106,6 +106,15 @@ export class BankTx extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   chargeAmountChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  senderChargeAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  senderChargeCurrency?: string;
+
+  @Column({ type: 'float', nullable: true })
+  senderChargeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
@@ -210,8 +219,8 @@ export class BankTx extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.chargebackBankTx, { nullable: true })
   buyCryptoChargeback?: BuyCrypto;
 
-  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
-  buyFiat?: BuyFiat;
+  @OneToMany(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
+  buyFiats?: BuyFiat[];
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
@@ -220,7 +229,7 @@ export class BankTx extends IEntity {
   //*** GETTER METHODS ***//
 
   get user(): User {
-    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiat?.user;
+    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
   }
 
   get paymentMethodIn(): PaymentMethod {
@@ -239,7 +248,12 @@ export class BankTx extends IEntity {
     const regex = multiAccountName ? new RegExp(`${multiAccountName}|,`, 'g') : /[,]/g;
     return [this.name, this.ultimateName]
       .filter((n) => n && ![multiAccountName, 'Schaltereinzahlung'].includes(n))
-      .map((n) => n.replace(regex, '').trim())
+      .map((n) =>
+        n
+          .replace(regex, '')
+          .replace(/NOTPROVIDED/g, '')
+          .trim(),
+      )
       .join(' ');
   }
 

@@ -17,6 +17,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
@@ -24,7 +25,6 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -67,14 +67,14 @@ export class BuyController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
     return this.buyService.getUserBuys(jwt.user).then((l) => this.toDtoList(jwt.user, l));
   }
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: BuyDto })
   async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
     return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
@@ -82,7 +82,7 @@ export class BuyController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
@@ -148,7 +148,7 @@ export class BuyController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -174,18 +174,15 @@ export class BuyController {
 
     times.push(Date.now());
 
-    const total = Util.round((Date.now() - times[0]) / 1000, 3);
-    if (total > 1) {
-      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`Buy info${dto.exactPrice ? ' exact' : ''} request times: ${timesString} (total ${total})`);
-    }
+    const timeString = Util.createTimeString(times);
+    if (timeString) this.logger.verbose(`Buy info${dto.exactPrice ? ' exact' : ''} request times: ${timeString}`);
 
     return infos;
   }
 
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: InvoiceDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
@@ -217,7 +214,7 @@ export class BuyController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.user, +id, dto).then((b) => this.toDto(jwt.user, b));
@@ -269,7 +266,11 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+    const times = [Date.now()];
+
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
+
+    times.push(Date.now());
 
     const {
       timestamp,
@@ -297,12 +298,17 @@ export class BuyController {
       !dto.exactPrice,
       user,
     );
+
+    times.push(Date.now());
+
     const bankInfo = await this.getBankInfo({
       amount: amount,
       currency: dto.currency.name,
       paymentMethod: dto.paymentMethod,
       userData: user.userData,
     });
+
+    times.push(Date.now());
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
@@ -344,16 +350,16 @@ export class BuyController {
               user.userData.language,
             )
           : undefined,
-      // TODO: temporary CC solution
-      nameRequired:
-        dto.paymentMethod === FiatPaymentMethod.CARD &&
-        !(
-          user.userData.status === UserDataStatus.ACTIVE ||
-          (Boolean(user.userData.firstname) && Boolean(user.userData.surname))
-        ),
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.Buy, dto, buyDto, user.id);
+    times.push(Date.now());
+
+    await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id);
+
+    times.push(Date.now());
+
+    const timeString = Util.createTimeString(times);
+    if (timeString) this.logger.verbose(`Buy info to payment request times: ${timeString}`);
 
     return buyDto;
   }

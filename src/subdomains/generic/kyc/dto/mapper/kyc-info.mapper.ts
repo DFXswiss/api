@@ -3,14 +3,8 @@ import { Util } from 'src/shared/utils/util';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import {
-  KycStepName,
-  KycStepStatus,
-  KycStepType,
-  getKycStepIndex,
-  getKycTypeIndex,
-  requiredKycSteps,
-} from '../../enums/kyc.enum';
+import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
 import { KycLevelDto, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
@@ -62,7 +56,7 @@ export class KycInfoMapper {
     const completedIdentSteps = steps.filter((s) => s.name === KycStepName.IDENT && s.isCompleted);
     const fullIdentStep =
       completedIdentSteps.find((s) => s.type === KycStepType.MANUAL) ??
-      steps.find((s) => s.type === KycStepType.VIDEO || s.type === KycStepType.SUMSUB_VIDEO);
+      completedIdentSteps.find((s) => s.type === KycStepType.VIDEO || s.type === KycStepType.SUMSUB_VIDEO);
 
     const groupedSteps = steps
       // hide all other ident steps, if full ident is completed
@@ -70,13 +64,16 @@ export class KycInfoMapper {
       // group by step and get step with highest sequence number
       .reduce((map, step) => {
         const key = step.type
-          ? `${step.name}-${step.type}`
+          ? `${step.name}-${step.type.replace('Sumsub', '')}`
           : Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`;
 
         return map.set(key, (map.get(key) ?? []).concat(step));
       }, new Map<string, KycStep[]>());
 
-    const visibleSteps = Array.from(groupedSteps.values()).map((steps) => Util.maxObj(steps, 'sequenceNumber'));
+    const visibleSteps = Array.from(groupedSteps.values()).map((steps) => {
+      const completedSteps = steps.filter((s) => s.isCompleted);
+      return Util.maxObj(completedSteps.length ? completedSteps : steps, 'sequenceNumber');
+    });
 
     return visibleSteps.sort((a, b) => {
       return getKycStepIndex(a.name) - getKycStepIndex(b.name) || getKycTypeIndex(a.type) - getKycTypeIndex(b.type);

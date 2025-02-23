@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -9,16 +9,20 @@ import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockch
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
-import { isFiat } from 'src/shared/models/active';
+import { amountType } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import {
+  LiquidityManagementBridges,
+  LiquidityManagementExchanges,
+} from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -45,6 +49,7 @@ import {
   BalancesByFinancialType,
   BankExchangeType,
   ChangeLog,
+  LogPairId,
   ManualLogPosition,
   TradingLog,
 } from './dto/log.dto';
@@ -76,11 +81,8 @@ export class LogJobService {
     private readonly payoutService: PayoutService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
-    if (DisabledProcess(Process.TRADING_LOG)) return;
-
     // trading log
     const tradingLog = await this.getTradingLog();
 
@@ -108,9 +110,9 @@ export class LogJobService {
         tradings: tradingLog,
         balancesByFinancialType,
         balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, true, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, true, true),
-          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, true, true),
+          plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
+          minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
+          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, AmountType.FIAT, true),
         },
         changes: changeLog,
       }),
@@ -142,10 +144,10 @@ export class LogJobService {
       );
 
       acc[financialType] = {
-        plusBalance: this.getJsonValue(plusBalance, this.isFinancialTypeFiat(financialType), true),
-        plusBalanceChf: this.getJsonValue(plusBalanceChf, true, true),
-        minusBalance: this.getJsonValue(minusBalance, this.isFinancialTypeFiat(financialType), true),
-        minusBalanceChf: this.getJsonValue(minusBalanceChf, true, true),
+        plusBalance: this.getJsonValue(plusBalance, this.financialTypeAmountType(financialType), true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
+        minusBalance: this.getJsonValue(minusBalance, this.financialTypeAmountType(financialType), true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
       };
 
       return acc;
@@ -212,7 +214,12 @@ export class LogJobService {
     const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
     // pending balances
-    const pendingExchangeOrders = await this.liquidityManagementPipelineService.getPendingExchangeTx();
+    const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+
+    const pendingExchangeOrders = pendingOrders.filter((o) => LiquidityManagementExchanges.includes(o.action.system));
+    const pendingBridgeOrders = pendingOrders.filter(
+      (o) => LiquidityManagementBridges.includes(o.action.system) && ['withdraw', 'deposit'].includes(o.action.command),
+    );
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
@@ -224,81 +231,103 @@ export class LogJobService {
     const manualDebtPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
     const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
 
+    const useUnfilteredTx = await this.settingService.getObj<boolean>('financeLogUnfilteredTx', false);
+    const financeLogPairIds = await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined);
+
+    const minBankTxId = useUnfilteredTx
+      ? Math.min(
+          ...[
+            financeLogPairIds?.fromKraken.chf.bankTxId,
+            financeLogPairIds?.fromKraken.eur.bankTxId,
+            financeLogPairIds?.toKraken.chf.bankTxId,
+            financeLogPairIds?.toKraken.eur.bankTxId,
+          ],
+        )
+      : undefined;
+    const minExchangeTxId = useUnfilteredTx
+      ? Math.min(
+          ...[
+            financeLogPairIds?.fromKraken.chf.exchangeTxId,
+            financeLogPairIds?.fromKraken.eur.exchangeTxId,
+            financeLogPairIds?.toKraken.chf.exchangeTxId,
+            financeLogPairIds?.toKraken.eur.exchangeTxId,
+          ],
+        )
+      : undefined;
+
     // pending internal balances
     // db requests
     const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
-    const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(BankTxType.KRAKEN);
-    const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(ExchangeName.KRAKEN, [
-      ExchangeTxType.DEPOSIT,
-      ExchangeTxType.WITHDRAWAL,
-    ]);
+    const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
+    const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
+      minExchangeTxId,
+      ExchangeName.KRAKEN,
+      [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
+    );
 
-    const before14Days = Util.daysBefore(14);
-    const before21Days = Util.daysBefore(21);
+    // fixed sender and receiver data
 
-    before14Days.setHours(0, 0, 0, 0);
+    // CHF: Kraken -> Maerki
+    const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.WITHDRAWAL &&
+        k.method === 'Bank Frick (SIC) International' &&
+        k.address === 'Maerki Baumann',
+    );
+    const chfReceiverBankTx = recentKrakenBankTx.filter(
+      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+    );
+
+    // EUR: Kraken -> Maerki
+    const eurSenderExchangeTx = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.WITHDRAWAL &&
+        k.method === 'Bank Frick (SEPA) International' &&
+        k.address === 'Maerki Baumann & Co. AG',
+    );
+    const eurReceiverBankTx = recentKrakenBankTx.filter(
+      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+    );
+
+    // CHF: Maerki -> Kraken
+    const chfSenderBankTx = recentKrakenBankTx.filter(
+      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const chfReceiverExchangeTx = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.DEPOSIT &&
+        k.method === 'Bank Frick (SIC) International' &&
+        k.address === 'MAEBCHZZXXX',
+    );
+
+    // EUR: Maerki -> Kraken
+    const eurSenderBankTx = recentKrakenBankTx.filter(
+      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const eurReceiverExchangeTx = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.DEPOSIT &&
+        k.method === 'Bank Frick (SEPA) International' &&
+        k.address === 'MAEBCHZZXXX',
+    );
 
     // sender and receiver data
     const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
-      recentKrakenExchangeTx.filter(
-        (k) =>
-          k.type === ExchangeTxType.WITHDRAWAL &&
-          k.method === 'Bank Frick (SIC) International' &&
-          k.address === 'Maerki Baumann' &&
-          k.created > before21Days,
-      ),
-      recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiChfBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-          b.created > before14Days,
-      ),
+      chfSenderExchangeTx,
+      chfReceiverBankTx,
     );
     const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
-      recentKrakenExchangeTx.filter(
-        (k) =>
-          k.type === ExchangeTxType.WITHDRAWAL &&
-          k.method === 'Bank Frick (SEPA) International' &&
-          k.address === 'Maerki Baumann & Co. AG' &&
-          k.created > before21Days,
-      ),
-      recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiEurBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.CREDIT &&
-          b.created > before14Days,
-      ),
+      eurSenderExchangeTx,
+      eurReceiverBankTx,
     );
 
     const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
-      recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiChfBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > before21Days,
-      ),
-      recentKrakenExchangeTx.filter(
-        (k) =>
-          k.type === ExchangeTxType.DEPOSIT &&
-          k.method === 'Bank Frick (SIC) International' &&
-          k.address === 'MAEBCHZZXXX' &&
-          k.created > before14Days,
-      ),
+      chfSenderBankTx,
+      chfReceiverExchangeTx,
     );
     const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
-      recentKrakenBankTx.filter(
-        (b) =>
-          b.accountIban === maerkiEurBank.iban &&
-          b.creditDebitIndicator === BankTxIndicator.DEBIT &&
-          b.created > before21Days,
-      ),
-      recentKrakenExchangeTx.filter(
-        (k) =>
-          k.type === ExchangeTxType.DEPOSIT &&
-          k.method === 'Bank Frick (SEPA) International' &&
-          k.address === 'MAEBCHZZXXX' &&
-          k.created > before14Days,
-      ),
+      eurSenderBankTx,
+      eurReceiverExchangeTx,
     );
 
     // assetLog
@@ -330,6 +359,10 @@ export class LogJobService {
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
         0,
       );
+      const bridgeOrder = pendingBridgeOrders.reduce(
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        0,
+      );
 
       // Olky to Maerki
       const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
@@ -341,6 +374,8 @@ export class LogJobService {
       );
 
       // Kraken to Maerki
+
+      // filtered lists
       const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmount(
         [curr],
         recentChfKrakenMaerkiTx,
@@ -359,10 +394,34 @@ export class LogJobService {
         BankTxType.KRAKEN,
       );
 
+      // unfiltered lists
+      const pendingChfKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.exchangeTxId),
+        ExchangeTxType.WITHDRAWAL,
+        maerkiChfBank.iban,
+      );
+      const pendingEurKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.exchangeTxId),
+        ExchangeTxType.WITHDRAWAL,
+        maerkiEurBank.iban,
+      );
+      const pendingKrakenMaerkiMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        [
+          ...eurReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.bankTxId),
+          ...chfReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.bankTxId),
+        ],
+        BankTxType.KRAKEN,
+      );
+
       // Maerki to Kraken
+
+      // filtered lists
       const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
+        [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
         BankTxType.KRAKEN,
       );
       const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
@@ -378,19 +437,68 @@ export class LogJobService {
         maerkiEurBank.iban,
       );
 
+      // unfiltered lists
+      const pendingMaerkiKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        [
+          ...chfSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
+          ...eurSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.bankTxId),
+        ],
+        BankTxType.KRAKEN,
+      );
+      const pendingChfMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        maerkiChfBank.iban,
+      );
+      const pendingEurMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        maerkiEurBank.iban,
+      );
+
+      const fromKrakenUnfiltered =
+        pendingChfKrakenMaerkiPlusAmountUnfiltered +
+        pendingEurKrakenMaerkiPlusAmountUnfiltered +
+        pendingKrakenMaerkiMinusAmountUnfiltered;
+      const toKrakenUnfiltered =
+        pendingMaerkiKrakenPlusAmountUnfiltered +
+        pendingChfMaerkiKrakenMinusAmountUnfiltered +
+        pendingEurMaerkiKrakenMinusAmountUnfiltered;
+
       let fromKraken =
         pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
       let toKraken =
         pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
 
+      const errors = [];
+
+      if (fromKraken !== fromKrakenUnfiltered) {
+        errors.push(`fromKraken !== fromKrakenUnfiltered`);
+        this.logger
+          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
+        ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
+      }
+
+      if (toKraken !== toKrakenUnfiltered) {
+        errors.push(`toKraken !== toKrakenUnfiltered`);
+        this.logger
+          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
+        ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
+      }
+
       if (fromKraken < 0) {
-        this.logger.error(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        errors.push(`fromKraken < 0`);
+        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
         ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
         pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
-        this.logger.error(
+        errors.push(`toKraken < 0`);
+        this.logger.verbose(
           `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
           ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
@@ -399,7 +507,13 @@ export class LogJobService {
       }
 
       // total pending balance
-      const totalPlusPending = cryptoInput + exchangeOrder + pendingOlkyMaerkiAmount + fromKraken + toKraken;
+      const totalPlusPending =
+        cryptoInput +
+        exchangeOrder +
+        bridgeOrder +
+        pendingOlkyMaerkiAmount +
+        (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
+        (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
       const totalPlus = liquidity + totalPlusPending;
 
       // minus
@@ -444,38 +558,48 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus, isFiat(curr), true),
-          liquidity: this.getJsonValue(liquidity, isFiat(curr)),
+          total: this.getJsonValue(totalPlus, amountType(curr), true),
+          liquidity: this.getJsonValue(liquidity, amountType(curr)),
           pending: totalPlusPending
             ? {
-                total: this.getJsonValue(totalPlusPending, isFiat(curr), true),
-                cryptoInput: this.getJsonValue(cryptoInput, isFiat(curr)),
-                exchangeOrder: this.getJsonValue(exchangeOrder, isFiat(curr)),
-                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, isFiat(curr)),
-                fromKraken: this.getJsonValue(fromKraken, isFiat(curr)),
-                toKraken: this.getJsonValue(toKraken, isFiat(curr)),
+                total: this.getJsonValue(totalPlusPending, amountType(curr), true),
+                cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
+                exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
+                bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
+                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, amountType(curr)),
+                fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
+                toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
+              }
+            : undefined,
+          monitoring: errors.length
+            ? {
+                fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
+                fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
+                toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+                toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
               }
             : undefined,
         },
         minusBalance: {
-          total: this.getJsonValue(totalMinus, isFiat(curr), true),
-          debt: this.getJsonValue(manualDebtPosition, isFiat(curr)),
+          total: this.getJsonValue(totalMinus, amountType(curr), true),
+          debt: this.getJsonValue(manualDebtPosition, amountType(curr)),
           pending: totalMinusPending
             ? {
-                total: this.getJsonValue(totalMinusPending, isFiat(curr), true),
-                buyFiat: this.getJsonValue(buyFiat, isFiat(curr)),
-                buyFiatPass: this.getJsonValue(buyFiatPass, isFiat(curr)),
-                buyCrypto: this.getJsonValue(buyCrypto, isFiat(curr)),
-                buyCryptoPass: this.getJsonValue(buyCryptoPass, isFiat(curr)),
-                bankTxNull: this.getJsonValue(bankTxNull, isFiat(curr)),
-                bankTxPending: this.getJsonValue(bankTxPending, isFiat(curr)),
-                bankTxUnknown: this.getJsonValue(bankTxUnknown, isFiat(curr)),
-                bankTxGSheet: this.getJsonValue(bankTxGSheet, isFiat(curr)),
-                bankTxRepeat: this.getJsonValue(bankTxRepeat, isFiat(curr)),
-                bankTxReturn: this.getJsonValue(bankTxReturn, isFiat(curr)),
+                total: this.getJsonValue(totalMinusPending, amountType(curr), true),
+                buyFiat: this.getJsonValue(buyFiat, amountType(curr)),
+                buyFiatPass: this.getJsonValue(buyFiatPass, amountType(curr)),
+                buyCrypto: this.getJsonValue(buyCrypto, amountType(curr)),
+                buyCryptoPass: this.getJsonValue(buyCryptoPass, amountType(curr)),
+                bankTxNull: this.getJsonValue(bankTxNull, amountType(curr)),
+                bankTxPending: this.getJsonValue(bankTxPending, amountType(curr)),
+                bankTxUnknown: this.getJsonValue(bankTxUnknown, amountType(curr)),
+                bankTxGSheet: this.getJsonValue(bankTxGSheet, amountType(curr)),
+                bankTxRepeat: this.getJsonValue(bankTxRepeat, amountType(curr)),
+                bankTxReturn: this.getJsonValue(bankTxReturn, amountType(curr)),
               }
             : undefined,
         },
+        error: errors.length ? errors.join(';') : undefined,
       };
 
       return prev;
@@ -591,6 +715,10 @@ export class LogJobService {
 
   // --- HELPER METHODS --- //
 
+  private getTxIdMonitoringLog(tx: (BankTx | ExchangeTx)[]): string | undefined {
+    return tx.length ? tx.map((t) => t.id).join(';') : undefined;
+  }
+
   private getFeeAmount(
     tx: (BuyCrypto | BuyFiat | BankTx | ExchangeTx | RefReward | TradingOrder | CryptoInput | PayoutOrder)[],
   ): number {
@@ -626,17 +754,81 @@ export class LogJobService {
     );
   }
 
-  private filterSenderPendingList(
+  public filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
-    if (!receiverTx?.length) return { sender: senderTx, receiver: receiverTx };
-    let receiverIndex = 0;
-    let senderPair = undefined;
+    const before14Days = Util.daysBefore(14);
+    const before21Days = Util.daysBefore(21);
 
-    if (senderTx.length > 1)
-      senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
-    if (receiverTx.length > 1) receiverTx.sort((a, b) => a.id - b.id);
+    before14Days.setHours(0, 0, 0, 0);
+
+    let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
+    let filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+
+    if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
+    if (!filtered14ReceiverTx?.length) {
+      const filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
+
+      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
+
+      return {
+        sender: filtered21SenderTx,
+        receiver:
+          rawReceiverIndex != null
+            ? filtered21ReceiverTx.filter((r) => r.id >= filtered21ReceiverTx[rawReceiverIndex]?.id)
+            : filtered14ReceiverTx,
+      };
+    }
+
+    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx);
+
+    if (filtered21SenderTx[0] instanceof BankTx) {
+      this.logger.verbose(
+        `FinanceLog receiverTxId/date: ${filtered14ReceiverTx?.[receiverIndex]?.id}/${filtered14ReceiverTx?.[
+          receiverIndex
+        ]?.created.toDateString()}; senderTx[0] id/date: ${
+          filtered21SenderTx[0]?.id
+        }/${filtered21SenderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
+          senderPair && senderPair instanceof BankTx
+            ? senderPair.valueDate.toDateString()
+            : senderPair?.created.toDateString()
+        }; senderTx length: ${filtered21SenderTx.length}`,
+      );
+    }
+
+    filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
+
+    if (filtered14ReceiverTx.length > filtered21SenderTx.length) {
+      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx, true);
+
+      const senderTxLength = senderPair
+        ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
+        : filtered14ReceiverTx.length;
+
+      filtered14ReceiverTx = filtered14ReceiverTx.slice(filtered14ReceiverTx.length - senderTxLength);
+    }
+
+    return {
+      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
+      sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
+    };
+  }
+
+  private findSenderReceiverPair(
+    senderTx: (BankTx | ExchangeTx)[],
+    receiverTx: (BankTx | ExchangeTx)[] | undefined,
+    reverseSearch = false,
+  ): { senderPair: BankTx | ExchangeTx; receiverIndex: number } {
+    if (!receiverTx.length) return { receiverIndex: undefined, senderPair: undefined };
+
+    (senderTx[0] instanceof BankTx && !reverseSearch) || (!(senderTx[0] instanceof BankTx) && reverseSearch)
+      ? senderTx.sort((a, b) => a.id - b.id)
+      : senderTx.sort((a, b) => b.id - a.id);
+
+    !reverseSearch ? receiverTx.sort((a, b) => a.id - b.id) : receiverTx.sort((a, b) => b.id - a.id);
+
+    let receiverIndex = 0;
 
     do {
       const receiverAmount =
@@ -644,7 +836,7 @@ export class LogJobService {
           ? (receiverTx[receiverIndex] as BankTx).instructedAmount
           : receiverTx[receiverIndex].amount;
 
-      senderPair = senderTx.find((s) =>
+      const senderPair = senderTx.find((s) =>
         s instanceof BankTx
           ? s.instructedAmount === receiverAmount &&
             receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
@@ -652,27 +844,19 @@ export class LogJobService {
           : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
       );
 
-      if (!senderPair) receiverIndex++;
-    } while (!senderPair && receiverTx.length > receiverIndex);
+      if (!senderPair) {
+        receiverIndex++;
+      } else {
+        if (reverseSearch) {
+          senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+          receiverTx.sort((a, b) => a.id - b.id);
+        }
 
-    if (senderTx[0] instanceof BankTx) {
-      this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${receiverTx?.[receiverIndex]?.id}/${receiverTx?.[
-          receiverIndex
-        ]?.created.toDateString()}; senderTx[0] id/date: ${
-          senderTx[0]?.id
-        }/${senderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
-          senderPair && senderPair instanceof BankTx
-            ? senderPair.valueDate.toDateString()
-            : senderPair?.created.toDateString()
-        }; senderTx length: ${senderTx.length}`,
-      );
-    }
+        return { senderPair, receiverIndex };
+      }
+    } while (receiverTx.length > receiverIndex);
 
-    return {
-      receiver: receiverTx.filter((r) => r.id >= receiverTx[receiverIndex]?.id ?? 0),
-      sender: (senderPair ? senderTx.filter((s) => s.id >= senderPair.id) : senderTx).sort((a, b) => a.id - b.id),
-    };
+    return { receiverIndex: undefined, senderPair: undefined };
   }
 
   private async getCustomBalances(
@@ -683,11 +867,11 @@ export class LogJobService {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined, isFiat: boolean, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, isFiat, 8);
+  private getJsonValue(value: number | undefined, amountType: AmountType, returnZero = false): number | undefined {
+    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, amountType, 8);
   }
 
-  private isFinancialTypeFiat(financialType: string): boolean {
-    return ['EUR', 'USD', 'CHF'].includes(financialType);
+  private financialTypeAmountType(financialType: string): AmountType {
+    return ['EUR', 'USD', 'CHF'].includes(financialType) ? AmountType.FIAT : AmountType.ASSET;
   }
 }

@@ -5,7 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset } from 'src/shared/models/active';
@@ -15,8 +15,8 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -92,11 +92,8 @@ export class FeeService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BLOCKCHAIN_FEE_UPDATE, timeout: 1800 })
   async updateBlockchainFees() {
-    if (DisabledProcess(Process.BLOCKCHAIN_FEE_UPDATE)) return;
-
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
 
     for (const blockchainFee of blockchainFees) {
@@ -140,6 +137,17 @@ export class FeeService implements OnModuleInit {
         assets.push(asset.id);
       }
       fee.assets = assets.join(';');
+    }
+
+    if (dto.excludedAssetIds) {
+      const assets = [];
+
+      for (const assetId of dto.excludedAssetIds) {
+        const asset = await this.assetService.getAssetById(assetId);
+        if (!asset) throw new NotFoundException(`Asset with id ${assetId} not found`);
+        assets.push(asset.id);
+      }
+      fee.excludedAssets = assets.join(';');
     }
 
     if (dto.fiatIds) {
@@ -200,8 +208,8 @@ export class FeeService implements OnModuleInit {
     await this.userDataService.addFee(userData, cachedFee.id);
   }
 
-  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
-    const cachedFee = await this.getFee(fee.id);
+  async increaseTxUsages(txVolume: number, feeId: number, userData: UserData): Promise<void> {
+    const cachedFee = await this.getFee(feeId);
 
     await this.feeRepo.update(...cachedFee.increaseTxUsage());
     if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
@@ -449,10 +457,15 @@ export class FeeService implements OnModuleInit {
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
         (f) =>
-          [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.CHARGEBACK, FeeType.BANK].includes(
-            f.type,
-          ) &&
+          [FeeType.BASE].includes(f.type) ||
+          ([
+            FeeType.DISCOUNT,
+            FeeType.ADDITION,
+            FeeType.RELATIVE_DISCOUNT,
+            FeeType.CHARGEBACK,
+            FeeType.BANK,
+            FeeType.SPECIAL,
+          ].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||

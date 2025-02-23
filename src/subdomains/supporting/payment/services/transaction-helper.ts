@@ -1,8 +1,8 @@
 import { BadRequestException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
-import { Active, isAsset, isFiat } from 'src/shared/models/active';
+import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
@@ -11,14 +11,16 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
+import { DfxCron } from 'src/shared/utils/cron';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
@@ -63,8 +65,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_5_MINUTES)
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
   }
@@ -91,7 +92,7 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
       .then((p) => p.invert());
-    return this.convert(minVolume, price, isFiat(from));
+    return this.convert(minVolume, price, from);
   }
 
   async getMinVolumeOut(
@@ -105,7 +106,7 @@ export class TransactionHelper implements OnModuleInit {
       : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
     const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
-    return this.convert(minVolume, price, isFiat(to));
+    return this.convert(minVolume, price, to);
   }
 
   async getMinVolume(
@@ -120,7 +121,7 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.pricingService
       .getPrice(fromReference, this.chf, allowExpiredPrice)
       .then((p) => p.invert());
-    return this.convert(minVolume, price, isFiat(from));
+    return this.convert(minVolume, price, from);
   }
 
   async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
@@ -220,7 +221,7 @@ export class TransactionHelper implements OnModuleInit {
       fee.rate,
       fee.bankRate,
       sourceSpecs,
-      isFiat(from),
+      from,
     );
 
     return {
@@ -390,8 +391,13 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    const inputAmount =
-      refundEntity instanceof BankTx ? refundEntity.amount + refundEntity.chargeAmount : refundEntity.inputAmount;
+    const amountType = refundEntity.cryptoInput ? AmountType.ASSET : AmountType.FIAT;
+    const feeAmountType = refundEntity.cryptoInput ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
+
+    const inputAmount = Util.roundReadable(
+      refundEntity instanceof BankTx ? refundEntity.amount + refundEntity.chargeAmount : refundEntity.inputAmount,
+      amountType,
+    );
 
     const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
 
@@ -399,7 +405,7 @@ export class TransactionHelper implements OnModuleInit {
     const networkFeeAmount = price.convert(chargebackFee.network);
     const bankFeeAmount = refundEntity.chargebackBankFee;
 
-    const totalFeeAmount = dfxFeeAmount + networkFeeAmount + bankFeeAmount;
+    const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
     const refundAsset =
@@ -407,13 +413,13 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-      inputAmount: Util.roundReadable(inputAmount, isFiat),
+      inputAmount: Util.roundReadable(inputAmount, amountType),
       inputAsset: refundAsset,
-      refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, isFiat),
+      refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
       fee: {
-        dfx: Util.roundReadable(dfxFeeAmount, isFiat),
-        network: Util.roundReadable(networkFeeAmount, isFiat),
-        bank: Util.roundReadable(bankFeeAmount, isFiat),
+        dfx: Util.roundReadable(dfxFeeAmount, feeAmountType),
+        network: Util.roundReadable(networkFeeAmount, feeAmountType),
+        bank: Util.roundReadable(bankFeeAmount, feeAmountType),
       },
       refundAsset,
       refundTarget,
@@ -488,22 +494,22 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
-    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
-    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, bankFeeRate, sourceSpecs, isFiat(from));
+    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, bankFeeRate, sourceSpecs);
+    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, bankFeeRate, sourceSpecs, from);
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
-      dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
-      total: this.convert(sourceFees.total, price, isFiat(to)),
-      bank: this.convert(sourceFees.bank, price, isFiat(to)),
+      dfx: this.convertFee(sourceFees.dfx, price, to),
+      total: this.convertFee(sourceFees.total, price, to),
+      bank: this.convertFee(sourceFees.bank, price, to),
     };
 
     return {
       timestamp: price.timestamp,
-      exchangeRate: Util.roundReadable(price.price, isFiat(from)),
-      rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
-      sourceAmount: Util.roundReadable(sourceAmount, isFiat(from)),
-      estimatedAmount: Util.roundReadable(targetAmount, isFiat(to)),
+      exchangeRate: Util.roundReadable(price.price, amountType(from)),
+      rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, amountType(from)) : Number.MAX_VALUE,
+      sourceAmount: Util.roundReadable(sourceAmount, amountType(from)),
+      estimatedAmount: Util.roundReadable(targetAmount, amountType(to)),
       exactPrice: price.isValid,
       priceSteps: price.steps,
       feeSource: {
@@ -519,9 +525,14 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  private getInputAmount(outputAmount: number, rate: number, { fee: { min, fixed, network } }: TxSpec): number {
-    const inputAmountNormal = (outputAmount + fixed + network) / (1 - rate);
-    const inputAmountWithMinFee = outputAmount + network + min;
+  private getInputAmount(
+    outputAmount: number,
+    rate: number,
+    bankRate: number,
+    { fee: { min, fixed, network, bankFixed, networkStart } }: TxSpec,
+  ): number {
+    const inputAmountNormal = (outputAmount + fixed + network + bankFixed + networkStart) / (1 - (rate + bankRate));
+    const inputAmountWithMinFee = outputAmount + network + bankFixed + networkStart + min;
 
     return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
@@ -546,14 +557,14 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       fee: {
-        min: this.convert(fee.min, price, isFiat(from)),
-        fixed: this.convert(fee.fixed, price, isFiat(from)),
-        bankFixed: this.convert(fee.bankFixed, price, isFiat(from)),
-        network: this.convert(fee.network, price, isFiat(from)),
-        networkStart: fee.networkStart != null ? this.convert(fee.networkStart, price, isFiat(from)) : undefined,
+        min: this.convertFee(fee.min, price, from),
+        fixed: this.convertFee(fee.fixed, price, from),
+        bankFixed: this.convertFee(fee.bankFixed, price, from),
+        network: this.convertFee(fee.network, price, from),
+        networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, from) : undefined,
       },
       volume: {
-        min: this.convert(volume.min, price, isFiat(from)),
+        min: this.convert(volume.min, price, from),
         max: this.roundMaxAmount(from.name === 'CHF' ? volume.max : price.convert(volume.max * 0.99), isFiat(from)), // -1% for the conversion
       },
     };
@@ -564,14 +575,14 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       fee: {
-        min: this.convert(fee.min, price, isFiat(to)),
-        fixed: this.convert(fee.fixed, price, isFiat(to)),
-        bankFixed: this.convert(fee.bankFixed, price, isFiat(to)),
-        network: this.convert(fee.network, price, isFiat(to)),
-        networkStart: fee.networkStart != null ? this.convert(fee.networkStart, price, isFiat(to)) : undefined,
+        min: this.convertFee(fee.min, price, to),
+        fixed: this.convertFee(fee.fixed, price, to),
+        bankFixed: this.convertFee(fee.bankFixed, price, to),
+        network: this.convertFee(fee.network, price, to),
+        networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, to) : undefined,
       },
       volume: {
-        min: this.convert(volume.min, price, isFiat(to)),
+        min: this.convert(volume.min, price, to),
         max: this.roundMaxAmount(to.name === 'CHF' ? volume.max : price.convert(volume.max * 0.99), isFiat(to)), // -1% for the conversion
       },
     };
@@ -582,22 +593,27 @@ export class TransactionHelper implements OnModuleInit {
     rate: number,
     bankRate: number,
     { fee: { fixed, min, network, networkStart, bankFixed } }: TxSpec,
-    isFiat: boolean,
+    roundingActive: Active,
   ): { dfx: number; bank: number; total: number } {
     const bank = amount * bankRate + bankFixed;
     const dfx = Math.max(amount * rate + fixed, min);
     const total = dfx + bank + network + (networkStart ?? 0);
 
     return {
-      dfx: Util.roundReadable(dfx, isFiat),
-      bank: Util.roundReadable(bank, isFiat),
-      total: Util.roundReadable(total, isFiat),
+      dfx: Util.roundReadable(dfx, feeAmountType(roundingActive)),
+      bank: Util.roundReadable(bank, feeAmountType(roundingActive)),
+      total: Util.roundReadable(total, feeAmountType(roundingActive)),
     };
   }
 
-  private convert(amount: number, price: Price, isFiat: boolean): number {
+  private convert(amount: number, price: Price, roundingActive: Active): number {
     const targetAmount = price.convert(amount);
-    return Util.roundReadable(targetAmount, isFiat);
+    return Util.roundReadable(targetAmount, amountType(roundingActive));
+  }
+
+  private convertFee(amount: number, price: Price, roundingActive: Active): number {
+    const targetAmount = price.convert(amount);
+    return Util.roundReadable(targetAmount, feeAmountType(roundingActive));
   }
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
@@ -609,18 +625,18 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
-    const volume24h =
+    const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
-        ? await this.getVolumeSince(Util.daysBefore(1), new Date(), [user])
+        ? await this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user])
         : 0;
 
-    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume24h;
+    const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume30d;
 
     const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
       ? Config.tradingLimits.cardDefault
       : Config.tradingLimits.yearlyDefault;
 
-    return { kycLimit, defaultLimit };
+    return { kycLimit: Math.max(0, kycLimit), defaultLimit };
   }
 
   private getTxError(
@@ -650,7 +666,7 @@ export class TransactionHelper implements OnModuleInit {
     if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
       return QuoteError.KYC_REQUIRED;
 
-    if (isBuy && AmlHelperService.amlRuleUserCheck([user?.wallet.amlRule], user, paymentMethodIn))
+    if (isBuy && AmlHelperService.amlRuleUserCheck(user?.wallet.amlRuleList, user, paymentMethodIn))
       return QuoteError.KYC_REQUIRED;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
@@ -669,10 +685,25 @@ export class TransactionHelper implements OnModuleInit {
 
     // verification checks
     if (
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      user &&
+      !user.userData.completeName &&
+      !user.userData.verifiedName
+    )
+      return QuoteError.NAME_REQUIRED;
+
+    if (
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
+      user?.userData?.accountType === AccountType.ORGANIZATION &&
+      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
+    )
+      return QuoteError.VIDEO_IDENT_REQUIRED;
+
+    if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
-      txAmountChf > Config.tradingLimits.dailyDefault
+      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
 

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -20,10 +20,8 @@ export class UserDataNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BLACK_SQUAD_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
-    if (DisabledProcess(Process.BLACK_SQUAD_MAIL)) return;
     await this.blackSquadInvitation();
   }
 
@@ -36,6 +34,7 @@ export class UserDataNotificationService {
             context: MailContext.ADDED_ADDRESS,
             input: {
               userData: master,
+              wallet: master.wallet,
               title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
               salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
               prefix: [
@@ -74,6 +73,7 @@ export class UserDataNotificationService {
           context: MailContext.CHANGED_MAIL,
           input: {
             userData: master,
+            wallet: master.wallet,
             title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
             prefix: [
@@ -98,6 +98,7 @@ export class UserDataNotificationService {
         context: MailContext.CHANGED_MAIL,
         input: {
           userData: slave,
+          wallet: slave.wallet,
           title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
           salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
           prefix: [

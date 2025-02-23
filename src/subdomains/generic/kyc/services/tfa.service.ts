@@ -7,11 +7,11 @@ import {
   ServiceUnavailableException,
   forwardRef,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -47,11 +47,8 @@ export class TfaService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TFA_CACHE })
   processCleanupSecretCache() {
-    if (DisabledProcess(Process.TFA_CACHE)) return;
-
     const now = new Date();
 
     const keysToBeDeleted = Array.from(this.secretCache.entries())
@@ -162,6 +159,7 @@ export class TfaService {
           context,
           input: {
             userData: userData,
+            wallet: userData.wallet,
             title: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.title`,
             salutation: {
               key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,

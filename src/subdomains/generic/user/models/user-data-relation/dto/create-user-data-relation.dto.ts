@@ -2,9 +2,10 @@ import { Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { UserData } from '../../user-data/user-data.entity';
-import { SignatoryState, UserDataRelationState } from './user-data-relation.enum';
+import { UpdateUserDataRelationDto } from './update-user-data-relation.dto';
+import { UserDataRelationState } from './user-data-relation.enum';
 
-export class CreateUserDataRelationDto {
+export class CreateUserDataRelationDto extends UpdateUserDataRelationDto {
   @IsNotEmpty()
   @ValidateNested()
   @Type(() => EntityDto)
@@ -18,8 +19,4 @@ export class CreateUserDataRelationDto {
   @IsNotEmpty()
   @IsEnum(UserDataRelationState)
   relation: UserDataRelationState;
-
-  @IsNotEmpty()
-  @IsEnum(SignatoryState)
-  signatory: SignatoryState;
 }

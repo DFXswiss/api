@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Votre équipe DFX",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://services.dfx.swiss/support].",
+        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://app.dfx.swiss/support].",
         "thanks": "Merci beaucoup pour votre confiance",
         "welcome": "Bonjour {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
@@ -27,8 +27,10 @@
                 "title": "Attribuer un dépôt",
                 "salutation": "Votre dépôt ne peut pas être attribué automatiquement",
                 "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
-            }
+            },
+            "currency_exchange": "Par ailleurs: le compte bancaire {bankAccount} est un compte {bankAsset}, si vous envoyez {inputAsset}, il sera échangé directement à la banque et nous recevrons {bankAsset}.<br>Si possible, envoyez {bankAsset} directement sur ce compte bancaire."
         },
+        "warning": "Attention:<br><br><br>Il y a de plus en plus d'escrocs (généralement de jolies femmes) qui vous écrivent via les médias sociaux (par exemple linkedIn) et vous promettent des investissements apparemment lucratifs au bout d'un certain temps.<br>Soyez prudent et, en cas de doute, n'envoyez pas d'argent.<br><br>Il y a un risque de perte totale si vous suivez les instructions de cet inconnu et lui envoyez de l'argent, par exemple",
         "crypto_output": {
             "title": "Actif cryptographique payé",
             "salutation": "Vos avoirs en crypto-monnaie ont été payés à votre adresse"
@@ -58,7 +60,7 @@
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
-                "daily_limit": "Vous avez dépassé la limite hors KYC",
+                "monthly_limit": "Vous avez dépassé la limite hors KYC",
                 "user_data_mismatch": "Le nom que vous avez indiqué à DFX ne correspond pas au nom du propriétaire de l'IBAN",
                 "iban_check": "L'IBAN n'est pas utilisable avec DFX",
                 "kyc_rejected": "Votre demande KYC a été rejetée",
@@ -84,14 +86,15 @@
                 "card_name_mismatch": "Le nom de la carte de crédit indiquée ne correspond pas au nom du titulaire du compte DFX",
                 "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain",
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
-                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti"
+                "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
+                "test_only": "Test"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
         "pending": {
-            "daily_limit": {
-                "title": "Limite sur 24h dépassée",
-                "salutation": "Vous avez dépassé votre volume sur 24h",
+            "monthly_limit": {
+                "title": "Dépassement de la limite de 30 jours",
+                "salutation": "Vous avez dépassé votre limite de volume de 30 jours",
                 "line1": "Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.",
                 "line2": "Nous traiterons votre transaction après la réussite du KYC.",
                 "line3": "Augmenter la limite avec vérification ? <br>Cliquez sur le lien suivant pour vous vérifier:<br>[url:{urlText}]",
@@ -104,7 +107,7 @@
                 "line1": "Veuillez demander une nouvelle limite annuelle.",
                 "line2": "Nous traiterons votre transaction après<br> l'augmentation de votre limite.",
                 "line3": "Augmenter la limite ?",
-                "line4": "Vous pouvez demander un relèvement de limite en cliquant sur le lien suivant:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line4": "Vous pouvez demander un relèvement de limite en cliquant sur le lien suivant:<br>[url:https://app.dfx.swiss/support/issue?issue-type=LimitRequest]",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "annual_limit_without_kyc": {
@@ -122,7 +125,7 @@
                 "line1": "Pour utiliser notre compte bancaire au Luxembourg lors d'un virement instantané, une vérification complète doit être réalisée.",
                 "line2": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.",
+                "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par mois en SEPA standard.",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
             "name_check_without_kyc": {
@@ -225,7 +228,7 @@
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
             "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
-            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://services.dfx.swiss/support]."
+            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://app.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",
@@ -266,6 +269,6 @@
             "salutation": "Vous avez demandé à changer votre adresse e-mail"
         },
         "message": "Votre code de vérification est:<br>{code}",
-        "closing": "Le code de vérification est valable pendant {expiration} minutes. Veuillez ne pas partager ce code de vérification avec d'autres personnes. Si vous n'avez pas demandé de code de vérification, veuillez contacter immédiatement le service d'assistance via [url:https://services.dfx.swiss/support]."
+        "closing": "Le code de vérification est valable pendant {expiration} minutes. Veuillez ne pas partager ce code de vérification avec d'autres personnes. Si vous n'avez pas demandé de code de vérification, veuillez contacter immédiatement le service d'assistance via [url:https://app.dfx.swiss/support]."
     }
 }

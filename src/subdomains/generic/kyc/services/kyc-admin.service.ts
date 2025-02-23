@@ -6,7 +6,8 @@ import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
@@ -29,7 +30,7 @@ export class KycAdminService {
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },
-      relations: { userData: { bankDatas: true } },
+      relations: { userData: { bankDatas: true, wallet: true } },
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 

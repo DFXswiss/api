@@ -44,7 +44,7 @@ export class AppController {
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
     [App.LIGHTNING]: 'https://lightning.dfx.swiss',
-    [App.SERVICES]: 'https://services.dfx.swiss',
+    [App.SERVICES]: 'https://app.dfx.swiss',
   };
 
   constructor(private readonly refService: RefService, private readonly settingService: SettingService) {}

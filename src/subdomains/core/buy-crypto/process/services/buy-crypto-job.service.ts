@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
@@ -20,10 +20,8 @@ export class BuyCryptoJobService {
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BUY_CRYPTO, timeout: 7200 })
   async process() {
-    if (DisabledProcess(Process.BUY_CRYPTO)) return;
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
     await this.buyCryptoRegistrationService.syncReturnTxId();
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();

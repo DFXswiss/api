@@ -57,6 +57,7 @@ export interface PaymentLinkEvmPaymentDto {
   expiryDate: Date;
   blockchain: Blockchain;
   uri: string;
+  hint: string;
 }
 
 export interface PaymentLinkHexResultDto {

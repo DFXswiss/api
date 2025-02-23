@@ -10,7 +10,7 @@
       "risky_business": { "title": "Risky business activities", "description": "Are you involved in potentially risky business activities such as arms dealing, casinos, diamonds, exotic animals, pornography or prostitution?" },
       "income": { "title": "Annual income", "description": "What is your annual income?" },
       "assets": { "title": "Assets", "description": "What is your total wealth?" },
-      "notification_of_changes": { "title": "Notification of changes", "description": "I confirm that I will immediately inform DFX via services.dfx.swiss/support/issue of any relevant changes on my part." }
+      "notification_of_changes": { "title": "Notification of changes", "description": "I confirm that I will immediately inform DFX via app.dfx.swiss/support/issue of any relevant changes on my part." }
     },
     "option": {
       "yes": "Yes",
