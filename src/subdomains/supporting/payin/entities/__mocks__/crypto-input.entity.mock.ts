@@ -8,7 +8,7 @@ const defaultCryptoInput: Partial<CryptoInput> = {
   outTxId: 'OUT_TX_ID_0',
   returnTxId: null,
   blockHeight: 42,
-  amount: 0.00005,
+  amount: 0.1,
   asset: createDefaultAsset(),
   route: createDefaultSell(),
   isConfirmed: false,

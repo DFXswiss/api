@@ -167,14 +167,14 @@ describe('BuyFiatService', () => {
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
-        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
+        txUrl: 'https://etherscan.io/tx/IN_TX_ID_0',
         ...txOne,
         outputAsset: txOne.outputAsset.name,
       }),
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_1',
-        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_1',
+        txUrl: 'https://etherscan.io/tx/IN_TX_ID_1',
         ...txTwo,
         outputAsset: txTwo.outputAsset.name,
       }),
@@ -189,7 +189,7 @@ describe('BuyFiatService', () => {
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
-        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
+        txUrl: 'https://etherscan.io/tx/IN_TX_ID_0',
         ...txSmallAmount,
         outputAsset: txSmallAmount.outputAsset.name,
       }),
