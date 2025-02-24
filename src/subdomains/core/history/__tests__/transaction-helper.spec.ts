@@ -11,11 +11,9 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import {
-  createCustomBankTx,
-  createDefaultBankTx,
-} from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
-import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { createDefaultCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
 import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import {
   createCustomInternalChargebackFeeDto,
@@ -112,13 +110,40 @@ describe('TransactionHelper', () => {
     });
   });
 
+  it('should return checkout refund data', async () => {
+    const transaction = createCustomTransaction({
+      buyCrypto: createCustomBuyCrypto({
+        amlCheck: CheckStatus.FAIL,
+        checkoutTx: createDefaultCheckoutTx(),
+      }),
+    });
+
+    jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
+
+    await expect(
+      txHelper.getRefundData(
+        transaction.refundTargetEntity,
+        defaultUserData,
+        CardBankName.CHECKOUT,
+        undefined,
+        !transaction.cryptoInput,
+      ),
+    ).resolves.toMatchObject({
+      fee: { network: 0, bank: 0 },
+      refundAmount: 100,
+      refundTarget: undefined,
+    });
+  });
+
   it('should return cryptoCrypto refund data', async () => {
     const transaction = createCustomTransaction({
       buyCrypto: createCustomBuyCrypto({
         amlCheck: CheckStatus.FAIL,
         cryptoInput: createDefaultCryptoInput(),
       }),
-      bankTx: createCustomBankTx({ accountIban: 'AT00 0000 0000 0000 0000' }),
     });
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
@@ -149,7 +174,6 @@ describe('TransactionHelper', () => {
         amlCheck: CheckStatus.FAIL,
         cryptoInput: createDefaultCryptoInput(),
       }),
-      //bankTx: createCustomBankTx({ accountIban: 'AT00 0000 0000 0000 0000' }),
     });
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
