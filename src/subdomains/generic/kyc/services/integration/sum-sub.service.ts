@@ -8,7 +8,13 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
-import { ApplicantType, SumSubDataResult, SumsubResult, SumSubVideoData } from '../../dto/sum-sub.dto';
+import {
+  ApplicantType,
+  SumSubDataResult,
+  SumSubDocumentMetaData,
+  SumsubResult,
+  SumSubVideoData,
+} from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { KycStepType } from '../../enums/kyc.enum';
@@ -38,7 +44,10 @@ export class SumsubService {
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
     const { webhook } = kycStep.getResult<SumsubResult>();
-    return [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
+    return [
+      await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId),
+      ...(await this.getDocumentMedia(webhook.applicantId, kycStep.transactionId)),
+    ];
   }
 
   async getMedia(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -48,6 +57,10 @@ export class SumsubService {
 
   async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
     return this.callApi<SumSubDataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
+  }
+
+  async getApplicantMetadata(applicantId: string): Promise<SumSubDocumentMetaData> {
+    return this.callApi(`/resources/applicants/${applicantId}/metadata/resources`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -87,6 +100,29 @@ export class SumsubService {
     ).then(Buffer.from);
 
     return { name: this.fileName(transactionId, 'pdf'), content, contentType: ContentType.PDF };
+  }
+
+  private async getDocumentMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {
+    const applicant = await this.getApplicantData(applicantId);
+    const applicantMetaData = await this.getApplicantMetadata(applicantId);
+
+    const identDocuments = [];
+    for (const image of applicantMetaData.items) {
+      const content = await this.callApi<string>(
+        `/resources/inspections/${applicant.inspectionId}/resources/${image.id}`,
+        'GET',
+        '{}',
+        'arraybuffer',
+      ).then(Buffer.from);
+
+      identDocuments.push({
+        name: this.fileName(`${transactionId}-${image.id}`, 'png'),
+        content,
+        contentType: ContentType.PNG,
+      });
+    }
+
+    return identDocuments;
   }
 
   private async getVideoMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {

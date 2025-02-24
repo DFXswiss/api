@@ -353,7 +353,7 @@ export class TransactionController {
       // Assigned transaction
 
       // TODO remove userData from user after sync
-      if (jwt.account !== (transaction.userData.id ?? transaction.user.userData.id))
+      if (jwt.account !== (transaction.userData?.id ?? transaction.user.userData.id))
         throw new ForbiddenException('You can only refund your own transaction');
       if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.targetEntity.amlCheck))
         throw new BadRequestException('You can only refund failed or pending transactions');
@@ -446,7 +446,7 @@ export class TransactionController {
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
     // TODO remove userData from user after sync
-    if (transaction.targetEntity && jwt.account !== (transaction.userData.id ?? transaction.user.userData.id))
+    if (transaction.targetEntity && jwt.account !== (transaction.userData?.id ?? transaction.user.userData.id))
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity) {
       const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);

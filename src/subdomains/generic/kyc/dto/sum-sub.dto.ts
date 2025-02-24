@@ -16,14 +16,7 @@ export interface SumSubWebhookResult {
   levelName?: SumSubLevelName;
   previousLevelName?: string;
   type?: SumSubWebhookType;
-  reviewResult?: {
-    reviewAnswer: ReviewAnswer;
-    moderationComment?: string;
-    clientComment?: string;
-    rejectLabels?: SumSubRejectionLabels[];
-    reviewRejectType?: ReviewRejectType;
-    buttonIds?: string[];
-  };
+  reviewResult?: SumSubReviewResult;
   reviewStatus?: ReviewStatus;
   videoIdentReviewStatus?: ReviewStatus;
   createdAt: Date;
@@ -74,6 +67,37 @@ export interface SumSubDataResult {
   agreement?: { createdAt?: Date; source?: string; acceptedAt?: string; recordIds?: string[] };
 }
 
+export interface SumSubDocumentMetaData {
+  items: [
+    {
+      id: string;
+      previewId: string;
+      addedDate: Date;
+      fileMetadata: {
+        fileName: string;
+        fileType: string;
+        fileSize: string;
+        resolution: { width: string; height: string };
+      };
+      idDocDef?: { country?: string; idDocType?: IdDocType; idDocSubType?: IdDocSubType };
+      reviewResult: SumSubReviewResult;
+      attemptId: string;
+      source: DocumentSource;
+      deactivated: boolean;
+    },
+  ];
+  totalItems: number;
+}
+
+export interface SumSubReviewResult {
+  reviewAnswer: ReviewAnswer;
+  moderationComment?: string;
+  clientComment?: string;
+  rejectLabels?: SumSubRejectionLabels[];
+  reviewRejectType?: ReviewRejectType;
+  buttonIds?: string[];
+}
+
 export interface SumSubVideoData {
   id?: string;
   videoIdentData?: {
@@ -89,9 +113,23 @@ export interface SumSubComposition {
   compositionMediaId?: string;
 }
 
+export enum DocumentSource {
+  LIVENESS = 'liveness',
+  VIDEO_IDENT = 'videoident',
+  DOCAPTURE = 'docapture',
+  NFC = 'nfc',
+  EXTERNAL_DB = 'externaldb',
+  FILE_UPLOAD = 'fileupload',
+}
+
 export enum IdDocType {
   ID_CARD = 'ID_CARD',
   PASSPORT = 'PASSPORT',
+}
+
+export enum IdDocSubType {
+  FRONT_SIDE = 'FRONT_SIDE',
+  BACK_SIDE = 'BACK_SIDE',
 }
 
 export enum ApplicantType {
