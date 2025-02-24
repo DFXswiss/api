@@ -354,9 +354,14 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
           if (dto.levelName === SumSubLevelName.CH_STANDARD) return IdentShortResult.REVIEW;
           break;
 
+        case ReviewStatus.QUEUED:
+          return IdentShortResult.REVIEW;
+
         case ReviewStatus.COMPLETED:
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
+            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
+            ? IdentShortResult.PENDING
             : IdentShortResult.FAIL;
       }
       break;
