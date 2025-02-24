@@ -143,8 +143,8 @@ export class FiatOutputService {
     return this.fiatOutputRepo
       .createQueryBuilder('fiatOutput')
       .select('fiatOutput')
-      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('fiatOutput.buyFiats', 'buyFiats')
+      .leftJoinAndSelect('buyFiats.sell', 'sell')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
