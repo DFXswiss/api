@@ -50,7 +50,6 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
@@ -97,7 +96,6 @@ export class TransactionController {
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly feeService: FeeService,
     private readonly transactionUtilService: TransactionUtilService,
     private readonly userDataService: UserDataService,
     private readonly bankTxReturnService: BankTxReturnService,
