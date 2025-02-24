@@ -434,6 +434,7 @@ export class TransactionController {
       bankTx: { transaction: true },
       bankTxReturn: true,
       user: { userData: true },
+      userData: true,
       buyCrypto: {
         transaction: { user: { userData: true }, userData: true },
         cryptoInput: { route: { user: true } },
