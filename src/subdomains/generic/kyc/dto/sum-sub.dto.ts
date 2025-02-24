@@ -16,7 +16,7 @@ export interface SumSubWebhookResult {
   levelName?: SumSubLevelName;
   previousLevelName?: string;
   type?: SumSubWebhookType;
-  reviewResult?: SUmSubReviewResult;
+  reviewResult?: SumSubReviewResult;
   reviewStatus?: ReviewStatus;
   videoIdentReviewStatus?: ReviewStatus;
   createdAt: Date;
@@ -80,7 +80,7 @@ export interface SumSubDocumentMetaData {
         resolution: { width: string; height: string };
       };
       idDocDef?: { country?: string; idDocType?: IdDocType; idDocSubType?: IdDocSubType };
-      reviewResult: SUmSubReviewResult;
+      reviewResult: SumSubReviewResult;
       attemptId: string;
       source: DocumentSource;
       deactivated: boolean;
@@ -89,7 +89,7 @@ export interface SumSubDocumentMetaData {
   totalItems: number;
 }
 
-export interface SUmSubReviewResult {
+export interface SumSubReviewResult {
   reviewAnswer: ReviewAnswer;
   moderationComment?: string;
   clientComment?: string;
