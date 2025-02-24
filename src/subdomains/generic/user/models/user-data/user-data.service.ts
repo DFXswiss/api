@@ -924,16 +924,7 @@ export class UserDataService {
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
         { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
       ],
-      relations: [
-        'buyCrypto',
-        'buyCrypto.buy',
-        'buyCrypto.buy.user',
-        'buyCrypto.buy.user.userData',
-        'buyFiat',
-        'buyFiat.sell',
-        'buyFiat.sell.user',
-        'buyFiat.sell.user.userData',
-      ],
+      relations: { buyCrypto: { buy: { user: { userData: true } } }, buyFiats: { sell: { user: { userData: true } } } },
     });
 
     if (txList.length != 0)
