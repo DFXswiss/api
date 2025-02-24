@@ -427,7 +427,7 @@ export class KycService {
 
     const language = (lang && (await this.languageService.getLanguageBySymbol(lang.toUpperCase()))) ?? user.language;
 
-    const questions = this.financialService.getQuestions(language.symbol.toLowerCase());
+    const questions = this.financialService.getQuestions(language.symbol.toLowerCase(), user.accountType);
     const responses = kycStep.getResult<KycFinancialResponse[]>() ?? [];
     return { questions, responses };
   }
