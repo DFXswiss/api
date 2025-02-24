@@ -46,10 +46,10 @@ export class KycStep extends IEntity {
   comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
-  logs: StepLog;
+  logs: StepLog[];
 
   @OneToMany(() => KycFile, (f) => f.kycStep)
-  file: KycFile;
+  files: KycFile[];
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
