@@ -126,6 +126,7 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDto })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
   @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
+  @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
     @Query('uid') uid?: string,
     @Query('order-uid') orderUid?: string,
