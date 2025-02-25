@@ -198,10 +198,10 @@ export class KycController {
     return this.kycService.updateKycStep(code, +id, data, false);
   }
 
-  @Put('data/stock/:id')
+  @Put('data/owner/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
-  async updateStockRegisterData(
+  async updateOwnerDirectoryData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
