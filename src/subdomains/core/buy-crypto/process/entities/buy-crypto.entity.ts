@@ -588,7 +588,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get wallet(): Wallet {
-    return this.transaction.wallet;
+    return this.user.wallet;
   }
 
   get user(): User {

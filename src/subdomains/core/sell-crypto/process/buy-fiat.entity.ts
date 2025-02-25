@@ -472,7 +472,7 @@ export class BuyFiat extends IEntity {
   }
 
   get wallet(): Wallet {
-    return this.transaction.wallet;
+    return this.user.wallet;
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {

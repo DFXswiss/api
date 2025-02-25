@@ -199,7 +199,7 @@ export class BankTxService {
             await this.transactionService.updateInternal(bankTx.transaction, {
               type: TransactionBankTxTypeMapper[dto.type],
               user: bankTx.user,
-              userData: bankTx.user?.userData ?? userData,
+              userData: bankTx.user?.userData,
             });
           break;
       }

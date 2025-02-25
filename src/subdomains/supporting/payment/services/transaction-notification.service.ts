@@ -65,7 +65,7 @@ export class TransactionNotificationService {
             context: entity.mailContext,
             input: {
               userData: entity.userData,
-              wallet: entity.wallet,
+              wallet: entity.user.wallet,
               title: `${entity.targetEntity.inputMailTranslationKey}.title`,
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
               suffix: [
