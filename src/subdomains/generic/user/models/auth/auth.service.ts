@@ -152,7 +152,6 @@ export class AuthService {
       },
       dto.specialCode ?? dto.discountCode,
     );
-    await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 

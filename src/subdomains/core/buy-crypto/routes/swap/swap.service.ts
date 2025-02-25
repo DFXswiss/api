@@ -123,14 +123,15 @@ export class SwapService {
     return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
-  async createSwapPayment(userId: number, dto: GetSwapPaymentInfoDto): Promise<Swap> {
-    return Util.retry(
+  async createSwapPayment(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+    const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+    return this.toPaymentInfoDto(userId, swap, dto);
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {
@@ -215,7 +216,7 @@ export class SwapService {
     return this.swapRepo;
   }
 
-  async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {

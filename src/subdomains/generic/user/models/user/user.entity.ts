@@ -4,7 +4,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { CustodyActionOrder } from 'src/subdomains/core/custody/entities/custofy-action-order.entity';
+import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { CustodyAddressType } from 'src/subdomains/core/custody/enums/custody';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -158,8 +158,8 @@ export class User extends IEntity {
   @Column({ nullable: true })
   custodyAddressType: CustodyAddressType;
 
-  @OneToMany(() => CustodyActionOrder, (custodyActionOrder) => custodyActionOrder.user)
-  custodyActionOrders: CustodyActionOrder[];
+  @OneToMany(() => CustodyOrder, (custodyOrder) => custodyOrder.user)
+  custodyOrders: CustodyOrder[];
 
   @Column({ type: 'datetime2', nullable: true })
   travelRulePdfDate: Date;

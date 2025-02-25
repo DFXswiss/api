@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { LetterService } from 'src/integration/letter/letter.service';
@@ -47,13 +47,5 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async payout(@Body() request: PayoutRequestDto): Promise<void> {
     return this.adminService.payout(request);
-  }
-
-  @Post('custody/:id/approve')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
-  async approveCustodyActionOrder(@Param() id: string): Promise<void> {
-    return this.custodyService.approveActionOrder(+id);
   }
 }

@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
-import { CustodyModule } from 'src/subdomains/core/custody/custody.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
@@ -27,7 +26,6 @@ import { AdminService } from './admin.service';
     PayInModule,
     DexModule,
     PayoutModule,
-    CustodyModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

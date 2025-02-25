@@ -146,9 +146,7 @@ export class SwapController {
     @Body() dto: GetSwapPaymentInfoDto,
   ): Promise<SwapPaymentInfoDto> {
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
-    return this.swapService
-      .createSwapPayment(jwt.user, dto)
-      .then((crypto) => this.swapService.toPaymentInfoDto(jwt.user, crypto, dto));
+    return this.swapService.createSwapPayment(jwt.user, dto);
   }
 
   @Put('/paymentInfos/:id/confirm')

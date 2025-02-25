@@ -5,22 +5,22 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
-import { CustodyController } from './controllers/custody.controller';
-import { CustodyActionOrder } from './entities/custofy-action-order.entity';
-import { CustodyActionOrderRepository } from './repositories/custody-action-order.repository';
+import { CustodyAdminController, CustodyController } from './controllers/custody.controller';
+import { CustodyOrder } from './entities/custody-order.entity';
+import { CustodyOrderRepository } from './repositories/custody-action-order.repository';
 import { CustodyService } from './services/custody-service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CustodyActionOrder]),
+    TypeOrmModule.forFeature([CustodyOrder]),
     UserModule,
     ReferralModule,
     SharedModule,
     SellCryptoModule,
     BuyCryptoModule,
   ],
-  controllers: [CustodyController],
-  providers: [CustodyService, CustodyActionOrderRepository],
+  controllers: [CustodyController, CustodyAdminController],
+  providers: [CustodyService, CustodyOrderRepository],
   exports: [CustodyService],
 })
 export class CustodyModule {}

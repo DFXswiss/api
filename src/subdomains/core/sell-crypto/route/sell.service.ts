@@ -124,14 +124,15 @@ export class SellService {
     return this.sellRepo.findBy({ route: { id: IsNull() } });
   }
 
-  async createSellPayment(userId: number, dto: GetSellPaymentInfoDto): Promise<Sell> {
-    return Util.retry(
+  async createSellPayment(userId: number, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+    const sell = await Util.retry(
       () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+    return this.toPaymentInfoDto(userId, sell, dto);
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
@@ -257,7 +258,7 @@ export class SellService {
     }
   }
 
-  async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+  private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {

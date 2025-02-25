@@ -149,9 +149,7 @@ export class SellController {
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService
-      .createSellPayment(jwt.user, dto)
-      .then((sell) => this.sellService.toPaymentInfoDto(jwt.user, sell, dto));
+    return this.sellService.createSellPayment(jwt.user, dto);
   }
 
   @Put('/paymentInfos/:id/confirm')

@@ -106,9 +106,8 @@ export class BuyService {
     return this.buyRepo.findOneBy({ id, user: { userData: { id: userDataId } } });
   }
 
-  async createBuyPayment(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<Buy> {
+  async createBuyPayment(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
-
     const buy = await Util.retry(
       () => this.createBuy(jwt.user, jwt.address, dto, true),
       2,
@@ -117,7 +116,7 @@ export class BuyService {
       (e) => e.message?.includes('duplicate key'),
     );
 
-    return buy as Buy;
+    return this.toPaymentInfoDto(jwt.user, buy, dto);
   }
 
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
@@ -211,7 +210,7 @@ export class BuyService {
     return this.buyRepo;
   }
 
-  async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+  private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
