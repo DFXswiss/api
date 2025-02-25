@@ -398,7 +398,7 @@ export class KycService {
   }
 
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     await this.kycStepRepo.update(...kycStep.complete(data));
