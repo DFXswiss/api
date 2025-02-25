@@ -106,7 +106,9 @@ export class SwapService {
 
   // --- SWAPS --- //
   async get(userId: number, id: number): Promise<Swap> {
-    return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+    const swap = await this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+    if (!swap) throw new NotFoundException('Swap not found');
+    return swap;
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {
