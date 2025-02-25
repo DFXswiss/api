@@ -41,6 +41,7 @@ import {
 } from '../dto/ident-result.dto';
 import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
+  KycBeneficialData,
   KycContactData,
   KycFileData,
   KycManualIdentData,
@@ -396,6 +397,17 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
+    let user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    await this.kycStepRepo.update(...kycStep.complete(data));
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -712,6 +724,9 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.SIGNATORY_POWER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.BENEFICIAL_OWNER:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.AUTHORITY:

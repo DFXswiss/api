@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDate,
   IsEmail,
   IsEnum,
@@ -124,6 +125,32 @@ export class KycSignatoryPowerData {
   @IsNotEmpty()
   @IsEnum(SignatoryPower)
   signatoryPower: SignatoryPower;
+}
+
+export class KycBeneficialData {
+  @ApiProperty({ description: 'Are there beneficial owners with 25% or more' })
+  @IsNotEmpty()
+  @IsBoolean()
+  answer: boolean;
+
+  @ApiProperty({ isArray: true })
+  @ValidateIf((d: KycBeneficialData) => d.answer)
+  @IsNotEmpty()
+  beneficialOwners: BeneficialOwnerData[];
+}
+
+export class BeneficialOwnerData extends KycAddress {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  firstName: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  lastName: string;
 }
 
 export class KycNationalityData {
