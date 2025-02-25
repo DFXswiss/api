@@ -19,6 +19,8 @@ export enum KycError {
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
+  BLOCKED = 'Blocked',
+  RELEASED = 'Released',
 }
 
 export const KycErrorMap: Record<KycError, string> = {

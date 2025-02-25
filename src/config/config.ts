@@ -212,6 +212,7 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    maxIdentTries: 7,
 
     downloadTargets: [
       {
