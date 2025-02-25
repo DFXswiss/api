@@ -149,6 +149,9 @@ export class User extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   comment?: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  travelRulePdfDate: Date;
+
   //*** FACTORY METHODS ***//
   deleteUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
