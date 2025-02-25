@@ -1,11 +1,11 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
@@ -28,9 +28,9 @@ export class CustodyService {
 
   constructor(
     private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly refService: RefService,
-    private readonly siftService: SiftService,
     private readonly authService: AuthService,
     private readonly custodyActionOrderRepo: CustodyActionOrderRepository,
     private readonly sellService: SellService,
@@ -40,20 +40,20 @@ export class CustodyService {
   //*** PUBLIC API ***//
 
   async createCustodyAccount(
-    userId: number,
+    accountId: number,
     dto: CreateCustodyAccountDto,
     userIp: string,
   ): Promise<CustodyAuthResponseDto> {
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
 
-    const wallet = await this.walletService.getByIdOrName(undefined, 'CustodyDFX');
+    const wallet = await this.walletService.getByIdOrName(undefined, 'DFX Custody');
     const addressIndex = await this.userService.getNexCustodyIndex();
     const custodyWallet = EvmUtil.createWallet(Config.blockchain.evm.custodyAccount(addressIndex));
     const signature = await custodyWallet.signMessage(Config.auth.signMessageGeneral + custodyWallet.address);
 
-    const user = await this.userService.getUser(userId, { userData: true });
-    if (!user) throw new NotFoundException('User not exist');
+    const account = await this.userDataService.getUserData(accountId);
+    if (!account) throw new NotFoundException('Account not exist');
 
     const custodyUser = await this.userService.createUser(
       {
@@ -63,7 +63,7 @@ export class CustodyService {
         ip: userIp,
         origin: ref?.origin,
         wallet,
-        userData: user.userData,
+        userData: account,
         custodyAddressType: dto.addressType,
         custodyAddressIndex: addressIndex,
         role: UserRole.CUSTODY,
@@ -71,7 +71,6 @@ export class CustodyService {
       dto.specialCode,
     );
 
-    await this.siftService.createAccount(custodyUser);
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };
   }
 
