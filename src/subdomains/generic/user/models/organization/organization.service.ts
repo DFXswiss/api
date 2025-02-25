@@ -72,7 +72,15 @@ export class OrganizationService {
       if (!entity.country) throw new BadRequestException('Country not found');
     }
 
-    Object.assign(entity, dto);
+    Object.assign(entity, {
+      ...dto,
+      name: dto.name ?? dto.organizationName,
+      street: dto.street ?? dto.organizationStreet,
+      houseNumber: dto.houseNumber ?? dto.organizationHouseNumber,
+      location: dto.location ?? dto.organizationLocation,
+      zip: dto.zip ?? dto.organizationZip,
+      country: dto.country ?? dto.organizationCountry,
+    });
 
     return this.organizationRepo.save(entity);
   }
