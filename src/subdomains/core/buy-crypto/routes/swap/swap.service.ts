@@ -9,7 +9,9 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -22,11 +24,19 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  TransactionRequest,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { BuyCryptoWebhookService } from '../../process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
+import { GetSwapPaymentInfoDto } from './dto/get-swap-payment-info.dto';
+import { SwapPaymentInfoDto } from './dto/swap-payment-info.dto';
 import { UpdateSwapDto } from './dto/update-swap.dto';
 import { Swap } from './swap.entity';
 import { SwapRepository } from './swap.repository';
@@ -48,6 +58,9 @@ export class SwapService {
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
+    private readonly transactionHelper: TransactionHelper,
+    private readonly cryptoService: CryptoService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -107,6 +120,16 @@ export class SwapService {
   // --- SWAPS --- //
   async get(userId: number, id: number): Promise<Swap> {
     return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+  }
+
+  async createSwapPayment(userId: number, dto: GetSwapPaymentInfoDto): Promise<Swap> {
+    return Util.retry(
+      () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {
@@ -189,5 +212,71 @@ export class SwapService {
 
   getSwapRepo(): SwapRepository {
     return this.swapRepo;
+  }
+
+  async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
+
+    const {
+      timestamp,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+      error,
+      exactPrice,
+      feeSource,
+      feeTarget,
+      priceSteps,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.sourceAsset,
+      dto.targetAsset,
+      CryptoPaymentMethod.CRYPTO,
+      CryptoPaymentMethod.CRYPTO,
+      !dto.exactPrice,
+      user,
+    );
+
+    const swapDto: SwapPaymentInfoDto = {
+      id: 0, // set during request creation
+      timestamp,
+      routeId: swap.id,
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
+      depositAddress: swap.active ? swap.deposit.address : undefined,
+      blockchain: dto.sourceAsset.blockchain,
+      minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
+      minVolume,
+      minFee: feeSource.min,
+      minVolumeTarget,
+      minFeeTarget: feeTarget.min,
+      fees: feeSource,
+      feesTarget: feeTarget,
+      exchangeRate,
+      rate,
+      exactPrice,
+      priceSteps,
+      estimatedAmount,
+      amount,
+      targetAsset: AssetDtoMapper.toDto(dto.targetAsset),
+      sourceAsset: AssetDtoMapper.toDto(dto.sourceAsset),
+      maxVolume,
+      maxVolumeTarget,
+      paymentRequest: swap.active
+        ? await this.cryptoService.getPaymentRequest(isValid, dto.sourceAsset, swap.deposit.address, amount)
+        : undefined,
+      isValid,
+      error,
+    };
+
+    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
+
+    return swapDto;
   }
 }

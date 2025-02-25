@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -21,7 +24,13 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  TransactionRequest,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
@@ -29,6 +38,8 @@ import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
+import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
+import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -49,6 +60,9 @@ export class SellService {
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
     private readonly bankDataService: BankDataService,
+    private readonly transactionHelper: TransactionHelper,
+    private readonly cryptoService: CryptoService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   // --- SELLS --- //
@@ -107,6 +121,16 @@ export class SellService {
 
   async getSellWithoutRoute(): Promise<Sell[]> {
     return this.sellRepo.findBy({ route: { id: IsNull() } });
+  }
+
+  async createSellPayment(userId: number, dto: GetSellPaymentInfoDto): Promise<Sell> {
+    return Util.retry(
+      () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
@@ -230,5 +254,72 @@ export class SellService {
       this.logger.warn(`Failed to execute permit transfer for sell request ${request.id}:`, e);
       throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
     }
+  }
+
+  async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
+
+    const {
+      timestamp,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+      error,
+      exactPrice,
+      feeSource,
+      feeTarget,
+      priceSteps,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.asset,
+      dto.currency,
+      CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
+      !dto.exactPrice,
+      user,
+    );
+
+    const sellDto: SellPaymentInfoDto = {
+      id: 0, // set during request creation
+      timestamp,
+      routeId: sell.id,
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
+      depositAddress: sell.active ? sell.deposit.address : undefined,
+      blockchain: dto.asset.blockchain,
+      minDeposit: { amount: minVolume, asset: dto.asset.dexName },
+      minVolume,
+      minFee: feeSource.min,
+      minVolumeTarget,
+      minFeeTarget: feeTarget.min,
+      fees: feeSource,
+      exchangeRate,
+      rate,
+      exactPrice,
+      priceSteps,
+      estimatedAmount,
+      amount,
+      currency: FiatDtoMapper.toDto(dto.currency),
+      beneficiary: { name: user.userData.verifiedName, iban: sell.iban },
+      asset: AssetDtoMapper.toDto(dto.asset),
+      maxVolume,
+      maxVolumeTarget,
+      feesTarget: feeTarget,
+      paymentRequest: sell.active
+        ? await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount)
+        : undefined,
+      isValid,
+      error,
+    };
+
+    await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
+
+    return sellDto;
   }
 }

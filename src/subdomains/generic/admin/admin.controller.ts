@@ -1,10 +1,11 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { CustodyService } from 'src/subdomains/core/custody/services/custody-service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AdminService } from './admin.service';
@@ -18,6 +19,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly notificationService: NotificationService,
     private readonly letterService: LetterService,
+    private readonly custodyService: CustodyService,
   ) {}
 
   @Post('mail')
@@ -45,5 +47,13 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async payout(@Body() request: PayoutRequestDto): Promise<void> {
     return this.adminService.payout(request);
+  }
+
+  @Post('custody/:id/confirm')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  async confirmCustodyActionOrder(@Param() id: string): Promise<void> {
+    return this.custodyService.internalConfirmActionOrder(+id);
   }
 }
