@@ -49,14 +49,14 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyEstimatedFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
 
           const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
           await this.payInRepo.save(payIn);
         } catch (e) {
-          if (e.message.includes('No blockchain fee provided')) continue;
+          if (e.message.includes('No maximum fee provided')) continue;
 
           const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
 

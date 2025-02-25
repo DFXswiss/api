@@ -53,7 +53,7 @@ export abstract class EvmStrategy extends SendStrategy {
             this.getForwardAddress().address,
           );
 
-          CryptoInput.verifyEstimatedFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
+          CryptoInput.verifyForwardFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
 
           /**
            * @note
@@ -72,7 +72,7 @@ export abstract class EvmStrategy extends SendStrategy {
           continue;
         }
       } catch (e) {
-        if (e.message.includes('No blockchain fee provided')) continue;
+        if (e.message.includes('No maximum fee provided')) continue;
 
         const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
 

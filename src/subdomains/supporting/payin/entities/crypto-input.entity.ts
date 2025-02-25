@@ -166,19 +166,14 @@ export class CryptoInput extends IEntity {
 
   //*** UTILITY METHODS ***//
 
-  static verifyEstimatedFee(
-    estimatedFee: number,
-    blockchainFee: number,
-    maxBlockchainFee: number,
-    totalAmount: number,
-  ): void {
+  static verifyForwardFee(estimatedFee: number, maxFee: number, feeCap: number, totalAmount: number): void {
     if (estimatedFee == null) throw new Error('No fee estimation provided');
-    if (blockchainFee == null) throw new Error('No blockchain fee provided');
+    if (maxFee == null) throw new Error('No maximum fee provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    const maxFee = Math.max(maxBlockchainFee, blockchainFee);
+    const maxApplicableFee = maxFee ? maxFee : feeCap;
 
-    if (estimatedFee > maxFee) {
+    if (estimatedFee > maxApplicableFee) {
       const feePercent = Util.toPercent(estimatedFee / totalAmount);
       throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent})`);
     }

@@ -157,6 +157,9 @@ export class User extends IEntity {
   @Column({ nullable: true })
   custodyAddressType: CustodyAddressType;
 
+  @Column({ type: 'datetime2', nullable: true })
+  travelRulePdfDate: Date;
+
   //*** FACTORY METHODS ***//
   deleteUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
