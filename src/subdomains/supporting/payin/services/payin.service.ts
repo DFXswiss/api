@@ -191,12 +191,15 @@ export class PayInService {
   //*** HELPER METHODS ***//
 
   private async forwardPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.findBy({
-      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-      action: PayInAction.FORWARD,
-      outTxId: IsNull(),
-      asset: Not(IsNull()),
-      isConfirmed: true,
+    const payIns = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        action: PayInAction.FORWARD,
+        outTxId: IsNull(),
+        asset: Not(IsNull()),
+        isConfirmed: true,
+      },
+      relations: { buyCrypto: true, buyFiat: true },
     });
 
     if (payIns.length === 0) return;
