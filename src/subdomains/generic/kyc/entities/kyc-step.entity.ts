@@ -6,9 +6,11 @@ import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
-import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
+import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
+import { KycFile } from './kyc-file.entity';
 import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
@@ -44,7 +46,10 @@ export class KycStep extends IEntity {
   comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
-  logs: StepLog;
+  logs: StepLog[];
+
+  @OneToMany(() => KycFile, (f) => f.kycStep)
+  files: KycFile[];
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
@@ -140,6 +145,9 @@ export class KycStep extends IEntity {
       KycStepStatus.EXTERNAL_REVIEW,
       KycStepStatus.INTERNAL_REVIEW,
       KycStepStatus.MANUAL_REVIEW,
+      KycStepStatus.PARTIALLY_APPROVED,
+      KycStepStatus.DATA_REQUESTED,
+      KycStepStatus.PAUSED,
     ].includes(this.status);
   }
 
@@ -310,7 +318,7 @@ export class KycStep extends IEntity {
             ? 'IDCARD'
             : 'PASSPORT'
           : undefined,
-        kycType: identResultData.webhook.type,
+        kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
     } else if (this.isManual) {

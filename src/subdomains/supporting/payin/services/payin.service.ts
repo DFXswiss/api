@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
@@ -171,27 +171,18 @@ export class PayInService {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async forwardPayInEntries(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
     await this.forwardPayIns();
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async returnPayInEntries(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
     await this.returnPayIns();
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async checkConfirmations(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
     await this.checkInputConfirmations();
     await this.checkOutputConfirmations();
     await this.checkReturnConfirmations();
@@ -200,12 +191,15 @@ export class PayInService {
   //*** HELPER METHODS ***//
 
   private async forwardPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.findBy({
-      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-      action: PayInAction.FORWARD,
-      outTxId: IsNull(),
-      asset: Not(IsNull()),
-      isConfirmed: true,
+    const payIns = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        action: PayInAction.FORWARD,
+        outTxId: IsNull(),
+        asset: Not(IsNull()),
+        isConfirmed: true,
+      },
+      relations: { buyCrypto: true, buyFiat: true },
     });
 
     if (payIns.length === 0) return;

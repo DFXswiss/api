@@ -1,7 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne, TableInheritance } from 'typeorm';
 import { KycLogType } from '../enums/kyc.enum';
+import { KycFile } from './kyc-file.entity';
 
 @Entity()
 @TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
@@ -14,6 +15,10 @@ export class KycLog extends IEntity {
 
   @Column({ length: 256, nullable: true })
   pdfUrl?: string;
+
+  @OneToOne(() => KycFile, (f) => f.log, { nullable: true })
+  @JoinColumn()
+  file?: KycFile;
 
   @Column({ length: 'MAX', nullable: true })
   comment?: string;

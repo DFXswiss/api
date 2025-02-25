@@ -15,6 +15,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
@@ -29,7 +30,6 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -42,6 +42,7 @@ import { UpdateTransactionInternalDto } from 'src/subdomains/supporting/payment/
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
@@ -84,10 +85,13 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
-    private readonly userDataService: UserDataService,
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    @Inject(forwardRef(() => AmlService))
+    private readonly amlService: AmlService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -283,8 +287,7 @@ export class BuyCryptoService {
       isComplete: dto.isComplete,
     };
 
-    if (BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
-      await this.buyCryptoNotificationService.paymentProcessing(entity);
+    const amlCheckBefore = entity.amlCheck;
 
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
@@ -295,13 +298,26 @@ export class BuyCryptoService {
       }),
     );
 
-    if (entity.cryptoInput && dto.amlCheck)
-      await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
-    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
+    if (forceUpdate.amlCheck) {
+      if (update.amlCheck === CheckStatus.PASS) {
+        await this.buyCryptoNotificationService.paymentProcessing(entity);
 
-    // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
-      await this.userService.activateUser(entity.user, entity.userData);
+        const inputReferenceCurrency =
+          entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
+
+        const last30dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(30, entity.transaction.created),
+          Util.daysAfter(30, entity.transaction.created),
+          entity.userData.users,
+        );
+
+        await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
+      } else {
+        await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
+      }
     }
 
     // create sift transaction

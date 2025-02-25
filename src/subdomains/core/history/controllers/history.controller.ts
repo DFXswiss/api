@@ -24,6 +24,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { ParallelQueue } from 'src/shared/utils/parallel-queue';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -64,6 +65,7 @@ export class HistoryController {
   @Get('CT')
   @ApiOkResponse({ type: CoinTrackingApiHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
+  @ParallelQueue(5)
   async getCoinTrackingApiHistory(
     @Query() query: HistoryQuery,
     @Headers('DFX-ACCESS-KEY') key: string,

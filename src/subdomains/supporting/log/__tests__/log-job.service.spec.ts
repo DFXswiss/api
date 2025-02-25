@@ -100,6 +100,108 @@ describe('LogJobService', () => {
     expect(service).toBeDefined();
   });
 
+  it('should filter same length sender & receiver', async () => {
+    if (new Date().getHours() > 19) return;
+
+    const receiverTx = [
+      createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(409), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(409), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63191, created: Util.hoursBefore(409), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63232, created: Util.hoursBefore(407), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63277, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63278, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63279, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63280, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63281, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63282, created: Util.hoursBefore(310), amount: 9500.0 }),
+    ];
+
+    const senderTx = [
+      createCustomBankTx({
+        id: 142006,
+        created: Util.hoursBefore(432),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142007,
+        created: Util.hoursBefore(432),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142008,
+        created: Util.hoursBefore(432),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142153,
+        created: Util.hoursBefore(408),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142199,
+        created: Util.hoursBefore(384),
+        valueDate: Util.hoursBefore(384),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142218,
+        created: Util.hoursBefore(384),
+        valueDate: Util.hoursBefore(384),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142265,
+        created: Util.hoursBefore(384),
+        valueDate: Util.hoursBefore(384),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142396,
+        created: Util.hoursBefore(312),
+        valueDate: Util.hoursBefore(312),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142407,
+        created: Util.hoursBefore(312),
+        valueDate: Util.hoursBefore(312),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142408,
+        created: Util.hoursBefore(312),
+        valueDate: Util.hoursBefore(312),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142409,
+        created: Util.hoursBefore(309),
+        valueDate: Util.hoursBefore(309),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+    ];
+
+    expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
+      sender: senderTx.slice(7),
+      receiver: receiverTx.slice(7),
+    });
+  });
+
   it('should return an empty array', async () => {
     expect(service.filterSenderPendingList([], [])).toMatchObject({ receiver: [], sender: [] });
   });
@@ -156,7 +258,7 @@ describe('LogJobService', () => {
 
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
       sender: [senderTx[2]],
-      receiver: receiverTx,
+      receiver: [receiverTx[2]],
     });
   });
 
@@ -253,6 +355,101 @@ describe('LogJobService', () => {
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
       sender: senderTx,
       receiver: [receiverTx[1]],
+    });
+  });
+
+  it('should filter same length sender & receiver', async () => {
+    if (new Date().getHours() > 19) return;
+
+    const receiverTx = [
+      createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(409), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(409), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63191, created: Util.hoursBefore(409), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63232, created: Util.hoursBefore(407), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63277, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63278, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63279, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63280, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63281, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63282, created: Util.hoursBefore(310), amount: 9500.0 }),
+    ];
+
+    const senderTx = [
+      createCustomBankTx({
+        id: 142006,
+        created: Util.hoursBefore(432),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142007,
+        created: Util.hoursBefore(432),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142008,
+        created: Util.hoursBefore(432),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142153,
+        created: Util.hoursBefore(408),
+        valueDate: Util.hoursBefore(406),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142199,
+        created: Util.hoursBefore(384),
+        valueDate: Util.hoursBefore(384),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142218,
+        created: Util.hoursBefore(384),
+        valueDate: Util.hoursBefore(384),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142265,
+        created: Util.hoursBefore(384),
+        valueDate: Util.hoursBefore(384),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142396,
+        created: Util.hoursBefore(312),
+        valueDate: Util.hoursBefore(312),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142407,
+        created: Util.hoursBefore(312),
+        valueDate: Util.hoursBefore(312),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+      createCustomBankTx({
+        id: 142408,
+        created: Util.hoursBefore(312),
+        valueDate: Util.hoursBefore(312),
+        instructedAmount: 9500.0,
+        amount: 9500.0,
+      }),
+    ];
+
+    expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
+      sender: senderTx.slice(7),
+      receiver: receiverTx.slice(7),
     });
   });
 });

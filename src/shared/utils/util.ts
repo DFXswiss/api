@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import sanitizeHtml from 'sanitize-html';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -11,14 +12,27 @@ export type KeyType<T, U> = {
 
 type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
+export enum AmountType {
+  ASSET = 'Asset',
+  FIAT = 'Fiat',
+  ASSET_FEE = 'AssetFee',
+  FIAT_FEE = 'FiatFee',
+}
+
 export class Util {
   // --- MATH --- //
-  static roundReadable(amount: number, isFiat: boolean, assetPrecision?: number): number {
-    return isFiat
-      ? amount < 0.01
-        ? this.round(amount, 2)
-        : this.ceil(amount, 2)
-      : this.roundByPrecision(amount, assetPrecision ?? 5);
+  static roundReadable(amount: number, type: AmountType, assetPrecision?: number): number {
+    switch (type) {
+      case AmountType.ASSET:
+      case AmountType.ASSET_FEE:
+        return this.roundByPrecision(amount, assetPrecision ?? 5);
+
+      case AmountType.FIAT:
+        return this.round(amount, 2);
+
+      case AmountType.FIAT_FEE:
+        return amount < 0.01 ? this.round(amount, 2) : this.ceil(amount, 2);
+    }
   }
 
   static round(amount: number, decimals: number): number {
@@ -147,7 +161,7 @@ export class Util {
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[ł]/g, 'l')
+      .replace(/[łļ]/g, 'l')
       .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
       .replace(/[ßșšś]/g, 's')
@@ -246,7 +260,11 @@ export class Util {
   }
 
   static isoDateTime(date: Date): string {
-    return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
+    return date.toISOString().split('.')[0].replace(/:/g, '-').replace(/T/g, '_');
+  }
+
+  static isoTime(date: Date): string {
+    return date.toISOString().split('.')[0].split('T')[1].replace(/:/g, '-');
   }
 
   static firstDayOfMonth(date = new Date()): Date {
@@ -519,6 +537,12 @@ export class Util {
     return Boolean(value || value === '');
   }
 
+  static sanitize({ value }: TransformFnParams): boolean | undefined {
+    return value
+      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
+      : value;
+  }
+
   static fromBase64(file: string): { contentType: string; buffer: Buffer } {
     const [contentType, content] = file.split(';base64,');
     return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
@@ -542,5 +566,14 @@ export class Util {
 
   static toEnum<T>(enumObj: T, value?: string): T[keyof T] | undefined {
     return Object.values(enumObj).find((e) => e.toLowerCase() === value?.toLowerCase());
+  }
+
+  static createTimeString(times: number[], checkRuntime = 1): string | undefined {
+    const total = Util.round((Date.now() - times[0]) / 1000, 3);
+
+    if (total > checkRuntime) {
+      const timeString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
+      return `${timeString} (total ${total})`;
+    }
   }
 }

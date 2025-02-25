@@ -16,10 +16,13 @@ export enum TransactionType {
 export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
+  LIQUIDITY_PENDING = 'LiquidityPending',
   AML_PENDING = 'AmlPending',
   KYC_REQUIRED = 'KycRequired',
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
+  PRICE_UNDETERMINABLE = 'PriceUndeterminable',
+  PAYOUT_IN_PROGRESS = 'PayoutInProgress',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
   RETURN_PENDING = 'ReturnPending',
@@ -29,7 +32,7 @@ export enum TransactionState {
 
 export enum TransactionReason {
   UNKNOWN = 'Unknown',
-  DAILY_LIMIT_EXCEEDED = 'DailyLimitExceeded',
+  MONTHLY_LIMIT_EXCEEDED = 'MonthlyLimitExceeded',
   ANNUAL_LIMIT_EXCEEDED = 'AnnualLimitExceeded',
   ACCOUNT_HOLDER_MISMATCH = 'AccountHolderMismatch',
   KYC_REJECTED = 'KycRejected',
@@ -59,7 +62,7 @@ export const KycRequiredReason = [
   TransactionReason.FRAUD_SUSPICION,
 ];
 
-export const LimitExceededReason = [TransactionReason.DAILY_LIMIT_EXCEEDED, TransactionReason.ANNUAL_LIMIT_EXCEEDED];
+export const LimitExceededReason = [TransactionReason.MONTHLY_LIMIT_EXCEEDED, TransactionReason.ANNUAL_LIMIT_EXCEEDED];
 
 export const TransactionReasonMapper: {
   [key in AmlReason]: TransactionReason;
@@ -70,7 +73,7 @@ export const TransactionReasonMapper: {
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DELETED]: TransactionReason.USER_DELETED,
-  [AmlReason.DAILY_LIMIT]: TransactionReason.DAILY_LIMIT_EXCEEDED,
+  [AmlReason.MONTHLY_LIMIT]: TransactionReason.MONTHLY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
   [AmlReason.USER_DATA_MISMATCH]: TransactionReason.ACCOUNT_HOLDER_MISMATCH,
@@ -93,14 +96,18 @@ export const TransactionReasonMapper: {
   [AmlReason.CARD_NAME_MISMATCH]: TransactionReason.CARD_NAME_MISMATCH,
   [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
   [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
+  [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
 };
 
 export class UnassignedTransactionDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'UID of the transaction' })
   uid: string;
+
+  @ApiPropertyOptional({ description: 'UID of the order of the transaction' })
+  orderUid?: string;
 
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;

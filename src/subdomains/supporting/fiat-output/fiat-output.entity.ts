@@ -2,8 +2,8 @@ import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
-import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 
 export enum TransactionCharge {
   BEN = 'BEN',
@@ -118,4 +118,7 @@ export class FiatOutput extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   outputDate?: Date;
+
+  @Column({ nullable: true })
+  reportCreated?: boolean;
 }

@@ -1,11 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
@@ -16,7 +16,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -38,10 +38,8 @@ export class BankDataService {
     private readonly bankAccountService: BankAccountService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BANK_DATA_VERIFICATION, timeout: 1800 })
   async checkAndSetActive() {
-    if (DisabledProcess(Process.BANK_DATA_VERIFICATION)) return;
     await this.checkUnverifiedBankDatas();
   }
 
@@ -197,12 +195,16 @@ export class BankDataService {
       .getOne();
   }
 
-  async getVerifiedBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
+  async getVerifiedBankDataWithIban(
+    iban: string,
+    userDataId?: number,
+    relations: FindOptionsRelations<BankData> = { userData: true },
+  ): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
       .find({
         where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
-        relations: { userData: true },
+        relations,
       })
       .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
   }

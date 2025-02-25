@@ -48,7 +48,7 @@ If a user wants to get notified about ongoing transactions, he can register his 
 
 ### KYC (optional)
 
-KYC is not required for a daily transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page. Just open then link to the KYC page with the user's API access token: `https://services.dfx.swiss/kyc?session=<jwt-access-token>`
+KYC is not required for a monthly transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page. Just open then link to the KYC page with the user's API access token: `https://app.dfx.swiss/kyc?session=<jwt-access-token>`
 
 The current KYC level of a user can be read using the [user endpoint](https://api.dfx.swiss/swagger/#/User/UserV2Controller_getUser). The different levels are listed below.
 

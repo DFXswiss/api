@@ -12,9 +12,9 @@ const defaultTransaction: Partial<Transaction> = {
 };
 
 export function createDefaultTransaction(): Transaction {
-  return createCustomAsset({});
+  return createCustomTransaction({});
 }
 
-export function createCustomAsset(customValues: Partial<Transaction>): Transaction {
+export function createCustomTransaction(customValues: Partial<Transaction>): Transaction {
   return Object.assign(new Transaction(), { ...defaultTransaction, ...customValues });
 }

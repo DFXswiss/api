@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -36,11 +36,8 @@ export class BankObserver extends MetricObserver<BankData[]> {
     super(monitoringService, 'bank', 'balance');
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })
   async fetch() {
-    if (DisabledProcess(Process.MONITORING)) return;
-
     let data = [];
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());

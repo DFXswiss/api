@@ -1,7 +1,7 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Active, amountType, feeAmountType } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -38,15 +38,17 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyCrypto.transaction.id,
       uid: buyCrypto.transaction.uid,
+      orderUid: buyCrypto.transaction.request?.uid,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
-      inputAmount: Util.roundReadable(buyCrypto.inputAmount, isFiat(buyCrypto.inputAssetEntity)),
-      inputAsset: buyCrypto.inputAsset,
+      inputAmount: Util.roundReadable(buyCrypto.inputAmount, amountType(buyCrypto.inputAssetEntity)),
+      inputAsset: buyCrypto.inputAssetEntity.name,
       inputAssetId: buyCrypto.inputAssetEntity.id,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
-      outputAmount: buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, false) : null,
+      outputAmount:
+        buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, AmountType.ASSET) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
       outputBlockchain: buyCrypto.outputAsset?.blockchain,
@@ -55,10 +57,10 @@ export class TransactionDtoMapper {
       feeAmount: buyCrypto.totalFeeAmount
         ? Util.roundReadable(
             buyCrypto.totalFeeAmount * (buyCrypto.inputAmount / buyCrypto.inputReferenceAmount),
-            isFiat(buyCrypto.inputAssetEntity),
+            amountType(buyCrypto.inputAssetEntity),
           )
         : null,
-      feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
+      feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAssetEntity.name : null,
       fees: TransactionDtoMapper.mapFees(buyCrypto),
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyCrypto?.cryptoInput
@@ -98,15 +100,16 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyFiat.transaction.id,
       uid: buyFiat.transaction.uid,
+      orderUid: buyFiat.transaction.request?.uid,
       type: TransactionType.SELL,
       ...getTransactionStateDetails(buyFiat),
-      inputAmount: Util.roundReadable(buyFiat.inputAmount, isFiat(buyFiat.inputAssetEntity)),
-      inputAsset: buyFiat.inputAsset,
+      inputAmount: Util.roundReadable(buyFiat.inputAmount, amountType(buyFiat.inputAssetEntity)),
+      inputAsset: buyFiat.inputAssetEntity.name,
       inputAssetId: buyFiat.inputAssetEntity.id,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
-      outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, true) : null,
+      outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, AmountType.FIAT) : null,
       outputAsset: buyFiat.outputAsset?.name,
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
@@ -116,10 +119,10 @@ export class TransactionDtoMapper {
       feeAmount: buyFiat.totalFeeAmount
         ? Util.roundReadable(
             buyFiat.totalFeeAmount * (buyFiat.inputAmount / buyFiat.inputReferenceAmount),
-            isFiat(buyFiat.inputAssetEntity),
+            amountType(buyFiat.inputAssetEntity),
           )
         : null,
-      feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
+      feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAssetEntity.name : null,
       fees: TransactionDtoMapper.mapFees(buyFiat),
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyFiat?.cryptoInput
@@ -157,6 +160,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: refReward.transaction.id,
       uid: refReward.transaction.uid,
+      orderUid: null,
       type: TransactionType.REFERRAL,
       ...getTransactionStateDetails(refReward),
       inputAmount: null,
@@ -168,9 +172,9 @@ export class TransactionDtoMapper {
       rate: null,
       outputAmount:
         refReward.outputAmount != null
-          ? Util.roundReadable(refReward.outputAmount, isFiat(refReward.outputAssetEntity))
+          ? Util.roundReadable(refReward.outputAmount, amountType(refReward.outputAssetEntity))
           : null,
-      outputAsset: refReward.outputAsset,
+      outputAsset: refReward.outputAssetEntity.name,
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
@@ -210,6 +214,7 @@ export class TransactionDtoMapper {
     return {
       id: tx.transaction.id,
       uid: tx.transaction.uid,
+      orderUid: tx.transaction.request?.uid,
       type: TransactionType.BUY,
       state: TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
@@ -239,29 +244,29 @@ export class TransactionDtoMapper {
       rate: entity.percentFee,
       bank:
         entity.bankFeeAmount != null
-          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.bankFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       fixed:
         entity.absoluteFeeAmount != null
-          ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       min:
         entity.minFeeAmount != null
-          ? Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.minFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
-      network: Util.roundReadable(blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)),
+      network: Util.roundReadable(blockchainFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
       dfx:
         entity.totalFeeAmount != null
           ? Util.roundReadable(
               (entity.totalFeeAmount - (blockchainFee + networkStartFee)) * referencePrice,
-              isFiat(entity.inputAssetEntity),
+              feeAmountType(entity.inputAssetEntity),
             )
           : null,
       total:
         entity.totalFeeAmount != null
-          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
-      networkStart: Util.roundReadable(networkStartFee * referencePrice, isFiat(entity.inputAssetEntity)),
+      networkStart: Util.roundReadable(networkStartFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
     };
   }
 }
@@ -272,11 +277,12 @@ export const RefRewardStatusMapper: {
   [RewardStatus.CREATED]: TransactionState.CREATED,
   [RewardStatus.PREPARED]: TransactionState.CREATED,
   [RewardStatus.MANUAL_CHECK]: TransactionState.PROCESSING,
-  [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
-  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
-  [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.PENDING_LIQUIDITY]: TransactionState.LIQUIDITY_PENDING,
+  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PAYOUT_IN_PROGRESS,
+  [RewardStatus.PAYING_OUT]: TransactionState.PAYOUT_IN_PROGRESS,
   [RewardStatus.FAILED]: TransactionState.FAILED,
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
+  [RewardStatus.USER_SWITCH]: TransactionState.FAILED,
 };
 
 function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
@@ -293,6 +299,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
       case null:
+        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -303,7 +310,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
-        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
+        if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate)
+          return { state: TransactionState.RETURN_PENDING, reason };
         return {
           state: TransactionState.FAILED,
           reason,
@@ -314,6 +322,16 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
         if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE)
           return { state: TransactionState.FEE_TOO_HIGH, reason };
+        if ([BuyCryptoStatus.MISSING_LIQUIDITY, BuyCryptoStatus.PENDING_LIQUIDITY].includes(entity.status))
+          return { state: TransactionState.LIQUIDITY_PENDING, reason };
+        if ([BuyCryptoStatus.PRICE_INVALID, BuyCryptoStatus.PRICE_SLIPPAGE].includes(entity.status))
+          return { state: TransactionState.PRICE_UNDETERMINABLE, reason };
+        if (
+          [BuyCryptoStatus.BATCHED, BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT].includes(
+            entity.status,
+          )
+        )
+          return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
         break;
     }
 
@@ -323,6 +341,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyFiat) {
     switch (entity.amlCheck) {
       case null:
+        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -338,6 +357,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
 
       case CheckStatus.PASS:
         if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
+        if (entity.fiatOutput) return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
+
         break;
     }
 

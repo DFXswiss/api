@@ -45,21 +45,21 @@ export abstract class EvmStrategy extends SendStrategy {
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
           const totalAmount = this.getTotalGroupAmount(payInGroup, type);
+          const blockchainFee = this.getTotalGroupFeeAmount(payInGroup);
 
-          const { nativeFee, targetFee } = await this.getEstimatedFee(
+          const { feeNativeAsset, feeInputAsset, maxFeeInputAsset } = await this.getEstimatedForwardFee(
             payInGroup.asset,
             totalAmount,
             this.getForwardAddress().address,
           );
-          const minInputFee = await this.getMinInputFee(payInGroup.asset);
 
-          CryptoInput.verifyEstimatedFee(targetFee, minInputFee, totalAmount);
+          CryptoInput.verifyForwardFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
 
           /**
            * @note
            * setting to some default minimal amount in case estimated fees go very low.
            */
-          const effectivePreparationFee = Math.max(nativeFee, Config.blockchain.evm.minimalPreparationFee);
+          const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.evm.minimalPreparationFee);
 
           await this.prepareSend(payInGroup, effectivePreparationFee);
 
@@ -72,6 +72,8 @@ export abstract class EvmStrategy extends SendStrategy {
           continue;
         }
       } catch (e) {
+        if (e.message.includes('No maximum fee provided')) continue;
+
         const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
 
         this.logger.log(
@@ -192,5 +194,9 @@ export abstract class EvmStrategy extends SendStrategy {
     for (const payIn of payIns) {
       await this.payInRepo.save(payIn);
     }
+  }
+
+  private getTotalGroupFeeAmount(payInGroup: SendGroup): number {
+    return Util.sum(payInGroup.payIns.map((p) => p.maxForwardFee));
   }
 }

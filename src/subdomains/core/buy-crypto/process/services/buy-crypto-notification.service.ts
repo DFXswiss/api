@@ -103,6 +103,12 @@ export class BuyCryptoNotificationService {
                   key: `${MailTranslationKey.GENERAL}.link`,
                   params: { url: entity.transaction.url, urlText: entity.transaction.url },
                 },
+                entity.user.wallet.displayFraudWarning
+                  ? {
+                      ...{ key: MailKey.SPACE, params: { value: '4' } },
+                      ...{ key: `${MailTranslationKey.PAYMENT}.warning` },
+                    }
+                  : undefined,
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '4' } },

@@ -23,7 +23,7 @@ export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
 
-export interface KycFile extends Blob {
+export interface KycFileBlob extends Blob {
   category: FileCategory;
   type: FileType;
   contentType: ContentType;

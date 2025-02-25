@@ -31,25 +31,25 @@ export class KycAddress {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   street: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   houseNumber?: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   city: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   zip: string;
 
   @ApiProperty({ type: EntityDto })
@@ -68,13 +68,13 @@ export class KycPersonalData {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   firstName: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   lastName: string;
 
   @ApiProperty()
@@ -94,7 +94,7 @@ export class KycPersonalData {
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   organizationName?: string;
 
   @ApiPropertyOptional({ type: KycAddress })
@@ -143,6 +143,7 @@ export class KycFileData {
   @ApiProperty({ description: 'Name of the file' })
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   fileName: string;
 }
 
@@ -150,19 +151,19 @@ export class KycManualIdentData {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   firstName: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   lastName: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   birthName: string;
 
   @ApiProperty()
@@ -180,7 +181,7 @@ export class KycManualIdentData {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   birthplace: string;
 
   @ApiPropertyOptional({ enum: GenderType })
@@ -196,7 +197,7 @@ export class KycManualIdentData {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trim)
+  @Transform(Util.sanitize)
   documentNumber: string;
 
   @ApiProperty({ type: KycFileData })

@@ -1,8 +1,10 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
+import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -14,6 +16,7 @@ import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from '../payin/entities/crypto-input.entity';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
+import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
 
@@ -27,13 +30,11 @@ export class FiatOutputService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly ep2ReportService: Ep2ReportService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async fillFiatOutput() {
-    if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return;
-
     const entities = await this.fiatOutputRepo.find({
       where: { amount: Not(IsNull()), isComplete: false, bankTx: { id: IsNull() } },
       relations: { bankTx: true },
@@ -47,6 +48,30 @@ export class FiatOutputService {
         await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
       } catch (e) {
         this.logger.error(`Error in fiatOutput complete job: ${entity.id}`, e);
+      }
+    }
+  }
+
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
+  async generateReports() {
+    const entities = await this.fiatOutputRepo.find({
+      where: { reportCreated: false, isComplete: true },
+      relations: {
+        buyFiats: { transaction: { user: { userData: true } }, cryptoInput: { paymentLinkPayment: { link: true } } },
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        const report = this.ep2ReportService.generateReport(entity);
+        const container = entity.buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer;
+        const fileName = `settlement_${Util.isoDateTime(entity.created)}.ep2`;
+
+        await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
+
+        await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
+      } catch (e) {
+        this.logger.error(`Failed to generate EP2 report for fiat output ${entity.id}:`, e);
       }
     }
   }
@@ -86,8 +111,10 @@ export class FiatOutputService {
   async createInternal(
     type: string,
     { buyCrypto, buyFiats, bankTxReturn }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[]; bankTxReturn?: BankTxReturn },
+    createReport = false,
   ): Promise<FiatOutput> {
     const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn });
+    if (createReport) entity.reportCreated = false;
 
     return this.fiatOutputRepo.save(entity);
   }
@@ -116,8 +143,8 @@ export class FiatOutputService {
     return this.fiatOutputRepo
       .createQueryBuilder('fiatOutput')
       .select('fiatOutput')
-      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('fiatOutput.buyFiats', 'buyFiats')
+      .leftJoinAndSelect('buyFiats.sell', 'sell')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')

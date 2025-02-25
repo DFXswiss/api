@@ -6,12 +6,12 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { RouteService } from 'src/subdomains/core/route/route.service';
@@ -62,8 +62,7 @@ export class SwapService {
   }
 
   // --- VOLUMES --- //
-  @Cron(CronExpression.EVERY_YEAR)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     await this.swapRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }

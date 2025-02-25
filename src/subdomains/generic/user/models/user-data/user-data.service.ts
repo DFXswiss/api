@@ -8,7 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
@@ -21,15 +21,15 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -37,10 +37,12 @@ import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
@@ -84,28 +86,9 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
+    private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
   ) {}
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async syncWallet() {
-    if (DisabledProcess(Process.USER_DATA_WALLET_SYNC)) return;
-
-    const entities = await this.userDataRepo.find({
-      where: { wallet: { id: IsNull() }, users: { id: Not(IsNull()) } },
-      relations: { users: { wallet: true } },
-      take: 10000,
-    });
-
-    for (const entity of entities) {
-      try {
-        await this.userDataRepo.update(entity.id, { wallet: entity.users[0].wallet });
-      } catch (e) {
-        this.logger.error(`Error in userData wallet sync: ${entity.id}`, e);
-      }
-    }
-  }
 
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -230,13 +213,13 @@ export class UserDataService {
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
-    if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
-    await this.userDataRepo.update(userData.id, dto);
     Object.assign(userData, dto);
+
+    await this.userDataRepo.save(userData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -246,11 +229,11 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.downloadTargets.reverse();
+    const downloadTargets = Config.kyc.downloadTargets.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
-      const userData = await this.getUserData(userDataId);
+      const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData?.verifiedName) {
         errorLog += !userData
@@ -259,7 +242,9 @@ export class UserDataService {
         continue;
       }
 
-      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${userData.verifiedName}`;
+      const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${
+        userData.verifiedName
+      }`.replace(/\./g, '');
       const parentFolder = zip.folder(baseFolderName);
 
       if (!parentFolder) {
@@ -267,10 +252,13 @@ export class UserDataService {
         continue;
       }
 
-      const allPrefixes = Array.from(new Set(downloadTargets.map((t) => t.prefixes(userData)).flat()));
+      const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
+
+      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { folderName, fileTypes, prefixes, filter, handleFileNotFound } of downloadTargets) {
+      for (const { id, name, fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of applicableTargets) {
+        const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
         if (!subFolder) {
@@ -289,18 +277,19 @@ export class UserDataService {
           continue;
         }
 
-        const latestFile = files.reduce((l, c) => (new Date(l.updated) > new Date(c.updated) ? l : c));
+        const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
         try {
           const fileData = await this.documentService.downloadFile(
-            latestFile.category,
+            selectedFile.category,
             userDataId,
-            latestFile.type,
-            latestFile.name,
+            selectedFile.type,
+            selectedFile.name,
           );
-          subFolder.file(latestFile.name.replace(/\//g, '_'), fileData.data);
+          const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+          subFolder.file(filePath, fileData.data);
         } catch (error) {
-          errorLog += `Error: Failed to download file '${latestFile.name}' for UserData ${userDataId}\n`;
+          errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
         }
       }
     }
@@ -333,12 +322,12 @@ export class UserDataService {
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
     const update: Partial<UserData> = {
       accountType: data.accountType,
-      firstname: data.firstName,
-      surname: data.lastName,
-      street: data.address.street,
-      houseNumber: data.address.houseNumber,
-      location: data.address.city,
-      zip: data.address.zip,
+      firstname: transliterate(data.firstName),
+      surname: transliterate(data.lastName),
+      street: transliterate(data.address.street),
+      houseNumber: transliterate(data.address.houseNumber),
+      location: transliterate(data.address.city),
+      zip: transliterate(data.address.zip),
       country: data.address.country,
       phone: data.phone,
       organizationName: data.organizationName,
@@ -371,6 +360,19 @@ export class UserDataService {
       update.organizationLocation = null;
       update.organizationZip = null;
       update.organizationCountry = null;
+    } else {
+      const organizationData = {
+        name: update.organizationName,
+        street: update.organizationStreet,
+        location: update.organizationLocation,
+        houseNumber: update.organizationHouseNumber,
+        zip: update.organizationZip,
+        countryId: update.organizationCountry?.id,
+      };
+
+      update.organization = !userData.organization
+        ? await this.organizationService.createOrganization(organizationData)
+        : await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
     }
 
     for (const user of userData.users) {
@@ -553,7 +555,10 @@ export class UserDataService {
 
   // --- KYC --- //
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
-    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStepType.AUTO);
+    const defaultIdent =
+      userData.accountType === AccountType.ORGANIZATION
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
@@ -680,6 +685,23 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
+
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
+      userData.organization = await this.organizationService.createOrganization({
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        countryId: dto.organizationCountryId,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
   }
 
   // --- KYC CLIENTS --- //
@@ -711,8 +733,7 @@ export class UserDataService {
   }
 
   // --- VOLUMES --- //
-  @Cron(CronExpression.EVERY_YEAR)
-  @Lock()
+  @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
@@ -815,6 +836,9 @@ export class UserDataService {
             KycStepStatus.INTERNAL_REVIEW,
             KycStepStatus.EXTERNAL_REVIEW,
             KycStepStatus.FINISHED,
+            KycStepStatus.PARTIALLY_APPROVED,
+            KycStepStatus.DATA_REQUESTED,
+            KycStepStatus.PAUSED,
           ].includes(kycStep.status)
             ? KycStepStatus.CANCELED
             : undefined,
@@ -898,18 +922,9 @@ export class UserDataService {
       select: ['id'],
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
-        { buyFiat: { sell: { user: { userData: { id: userDataId } } } } },
+        { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
       ],
-      relations: [
-        'buyCrypto',
-        'buyCrypto.buy',
-        'buyCrypto.buy.user',
-        'buyCrypto.buy.user.userData',
-        'buyFiat',
-        'buyFiat.sell',
-        'buyFiat.sell.user',
-        'buyFiat.sell.user.userData',
-      ],
+      relations: { buyCrypto: { buy: { user: { userData: true } } }, buyFiats: { sell: { user: { userData: true } } } },
     });
 
     if (txList.length != 0)

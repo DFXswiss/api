@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
@@ -22,10 +22,8 @@ export class PayInNotificationService {
 
   constructor(private readonly payInRepo: PayInRepository, private readonly notificationService: NotificationService) {}
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN_MAIL)) return;
     await this.returnedCryptoInput();
   }
 

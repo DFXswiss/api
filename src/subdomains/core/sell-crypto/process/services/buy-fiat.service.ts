@@ -3,12 +3,11 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -54,8 +53,9 @@ export class BuyFiatService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
-    private readonly userDataService: UserDataService,
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
+    @Inject(forwardRef(() => AmlService))
+    private readonly amlService: AmlService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -158,17 +158,15 @@ export class BuyFiatService {
       isComplete: dto.isComplete,
       comment: update.comment,
     };
-    if (BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
-      await this.buyFiatNotificationService.paymentProcessing(entity);
+
+    const amlCheckBefore = entity.amlCheck;
 
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
-    if (dto.amlCheck) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
-    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
+    if (forceUpdate.amlCheck) {
+      if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
 
-    // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
-      await this.userService.activateUser(entity.user, entity.userData);
+      await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
     }
 
     // payment webhook

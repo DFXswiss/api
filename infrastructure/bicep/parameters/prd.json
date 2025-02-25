@@ -32,6 +32,12 @@
     "dbCapacity": {
       "value": 50
     },
+    "dbPoolMin": {
+      "value": 5
+    },
+    "dbPoolMax": {
+      "value": 10
+    },
     "mailUser": {
       "value": "xxx"
     },
@@ -248,14 +254,8 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
-    "zchfGatewayUrl": {
-      "value": "https://eth-mainnet.g.alchemy.com/v2"
-    },
     "zchfGraphUrl": {
       "value": "https://ponder.frankencoin.3dotshub.com"
-    },
-    "zchfTvlUrl": {
-      "value": "https://api.llama.fi/tvl/frankencoin"
     },
     "zchfContractAddress": {
       "value": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
@@ -268,12 +268,6 @@
     },
     "zchfXchfContractAddress": {
       "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
-    },
-    "deuroGatewayUrl": {
-      "value": "https://eth-mainnet.g.alchemy.com/v2"
-    },
-    "deuroChainId": {
-      "value": "1"
     },
     "deuroGraphUrl": {
       "value": "https://ponder.deuro.com"
@@ -402,7 +396,7 @@
       "value": "https://payment.dfx.swiss"
     },
     "servicesUrl": {
-      "value": "https://services.dfx.swiss"
+      "value": "https://app.dfx.swiss"
     },
     "limitRequestSupportBanner": {
       "value": "xxx"

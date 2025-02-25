@@ -11,12 +11,15 @@ import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/pay
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
@@ -90,7 +93,7 @@ export enum BlankType {
 }
 
 export enum LimitPeriod {
-  DAY = 'Day',
+  MONTH = 'Month',
   YEAR = 'Year',
 }
 
@@ -158,33 +161,43 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
 
+  // --- ORGANIZATION DATA --- //
+  // TODO remove after sync
   @Column({ length: 256, nullable: true })
   organizationName?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationStreet?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationHouseNumber?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationLocation?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   organizationZip?: string;
 
+  // TODO remove
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersName?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersDomicile?: string;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   accountOpenerAuthorization?: string;
 
@@ -199,9 +212,11 @@ export class UserData extends IEntity {
 
   // --- KYC --- //
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   legalEntity?: LegalEntity;
 
+  // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
 
@@ -214,6 +229,7 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
 
+  // TODO remove
   @Column({ nullable: true })
   complexOrgStructure?: boolean;
 
@@ -289,6 +305,9 @@ export class UserData extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   relatedUsers?: string;
 
+  @Column({ length: 256, nullable: true })
+  postAmlCheck?: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail?: string;
@@ -345,9 +364,16 @@ export class UserData extends IEntity {
   @ManyToOne(() => Wallet, { nullable: true })
   wallet: Wallet;
 
+  @OneToMany(() => Transaction, (tx) => tx.userData)
+  transactions: Transaction[];
+
+  // TODO remove
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;
+
+  @ManyToOne(() => Organization, { nullable: true, eager: true })
+  organization: Organization;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
@@ -500,9 +526,9 @@ export class UserData extends IEntity {
         period: LimitPeriod.YEAR,
       };
     } else if (this.isKycTerminated) {
-      return { limit: 0, period: LimitPeriod.DAY };
+      return { limit: 0, period: LimitPeriod.MONTH };
     } else {
-      return { limit: Config.tradingLimits.dailyDefault, period: LimitPeriod.DAY };
+      return { limit: Config.tradingLimits.monthlyDefaultWoKyc, period: LimitPeriod.MONTH };
     }
   }
 
@@ -541,7 +567,7 @@ export class UserData extends IEntity {
   }
 
   get address() {
-    return this.accountType === AccountType.ORGANIZATION
+    return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
           street: this.organizationStreet,
           houseNumber: this.organizationHouseNumber,

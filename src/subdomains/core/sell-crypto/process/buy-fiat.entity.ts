@@ -3,7 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -36,8 +36,7 @@ export class BuyFiat extends IEntity {
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
-  @OneToOne(() => BankTx, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => BankTx, { nullable: true })
   bankTx?: BankTx;
 
   @ManyToOne(() => BankData, { nullable: true })
@@ -130,7 +129,7 @@ export class BuyFiat extends IEntity {
   totalFeeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  blockchainFee?: number;
+  blockchainFee?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   paymentLinkFee?: number;
@@ -318,6 +317,8 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
+    const paymentLinkFeeAmount = Util.roundReadable(outputReferenceAmount * paymentLinkFee, AmountType.FIAT_FEE);
+
     const update: Partial<BuyFiat> =
       inputReferenceAmountMinusFee < 0
         ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
@@ -338,7 +339,7 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
+            outputAmount: Util.roundReadable(outputReferenceAmount - paymentLinkFeeAmount, AmountType.FIAT),
             outputReferenceAmount,
             priceSteps: this.priceSteps,
           };
@@ -362,12 +363,24 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  complete(remittanceInfo: string, outputDate: Date, bankTx: BankTx): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      remittanceInfo,
+      outputDate,
+      bankTx,
+      isComplete: true,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
     amountInEur: number,
     amountInChf: number,
-    last24hVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -380,7 +393,6 @@ export class BuyFiat extends IEntity {
         inputAsset,
         minVolume,
         amountInChf,
-        last24hVolume,
         0,
         last30dVolume,
         last365dVolume,
@@ -467,9 +479,9 @@ export class BuyFiat extends IEntity {
     return {
       exchangeRate: Util.roundReadable(
         (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount),
-        false,
+        AmountType.ASSET,
       ),
-      rate: Util.roundReadable(this.inputAmount / this.outputAmount, false),
+      rate: Util.roundReadable(this.inputAmount / this.outputAmount, AmountType.ASSET),
     };
   }
 
@@ -507,7 +519,7 @@ export class BuyFiat extends IEntity {
 }
 
 export const BuyFiatAmlReasonPendingStates = [
-  AmlReason.DAILY_LIMIT,
+  AmlReason.MONTHLY_LIMIT,
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,

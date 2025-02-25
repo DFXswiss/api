@@ -10,7 +10,7 @@ const defaultBuyHistory: BuyHistoryDto = {
   date: new Date(),
   isComplete: false,
   txId: 'TX_ID_01',
-  txUrl: 'https://defiscan.live/transactions/TX_ID_01',
+  txUrl: 'https://etherscan.io/tx/TX_ID_01',
   amlCheck: CheckStatus.PASS,
   status: PaymentStatus.PENDING,
 };

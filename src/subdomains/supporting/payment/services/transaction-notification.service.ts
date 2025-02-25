@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -25,10 +25,8 @@ export class TransactionNotificationService {
     private readonly bankDataService: BankDataService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TX_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
-    if (DisabledProcess(Process.TX_MAIL)) return;
     await this.txAssigned();
     if (!DisabledProcess(Process.TX_UNASSIGNED_MAIL)) await this.txUnassigned();
   }
@@ -110,13 +108,17 @@ export class TransactionNotificationService {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
         mailSendDate: IsNull(),
       },
-      relations: { bankTx: true, user: { wallet: true } },
+      relations: { bankTx: true },
     });
     if (entities.length === 0) return;
 
     for (const entity of entities) {
       try {
-        const bankData = await this.bankDataService.getVerifiedBankDataWithIban(entity.bankTx.senderAccount);
+        const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+          entity.bankTx.senderAccount,
+          undefined,
+          { userData: { wallet: true } },
+        );
         if (!bankData) continue;
 
         if (bankData.userData.mail) {
@@ -125,7 +127,7 @@ export class TransactionNotificationService {
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
-              wallet: entity.wallet,
+              wallet: bankData.userData.wallet,
               title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
               salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
               suffix: [
