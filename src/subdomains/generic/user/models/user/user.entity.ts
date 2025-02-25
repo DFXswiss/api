@@ -4,6 +4,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { CustodyAddressType } from 'src/subdomains/core/custody/enums/custody';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
@@ -148,6 +149,13 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   comment?: string;
+
+  @Column({ type: 'int', nullable: true })
+  @Index({ unique: true, where: 'custodyAddressIndex IS NOT NULL' })
+  custodyAddressIndex?: number;
+
+  @Column({ nullable: true })
+  custodyAddressType: CustodyAddressType;
 
   //*** FACTORY METHODS ***//
   deleteUser(reason: string): UpdateResult<User> {
