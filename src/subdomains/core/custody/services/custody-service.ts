@@ -120,7 +120,6 @@ export class CustodyService {
   async approveOrder(orderId: number): Promise<void> {
     const order = await this.custodyOrderRepo.findOne({
       where: { id: orderId },
-      relations: { user: true },
     });
 
     if (!order) throw new NotFoundException('Order not found');
