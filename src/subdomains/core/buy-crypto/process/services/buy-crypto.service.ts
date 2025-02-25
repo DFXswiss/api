@@ -455,6 +455,7 @@ export class BuyCryptoService {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
+        buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
   }

@@ -548,6 +548,10 @@ export class BuyCrypto extends IEntity {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
+  get chargebackBankRemittanceInfo(): string {
+    return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
   get inputPriceStep(): PriceStep[] {
     return this.inputAsset !== this.inputReferenceAsset
       ? [
