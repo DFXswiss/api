@@ -2,7 +2,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
-import { CustodyActionType } from '../enums/custody';
+import { CustodyActionOrderStatus, CustodyActionType } from '../enums/custody';
 
 @Entity()
 export class CustodyActionOrder extends IEntity {
@@ -17,15 +17,12 @@ export class CustodyActionOrder extends IEntity {
   })
   transactionRequest: TransactionRequest;
 
-  @Column({ nullable: false, default: false })
-  userConfirmation?: boolean;
+  @Column({ nullable: false, default: CustodyActionOrderStatus.CREATED })
+  status: CustodyActionOrderStatus;
 
-  @Column({ nullable: false, default: false })
-  internalConfirmation?: boolean;
-
-  userConfirm(): UpdateResult<CustodyActionOrder> {
+  confirm(): UpdateResult<CustodyActionOrder> {
     const update: Partial<CustodyActionOrder> = {
-      userConfirmation: true,
+      status: CustodyActionOrderStatus.CONFIRMED,
     };
 
     Object.assign(this, update);
@@ -33,9 +30,9 @@ export class CustodyActionOrder extends IEntity {
     return [this.id, update];
   }
 
-  internalConfirm(): UpdateResult<CustodyActionOrder> {
+  approve(): UpdateResult<CustodyActionOrder> {
     const update: Partial<CustodyActionOrder> = {
-      internalConfirmation: true,
+      status: CustodyActionOrderStatus.APPROVED,
     };
 
     Object.assign(this, update);

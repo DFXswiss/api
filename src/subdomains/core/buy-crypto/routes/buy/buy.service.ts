@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
@@ -38,6 +45,7 @@ export class BuyService {
     private readonly swissQrService: SwissQRService,
     private readonly bankService: BankService,
     private readonly transactionRequestService: TransactionRequestService,
+    @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
   ) {}
@@ -204,11 +212,7 @@ export class BuyService {
   }
 
   async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const times = [Date.now()];
-
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
-
-    times.push(Date.now());
 
     const {
       timestamp,
@@ -237,16 +241,12 @@ export class BuyService {
       user,
     );
 
-    times.push(Date.now());
-
     const bankInfo = await this.getBankInfo({
       amount: amount,
       currency: dto.currency.name,
       paymentMethod: dto.paymentMethod,
       userData: user.userData,
     });
-
-    times.push(Date.now());
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
@@ -290,14 +290,7 @@ export class BuyService {
           : undefined,
     };
 
-    times.push(Date.now());
-
     await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id);
-
-    times.push(Date.now());
-
-    const timeString = Util.createTimeString(times);
-    if (timeString) this.logger.verbose(`Buy info to payment request times: ${timeString}`);
 
     return buyDto;
   }

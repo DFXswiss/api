@@ -60,6 +60,7 @@ export class SellService {
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
     private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,

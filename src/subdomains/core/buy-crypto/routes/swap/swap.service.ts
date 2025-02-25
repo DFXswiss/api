@@ -58,6 +58,7 @@ export class SwapService {
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
+    @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,

@@ -79,7 +79,7 @@ export class CustodyService {
     const user = await this.userService.getUser(jwt.user, { userData: true });
     if (!user) throw new NotFoundException('User not exist');
 
-    const action = this.custodyActionOrderRepo.create({ type: dto.type });
+    const action = this.custodyActionOrderRepo.create({ type: dto.type, user });
 
     await this.custodyActionOrderRepo.save(action);
 
@@ -87,12 +87,16 @@ export class CustodyService {
       case CustodyActionType.DEPOSIT:
         const buy = await this.buyService.createBuyPayment(jwt, dto.paymentInfo as GetBuyPaymentInfoDto);
         return {
+          actionOrderId: action.id,
+          status: action.status,
           type: action.type,
           paymentInfo: await this.buyService.toPaymentInfoDto(jwt.user, buy, dto.paymentInfo as GetBuyPaymentInfoDto),
         };
       case CustodyActionType.WITHDRAWAL:
         const sell = await this.sellService.createSellPayment(jwt.user, dto.paymentInfo as GetSellPaymentInfoDto);
         return {
+          actionOrderId: action.id,
+          status: action.status,
           type: action.type,
           paymentInfo: await this.sellService.toPaymentInfoDto(
             jwt.user,
@@ -103,6 +107,8 @@ export class CustodyService {
       case CustodyActionType.SWAP:
         const swap = await this.swapService.createSwapPayment(jwt.user, dto.paymentInfo as GetSwapPaymentInfoDto);
         return {
+          actionOrderId: action.id,
+          status: action.status,
           type: action.type,
           paymentInfo: await this.swapService.toPaymentInfoDto(
             jwt.user,
@@ -123,17 +129,17 @@ export class CustodyService {
 
     if (!user && user.id != actionOrder.user.id) throw new ForbiddenException('Action is not from current user');
 
-    actionOrder.userConfirm();
+    actionOrder.confirm();
     await this.custodyActionOrderRepo.save(actionOrder);
   }
 
-  async internalConfirmActionOrder(actionOrderId: number): Promise<void> {
+  async approveActionOrder(actionOrderId: number): Promise<void> {
     const actionOrder = await this.custodyActionOrderRepo.findOne({
       where: { id: actionOrderId },
       relations: ['user'],
     });
 
-    actionOrder.internalConfirm();
+    actionOrder.approve();
     await this.custodyActionOrderRepo.save(actionOrder);
   }
 }

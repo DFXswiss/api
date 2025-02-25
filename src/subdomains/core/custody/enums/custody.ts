@@ -9,3 +9,10 @@ export enum CustodyActionType {
   SAVING_DEPOSIT = 'SavingDeposit',
   SAVING_WITHDRAWAL = 'SavingWithdrawal',
 }
+
+export enum CustodyActionOrderStatus {
+  CREATED = 'Created',
+  CONFIRMED = 'Confirmed',
+  APPROVED = 'Approved',
+  COMPLETED = 'Completed',
+}

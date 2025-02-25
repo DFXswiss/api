@@ -49,11 +49,11 @@ export class AdminController {
     return this.adminService.payout(request);
   }
 
-  @Post('custody/:id/confirm')
+  @Post('custody/:id/approve')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
-  async confirmCustodyActionOrder(@Param() id: string): Promise<void> {
-    return this.custodyService.internalConfirmActionOrder(+id);
+  async approveCustodyActionOrder(@Param() id: string): Promise<void> {
+    return this.custodyService.approveActionOrder(+id);
   }
 }
