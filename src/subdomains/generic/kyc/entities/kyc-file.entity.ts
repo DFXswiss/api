@@ -22,7 +22,7 @@ export class KycFile extends IEntity {
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
 
-  @ManyToOne(() => KycStep, (s) => s.file, { nullable: true })
+  @ManyToOne(() => KycStep, (s) => s.files, { nullable: true })
   kycStep?: KycStep;
 
   @OneToOne(() => KycLog, (l) => l.file, { nullable: true })
