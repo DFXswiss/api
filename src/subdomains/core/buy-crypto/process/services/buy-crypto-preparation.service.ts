@@ -11,15 +11,16 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -51,7 +52,11 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async doAmlCheck(): Promise<void> {
-    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
+    const request: FindOptionsWhere<BuyCrypto> = {
+      inputAmount: Not(IsNull()),
+      inputAsset: Not(IsNull()),
+      isComplete: false,
+    };
     const entities = await this.buyCryptoRepo.find({
       where: [
         {
@@ -257,6 +262,39 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async chargebackTx(): Promise<void> {
+    const baseRequest: FindOptionsWhere<BuyCrypto> = {
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: Not(IsNull()),
+      isComplete: false,
+      transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+    };
+    const entities = await this.buyCryptoRepo.find({
+      where: [
+        { ...baseRequest, chargebackIban: Not(IsNull()) },
+        { ...baseRequest, checkoutTx: { id: Not(IsNull()) } },
+      ],
+      relations: { checkoutTx: true, bankTx: true, cryptoInput: true, transaction: { userData: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        const chargebackAllowedDate = new Date();
+        const chargebackAllowedBy = 'API';
+
+        if (entity.bankTx) {
+          await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+        } else if (entity.cryptoInput) {
+          await this.buyCryptoService.refundCryptoInput(entity, { chargebackAllowedDate, chargebackAllowedBy });
+        } else {
+          await this.buyCryptoService.refundCheckoutTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+        }
+      } catch (e) {
+        this.logger.error(`Failed buyCrypto chargeback job ${entity.id}:`, e);
       }
     }
   }
