@@ -131,10 +131,10 @@ export class KycBeneficialData {
   @ApiProperty({ description: 'Are there beneficial owners with 25% or more' })
   @IsNotEmpty()
   @IsBoolean()
-  answer: boolean;
+  hasBeneficialOwners: boolean;
 
   @ApiProperty({ isArray: true })
-  @ValidateIf((d: KycBeneficialData) => d.answer)
+  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners)
   @IsNotEmpty()
   beneficialOwners: BeneficialOwnerData[];
 }
