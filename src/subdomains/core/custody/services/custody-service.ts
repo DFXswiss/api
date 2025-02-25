@@ -21,7 +21,7 @@ import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
 import { CustodyAuthResponseDto } from '../dto/output/create-custody-account-output.dto';
 import { CustodyOrderResponseDto } from '../dto/output/create-custody-order-output.dto';
 import { CustodyActionType } from '../enums/custody';
-import { CustodyOrderRepository } from '../repositories/custody-action-order.repository';
+import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 
 @Injectable()
 export class CustodyService {
@@ -114,8 +114,7 @@ export class CustodyService {
     if (!order) throw new NotFoundException('Order not found');
     if (userId != order.user.id) throw new ForbiddenException('Action is not from current user');
 
-    order.confirm();
-    await this.custodyOrderRepo.save(order);
+    await this.custodyOrderRepo.update(...order.confirm());
   }
 
   async approveOrder(orderId: number): Promise<void> {
@@ -126,7 +125,6 @@ export class CustodyService {
 
     if (!order) throw new NotFoundException('Order not found');
 
-    order.approve();
-    await this.custodyOrderRepo.save(order);
+    await this.custodyOrderRepo.update(...order.approve());
   }
 }

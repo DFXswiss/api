@@ -7,7 +7,7 @@ import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { CustodyAdminController, CustodyController } from './controllers/custody.controller';
 import { CustodyOrder } from './entities/custody-order.entity';
-import { CustodyOrderRepository } from './repositories/custody-action-order.repository';
+import { CustodyOrderRepository } from './repositories/custody-order.repository';
 import { CustodyService } from './services/custody-service';
 
 @Module({

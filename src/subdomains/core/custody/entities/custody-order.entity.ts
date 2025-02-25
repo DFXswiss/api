@@ -1,7 +1,7 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { CustodyOrderStatus, CustodyActionType as CustodyOrderType } from '../enums/custody';
 
 @Entity()
@@ -15,6 +15,7 @@ export class CustodyOrder extends IEntity {
   @OneToOne(() => TransactionRequest, (transactionRequest) => transactionRequest.custodyOrder, {
     nullable: false,
   })
+  @JoinColumn()
   transactionRequest: TransactionRequest;
 
   @Column({ nullable: false, default: CustodyOrderStatus.CREATED })
