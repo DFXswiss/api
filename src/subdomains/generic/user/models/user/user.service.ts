@@ -199,8 +199,9 @@ export class UserService {
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
 
+    await this.siftService.createAccount(user);
+
     try {
-      await this.siftService.createAccount(user);
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
       if (data.usedRef || data.wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
