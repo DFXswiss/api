@@ -1,9 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -16,11 +19,20 @@ import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { RefService } from '../../referral/process/ref.service';
 import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellService } from '../../sell-crypto/route/sell.service';
+import { DfxOrderStepAdapter } from '../adapter/dfx-order-step.adapter';
+import { OrderConfig } from '../config/order-config';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
 import { CustodyAuthResponseDto } from '../dto/output/create-custody-account-output.dto';
 import { CustodyOrderResponseDto } from '../dto/output/create-custody-order-output.dto';
-import { CustodyActionType } from '../enums/custody';
+import { CustodyOrderStep } from '../entities/custody-order-step.entity';
+import {
+  CustodyOrderStatus,
+  CustodyOrderStepContext,
+  CustodyOrderStepStatus,
+  CustodyOrderType,
+} from '../enums/custody';
+import { CustodyOrderStepRepository } from '../repositories/custody-order.-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 
 @Injectable()
@@ -37,9 +49,64 @@ export class CustodyService {
     private readonly sellService: SellService,
     private readonly buyService: BuyService,
     private readonly swapService: SwapService,
+    private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
+    private readonly dfxOrderStepAdapter: DfxOrderStepAdapter,
   ) {}
-  //*** PUBLIC API ***//
 
+  //*** CRON ***//
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.CUSTODY })
+  async executeOrder() {
+    const approvedOrders = await this.custodyOrderRepo.find({
+      where: { status: CustodyOrderStatus.APPROVED },
+    });
+
+    for (const order of approvedOrders) {
+      const steps = OrderConfig[order.type];
+      if (steps.length) {
+        const index = 0;
+        const orderStep = this.custodyOrderStepRepo.create({
+          order,
+          index,
+          command: steps[index].command,
+          context: steps[index].context,
+        });
+        await this.custodyOrderStepRepo.save(orderStep);
+        await this.custodyOrderRepo.update(...order.progress());
+      }
+    }
+  }
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.CUSTODY })
+  async checkOrder() {
+    const newSteps = await this.custodyOrderStepRepo.find({
+      where: { status: CustodyOrderStepStatus.CREATED },
+    });
+
+    for (const step of newSteps) {
+      switch (step.context) {
+        case CustodyOrderStepContext.DFX:
+          await this.custodyOrderStepRepo.update(...step.progress(await this.dfxOrderStepAdapter.execute(step)));
+          break;
+      }
+    }
+
+    const runningSteps = await this.custodyOrderStepRepo.find({
+      where: { status: CustodyOrderStepStatus.IN_PROGRESS },
+    });
+
+    for (const step of runningSteps) {
+      switch (step.context) {
+        case CustodyOrderStepContext.DFX:
+          if (await this.dfxOrderStepAdapter.isComplete(step))
+            await this.custodyOrderStepRepo.update(...step.complete());
+          await this.nextStep(step);
+          break;
+      }
+    }
+  }
+
+  //*** PUBLIC API ***//
   async createCustodyAccount(
     accountId: number,
     dto: CreateCustodyAccountDto,
@@ -79,28 +146,28 @@ export class CustodyService {
     const user = await this.userService.getUser(jwt.user, { userData: true });
     if (!user) throw new NotFoundException('User not exist');
 
-    const action = this.custodyOrderRepo.create({ type: dto.type, user });
+    const order = this.custodyOrderRepo.create({ type: dto.type, user });
 
     let paymentInfo = null;
-    switch (action.type) {
-      case CustodyActionType.DEPOSIT:
+    switch (order.type) {
+      case CustodyOrderType.DEPOSIT:
         paymentInfo = await this.buyService.createBuyPayment(jwt, dto.paymentInfo as GetBuyPaymentInfoDto);
         break;
-      case CustodyActionType.WITHDRAWAL:
+      case CustodyOrderType.WITHDRAWAL:
         paymentInfo = await this.sellService.createSellPayment(jwt.user, dto.paymentInfo as GetSellPaymentInfoDto);
         break;
-      case CustodyActionType.SWAP:
+      case CustodyOrderType.SWAP:
         paymentInfo = await this.swapService.createSwapPayment(jwt.user, dto.paymentInfo as GetSwapPaymentInfoDto);
         break;
     }
 
-    action.transactionRequest = { id: paymentInfo.id } as TransactionRequest;
-    await this.custodyOrderRepo.save(action);
+    order.transactionRequest = { id: paymentInfo.id } as TransactionRequest;
+    await this.custodyOrderRepo.save(order);
 
     return {
-      orderId: action.id,
-      status: action.status,
-      type: action.type,
+      orderId: order.id,
+      status: order.status,
+      type: order.type,
       paymentInfo: paymentInfo,
     };
   }
@@ -112,7 +179,7 @@ export class CustodyService {
     });
 
     if (!order) throw new NotFoundException('Order not found');
-    if (userId != order.user.id) throw new ForbiddenException('Action is not from current user');
+    if (userId != order.user.id) throw new ForbiddenException('Order is not from current user');
 
     await this.custodyOrderRepo.update(...order.confirm());
   }
@@ -125,5 +192,21 @@ export class CustodyService {
     if (!order) throw new NotFoundException('Order not found');
 
     await this.custodyOrderRepo.update(...order.approve());
+  }
+
+  async nextStep(step: CustodyOrderStep): Promise<void> {
+    const nextIndex = step.index + 1;
+    const nextStep = OrderConfig[step.order.type][nextIndex];
+    if (nextStep) {
+      const orderStep = this.custodyOrderStepRepo.create({
+        order: step.order,
+        index: nextIndex,
+        command: nextStep.command,
+        context: nextStep.context,
+      });
+      await this.custodyOrderStepRepo.save(orderStep);
+    } else {
+      await this.custodyOrderRepo.update(...step.order.complete());
+    }
   }
 }

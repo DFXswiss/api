@@ -123,6 +123,10 @@ export class SwapService {
     return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
+  async getById(id: number): Promise<Swap> {
+    return this.swapRepo.findOne({ where: { id } });
+  }
+
   async createSwapPayment(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
     const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
