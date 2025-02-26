@@ -71,6 +71,25 @@ export class ExchangeTxService implements OnModuleInit {
         }
       }
 
+      if (entity.amount && !entity.amountChf) {
+        const currencyName = entity.type === ExchangeTxType.TRADE ? entity.symbol.split('/')[0] : entity.currency;
+
+        if (currencyName === 'CHF') {
+          entity.amountChf = entity.amount;
+        } else {
+          const currency =
+            (await this.fiatService.getFiatByName(currencyName)) ??
+            (await this.assetService.getAssetByQuery({
+              blockchain: undefined,
+              type: undefined,
+              name: currencyName,
+            }));
+          const priceChf = await this.pricingService.getPrice(currency, this.chf, true);
+
+          entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
+        }
+      }
+
       await this.exchangeTxRepo.save(entity);
     }
   }

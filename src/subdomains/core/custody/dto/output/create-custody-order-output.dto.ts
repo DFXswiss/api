@@ -6,22 +6,22 @@ import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 
 export class CustodyOrderResponseDto {
   @ApiProperty({
-    description: 'Type of your requested action',
+    description: 'Type of your requested order',
   })
   type: CustodyOrderType;
 
   @ApiProperty({
-    description: 'ID of your action',
+    description: 'ID of your order',
   })
   orderId: number;
 
   @ApiProperty({
-    description: 'Type of your requested action',
+    description: 'Type of your requested order',
   })
   status: CustodyOrderStatus;
 
   @ApiProperty({
-    description: 'Payment info of your requested action',
+    description: 'Payment info of your requested order',
   })
   paymentInfo: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto;
 }

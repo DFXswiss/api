@@ -120,11 +120,9 @@ export class SwapService {
 
   // --- SWAPS --- //
   async get(userId: number, id: number): Promise<Swap> {
-    return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
-  }
-
-  async getById(id: number): Promise<Swap> {
-    return this.swapRepo.findOne({ where: { id } });
+    const swap = await this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+    if (!swap) throw new NotFoundException('Swap not found');
+    return swap;
   }
 
   async createSwapPayment(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
@@ -136,6 +134,10 @@ export class SwapService {
       (e) => e.message?.includes('duplicate key'),
     );
     return this.toPaymentInfoDto(userId, swap, dto);
+  }
+
+  async getById(id: number): Promise<Swap> {
+    return this.swapRepo.findOne({ where: { id } });
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {

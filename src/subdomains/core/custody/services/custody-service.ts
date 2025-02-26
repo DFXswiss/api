@@ -5,8 +5,6 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -21,6 +19,9 @@ import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-paym
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { DfxOrderStepAdapter } from '../adapter/dfx-order-step.adapter';
 import { OrderConfig } from '../config/order-config';
+
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
 import { CustodyAuthResponseDto } from '../dto/output/create-custody-account-output.dto';
