@@ -1,7 +1,7 @@
 const { MigrationInterface, QueryRunner } = require("typeorm");
 
-module.exports = class AddCustodyOrderStep1740558751000 {
-    name = 'AddCustodyOrderStep1740558751000'
+module.exports = class AddCustodyOrder1740558871808 {
+    name = 'AddCustodyOrder1740558871808'
 
     async up(queryRunner) {
         await queryRunner.query(`CREATE TABLE "custody_order" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_05a11c8d2e14e0bf7481ced4e60" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_a0f30fe38b7521e56e51a0cdf89" DEFAULT getdate(), "type" nvarchar(255) NOT NULL, "status" nvarchar(255) NOT NULL CONSTRAINT "DF_7038d6342d918b933c2aaf19398" DEFAULT 'Created', "userId" int NOT NULL, "transactionRequestId" int NOT NULL, CONSTRAINT "PK_efa3e35a5e78f87012d49cee680" PRIMARY KEY ("id"))`);
