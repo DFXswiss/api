@@ -79,7 +79,7 @@ export class BuyCryptoNotificationService {
         outputAmount: Not(IsNull()),
       },
       relations: {
-        transaction: { userData: { wallet: true }, user: { wallet: true } },
+        transaction: { userData: true, user: { wallet: true } },
       },
     });
 
@@ -172,7 +172,7 @@ export class BuyCryptoNotificationService {
         amlReason: In(BuyCryptoAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: { transaction: { userData: { wallet: true }, user: { wallet: true } } },
+      relations: { transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
@@ -254,7 +254,7 @@ export class BuyCryptoNotificationService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { userData: { wallet: true }, user: { wallet: true } },
+        transaction: { userData: true, user: { wallet: true } },
       },
     });
 
@@ -332,7 +332,7 @@ export class BuyCryptoNotificationService {
         amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
       },
-      relations: { transaction: { userData: { wallet: true }, user: { wallet: true } } },
+      relations: { transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);

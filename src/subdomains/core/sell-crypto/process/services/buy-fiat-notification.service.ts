@@ -42,7 +42,7 @@ export class BuyFiatNotificationService {
         outputAmount: Not(IsNull()),
       },
       relations: {
-        transaction: { userData: { wallet: true }, user: { wallet: true } },
+        transaction: { userData: true, user: { wallet: true } },
       },
     });
 
@@ -126,7 +126,7 @@ export class BuyFiatNotificationService {
         amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: { sell: true, transaction: { userData: { wallet: true }, user: { wallet: true } } },
+      relations: { sell: true, transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
@@ -199,7 +199,7 @@ export class BuyFiatNotificationService {
         amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
-      relations: { sell: true, cryptoInput: true, transaction: { userData: { wallet: true }, user: { wallet: true } } },
+      relations: { sell: true, cryptoInput: true, transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} chargeback email(s)`);
@@ -279,7 +279,7 @@ export class BuyFiatNotificationService {
         amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
       },
-      relations: { transaction: { userData: { wallet: true }, user: { wallet: true } } },
+      relations: { transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);

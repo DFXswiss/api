@@ -8,7 +8,6 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IsNull, Not } from 'typeorm';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -105,7 +104,7 @@ export class BankTxReturnService implements OnModuleInit {
     }
   }
 
-  async create(bankTx: BankTx, userData?: UserData): Promise<BankTxReturn> {
+  async create(bankTx: BankTx): Promise<BankTxReturn> {
     let entity = await this.bankTxReturnRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
