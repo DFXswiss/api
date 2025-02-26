@@ -103,7 +103,9 @@ export class BuyService {
   }
 
   async get(userDataId: number, id: number): Promise<Buy> {
-    return this.buyRepo.findOneBy({ id, user: { userData: { id: userDataId } } });
+    const buy = await this.buyRepo.findOneBy({ id, user: { userData: { id: userDataId } } });
+    if (!buy) throw new NotFoundException('Buy not found');
+    return buy;
   }
 
   async createBuyPayment(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {

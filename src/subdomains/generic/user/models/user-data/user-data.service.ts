@@ -221,6 +221,8 @@ export class UserDataService {
 
     await this.userDataRepo.save(userData);
 
+    if (userData.organization) await this.organizationService.updateOrganizationInternal(userData.organization, dto);
+
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
