@@ -6,7 +6,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycStepStatus } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { IsNull, Like, Not } from 'typeorm';
+import { IsNull, Like, MoreThan, Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
 import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
@@ -39,7 +39,7 @@ export class UserDataJobService {
   private async setAccountOpener(): Promise<void> {
     const entities = await this.userDataRepo.find({
       where: {
-        kycLevel: KycLevel.LEVEL_51,
+        kycLevel: MoreThan(KycLevel.LEVEL_30),
         accountType: AccountType.ORGANIZATION,
         accountOpenerAuthorization: IsNull(),
         kycSteps: { name: KycStepName.SIGNATORY_POWER, status: KycStepStatus.COMPLETED },
