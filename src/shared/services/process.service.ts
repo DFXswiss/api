@@ -58,6 +58,7 @@ export enum Process {
   TRANSACTION_USER_SYNC = 'TransactionUserSync',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
+  CUSTODY = 'Custody',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
