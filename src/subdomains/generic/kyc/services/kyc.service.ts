@@ -407,6 +407,9 @@ export class KycService {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
+    const allBeneficialOwnersName = [];
+    const allBeneficialOwnersDomicile = [];
+
     for (const owner of data.beneficialOwners) {
       const beneficialOwner = await this.userDataService.createUserData({
         kycType: KycType.DFX,
@@ -420,18 +423,27 @@ export class KycService {
         country: owner.country,
         verifiedName: `${owner.firstName} ${owner.lastName}`,
         verifiedCountry: owner.country,
+        organization: user.organization,
       });
+
+      allBeneficialOwnersName.push(beneficialOwner.verifiedName);
+      allBeneficialOwnersDomicile.push(beneficialOwner.country.name);
 
       await this.userDataRelationService.createUserDataRelationInternal(beneficialOwner, user, {
         relation: UserDataRelationState.BENEFICIAL_OWNER,
       });
 
-      const bankData = await this.bankDataService.createVerifyBankData(beneficialOwner, {
+      await this.bankDataService.createVerifyBankData(beneficialOwner, {
         type: BankDataType.NAME_CHECK,
         iban: `NameCheck-${owner.firstName}${owner.lastName}`,
         name: beneficialOwner.verifiedName,
       });
     }
+
+    await this.userDataService.updateUserDataInternal(user, {
+      allBeneficialOwnersName: allBeneficialOwnersName.join('\n'),
+      allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
+    });
 
     await this.kycStepRepo.update(...kycStep.complete(data));
     await this.createStepLog(user, kycStep);
