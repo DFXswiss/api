@@ -111,6 +111,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     WalletService,
     AccountMergeService,
     CustodyProviderService,
+    UserDataRelationService,
   ],
 })
 export class UserModule {}

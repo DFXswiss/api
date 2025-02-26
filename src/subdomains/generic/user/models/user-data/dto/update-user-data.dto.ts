@@ -65,6 +65,11 @@ export class UpdateUserDataDto {
   countryId?: number;
 
   @IsOptional()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  country?: Country;
+
+  @IsOptional()
   @IsDate()
   @Type(() => Date)
   birthday?: Date;
