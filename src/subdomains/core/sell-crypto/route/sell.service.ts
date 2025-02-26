@@ -53,7 +53,9 @@ export class SellService {
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
-    return this.sellRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+    const sell = await this.sellRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+    if (!sell) throw new NotFoundException('Sell not found');
+    return sell;
   }
 
   async getById(id: number): Promise<Sell> {
