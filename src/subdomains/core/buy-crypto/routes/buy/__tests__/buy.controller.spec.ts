@@ -1,12 +1,9 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
-import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
@@ -16,8 +13,6 @@ import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-d
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -60,12 +55,8 @@ describe('BuyController', () => {
   let buyService: BuyService;
   let userService: UserService;
   let buyCryptoService: BuyCryptoService;
-  let countryService: CountryService;
-  let bankAccountService: BankAccountService;
-  let bankService: BankService;
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
-  let checkoutService: CheckoutService;
   let transactionRequestService: TransactionRequestService;
   let fiatService: FiatService;
   let swissQrService: SwissQRService;
@@ -74,12 +65,8 @@ describe('BuyController', () => {
     buyService = createMock<BuyService>();
     userService = createMock<UserService>();
     buyCryptoService = createMock<BuyCryptoService>();
-    countryService = createMock<CountryService>();
-    bankAccountService = createMock<BankAccountService>();
-    bankService = createMock<BankService>();
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
-    checkoutService = createMock<CheckoutService>();
     transactionRequestService = createMock<TransactionRequestService>();
     fiatService = createMock<FiatService>();
     swissQrService = createMock<SwissQRService>();
@@ -91,12 +78,8 @@ describe('BuyController', () => {
         { provide: BuyService, useValue: buyService },
         { provide: UserService, useValue: userService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: CountryService, useValue: countryService },
-        { provide: BankAccountService, useValue: bankAccountService },
-        { provide: BankService, useValue: bankService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
-        { provide: CheckoutService, useValue: checkoutService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: FiatService, useValue: fiatService },
         { provide: SwissQRService, useValue: swissQrService },
@@ -114,7 +97,6 @@ describe('BuyController', () => {
 
   it('should return DFX address info', async () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
     jest.spyOn(userService, 'getUser').mockResolvedValue(
       createCustomUser({
         wallet: createDefaultWallet(),

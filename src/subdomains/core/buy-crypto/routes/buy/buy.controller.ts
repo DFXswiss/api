@@ -24,7 +24,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -53,7 +52,6 @@ export class BuyController {
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
-    private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly fiatService: FiatService,
