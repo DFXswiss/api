@@ -38,8 +38,10 @@ import { OrganizationService } from './models/organization/organization.service'
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
+import { UserDataJobService } from './models/user-data/user-data-job.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
+import { UserJobService } from './models/user/user-job.service';
 import { UserController, UserV2Controller } from './models/user/user.controller';
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
@@ -102,6 +104,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     CustodyProviderRepository,
     OrganizationService,
     OrganizationRepository,
+    UserDataJobService,
+    UserJobService,
   ],
   exports: [
     UserService,
