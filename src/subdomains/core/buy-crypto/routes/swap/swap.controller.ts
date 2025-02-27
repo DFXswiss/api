@@ -31,7 +31,6 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
-import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { CreateSwapDto } from './dto/create-swap.dto';
@@ -53,7 +52,6 @@ export class SwapController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
-    private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly assetService: AssetService,
   ) {}
@@ -148,13 +146,7 @@ export class SwapController {
     @Body() dto: GetSwapPaymentInfoDto,
   ): Promise<SwapPaymentInfoDto> {
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
-    return Util.retry(
-      () => this.swapService.createSwap(jwt.user, dto.sourceAsset.blockchain, dto.targetAsset, true),
-      2,
-      0,
-      undefined,
-      (e) => e.message?.includes('duplicate key'),
-    ).then((crypto) => this.toPaymentInfoDto(jwt.user, crypto, dto));
+    return this.swapService.createSwapPayment(jwt.user, dto);
   }
 
   @Put('/paymentInfos/:id/confirm')
@@ -229,71 +221,5 @@ export class SwapController {
       minDeposits: [minDeposit],
       minFee: { amount: fee.network, asset: 'CHF' },
     };
-  }
-
-  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
-
-    const {
-      timestamp,
-      minVolume,
-      minVolumeTarget,
-      maxVolume,
-      maxVolumeTarget,
-      exchangeRate,
-      rate,
-      estimatedAmount,
-      sourceAmount: amount,
-      isValid,
-      error,
-      exactPrice,
-      feeSource,
-      feeTarget,
-      priceSteps,
-    } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      dto.targetAmount,
-      dto.sourceAsset,
-      dto.targetAsset,
-      CryptoPaymentMethod.CRYPTO,
-      CryptoPaymentMethod.CRYPTO,
-      !dto.exactPrice,
-      user,
-    );
-
-    const swapDto: SwapPaymentInfoDto = {
-      id: 0, // set during request creation
-      timestamp,
-      routeId: swap.id,
-      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: swap.active ? swap.deposit.address : undefined,
-      blockchain: dto.sourceAsset.blockchain,
-      minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
-      minVolume,
-      minFee: feeSource.min,
-      minVolumeTarget,
-      minFeeTarget: feeTarget.min,
-      fees: feeSource,
-      feesTarget: feeTarget,
-      exchangeRate,
-      rate,
-      exactPrice,
-      priceSteps,
-      estimatedAmount,
-      amount,
-      targetAsset: AssetDtoMapper.toDto(dto.targetAsset),
-      sourceAsset: AssetDtoMapper.toDto(dto.sourceAsset),
-      maxVolume,
-      maxVolumeTarget,
-      paymentRequest: swap.active
-        ? await this.cryptoService.getPaymentRequest(isValid, dto.sourceAsset, swap.deposit.address, amount)
-        : undefined,
-      isValid,
-      error,
-    };
-
-    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
-
-    return swapDto;
   }
 }
