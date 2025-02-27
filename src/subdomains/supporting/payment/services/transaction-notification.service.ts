@@ -48,7 +48,6 @@ export class TransactionNotificationService {
         user: { userData: true, wallet: true },
       },
     });
-    if (entities.length === 0) return;
 
     for (const entity of entities) {
       try {
@@ -60,14 +59,14 @@ export class TransactionNotificationService {
 
         if (entity.userData?.mail)
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: entity.mailContext,
             input: {
               userData: entity.userData,
               wallet: entity.user.wallet,
               title: `${entity.targetEntity.inputMailTranslationKey}.title`,
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.url },
@@ -122,14 +121,14 @@ export class TransactionNotificationService {
 
         if (bankData.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
               wallet: bankData.userData.wallet,
               title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
               salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.transaction_button`,
                   params: { url: entity.url },
