@@ -20,13 +20,17 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
       ? KycStepName.COMMERCIAL_REGISTER
       : null,
-    userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
+    userData.accountType === AccountType.ORGANIZATION
+      ? [KycStepName.SIGNATORY_POWER, KycStepName.BENEFICIAL_OWNER]
+      : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
     Config.kyc.residencePermitCountries.includes(userData.nationality?.symbol) ? KycStepName.RESIDENCE_PERMIT : null,
     KycStepName.DFX_APPROVAL,
-  ].filter(Boolean) as KycStepName[];
+  ]
+    .flat()
+    .filter(Boolean) as KycStepName[];
 }
 
 export enum KycStepType {
