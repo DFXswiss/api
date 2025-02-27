@@ -148,7 +148,7 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
-    return this.buyService.createBuyPayment(jwt, dto);
+    return this.buyService.createBuyPaymentInfo(jwt, dto);
   }
 
   @Put('/paymentInfos/:id/invoice')

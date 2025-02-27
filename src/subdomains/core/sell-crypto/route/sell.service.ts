@@ -126,7 +126,7 @@ export class SellService {
     return this.sellRepo.findBy({ route: { id: IsNull() } });
   }
 
-  async createSellPayment(userId: number, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+  async createSellPaymentInfo(userId: number, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     const sell = await Util.retry(
       () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
       2,

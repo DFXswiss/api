@@ -125,7 +125,7 @@ export class SwapService {
     return swap;
   }
 
-  async createSwapPayment(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+  async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
     const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,

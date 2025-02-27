@@ -11,6 +11,11 @@ export class CreateCustodyAccountDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  wallet?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   @Matches(GetConfig().formats.ref)
   usedRef?: string;
 
