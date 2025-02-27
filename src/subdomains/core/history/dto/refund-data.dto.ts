@@ -4,11 +4,14 @@ import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 
 export class RefundFeeDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Network fee in refundAsset' })
   network: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Bank fee in refundAsset' })
   bank: number;
+
+  @ApiProperty({ description: 'DFX fee in refundAsset' })
+  dfx: number;
 }
 
 export class RefundDataDto {
