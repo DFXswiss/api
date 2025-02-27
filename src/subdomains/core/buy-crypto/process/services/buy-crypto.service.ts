@@ -67,6 +67,7 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,

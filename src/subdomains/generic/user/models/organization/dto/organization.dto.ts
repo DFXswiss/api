@@ -16,4 +16,11 @@ export interface OrganizationDto {
   accountOpener?: UserData;
   legalEntity?: LegalEntity;
   signatoryPower?: SignatoryPower;
+  // TODO: temp code
+  organizationName?: string;
+  organizationStreet?: string;
+  organizationHouseNumber?: string;
+  organizationLocation?: string;
+  organizationZip?: string;
+  organizationCountry?: Country;
 }

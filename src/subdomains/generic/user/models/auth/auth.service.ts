@@ -142,15 +142,16 @@ export class AuthService {
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
     const user = await this.userService.createUser(
-      dto,
-      userIp,
-      ref?.origin,
-      wallet,
+      {
+        ...dto,
+        ip: userIp,
+        origin: ref?.origin,
+        wallet,
+        custodyProvider,
+        userData,
+      },
       dto.specialCode ?? dto.discountCode,
-      custodyProvider,
-      userData,
     );
-    await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
