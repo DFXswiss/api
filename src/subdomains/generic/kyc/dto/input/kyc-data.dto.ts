@@ -133,7 +133,7 @@ export class KycBeneficialData {
   @IsBoolean()
   hasBeneficialOwners: boolean;
 
-  @ApiProperty({ isArray: true })
+  @ApiPropertyOptional({ isArray: true })
   @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners)
   @IsNotEmpty()
   beneficialOwners: BeneficialOwnerData[];
