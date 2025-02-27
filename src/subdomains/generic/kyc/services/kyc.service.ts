@@ -721,6 +721,9 @@ export class KycService {
         const identSteps = user.getStepsWith(KycStepName.IDENT);
         if (
           identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
+          ((identSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) ||
+            identSteps.length > Config.kyc.maxIdentTries) &&
+            !identSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))) ||
           identSteps.some((i) =>
             i
               .getResult<SumsubResult>()
