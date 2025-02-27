@@ -12,14 +12,14 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -92,6 +92,7 @@ export class BankTxService {
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
+    await this.fillBankTx();
   }
 
   async checkTransactions(): Promise<void> {
@@ -129,7 +130,7 @@ export class BankTxService {
     if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
-  async assignTransactions() {
+  async assignTransactions(): Promise<void> {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
     if (!unassignedBankTx.length) return;
 
@@ -151,6 +152,68 @@ export class BankTxService {
         : { type: BankTxType.GSHEET };
 
       await this.update(tx.id, update);
+    }
+  }
+
+  async fillBankTx(): Promise<void> {
+    const entities = await this.bankTxRepo.find({
+      where: {
+        accountingAmountBeforeFee: IsNull(),
+        amount: Not(IsNull()),
+        chargeAmount: Not(IsNull()),
+      },
+      relations: { buyCrypto: true, buyFiats: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (![BankTxType.BUY_CRYPTO, BankTxType.BUY_FIAT].includes(entity.type)) {
+          await this.bankTxRepo.update(entity.id, {
+            accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          });
+          continue;
+        }
+
+        const accountingFeePercent = entity.buyCrypto?.percentFee ?? entity.buyFiats?.[0]?.percentFee;
+        const accountingFeeAmount =
+          accountingFeePercent *
+          (entity.type === BankTxType.BUY_CRYPTO
+            ? entity.amount + entity.chargeAmount
+            : entity.type === BankTxType.BUY_FIAT
+            ? (entity.amount + entity.chargeAmount) / (1 - accountingFeePercent)
+            : undefined);
+        const accountingAmountAfterFee =
+          entity.type === BankTxType.BUY_CRYPTO
+            ? entity.amount + entity.chargeAmount - accountingFeeAmount
+            : entity.type === BankTxType.BUY_FIAT
+            ? entity.amount + entity.chargeAmount
+            : undefined;
+
+        const accountingAmountBeforeFeeChf =
+          entity.type === BankTxType.BUY_CRYPTO
+            ? entity.buyCrypto.amountInChf
+            : entity.type === BankTxType.BUY_FIAT
+            ? entity.buyFiats[0].amountInChf / (1 - accountingFeePercent)
+            : undefined;
+
+        const accountingAmountAfterFeeChf =
+          entity.type === BankTxType.BUY_CRYPTO
+            ? entity.buyCrypto.amountInChf * (1 - accountingFeePercent)
+            : entity.type === BankTxType.BUY_FIAT
+            ? entity.buyFiats[0].amountInChf
+            : undefined;
+
+        await this.bankTxRepo.update(entity.id, {
+          accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          accountingFeePercent: Util.roundReadable(accountingFeePercent, AmountType.FIAT),
+          accountingFeeAmount: Util.roundReadable(accountingFeeAmount, AmountType.FIAT),
+          accountingAmountAfterFee: Util.roundReadable(accountingAmountAfterFee, AmountType.FIAT),
+          accountingAmountBeforeFeeChf: Util.roundReadable(accountingAmountBeforeFeeChf, AmountType.FIAT),
+          accountingAmountAfterFeeChf: Util.roundReadable(accountingAmountAfterFeeChf, AmountType.FIAT),
+        });
+      } catch (e) {
+        this.logger.error(`Error during bankTx ${entity.id} fill:`, e);
+      }
     }
   }
 
