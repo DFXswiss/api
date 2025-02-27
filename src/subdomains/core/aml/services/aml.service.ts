@@ -48,7 +48,7 @@ export class AmlService {
       await this.userDataService.triggerVideoIdent(entity.userData);
 
     if (entity.amlCheck === CheckStatus.PASS) {
-      if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user);
+      if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
 
       // KYC file id
       if (

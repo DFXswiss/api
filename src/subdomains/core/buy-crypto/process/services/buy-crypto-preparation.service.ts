@@ -67,7 +67,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true, userData: { users: true } } },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         bankData: true,
       },
     });
@@ -190,7 +190,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
 
