@@ -29,8 +29,8 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     if (DisabledProcess(Process.MONITORING)) return;
 
     const data = [];
-    data.concat(await this.getKraken());
-    data.concat(await this.getBinance());
+    data.push(await this.getKraken());
+    data.push(await this.getBinance());
     this.emit(data);
 
     return data;
