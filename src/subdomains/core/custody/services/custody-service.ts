@@ -27,6 +27,7 @@ import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
 import { CustodyAuthResponseDto } from '../dto/output/create-custody-account-output.dto';
 import { CustodyOrderResponseDto } from '../dto/output/create-custody-order-output.dto';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
+import { CustodyOrder } from '../entities/custody-order.entity';
 import {
   CustodyOrderStatus,
   CustodyOrderStepContext,
@@ -66,13 +67,7 @@ export class CustodyService {
       const steps = OrderConfig[order.type];
       if (steps.length) {
         const index = 0;
-        const orderStep = this.custodyOrderStepRepo.create({
-          order,
-          index,
-          command: steps[index].command,
-          context: steps[index].context,
-        });
-        await this.custodyOrderStepRepo.save(orderStep);
+        await this.createStep(order, index, steps[index].command, steps[index].context);
         await this.custodyOrderRepo.update(...order.progress());
       }
     }
@@ -99,9 +94,10 @@ export class CustodyService {
     for (const step of runningSteps) {
       switch (step.context) {
         case CustodyOrderStepContext.DFX:
-          if (await this.dfxOrderStepAdapter.isComplete(step))
+          if (await this.dfxOrderStepAdapter.isComplete(step)) {
             await this.custodyOrderStepRepo.update(...step.complete());
-          await this.nextStep(step);
+            await this.startNextStep(step);
+          }
           break;
       }
     }
@@ -197,17 +193,26 @@ export class CustodyService {
     await this.custodyOrderRepo.update(...order.approve());
   }
 
-  async nextStep(step: CustodyOrderStep): Promise<void> {
+  async createStep(
+    order: CustodyOrder,
+    index: number,
+    command: string,
+    context: CustodyOrderStepContext,
+  ): Promise<CustodyOrderStep> {
+    const orderStep = this.custodyOrderStepRepo.create({
+      order,
+      index,
+      command,
+      context,
+    });
+    return this.custodyOrderStepRepo.save(orderStep);
+  }
+
+  async startNextStep(step: CustodyOrderStep): Promise<void> {
     const nextIndex = step.index + 1;
     const nextStep = OrderConfig[step.order.type][nextIndex];
     if (nextStep) {
-      const orderStep = this.custodyOrderStepRepo.create({
-        order: step.order,
-        index: nextIndex,
-        command: nextStep.command,
-        context: nextStep.context,
-      });
-      await this.custodyOrderStepRepo.save(orderStep);
+      await this.createStep(step.order, nextIndex, nextStep.command, nextStep.context);
     } else {
       await this.custodyOrderRepo.update(...step.order.complete());
     }

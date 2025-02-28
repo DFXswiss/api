@@ -25,7 +25,7 @@ export class CustodyOrder extends IEntity {
   status: CustodyOrderStatus;
 
   @OneToMany(() => CustodyOrderStep, (step) => step.order, { nullable: false })
-  steps: CustodyOrderStep;
+  steps: CustodyOrderStep[];
 
   confirm(): UpdateResult<CustodyOrder> {
     return Util.updateEntity<CustodyOrder>(this, {
