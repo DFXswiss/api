@@ -392,8 +392,9 @@ export class Configuration {
   };
 
   frontend = {
+    allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
+    services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
-    services: process.env.SERVICES_URL,
   };
 
   fixer = {
