@@ -201,7 +201,7 @@ export class AuthService {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
-        if (redirectUrl.origin !== Config.frontend.services) throw new Error('Redirect URL not allowed');
+        if (!Config.frontend.allowedUrls.includes(redirectUrl.origin)) throw new Error('Redirect URL not allowed');
       } catch (e) {
         throw new BadRequestException(e.message);
       }

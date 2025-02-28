@@ -116,13 +116,15 @@ export class CustodyService {
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
 
-    const wallet = await this.walletService.getByIdOrName(undefined, 'DFX Custody');
+    const wallet =
+      (await this.walletService.getByIdOrName(undefined, dto.wallet)) ?? (await this.walletService.getDefault());
+
     const addressIndex = await this.userService.getNexCustodyIndex();
     const custodyWallet = EvmUtil.createWallet(Config.blockchain.evm.custodyAccount(addressIndex));
     const signature = await custodyWallet.signMessage(Config.auth.signMessageGeneral + custodyWallet.address);
 
     const account = await this.userDataService.getUserData(accountId);
-    if (!account) throw new NotFoundException('Account not exist');
+    if (!account) throw new NotFoundException('User not found');
 
     const custodyUser = await this.userService.createUser(
       {
@@ -145,20 +147,20 @@ export class CustodyService {
 
   async createOrder(jwt: JwtPayload, dto: CreateCustodyOrderDto): Promise<CustodyOrderResponseDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
-    if (!user) throw new NotFoundException('User not exist');
+    if (!user) throw new NotFoundException('User not found');
 
     const order = this.custodyOrderRepo.create({ type: dto.type, user });
 
     let paymentInfo = null;
     switch (order.type) {
       case CustodyOrderType.DEPOSIT:
-        paymentInfo = await this.buyService.createBuyPayment(jwt, dto.paymentInfo as GetBuyPaymentInfoDto);
+        paymentInfo = await this.buyService.createBuyPaymentInfo(jwt, dto.paymentInfo as GetBuyPaymentInfoDto);
         break;
       case CustodyOrderType.WITHDRAWAL:
-        paymentInfo = await this.sellService.createSellPayment(jwt.user, dto.paymentInfo as GetSellPaymentInfoDto);
+        paymentInfo = await this.sellService.createSellPaymentInfo(jwt.user, dto.paymentInfo as GetSellPaymentInfoDto);
         break;
       case CustodyOrderType.SWAP:
-        paymentInfo = await this.swapService.createSwapPayment(jwt.user, dto.paymentInfo as GetSwapPaymentInfoDto);
+        paymentInfo = await this.swapService.createSwapPaymentInfo(jwt.user, dto.paymentInfo as GetSwapPaymentInfoDto);
         break;
     }
 

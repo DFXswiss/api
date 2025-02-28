@@ -10,7 +10,7 @@ export class PricingFrankencoinService extends PricingProvider implements OnModu
   private static readonly ZCHF = 'ZCHF';
   private static readonly FPS = 'FPS';
   private static readonly ALLOWED_ASSETS = [PricingFrankencoinService.ZCHF, PricingFrankencoinService.FPS];
-  private static readonly CONTRACT_FEE = 0.03;
+  private static readonly CONTRACT_FEE = 0;
 
   private frankencoinService: FrankencoinService;
 

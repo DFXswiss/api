@@ -108,7 +108,7 @@ export class BuyService {
     return buy;
   }
 
-  async createBuyPayment(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+  async createBuyPaymentInfo(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
     const buy = await Util.retry(
       () => this.createBuy(jwt.user, jwt.address, dto, true),
