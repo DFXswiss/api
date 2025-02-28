@@ -66,6 +66,7 @@ param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
 param paymentMoneroAddress string
+param paymentBitcoinAddress string
 
 @secure()
 param evmDepositSeed string
@@ -692,6 +693,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'PAYMENT_MONERO_ADDRESS'
           value: paymentMoneroAddress
+        }
+        {
+          name: 'PAYMENT_BITCOIN_ADDRESS'
+          value: paymentBitcoinAddress
         }
         {
           name: 'EVM_DEPOSIT_SEED'
