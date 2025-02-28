@@ -2,8 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomPrice, createDefaultPrice } from 'src/integration/exchange/dto/__mocks__/price.dto.mock';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -69,12 +67,6 @@ describe('TransactionHelper', () => {
 
     txHelper = module.get<TransactionHelper>(TransactionHelper);
   });
-
-  const jwt: JwtPayload = {
-    role: UserRole.ACCOUNT,
-    ip: '1.1.1.1',
-    account: 1,
-  };
 
   const defaultUserData = createDefaultUserData();
 
