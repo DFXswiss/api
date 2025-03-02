@@ -15,6 +15,7 @@ import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entiti
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
@@ -45,6 +46,7 @@ describe('TransactionController', () => {
   let userDataService: UserDataService;
   let bankTxReturnService: BankTxReturnService;
   let specialExternalAccountService: SpecialExternalAccountService;
+  let transactionRequestService: TransactionRequestService;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -62,6 +64,7 @@ describe('TransactionController', () => {
     userDataService = createMock<UserDataService>();
     bankTxReturnService = createMock<BankTxReturnService>();
     specialExternalAccountService = createMock<SpecialExternalAccountService>();
+    transactionRequestService = createMock<TransactionRequestService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -82,6 +85,7 @@ describe('TransactionController', () => {
         { provide: UserDataService, useValue: userDataService },
         { provide: BankTxReturnService, useValue: bankTxReturnService },
         { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
+        { provide: TransactionRequestService, useValue: transactionRequestService },
         TestUtil.provideConfig(),
       ],
     }).compile();
