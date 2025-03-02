@@ -6,7 +6,7 @@ const defaultBankTx: Partial<BankTx> = {
 };
 
 export function createDefaultBankTx(): BankTx {
-  return createCustomBankTx({});
+  return createCustomBankTx({ id: 1, amount: 100, iban: 'DE12500105170648489890', chargeAmount: 0 });
 }
 
 export function createCustomBankTx(customValues: Partial<BankTx>): BankTx {

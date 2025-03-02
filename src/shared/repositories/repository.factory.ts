@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ExchangeTxRepository } from 'src/integration/exchange/repositories/exchange-tx.repository';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { RefRewardRepository } from 'src/subdomains/core/referral/reward/ref-reward.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
@@ -27,6 +28,7 @@ export class RepositoryFactory {
   public readonly checkoutTx: CheckoutTxRepository;
   public readonly asset: AssetRepository;
   public readonly refReward: RefRewardRepository;
+  public readonly exchangeTx: ExchangeTxRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -41,5 +43,6 @@ export class RepositoryFactory {
     this.checkoutTx = new CheckoutTxRepository(manager);
     this.asset = new AssetRepository(manager);
     this.refReward = new RefRewardRepository(manager);
+    this.exchangeTx = new ExchangeTxRepository(manager);
   }
 }

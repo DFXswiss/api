@@ -153,7 +153,7 @@ export class PayInService {
     payIn.triggerReturn(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
 
     if (payIn.transaction)
-      await this.transactionService.update(payIn.transaction.id, {
+      await this.transactionService.updateInternal(payIn.transaction, {
         type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
         user: payIn.route.user,
       });
@@ -191,12 +191,15 @@ export class PayInService {
   //*** HELPER METHODS ***//
 
   private async forwardPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.findBy({
-      status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-      action: PayInAction.FORWARD,
-      outTxId: IsNull(),
-      asset: Not(IsNull()),
-      isConfirmed: true,
+    const payIns = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        action: PayInAction.FORWARD,
+        outTxId: IsNull(),
+        asset: Not(IsNull()),
+        isConfirmed: true,
+      },
+      relations: { buyCrypto: true, buyFiat: true },
     });
 
     if (payIns.length === 0) return;

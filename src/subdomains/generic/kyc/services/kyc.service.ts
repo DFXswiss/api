@@ -722,7 +722,9 @@ export class KycService {
         if (
           identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
           identSteps.some((i) =>
-            i.getResult<SumsubResult>()?.webhook.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
+            i
+              .getResult<SumsubResult>()
+              ?.webhook?.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
           )
         )
           return { nextStep: undefined };

@@ -11,6 +11,7 @@ export enum MockUserData {
 }
 
 const defaultUserData: Partial<UserData> = {
+  id: 1,
   mail: 'test@test.com',
   users: [],
   country: createDefaultCountry(),

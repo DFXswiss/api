@@ -109,7 +109,7 @@ export class BankTxReturnService implements OnModuleInit {
     let entity = await this.bankTxReturnRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
-    const transaction = await this.transactionService.update(bankTx.transaction.id, {
+    const transaction = await this.transactionService.updateInternal(bankTx.transaction, {
       type: TransactionTypeInternal.BANK_TX_RETURN,
     });
 

@@ -55,9 +55,9 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
-  TX_REQUEST_UID_SYNC = 'TxRequestUidSync',
   TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
+  TRANSACTION_USER_SYNC = 'TransactionUserSync',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
 }

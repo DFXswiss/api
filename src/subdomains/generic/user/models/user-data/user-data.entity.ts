@@ -16,6 +16,7 @@ import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { Organization } from '../organization/organization.entity';
@@ -77,12 +78,6 @@ export enum SignatoryPower {
   SINGLE = 'Single',
   DOUBLE = 'Double',
   NONE = 'None',
-}
-
-export enum RiskState {
-  A = 'a',
-  B = 'b',
-  C = 'c',
 }
 
 export enum BlankType {
@@ -218,9 +213,6 @@ export class UserData extends IEntity {
   // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
-
-  @Column({ length: 256, nullable: true })
-  riskState?: RiskState;
 
   @Column({ nullable: true })
   highRisk?: boolean;
@@ -362,6 +354,9 @@ export class UserData extends IEntity {
   // References
   @ManyToOne(() => Wallet, { nullable: true })
   wallet: Wallet;
+
+  @OneToMany(() => Transaction, (tx) => tx.userData)
+  transactions: Transaction[];
 
   // TODO remove
   @ManyToOne(() => UserData, { nullable: true })

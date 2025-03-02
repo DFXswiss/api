@@ -1,4 +1,5 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -26,7 +27,7 @@ export class UserDtoMapper {
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
-        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
+        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses && u.role != UserRole.CUSTODY)
         .map((u) => this.mapAddress(u, userData)),
       disabledAddresses: userData.users.filter((u) => u.isBlockedOrDeleted).map((u) => this.mapAddress(u, userData)),
       activeAddress: activeUser && this.mapAddress(activeUser, userData),
