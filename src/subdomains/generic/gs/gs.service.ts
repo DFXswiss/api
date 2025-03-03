@@ -294,7 +294,7 @@ export class GsService {
         return this.bankTxService
           .getBankTxByKey(query.key, query.value)
           .then((bankTx) =>
-            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
+            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiats?.[0]?.sell.user.userData,
           );
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
@@ -336,8 +336,8 @@ export class GsService {
       .from(dbQuery.table, dbQuery.table)
       .select(select)
       .addSelect('userData.id', 'userDataId')
-      .leftJoin('bank_tx.buyFiat', 'buyFiat')
-      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('bank_tx.buyFiats', 'buyFiats')
+      .leftJoin('buyFiats.sell', 'sell')
       .leftJoin('sell.user', 'user')
       .leftJoin('user.userData', 'userData')
       .where('bank_tx.id >= :id', { id: dbQuery.min })
@@ -355,8 +355,8 @@ export class GsService {
       .from(dbQuery.table, dbQuery.table)
       .select(select)
       .addSelect('userData.id', 'userDataId')
-      .leftJoin('bank_tx.buyFiat', 'buyFiat')
-      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('bank_tx.buyFiats', 'buyFiats')
+      .leftJoin('buyFiats.sell', 'sell')
       .leftJoin('sell.user', 'user')
       .leftJoin('user.userData', 'userData')
       .where('bank_tx.id >= :id', { id: dbQuery.min })

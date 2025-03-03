@@ -38,6 +38,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyCrypto.transaction.id,
       uid: buyCrypto.transaction.uid,
+      orderUid: buyCrypto.transaction.request?.uid,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, amountType(buyCrypto.inputAssetEntity)),
@@ -99,6 +100,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyFiat.transaction.id,
       uid: buyFiat.transaction.uid,
+      orderUid: buyFiat.transaction.request?.uid,
       type: TransactionType.SELL,
       ...getTransactionStateDetails(buyFiat),
       inputAmount: Util.roundReadable(buyFiat.inputAmount, amountType(buyFiat.inputAssetEntity)),
@@ -158,6 +160,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: refReward.transaction.id,
       uid: refReward.transaction.uid,
+      orderUid: null,
       type: TransactionType.REFERRAL,
       ...getTransactionStateDetails(refReward),
       inputAmount: null,
@@ -211,6 +214,7 @@ export class TransactionDtoMapper {
     return {
       id: tx.transaction.id,
       uid: tx.transaction.uid,
+      orderUid: tx.transaction.request?.uid,
       type: TransactionType.BUY,
       state: TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,

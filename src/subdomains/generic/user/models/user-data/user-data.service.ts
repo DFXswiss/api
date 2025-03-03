@@ -42,6 +42,7 @@ import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
@@ -85,6 +86,7 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
     private readonly kycAdminService: KycAdminService,
+    private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
   ) {}
 
@@ -218,6 +220,8 @@ export class UserDataService {
     Object.assign(userData, dto);
 
     await this.userDataRepo.save(userData);
+
+    if (userData.organization) await this.organizationService.updateOrganizationInternal(userData.organization, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -358,6 +362,19 @@ export class UserDataService {
       update.organizationLocation = null;
       update.organizationZip = null;
       update.organizationCountry = null;
+    } else {
+      const organizationData = {
+        name: update.organizationName,
+        street: update.organizationStreet,
+        location: update.organizationLocation,
+        houseNumber: update.organizationHouseNumber,
+        zip: update.organizationZip,
+        countryId: update.organizationCountry?.id,
+      };
+
+      update.organization = !userData.organization
+        ? await this.organizationService.createOrganization(organizationData)
+        : await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
     }
 
     for (const user of userData.users) {
@@ -670,6 +687,23 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
+
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
+      userData.organization = await this.organizationService.createOrganization({
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        countryId: dto.organizationCountryId,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
   }
 
   // --- KYC CLIENTS --- //
@@ -751,6 +785,7 @@ export class UserDataService {
           kycSteps: true,
           supportIssues: true,
           wallet: true,
+          transactions: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -763,6 +798,7 @@ export class UserDataService {
           kycSteps: true,
           supportIssues: true,
           wallet: true,
+          transactions: true,
         },
       }),
     ]);
@@ -780,6 +816,7 @@ export class UserDataService {
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
       slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
+      slave.transactions.length > 0 && `transactions ${slave.transactions.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -823,6 +860,7 @@ export class UserDataService {
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     master.supportIssues = master.supportIssues.concat(slave.supportIssues);
+    master.transactions = master.transactions.concat(slave.transactions);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
@@ -890,18 +928,9 @@ export class UserDataService {
       select: ['id'],
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
-        { buyFiat: { sell: { user: { userData: { id: userDataId } } } } },
+        { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
       ],
-      relations: [
-        'buyCrypto',
-        'buyCrypto.buy',
-        'buyCrypto.buy.user',
-        'buyCrypto.buy.user.userData',
-        'buyFiat',
-        'buyFiat.sell',
-        'buyFiat.sell.user',
-        'buyFiat.sell.user.userData',
-      ],
+      relations: { buyCrypto: { buy: { user: { userData: true } } }, buyFiats: { sell: { user: { userData: true } } } },
     });
 
     if (txList.length != 0)

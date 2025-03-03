@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
@@ -89,6 +90,9 @@ export class TransactionRequest extends IEntity {
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transactionRequest)
   supportIssues: SupportIssue[];
+
+  @OneToOne(() => CustodyOrder, (custodyOrder) => custodyOrder.transactionRequest, { nullable: true })
+  custodyOrder: CustodyOrder;
 
   // --- ENTITY METHODS --- //
 

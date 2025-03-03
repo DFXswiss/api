@@ -171,8 +171,8 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiat: { sell: { user: true } },
-        buyCryptoChargeback: { buy: { user: true }, cryptoRoute: { user: true } },
+        buyFiats: { sell: { user: { userData: true } } },
+        buyCryptoChargeback: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
       },
     });
     if (!bankTx) throw new NotFoundException('BankTx not found');
@@ -197,9 +197,10 @@ export class BankTxService {
           break;
         default:
           if (dto.type)
-            await this.transactionService.update(bankTx.transaction.id, {
+            await this.transactionService.updateInternal(bankTx.transaction, {
               type: TransactionBankTxTypeMapper[dto.type],
               user: bankTx.user,
+              userData: bankTx.user?.userData ?? userData,
             });
           break;
       }
@@ -225,9 +226,9 @@ export class BankTxService {
       .createQueryBuilder('bankTx')
       .select('bankTx')
       .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
-      .leftJoinAndSelect('bankTx.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('bankTx.buyFiats', 'buyFiats')
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('buyFiats.sell', 'sell')
       .leftJoinAndSelect('buy.user', 'user')
       .leftJoinAndSelect('sell.user', 'sellUser')
       .leftJoinAndSelect('user.userData', 'userData')
@@ -254,6 +255,10 @@ export class BankTxService {
       })
       .orderBy('id', 'DESC')
       .getOne();
+  }
+
+  async getBankTxById(id: number): Promise<BankTx> {
+    return this.bankTxRepo.findOneBy({ id });
   }
 
   async getPendingTx(): Promise<BankTx[]> {

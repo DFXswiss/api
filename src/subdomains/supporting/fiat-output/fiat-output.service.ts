@@ -52,7 +52,7 @@ export class FiatOutputService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async generateReports() {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },
@@ -143,8 +143,8 @@ export class FiatOutputService {
     return this.fiatOutputRepo
       .createQueryBuilder('fiatOutput')
       .select('fiatOutput')
-      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('fiatOutput.buyFiats', 'buyFiats')
+      .leftJoinAndSelect('buyFiats.sell', 'sell')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')

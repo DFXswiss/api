@@ -147,14 +147,16 @@ export class BuyFiatPreparationService implements OnModuleInit {
   }
 
   async refreshFee(): Promise<void> {
+    const request = {
+      amlCheck: CheckStatus.PASS,
+      isComplete: false,
+      inputReferenceAmount: Not(IsNull()),
+    };
     const entities = await this.buyFiatRepo.find({
-      where: {
-        amlCheck: CheckStatus.PASS,
-        isComplete: false,
-        percentFee: IsNull(),
-        inputReferenceAmount: Not(IsNull()),
-        cryptoInput: { paymentLinkPayment: { id: IsNull() } },
-      },
+      where: [
+        { ...request, percentFee: IsNull(), cryptoInput: { paymentLinkPayment: { id: IsNull() } } },
+        { ...request, cryptoInput: { status: PayInStatus.ACKNOWLEDGED, paymentLinkPayment: { id: IsNull() } } },
+      ],
       relations: {
         sell: true,
         cryptoInput: true,
@@ -164,6 +166,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
     for (const entity of entities) {
       try {
+        const isFirstRun = entity.percentFee == null;
+
         const inputCurrency = entity.cryptoInput.asset;
 
         const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
@@ -190,12 +194,10 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
-        for (const usedFee of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInChf, usedFee.id, entity.user.userData);
+        if (isFirstRun) {
+          await this.buyFiatService.updateSellVolume([entity.sell?.id]);
+          await this.buyFiatService.updateRefVolume([entity.usedRef]);
         }
-
-        await this.buyFiatService.updateSellVolume([entity.sell?.id]);
-        await this.buyFiatService.updateRefVolume([entity.usedRef]);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} fee and fiat reference refresh:`, e);
       }
@@ -306,8 +308,36 @@ export class BuyFiatPreparationService implements OnModuleInit {
             priceSteps,
           ),
         );
+
+        for (const feeId of entity.usedFees.split(';')) {
+          await this.feeService.increaseTxUsages(entity.amountInChf, Number.parseInt(feeId), entity.user.userData);
+        }
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
+      }
+    }
+  }
+
+  async complete(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        isComplete: false,
+        fiatOutput: {
+          remittanceInfo: Not(IsNull()),
+          outputDate: Not(IsNull()),
+          bankTx: { id: Not(IsNull()) },
+        },
+      },
+      relations: { fiatOutput: { bankTx: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyFiatRepo.update(
+          ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.fiatOutput.bankTx),
+        );
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} completion:`, e);
       }
     }
   }

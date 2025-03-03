@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
@@ -9,7 +13,26 @@ import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
 export class TransactionService {
+  private readonly logger = new DfxLogger(TransactionService);
+
   constructor(private readonly repo: TransactionRepository) {}
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRANSACTION_USER_SYNC, timeout: 1800 })
+  async syncUserData(): Promise<void> {
+    const entities = await this.repo.find({
+      where: { user: { id: Not(IsNull()) }, userData: { id: IsNull() } },
+      relations: { user: { userData: true }, userData: true },
+      take: 10000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.repo.update(entity.id, { userData: entity.user.userData });
+      } catch (e) {
+        this.logger.error(`Failed to sync transaction userData ${entity.id}:`, e);
+      }
+    }
+  }
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
@@ -21,9 +44,16 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    let entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
+    const entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
     if (!entity) throw new Error('Transaction not found');
 
+    return this.updateInternal(entity, dto);
+  }
+
+  async updateInternal(
+    entity: Transaction,
+    dto: UpdateTransactionInternalDto | UpdateTransactionDto,
+  ): Promise<Transaction> {
     Object.assign(entity, dto);
 
     if (!(dto instanceof UpdateTransactionDto)) {
@@ -54,11 +84,19 @@ export class TransactionService {
     return this.repo.findOne({ where: { request: { id: requestId } }, relations });
   }
 
+  async getTransactionByRequestUid(
+    requestUid: string,
+    relations: FindOptionsRelations<Transaction>,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { request: { uid: requestUid } }, relations });
+  }
+
   async getTransactionByExternalId(
     externalId: string,
+    accountId: number,
     relations: FindOptionsRelations<Transaction> = {},
   ): Promise<Transaction> {
-    return this.repo.findOne({ where: { externalId }, relations });
+    return this.repo.findOne({ where: { externalId, user: { userData: { id: accountId } } }, relations });
   }
 
   async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
