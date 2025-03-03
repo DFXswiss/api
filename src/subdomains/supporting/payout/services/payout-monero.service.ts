@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseFeePriority } from 'src/integration/blockchain/monero/dto/monero.dto';
+import { BaseFeePriority, GetRelayTransactionResultDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
@@ -32,6 +32,10 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
     }
 
     return transfer.txid;
+  }
+
+  async relayTransaction(hex: string): Promise<GetRelayTransactionResultDto> {
+    return this.client.relayTransaction(hex);
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {

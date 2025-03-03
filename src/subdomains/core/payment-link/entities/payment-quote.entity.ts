@@ -85,8 +85,12 @@ export class PaymentQuote extends IEntity {
     return JSON.parse(this.transferAmounts);
   }
 
+  getTransferAmount(method: TransferMethod): TransferAmount | undefined {
+    return this.transferAmountsAsObj.find((i) => i.method === method);
+  }
+
   getTransferAmountFor(method: TransferMethod, asset: string): TransferAmountAsset | undefined {
-    const transferAmount = this.transferAmountsAsObj.find((i) => i.method === method);
+    const transferAmount = this.getTransferAmount(method);
     if (!transferAmount) return;
 
     return transferAmount.assets.find((a) => a.asset === asset);

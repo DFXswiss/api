@@ -27,6 +27,7 @@ export class PaymentActivationService implements OnModuleInit {
 
   private evmDepositAddress: string;
   private moneroDepositAddress: string;
+  private bitcoinDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
@@ -40,6 +41,7 @@ export class PaymentActivationService implements OnModuleInit {
   onModuleInit() {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
     this.moneroDepositAddress = Config.payment.moneroAddress;
+    this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
   }
 
   async close(activation: PaymentActivation): Promise<void> {
@@ -178,6 +180,9 @@ export class PaymentActivationService implements OnModuleInit {
         return this.createEvmRequest(transferInfo);
       case Blockchain.MONERO:
         return this.createMoneroRequest(transferInfo);
+      case Blockchain.BITCOIN:
+        return this.createBitcoinRequest(transferInfo);
+
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
     }
@@ -246,6 +251,13 @@ export class PaymentActivationService implements OnModuleInit {
     transferInfo: TransferInfo,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
     const paymentRequest = `monero:${this.moneroDepositAddress}?tx_amount=${transferInfo.amount}`;
+    return { paymentRequest };
+  }
+
+  private async createBitcoinRequest(
+    transferInfo: TransferInfo,
+  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
+    const paymentRequest = `bitcoin:${this.bitcoinDepositAddress}?tx_amount=${transferInfo.amount}`;
     return { paymentRequest };
   }
 

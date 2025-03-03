@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
+import { BtcClient, TestMempoolResult } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
@@ -25,6 +25,14 @@ export class PayoutBitcoinService extends PayoutBitcoinBasedService {
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     const feeRate = await this.getCurrentFeeRate();
     return this.#client.sendMany(payout, feeRate);
+  }
+
+  async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
+    return this.#client.testMempoolAccept(hex);
+  }
+
+  async sendRawTransaction(hex: string): Promise<string> {
+    return this.#client.sendRawTransaction(hex);
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {
