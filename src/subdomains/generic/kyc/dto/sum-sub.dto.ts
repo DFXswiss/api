@@ -361,7 +361,7 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
             : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
-            ? IdentShortResult.PENDING
+            ? IdentShortResult.RETRY
             : IdentShortResult.FAIL;
       }
       break;
