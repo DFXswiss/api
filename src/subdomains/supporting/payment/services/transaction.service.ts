@@ -145,8 +145,7 @@ export class TransactionService {
     return this.repo
       .createQueryBuilder('transaction')
       .select('transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

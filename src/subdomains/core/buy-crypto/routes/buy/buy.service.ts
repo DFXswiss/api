@@ -12,7 +12,6 @@ import { CheckoutService } from 'src/integration/checkout/services/checkout.serv
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -34,7 +33,6 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
-  private readonly logger = new DfxLogger(BuyService);
   private cache: { id: number; bankUsage: string }[] = undefined;
 
   constructor(
