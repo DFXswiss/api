@@ -20,12 +20,17 @@ export class LogRepository extends BaseRepository<Log> {
 
     const system = logCleanupSetting.system;
     const subsystem = logCleanupSetting.subsystem;
+    const saveDays = logCleanupSetting.saveDays;
+
+    const saveDate = Util.daysBefore(saveDays);
+    saveDate.setHours(0, 0, 0, 0);
 
     const logIdsToBeDeleted = await this.createQueryBuilder('log')
       .select('log.id', 'log_id')
       .where(`log.id NOT IN (${subQuery.getQuery()})`)
       .andWhere('log.system=:system', { system })
       .andWhere('log.subsystem=:subsystem', { subsystem })
+      .andWhere('log.created<:saveDate', { saveDate })
       .getRawMany<{ log_id: number }>()
       .then((i) => i.map((i) => i.log_id));
 

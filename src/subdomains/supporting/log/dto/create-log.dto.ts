@@ -44,4 +44,5 @@ export class UpdateLogDto {
 export interface LogCleanupSetting {
   system: string;
   subsystem: string;
+  saveDays: number;
 }
