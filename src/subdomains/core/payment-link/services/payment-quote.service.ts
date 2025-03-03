@@ -4,6 +4,7 @@ import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -361,6 +362,12 @@ export class PaymentQuoteService {
 
   private async doBitcoinHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
+      const transferAmount = quote.getTransferAmount(Blockchain.BITCOIN);
+      if (!transferAmount) {
+        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for Bitcoin hex payment`);
+        return;
+      }
+
       const testMempoolResults = await this.payoutBitcoinService.testMempoolAccept(transferInfo.hex);
 
       if (testMempoolResults?.length !== 1) {
@@ -372,6 +379,14 @@ export class PaymentQuoteService {
 
       if (!testMempoolResult.allowed) {
         quote.txFailed(testMempoolResult['reject-reason']);
+        return;
+      }
+
+      const baseFee = LightningHelper.btcToSat(testMempoolResult.fees.base);
+      const satPerVB = baseFee / testMempoolResult.vsize;
+
+      if (satPerVB < transferAmount.minFee) {
+        quote.txFailed(`Fee ${satPerVB} lower than min fee ${transferAmount.minFee}`);
         return;
       }
 

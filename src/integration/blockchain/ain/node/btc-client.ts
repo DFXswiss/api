@@ -13,6 +13,7 @@ export interface TransactionHistory {
 export interface TestMempoolResult {
   txid: string;
   allowed: boolean;
+  vsize: number;
   fees: {
     base: number;
   };
