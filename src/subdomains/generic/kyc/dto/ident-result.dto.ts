@@ -60,6 +60,7 @@ export enum IdentShortResult {
   SUCCESS = 'Success',
   FAIL = 'Fail',
   PENDING = 'Pending',
+  RETRY = 'Retry',
   MEDIA = 'Media',
 }
 
