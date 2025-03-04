@@ -7,6 +7,7 @@ export enum UserRole {
   ADMIN = 'Admin',
   SUPPORT = 'Support',
   COMPLIANCE = 'Compliance',
+  CUSTODY = 'Custody',
 
   // service roles
   BANKING_BOT = 'BankingBot',

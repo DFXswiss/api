@@ -202,16 +202,16 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDetailDto })
   @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
-  @ApiQuery({ name: 'order-id', description: 'Transaction order ID', required: false })
-  @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
+  @ApiQuery({ name: 'order-id', description: 'Order ID', required: false })
   @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
+  @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
   async getSingleTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id?: string,
     @Query('uid') uid?: string,
     @Query('order-id') orderId?: string,
-    @Query('external-id') externalId?: string,
     @Query('order-uid') orderUid?: string,
+    @Query('external-id') externalId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
     const transaction = await this.getTransaction({ id, uid, orderId, orderUid, externalId }, jwt.account);
 
@@ -297,10 +297,10 @@ export class TransactionController {
       cryptoInput: true,
       checkoutTx: true,
       bankTxReturn: true,
-      user: { userData: true },
       userData: true,
-      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: { route: { user: true } } },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
     });
 
     if (!transaction || !transaction.refundTargetEntity) throw new NotFoundException('Transaction not found');
@@ -321,9 +321,7 @@ export class TransactionController {
       await this.transactionService.updateInternal(transaction, { userData });
     } else {
       // Assigned transaction
-
-      // TODO remove userData from user after sync
-      if (jwt.account !== (transaction.userData.id ?? transaction.user.userData.id))
+      if (jwt.account !== transaction.userData.id)
         throw new ForbiddenException('You can only refund your own transaction');
       if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.refundTargetEntity.amlCheck))
         throw new BadRequestException('You can only refund failed or pending transactions');
@@ -365,22 +363,17 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      bankTx: { transaction: true },
+      bankTx: { transaction: { userData: true } },
       bankTxReturn: true,
-      user: { userData: true },
-      buyCrypto: {
-        transaction: { user: { userData: true }, userData: true },
-        cryptoInput: { route: { user: true } },
-        bankTx: true,
-        checkoutTx: true,
-      },
-      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      userData: true,
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
-    // TODO remove userData from user after sync
-    if (transaction.targetEntity && jwt.account !== (transaction.userData.id ?? transaction.user.userData.id))
+    if (transaction.targetEntity && jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity) {
       const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
@@ -396,10 +389,8 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {
-      // TODO remove userData request after userData sync
-      const userData = await this.userDataService.getUserData(jwt.account);
       transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN }, userData)
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
     }
 
@@ -505,27 +496,28 @@ export class TransactionController {
     {
       id,
       uid,
-      orderUid,
       orderId,
+      orderUid,
       externalId,
       ckoId,
     }: {
       id?: string;
       uid?: string;
-      orderUid?: string;
       orderId?: string;
+      orderUid?: string;
       externalId?: string;
       ckoId?: string;
     },
     accountId?: number,
   ): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true, fiatOutput: true },
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
       checkoutTx: true,
+      userData: true,
       user: { userData: true },
       request: true,
     };
@@ -533,8 +525,8 @@ export class TransactionController {
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
     if (orderId) transaction = await this.transactionService.getTransactionByRequestId(+orderId, relations);
+    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
     if (externalId && accountId)
       transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);

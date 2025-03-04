@@ -2,7 +2,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
@@ -166,21 +165,17 @@ export class CryptoInput extends IEntity {
 
   //*** UTILITY METHODS ***//
 
-  static verifyEstimatedFee(
-    estimatedFee: number,
-    blockchainFee: number,
-    maxBlockchainFee: number,
-    totalAmount: number,
-  ): void {
+  static verifyForwardFee(estimatedFee: number, maxFee: number, feeCap: number, totalAmount: number): void {
     if (estimatedFee == null) throw new Error('No fee estimation provided');
-    if (blockchainFee == null) throw new Error('No blockchain fee provided');
+    if (maxFee == null) throw new Error('No maximum fee provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    const maxFee = Math.max(maxBlockchainFee, blockchainFee);
+    const maxApplicableFee = maxFee ? maxFee : feeCap;
 
-    if (estimatedFee > maxFee) {
-      const feePercent = Util.toPercent(estimatedFee / totalAmount);
-      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent})`);
+    if (estimatedFee > maxApplicableFee) {
+      throw new FeeLimitExceededException(
+        `Forward fee is too high (estimated ${estimatedFee}, max. ${maxApplicableFee})`,
+      );
     }
   }
 

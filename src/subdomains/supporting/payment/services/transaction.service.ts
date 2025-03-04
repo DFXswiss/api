@@ -1,8 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
@@ -13,26 +9,7 @@ import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
 export class TransactionService {
-  private readonly logger = new DfxLogger(TransactionService);
-
   constructor(private readonly repo: TransactionRepository) {}
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRANSACTION_USER_SYNC, timeout: 1800 })
-  async syncUserData(): Promise<void> {
-    const entities = await this.repo.find({
-      where: { user: { id: Not(IsNull()) }, userData: { id: IsNull() } },
-      relations: { user: { userData: true }, userData: true },
-      take: 10000,
-    });
-
-    for (const entity of entities) {
-      try {
-        await this.repo.update(entity.id, { userData: entity.user.userData });
-      } catch (e) {
-        this.logger.error(`Failed to sync transaction userData ${entity.id}:`, e);
-      }
-    }
-  }
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
@@ -145,8 +122,7 @@ export class TransactionService {
     return this.repo
       .createQueryBuilder('transaction')
       .select('transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

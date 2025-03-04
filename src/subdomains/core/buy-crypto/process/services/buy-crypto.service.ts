@@ -67,6 +67,7 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
@@ -206,7 +207,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         chargebackOutput: true,
         bankData: true,
       },
@@ -347,7 +348,7 @@ export class BuyCryptoService {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
 
@@ -471,8 +472,7 @@ export class BuyCryptoService {
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
       .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

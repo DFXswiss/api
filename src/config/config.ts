@@ -392,8 +392,9 @@ export class Configuration {
   };
 
   frontend = {
+    allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
+    services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
-    services: process.env.SERVICES_URL,
   };
 
   fixer = {
@@ -509,10 +510,16 @@ export class Configuration {
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
+      custodySeed: process.env.EVM_CUSTODY_SEED,
       minimalPreparationFee: 0.00000001,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
+        index: accountIndex,
+      }),
+
+      custodyAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.custodySeed,
         index: accountIndex,
       }),
     },

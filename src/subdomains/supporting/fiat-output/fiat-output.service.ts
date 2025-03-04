@@ -36,7 +36,13 @@ export class FiatOutputService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async fillFiatOutput() {
     const entities = await this.fiatOutputRepo.find({
-      where: { amount: Not(IsNull()), isComplete: false, bankTx: { id: IsNull() } },
+      where: {
+        amount: Not(IsNull()),
+        isComplete: false,
+        bankTx: { id: IsNull() },
+        isApprovedDate: Not(IsNull()),
+        isTransmittedDate: Not(IsNull()),
+      },
       relations: { bankTx: true },
     });
 
@@ -52,12 +58,12 @@ export class FiatOutputService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async generateReports() {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },
       relations: {
-        buyFiats: { transaction: { user: { userData: true } }, cryptoInput: { paymentLinkPayment: { link: true } } },
+        buyFiats: { transaction: { userData: true }, cryptoInput: { paymentLinkPayment: { link: true } } },
       },
     });
 
@@ -143,8 +149,8 @@ export class FiatOutputService {
     return this.fiatOutputRepo
       .createQueryBuilder('fiatOutput')
       .select('fiatOutput')
-      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('fiatOutput.buyFiats', 'buyFiats')
+      .leftJoinAndSelect('buyFiats.sell', 'sell')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')

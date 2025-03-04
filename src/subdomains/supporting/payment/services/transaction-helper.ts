@@ -55,6 +55,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly feeService: FeeService,
     @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
+    @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly walletService: WalletService,

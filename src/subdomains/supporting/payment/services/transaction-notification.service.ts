@@ -45,7 +45,8 @@ export class TransactionNotificationService {
         bankTx: true,
         buyCrypto: true,
         buyFiat: true,
-        user: { userData: true, wallet: true },
+        userData: { wallet: true },
+        user: { wallet: true },
       },
     });
     if (entities.length === 0) return;

@@ -105,7 +105,7 @@ export class BuyFiatService {
         fiatOutput: true,
         bankTx: true,
         cryptoInput: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -190,8 +190,7 @@ export class BuyFiatService {
       .select('buyFiat')
       .leftJoinAndSelect('buyFiat.sell', 'sell')
       .leftJoinAndSelect('buyFiat.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')
@@ -234,7 +233,7 @@ export class BuyFiatService {
       where: { id: buyFiatId },
       relations: {
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');

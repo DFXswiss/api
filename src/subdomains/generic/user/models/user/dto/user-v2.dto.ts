@@ -68,6 +68,9 @@ export class UserAddressDto {
 
   @ApiPropertyOptional({ type: String, isArray: true })
   apiFilterCT?: HistoryFilterKey[];
+
+  @ApiProperty()
+  isCustody: boolean;
 }
 
 export class UserKycDto {

@@ -10,6 +10,7 @@ import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
+import { KycFile } from './kyc-file.entity';
 import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
@@ -45,7 +46,10 @@ export class KycStep extends IEntity {
   comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
-  logs: StepLog;
+  logs: StepLog[];
+
+  @OneToMany(() => KycFile, (f) => f.kycStep)
+  files: KycFile[];
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })

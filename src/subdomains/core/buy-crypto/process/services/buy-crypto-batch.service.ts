@@ -73,7 +73,7 @@ export class BuyCryptoBatchService {
           cryptoInput: true,
           buy: { user: true },
           cryptoRoute: { user: true },
-          transaction: { user: { userData: true } },
+          transaction: { userData: true },
         },
       });
 
