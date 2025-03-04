@@ -60,7 +60,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         cryptoInput: true,
         sell: true,
-        transaction: { user: { wallet: true, userData: { users: true } } },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         bankData: true,
       },
     });
@@ -160,7 +160,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         sell: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true, userData: true } },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
 
@@ -216,7 +216,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         sell: true,
         cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
-        transaction: { user: { wallet: true, userData: true } },
       },
     });
 
@@ -310,7 +309,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         );
 
         for (const feeId of entity.usedFees.split(';')) {
-          await this.feeService.increaseTxUsages(entity.amountInChf, Number.parseInt(feeId), entity.user.userData);
+          await this.feeService.increaseTxUsages(entity.amountInChf, Number.parseInt(feeId), entity.userData);
         }
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
@@ -344,7 +343,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
   async addFiatOutputs(): Promise<void> {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true, sell: true, transaction: { user: { userData: true } }, cryptoInput: true },
+      relations: { fiatOutput: true, sell: true, transaction: { userData: true }, cryptoInput: true },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),

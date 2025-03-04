@@ -63,7 +63,7 @@ export class FiatOutputService {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },
       relations: {
-        buyFiats: { transaction: { user: { userData: true } }, cryptoInput: { paymentLinkPayment: { link: true } } },
+        buyFiats: { transaction: { userData: true }, cryptoInput: { paymentLinkPayment: { link: true } } },
       },
     });
 
