@@ -38,6 +38,9 @@ export class ExchangeTx extends IEntity {
   amount?: number;
 
   @Column({ type: 'float', nullable: true })
+  amountChf?: number;
+
+  @Column({ type: 'float', nullable: true })
   feeAmount?: number;
 
   @Column({ length: 256, nullable: true })

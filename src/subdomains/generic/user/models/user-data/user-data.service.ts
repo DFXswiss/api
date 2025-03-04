@@ -221,6 +221,8 @@ export class UserDataService {
 
     await this.userDataRepo.save(userData);
 
+    if (userData.organization) await this.organizationService.updateOrganizationInternal(userData.organization, dto);
+
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
@@ -783,6 +785,7 @@ export class UserDataService {
           kycSteps: true,
           supportIssues: true,
           wallet: true,
+          transactions: true,
         },
       }),
       this.userDataRepo.findOne({
@@ -795,6 +798,7 @@ export class UserDataService {
           kycSteps: true,
           supportIssues: true,
           wallet: true,
+          transactions: true,
         },
       }),
     ]);
@@ -812,6 +816,7 @@ export class UserDataService {
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
       slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
+      slave.transactions.length > 0 && `transactions ${slave.transactions.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -855,6 +860,7 @@ export class UserDataService {
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     master.supportIssues = master.supportIssues.concat(slave.supportIssues);
+    master.transactions = master.transactions.concat(slave.transactions);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 

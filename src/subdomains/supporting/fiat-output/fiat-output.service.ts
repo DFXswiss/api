@@ -36,7 +36,13 @@ export class FiatOutputService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async fillFiatOutput() {
     const entities = await this.fiatOutputRepo.find({
-      where: { amount: Not(IsNull()), isComplete: false, bankTx: { id: IsNull() } },
+      where: {
+        amount: Not(IsNull()),
+        isComplete: false,
+        bankTx: { id: IsNull() },
+        isApprovedDate: Not(IsNull()),
+        isTransmittedDate: Not(IsNull()),
+      },
       relations: { bankTx: true },
     });
 

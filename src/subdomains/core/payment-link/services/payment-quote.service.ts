@@ -182,7 +182,7 @@ export class PaymentQuoteService {
     const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
     const quote = this.paymentQuoteRepo.create({
-      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID),
+      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID, 16),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
       expiryDate,

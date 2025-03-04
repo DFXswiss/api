@@ -327,13 +327,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
           bankTx: { id: Not(IsNull()) },
         },
       },
-      relations: { fiatOutput: true },
+      relations: { fiatOutput: { bankTx: true } },
     });
 
     for (const entity of entities) {
       try {
         await this.buyFiatRepo.update(
-          ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.bankTx),
+          ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.fiatOutput.bankTx),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} completion:`, e);
