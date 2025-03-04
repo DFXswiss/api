@@ -75,7 +75,7 @@ export class FiatPayInSyncService {
 
     let entity = await this.checkoutTxRepo.findOne({
       where: { paymentId: tx.paymentId },
-      relations: { buyCrypto: true, transaction: { request: true } },
+      relations: { buyCrypto: true, transaction: { request: true, user: true } },
     });
     if (entity) {
       Object.assign(entity, tx);

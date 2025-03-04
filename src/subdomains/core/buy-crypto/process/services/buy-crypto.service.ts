@@ -207,7 +207,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         chargebackOutput: true,
         bankData: true,
       },
@@ -348,7 +348,7 @@ export class BuyCryptoService {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
 
