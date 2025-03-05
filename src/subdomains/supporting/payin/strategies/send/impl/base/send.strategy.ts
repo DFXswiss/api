@@ -126,8 +126,8 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     const chfPrice = await this.priceProvider.getPrice(this.chf, asset, true);
 
     return {
-      feeNativeAsset: Util.roundReadable(nativeFee.amount, AmountType.ASSET_FEE),
-      feeInputAsset: nativeAssetPrice.convert(nativeFee.amount, 8),
+      feeNativeAsset: nativeFee.amount,
+      feeInputAsset: Util.roundReadable(nativeAssetPrice.convert(nativeFee.amount), AmountType.ASSET_FEE),
       maxFeeInputAsset: chfPrice.convert(Config.maxBlockchainFee, 8),
     };
   }
