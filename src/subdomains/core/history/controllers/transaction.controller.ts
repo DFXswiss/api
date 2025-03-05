@@ -432,8 +432,8 @@ export class TransactionController {
       bankTx: { transaction: { userData: true } },
       bankTxReturn: true,
       userData: true,
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: true },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
+      buyFiat: { cryptoInput: true, transaction: { userData: true } },
       refReward: true,
     });
 
