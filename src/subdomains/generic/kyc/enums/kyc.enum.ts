@@ -16,7 +16,10 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
-    userData.legalEntity === LegalEntity.PUBLIC_LIMITED_COMPANY ? KycStepName.STOCK_REGISTER : null,
+    userData.accountType === AccountType.ORGANIZATION &&
+    !(userData.legalEntity === LegalEntity.LIMITED_LIABILITY_COMPANY && userData.organizationCountry?.symbol === 'CH')
+      ? KycStepName.OWNER_DIRECTORY
+      : null,
     [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
       ? KycStepName.COMMERCIAL_REGISTER
       : null,

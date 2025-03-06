@@ -708,7 +708,7 @@ export class KycService {
 
       case KycStepName.NATIONALITY_DATA:
       case KycStepName.LEGAL_ENTITY:
-      case KycStepName.STOCK_REGISTER:
+      case KycStepName.OWNER_DIRECTORY:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.COMMERCIAL_REGISTER:
