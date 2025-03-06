@@ -154,7 +154,7 @@ export class KycBeneficialData {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BeneficialOwnerData)
-  beneficialOwners: BeneficialOwnerData[];
+  beneficialOwners: BeneficialOwnerData[] = [];
 }
 
 export class KycNationalityData {
