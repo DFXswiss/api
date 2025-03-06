@@ -42,6 +42,7 @@ import { Util } from 'src/shared/utils/util';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
+  KycBeneficialData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -266,6 +267,17 @@ export class KycController {
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, true);
+  }
+
+  @Put('data/beneficial/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateBeneficialData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycBeneficialData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateBeneficialOwnerData(code, +id, data);
   }
 
   @Put('data/authority/:id')

@@ -164,7 +164,7 @@ export class AmlService {
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService
         .getValidBankDatasForUser(entity.userData.id)
-        .then((b) => b.filter((b) => b.type !== BankDataType.USER));
+        .then((b) => b.filter((b) => ![BankDataType.USER, BankDataType.NAME_CHECK].includes(b.type)));
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 
