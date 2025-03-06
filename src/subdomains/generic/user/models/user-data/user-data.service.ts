@@ -183,7 +183,7 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
+    Object.assign(userData, await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto));
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -630,7 +630,7 @@ export class UserDataService {
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
-  ): Promise<void> {
+  ): Promise<Partial<UserData>> {
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
       if (!userData.country) throw new BadRequestException('Country not found');
@@ -704,6 +704,8 @@ export class UserDataService {
         legalEntity: dto.legalEntity,
         signatoryPower: dto.signatoryPower,
       });
+
+    return userData;
   }
 
   // --- KYC CLIENTS --- //
