@@ -412,7 +412,7 @@ export class KycService {
       const managingDirector = await this.createRelatedUserData(
         data.managingDirector,
         user,
-        UserDataRelationState.BENEFICIAL_OWNER,
+        UserDataRelationState.CONTROL_HOLDER,
       );
 
       allBeneficialOwnersName.push(managingDirector.verifiedName);
