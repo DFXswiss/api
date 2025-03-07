@@ -43,6 +43,7 @@ import {
 } from '../dto/ident-result.dto';
 import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
+  BeneficialOwnerData,
   KycBeneficialData,
   KycContactData,
   KycFileData,
@@ -410,34 +411,22 @@ export class KycService {
     const allBeneficialOwnersName = [];
     const allBeneficialOwnersDomicile = [];
 
+    if (data.managingDirector) {
+      const managingDirector = await this.createRelatedUserData(
+        data.managingDirector,
+        user,
+        UserDataRelationState.BENEFICIAL_OWNER,
+      );
+
+      allBeneficialOwnersName.push(managingDirector.verifiedName);
+      allBeneficialOwnersDomicile.push(managingDirector.country.name);
+    }
+
     for (const owner of data.beneficialOwners) {
-      const beneficialOwner = await this.userDataService.createUserData({
-        kycType: KycType.DFX,
-        status: UserDataStatus.KYC_ONLY,
-        firstname: owner.firstName,
-        surname: owner.lastName,
-        street: owner.street,
-        houseNumber: owner.houseNumber,
-        location: owner.city,
-        zip: owner.zip,
-        country: owner.country,
-        verifiedName: `${owner.firstName} ${owner.lastName}`,
-        verifiedCountry: owner.country,
-        organization: user.organization,
-      });
+      const beneficialOwner = await this.createRelatedUserData(owner, user, UserDataRelationState.BENEFICIAL_OWNER);
 
       allBeneficialOwnersName.push(beneficialOwner.verifiedName);
       allBeneficialOwnersDomicile.push(beneficialOwner.country.name);
-
-      await this.userDataRelationService.createUserDataRelationInternal(beneficialOwner, user, {
-        relation: UserDataRelationState.BENEFICIAL_OWNER,
-      });
-
-      await this.bankDataService.createVerifyBankData(beneficialOwner, {
-        type: BankDataType.NAME_CHECK,
-        iban: `NameCheck-${owner.firstName}${owner.lastName}`,
-        name: beneficialOwner.verifiedName,
-      });
     }
 
     await this.userDataService.updateUserDataInternal(user, {
@@ -549,6 +538,37 @@ export class KycService {
         dto.reviewResult?.rejectLabels,
       ),
     );
+  }
+
+  private async createRelatedUserData(
+    owner: BeneficialOwnerData,
+    user: UserData,
+    relation: UserDataRelationState,
+  ): Promise<UserData> {
+    const beneficialOwner = await this.userDataService.createUserData({
+      kycType: KycType.DFX,
+      status: UserDataStatus.KYC_ONLY,
+      firstname: owner.firstName,
+      surname: owner.lastName,
+      street: owner.street,
+      houseNumber: owner.houseNumber,
+      location: owner.city,
+      zip: owner.zip,
+      country: owner.country,
+      verifiedName: `${owner.firstName} ${owner.lastName}`,
+      verifiedCountry: owner.country,
+      organization: user.organization,
+    });
+
+    await this.userDataRelationService.createUserDataRelationInternal(beneficialOwner, user, { relation });
+
+    await this.bankDataService.createVerifyBankData(beneficialOwner, {
+      type: BankDataType.NAME_CHECK,
+      iban: `NameCheck-${owner.firstName}${owner.lastName}`,
+      name: beneficialOwner.verifiedName,
+    });
+
+    return beneficialOwner;
   }
 
   private async updateIdent(
