@@ -156,8 +156,7 @@ export class KycBeneficialData {
   @ApiPropertyOptional({ type: BeneficialOwnerData, isArray: true })
   @ValidateIf((d: KycBeneficialData) => !d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
   @IsNotEmpty()
-  @IsArray()
-  @ValidateNested({ each: true })
+  @ValidateNested()
   @Type(() => BeneficialOwnerData)
   managingDirector: BeneficialOwnerData;
 
@@ -171,10 +170,10 @@ export class KycBeneficialData {
 }
 
 export class KycOperationalData {
-  @ApiProperty({ description: 'Is organization operational activity?' })
+  @ApiProperty({ description: 'Is the organization operationally active?' })
   @IsNotEmpty()
   @IsBoolean()
-  isOperationalActive: boolean;
+  isOperational: boolean;
 
   @ApiPropertyOptional({ description: 'Organization Website URL' })
   @IsOptional()
