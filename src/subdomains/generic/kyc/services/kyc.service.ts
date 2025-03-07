@@ -722,13 +722,13 @@ export class KycService {
         if (
           identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
           ((identSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) ||
-            identSteps.length > Config.kyc.maxIdentTries) &&
-            !identSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))) ||
-          identSteps.some((i) =>
-            i
-              .getResult<SumsubResult>()
-              ?.webhook?.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
-          )
+            identSteps.length > Config.kyc.maxIdentTries ||
+            identSteps.some((i) =>
+              i
+                .getResult<SumsubResult>()
+                ?.webhook?.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
+            )) &&
+            !identSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED)))
         )
           return { nextStep: undefined };
 
