@@ -170,6 +170,18 @@ export class KycBeneficialData {
   beneficialOwners: BeneficialOwnerData[] = [];
 }
 
+export class KycOperationalData {
+  @ApiProperty({ description: 'Is organization operational activity?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  isOperationalActive: boolean;
+
+  @ApiPropertyOptional({ description: 'Organization Website URL' })
+  @IsOptional()
+  @IsString()
+  websiteUrl: string;
+}
+
 export class KycNationalityData {
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()

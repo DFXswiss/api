@@ -49,6 +49,7 @@ import {
   KycFileData,
   KycManualIdentData,
   KycNationalityData,
+  KycOperationalData,
   KycPersonalData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -67,7 +68,7 @@ import {
   getSumSubReason,
   getSumsubResult,
 } from '../dto/sum-sub.dto';
-import { KycStep } from '../entities/kyc-step.entity';
+import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
@@ -397,11 +398,7 @@ export class KycService {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
 
-    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
-
-    return KycStepMapper.toStepBase(kycStep);
+    return this.updateKycStepAndLog(kycStep, user, data, requiresInternalReview);
   }
 
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
@@ -434,11 +431,14 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    await this.kycStepRepo.update(...kycStep.complete(data));
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
+    return this.updateKycStepAndLog(kycStep, user, data);
+  }
 
-    return KycStepMapper.toStepBase(kycStep);
+  async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    return this.updateKycStepAndLog(kycStep, user, data);
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
@@ -538,6 +538,19 @@ export class KycService {
         dto.reviewResult?.rejectLabels,
       ),
     );
+  }
+
+  private async updateKycStepAndLog(
+    kycStep: KycStep,
+    user: UserData,
+    data: KycStepResult,
+    requiresInternalReview = false,
+  ): Promise<KycStepBase> {
+    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   private async createRelatedUserData(
@@ -794,6 +807,9 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.BENEFICIAL_OWNER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.OPERATIONAL_ACTIVITY:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.AUTHORITY:
