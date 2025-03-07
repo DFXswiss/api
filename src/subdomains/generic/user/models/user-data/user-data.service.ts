@@ -369,7 +369,7 @@ export class UserDataService {
         location: update.organizationLocation,
         houseNumber: update.organizationHouseNumber,
         zip: update.organizationZip,
-        countryId: update.organizationCountry?.id,
+        country: update.organizationCountry,
       };
 
       update.organization = !userData.organization
@@ -695,7 +695,7 @@ export class UserDataService {
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
-        countryId: dto.organizationCountryId,
+        organizationCountryId: dto.organizationCountryId,
         allBeneficialOwnersName: dto.allBeneficialOwnersName,
         allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
         accountOpenerAuthorization: dto.accountOpenerAuthorization,

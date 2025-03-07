@@ -58,17 +58,12 @@ export class OrganizationService {
   async createOrganization(dto: OrganizationDto): Promise<Organization> {
     const organization = this.organizationRepo.create(dto);
 
-    if (dto.countryId) {
-      organization.country = await this.countryService.getCountry(dto.countryId);
-      if (!organization.country) throw new BadRequestException('Country not found');
-    }
-
     return this.organizationRepo.save(organization);
   }
 
   async updateOrganizationInternal(entity: Organization, dto: OrganizationDto): Promise<Organization> {
-    if (dto.countryId) {
-      entity.country = await this.countryService.getCountry(dto.countryId);
+    if (dto.organizationCountryId) {
+      entity.country = await this.countryService.getCountry(dto.organizationCountryId);
       if (!entity.country) throw new BadRequestException('Country not found');
     }
 
