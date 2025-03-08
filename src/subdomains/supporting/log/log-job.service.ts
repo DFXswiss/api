@@ -14,7 +14,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -79,6 +79,7 @@ export class LogJobService {
     private readonly refRewardService: RefRewardService,
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
+    private readonly processService: ProcessService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
@@ -98,8 +99,15 @@ export class LogJobService {
     // changes
     const changeLog = await this.getChangeLog();
 
+    // total balances
     const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
     const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+
+    const totalBalanceChf = plusBalanceChf - minusBalanceChf;
+
+    // safety module
+    const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
+    this.processService.changeSafetyModuleSetting(totalBalanceChf < minTotalBalanceChf);
 
     await this.logService.create({
       system: 'LogService',
@@ -112,7 +120,7 @@ export class LogJobService {
         balancesTotal: {
           plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
           minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
-          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, AmountType.FIAT, true),
+          totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
         },
         changes: changeLog,
       }),
