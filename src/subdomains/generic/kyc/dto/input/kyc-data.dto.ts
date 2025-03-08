@@ -148,13 +148,37 @@ export class KycBeneficialData {
   @IsBoolean()
   hasBeneficialOwners: boolean;
 
+  @ApiProperty({ description: 'Is the account holder a beneficial owner?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  accountHolderIsBeneficialOwner: boolean;
+
+  @ApiPropertyOptional({ type: BeneficialOwnerData })
+  @ValidateIf((d: KycBeneficialData) => !d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => BeneficialOwnerData)
+  managingDirector: BeneficialOwnerData;
+
   @ApiPropertyOptional({ type: BeneficialOwnerData, isArray: true })
-  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners)
+  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
   @IsNotEmpty()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BeneficialOwnerData)
   beneficialOwners: BeneficialOwnerData[] = [];
+}
+
+export class KycOperationalData {
+  @ApiProperty({ description: 'Is the organization operationally active?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  isOperational: boolean;
+
+  @ApiPropertyOptional({ description: 'Organization Website URL' })
+  @IsOptional()
+  @IsString()
+  websiteUrl: string;
 }
 
 export class KycNationalityData {

@@ -84,6 +84,9 @@ export class KycStep extends IEntity {
       case KycStepName.BENEFICIAL_OWNER:
         return { url: `${apiUrl}/data/beneficial/${this.id}`, type: UrlType.API };
 
+      case KycStepName.OPERATIONAL_ACTIVITY:
+        return { url: `${apiUrl}/data/operational/${this.id}`, type: UrlType.API };
+
       case KycStepName.AUTHORITY:
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
 
