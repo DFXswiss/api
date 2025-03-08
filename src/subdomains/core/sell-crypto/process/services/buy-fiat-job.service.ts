@@ -23,6 +23,7 @@ export class BuyFiatJobService {
     }
     await this.buyFiatPreparationService.setOutput();
     await this.buyFiatPreparationService.complete();
+    await this.buyFiatPreparationService.chargebackTx();
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BUY_FIAT, timeout: 7200 })
