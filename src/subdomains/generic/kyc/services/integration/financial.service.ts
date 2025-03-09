@@ -15,7 +15,7 @@ export class FinancialService {
     lang: string = Config.defaults.language.toLowerCase(),
     accountType: AccountType,
   ): KycFinancialQuestion[] {
-    return FinancialQuestions.map((q) => ({
+    return FinancialQuestions.filter((q) => q.accountTypes.includes(accountType)).map((q) => ({
       key: q.key,
       type: q.type,
       title: this.i18n.translate(`kyc.financial.question.${q.key}.title`, { lang }),
