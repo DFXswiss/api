@@ -21,9 +21,16 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    let entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
+    const entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
     if (!entity) throw new Error('Transaction not found');
 
+    return this.updateInternal(entity, dto);
+  }
+
+  async updateInternal(
+    entity: Transaction,
+    dto: UpdateTransactionInternalDto | UpdateTransactionDto,
+  ): Promise<Transaction> {
     Object.assign(entity, dto);
 
     if (!(dto instanceof UpdateTransactionDto)) {
@@ -54,11 +61,19 @@ export class TransactionService {
     return this.repo.findOne({ where: { request: { id: requestId } }, relations });
   }
 
+  async getTransactionByRequestUid(
+    requestUid: string,
+    relations: FindOptionsRelations<Transaction>,
+  ): Promise<Transaction> {
+    return this.repo.findOne({ where: { request: { uid: requestUid } }, relations });
+  }
+
   async getTransactionByExternalId(
     externalId: string,
+    accountId: number,
     relations: FindOptionsRelations<Transaction> = {},
   ): Promise<Transaction> {
-    return this.repo.findOne({ where: { externalId }, relations });
+    return this.repo.findOne({ where: { externalId, user: { userData: { id: accountId } } }, relations });
   }
 
   async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -107,8 +122,7 @@ export class TransactionService {
     return this.repo
       .createQueryBuilder('transaction')
       .select('transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

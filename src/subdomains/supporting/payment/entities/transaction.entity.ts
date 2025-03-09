@@ -111,10 +111,13 @@ export class Transaction extends IEntity {
   checkoutTx?: CheckoutTx;
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transaction)
-  supportIssues: SupportIssue[];
+  supportIssues?: SupportIssue[];
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user?: User;
+
+  @ManyToOne(() => UserData, (userData) => userData.transactions, { nullable: true })
+  userData?: UserData;
 
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
@@ -159,9 +162,5 @@ export class Transaction extends IEntity {
 
   get targetEntity(): BuyCrypto | BuyFiat | RefReward | BankTxReturn | undefined {
     return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? this.bankTxReturn ?? undefined;
-  }
-
-  get userData(): UserData {
-    return this.user?.userData;
   }
 }

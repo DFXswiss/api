@@ -123,13 +123,16 @@ export class TransactionController {
   }
 
   @Get('single')
-  @ApiExcludeEndpoint()
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
+  @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
     @Query('uid') uid?: string,
-    @Query('external-id') externalId?: string,
+    @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, externalId, ckoId });
+    const transaction = await this.getTransaction({ uid, orderUid, ckoId });
 
     const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -199,16 +202,18 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDetailDto })
   @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
-  @ApiQuery({ name: 'request-id', description: 'Transaction request ID', required: false })
+  @ApiQuery({ name: 'order-id', description: 'Order ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
   @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
   async getSingleTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id?: string,
     @Query('uid') uid?: string,
-    @Query('request-id') requestId?: string,
+    @Query('order-id') orderId?: string,
+    @Query('order-uid') orderUid?: string,
     @Query('external-id') externalId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, requestId, externalId });
+    const transaction = await this.getTransaction({ id, uid, orderId, orderUid, externalId }, jwt.account);
 
     if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
@@ -290,10 +295,11 @@ export class TransactionController {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: true,
       bankTxReturn: true,
-      user: { userData: true },
+      userData: true,
       checkoutTx: true,
-      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: { route: { user: true } } },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
@@ -315,6 +321,9 @@ export class TransactionController {
 
       if (transaction.targetEntity?.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
+
+      const userData = await this.userDataService.getUserData(jwt.account);
+      await this.transactionService.updateInternal(transaction, { userData });
 
       const bankFeeAmount = transaction.bankTx.chargeAmount;
 
@@ -396,7 +405,7 @@ export class TransactionController {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
         inputAmount: Util.roundReadable(inputAmount, amountType),
         inputAsset: refundAsset,
-        refundAmount: inputAmount - totalFeeAmount,
+        refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
         fee: {
           network: Util.roundReadable(networkFeeAmount, feeAmountType),
           bank: Util.roundReadable(bankFeeAmount, feeAmountType),
@@ -420,16 +429,12 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      bankTx: { transaction: true },
+      bankTx: { transaction: { userData: true } },
       bankTxReturn: true,
-      user: { userData: true },
-      buyCrypto: {
-        transaction: { user: { userData: true } },
-        cryptoInput: { route: { user: true } },
-        bankTx: true,
-        checkoutTx: true,
-      },
-      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      userData: true,
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
+      buyFiat: { cryptoInput: true, transaction: { userData: true } },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
@@ -450,9 +455,8 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {
-      const userData = await this.userDataService.getUserData(jwt.account);
       transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN }, userData)
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
     }
 
@@ -542,34 +546,43 @@ export class TransactionController {
     }).then((list) => list.filter((dto) => dto));
   }
 
-  private async getTransaction({
-    id,
-    uid,
-    requestId,
-    externalId,
-    ckoId,
-  }: {
-    id?: string;
-    uid?: string;
-    requestId?: string;
-    externalId?: string;
-    ckoId?: string;
-  }): Promise<Transaction | undefined> {
+  private async getTransaction(
+    {
+      id,
+      uid,
+      orderId,
+      orderUid,
+      externalId,
+      ckoId,
+    }: {
+      id?: string;
+      uid?: string;
+      orderId?: string;
+      orderUid?: string;
+      externalId?: string;
+      ckoId?: string;
+    },
+    accountId?: number,
+  ): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true, fiatOutput: true },
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
       checkoutTx: true,
+      userData: true,
       user: { userData: true },
+      request: true,
     };
 
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (requestId) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
-    if (externalId) transaction = await this.transactionService.getTransactionByExternalId(externalId, relations);
+    if (orderId) transaction = await this.transactionService.getTransactionByRequestId(+orderId, relations);
+    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if (externalId && accountId)
+      transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return transaction;

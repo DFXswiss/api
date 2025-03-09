@@ -212,6 +212,7 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    maxIdentTries: 7,
 
     downloadTargets: [
       {
@@ -392,8 +393,9 @@ export class Configuration {
   };
 
   frontend = {
+    allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
+    services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
-    services: process.env.SERVICES_URL,
   };
 
   fixer = {
@@ -458,6 +460,9 @@ export class Configuration {
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
 
+    checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
+    checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
+
     fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
 
@@ -509,10 +514,16 @@ export class Configuration {
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
+      custodySeed: process.env.EVM_CUSTODY_SEED,
       minimalPreparationFee: 0.00000001,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
+        index: accountIndex,
+      }),
+
+      custodyAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.custodySeed,
         index: accountIndex,
       }),
     },
@@ -623,7 +634,6 @@ export class Configuration {
         XMR: 0.000001,
       },
     },
-    forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.001),
   };
 
   buy = {

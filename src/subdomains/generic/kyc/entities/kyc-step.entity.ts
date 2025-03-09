@@ -10,6 +10,7 @@ import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
+import { KycFile } from './kyc-file.entity';
 import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
@@ -45,7 +46,10 @@ export class KycStep extends IEntity {
   comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
-  logs: StepLog;
+  logs: StepLog[];
+
+  @OneToMany(() => KycFile, (f) => f.kycStep)
+  files: KycFile[];
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
@@ -68,14 +72,17 @@ export class KycStep extends IEntity {
       case KycStepName.LEGAL_ENTITY:
         return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
 
-      case KycStepName.STOCK_REGISTER:
-        return { url: `${apiUrl}/data/stock/${this.id}`, type: UrlType.API };
+      case KycStepName.OWNER_DIRECTORY:
+        return { url: `${apiUrl}/data/owner/${this.id}`, type: UrlType.API };
 
       case KycStepName.COMMERCIAL_REGISTER:
         return { url: `${apiUrl}/data/commercial/${this.id}`, type: UrlType.API };
 
       case KycStepName.SIGNATORY_POWER:
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
+
+      case KycStepName.BENEFICIAL_OWNER:
+        return { url: `${apiUrl}/data/beneficial/${this.id}`, type: UrlType.API };
 
       case KycStepName.AUTHORITY:
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };

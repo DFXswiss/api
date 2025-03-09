@@ -7,6 +7,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -35,8 +36,7 @@ export class BuyFiat extends IEntity {
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
-  @OneToOne(() => BankTx, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => BankTx, { nullable: true })
   bankTx?: BankTx;
 
   @ManyToOne(() => BankData, { nullable: true })
@@ -363,6 +363,19 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  complete(remittanceInfo: string, outputDate: Date, bankTx: BankTx): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      remittanceInfo,
+      outputDate,
+      bankTx,
+      isComplete: true,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
@@ -458,6 +471,10 @@ export class BuyFiat extends IEntity {
     return this.totalFeeAmountChf;
   }
 
+  get wallet(): Wallet {
+    return this.user.wallet;
+  }
+
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
       exchangeRate: Util.roundReadable(
@@ -473,11 +490,11 @@ export class BuyFiat extends IEntity {
   }
 
   get userData(): UserData {
-    return this.user.userData;
+    return this.transaction.userData;
   }
 
   set userData(userData: UserData) {
-    this.user.userData = userData;
+    this.transaction.userData = userData;
   }
 
   get noCommunication(): boolean {
