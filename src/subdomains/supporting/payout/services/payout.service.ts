@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -38,6 +38,8 @@ export class PayoutService {
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {
+      if (DisabledProcess(Process.CRYPTO_PAYOUT)) throw new BadRequestException('Safety module deactivated');
+
       if (request.amount < 0) throw new Error('Amount is lower 0');
 
       const order = this.payoutOrderFactory.createOrder(request);
