@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -34,6 +35,7 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
+    private readonly cryptoService: CryptoService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -172,16 +174,19 @@ export class PaymentActivationService implements OnModuleInit {
     switch (transferInfo.method) {
       case Blockchain.LIGHTNING:
         return this.createLightningRequest(payment, transferInfo, expirySec);
+
+      case Blockchain.BITCOIN:
+        return this.createPaymentRequest(this.bitcoinDepositAddress, transferInfo, 'DFX Payment');
+
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
       case Blockchain.POLYGON:
-        return this.createEvmRequest(transferInfo);
+        return this.createPaymentRequest(this.evmDepositAddress, transferInfo);
+
       case Blockchain.MONERO:
-        return this.createMoneroRequest(transferInfo);
-      case Blockchain.BITCOIN:
-        return this.createBitcoinRequest(transferInfo);
+        return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
@@ -238,26 +243,14 @@ export class PaymentActivationService implements OnModuleInit {
     }
   }
 
-  private async createEvmRequest(
+  private async createPaymentRequest(
+    address: string,
     transferInfo: TransferInfo,
+    label?: string,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
     const asset = await this.getAssetByInfo(transferInfo);
 
-    const paymentRequest = EvmUtil.getPaymentRequest(this.evmDepositAddress, asset, transferInfo.amount);
-    return { paymentRequest };
-  }
-
-  private async createMoneroRequest(
-    transferInfo: TransferInfo,
-  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
-    const paymentRequest = `monero:${this.moneroDepositAddress}?tx_amount=${transferInfo.amount}`;
-    return { paymentRequest };
-  }
-
-  private async createBitcoinRequest(
-    transferInfo: TransferInfo,
-  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
-    const paymentRequest = `bitcoin:${this.bitcoinDepositAddress}?tx_amount=${transferInfo.amount}`;
+    const paymentRequest = await this.cryptoService.getPaymentRequest(true, asset, address, transferInfo.amount, label);
     return { paymentRequest };
   }
 
