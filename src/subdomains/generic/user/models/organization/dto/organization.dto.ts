@@ -7,7 +7,6 @@ export interface OrganizationDto {
   houseNumber?: string;
   location?: string;
   zip?: string;
-  countryId?: number;
   country?: Country;
   allBeneficialOwnersName?: string;
   allBeneficialOwnersDomicile?: string;
@@ -23,4 +22,5 @@ export interface OrganizationDto {
   organizationLocation?: string;
   organizationZip?: string;
   organizationCountry?: Country;
+  organizationCountryId?: number;
 }

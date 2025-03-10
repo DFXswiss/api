@@ -16,6 +16,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { Organization } from '../../organization/organization.entity';
 import { AccountType } from '../account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType } from '../kyc-identification-type.enum';
@@ -65,6 +66,11 @@ export class UpdateUserDataDto {
   countryId?: number;
 
   @IsOptional()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  country?: Country;
+
+  @IsOptional()
   @IsDate()
   @Type(() => Date)
   birthday?: Date;
@@ -86,6 +92,12 @@ export class UpdateUserDataDto {
   @ValidateNested()
   @Type(() => EntityDto)
   nationality?: Country;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  organization?: Organization;
 
   @IsOptional()
   @IsString()

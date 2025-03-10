@@ -80,12 +80,6 @@ export enum SignatoryPower {
   NONE = 'None',
 }
 
-export enum RiskState {
-  A = 'a',
-  B = 'b',
-  C = 'c',
-}
-
 export enum BlankType {
   PHONE,
   MAIL,
@@ -219,9 +213,6 @@ export class UserData extends IEntity {
   // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
-
-  @Column({ length: 256, nullable: true })
-  riskState?: RiskState;
 
   @Column({ nullable: true })
   highRisk?: boolean;

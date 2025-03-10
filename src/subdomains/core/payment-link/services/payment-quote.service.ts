@@ -184,7 +184,7 @@ export class PaymentQuoteService {
     const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
     const quote = this.paymentQuoteRepo.create({
-      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID),
+      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID, 16),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
       expiryDate,
@@ -309,6 +309,20 @@ export class PaymentQuoteService {
   // --- HEX PAYMENT --- //
   async executeHexPayment(transferInfo: TransferInfo): Promise<PaymentQuote> {
     const quote = await this.getAndCheckQuote(transferInfo);
+
+    // Used for checking purposes
+    const verifiedSignMessage = Util.verifySign(
+      Config.payment.checkbotSignTx,
+      Config.payment.checkbotPubKey,
+      transferInfo.hex,
+      'sha256',
+      'hex',
+    );
+
+    if (verifiedSignMessage) {
+      quote.txCheckbot(Config.payment.checkbotSignTx);
+      return this.paymentQuoteRepo.save(quote);
+    }
 
     quote.txReceived(transferInfo.method, transferInfo.hex);
 

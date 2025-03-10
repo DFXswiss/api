@@ -360,8 +360,9 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
         case ReviewStatus.COMPLETED:
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
-            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
-            ? IdentShortResult.PENDING
+            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY &&
+              dto.levelName === SumSubLevelName.CH_STANDARD_VIDEO
+            ? IdentShortResult.RETRY
             : IdentShortResult.FAIL;
       }
       break;

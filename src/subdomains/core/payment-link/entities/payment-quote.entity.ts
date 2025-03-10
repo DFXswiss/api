@@ -67,6 +67,13 @@ export class PaymentQuote extends IEntity {
     return this;
   }
 
+  txCheckbot(txId: string): this {
+    this.status = PaymentQuoteStatus.TX_CHECKBOT;
+    this.txId = txId;
+
+    return this;
+  }
+
   txMempool(txId: string): this {
     this.status = PaymentQuoteStatus.TX_MEMPOOL;
     this.txId = txId;

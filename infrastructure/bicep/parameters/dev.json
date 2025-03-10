@@ -125,6 +125,12 @@
     "paymentBitcoinAddress": {
       "value": "xxx"
     },
+    "paymentCheckbotSignTx": {
+      "value": "xxx"
+    },
+    "paymentCheckbotPubKey": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },

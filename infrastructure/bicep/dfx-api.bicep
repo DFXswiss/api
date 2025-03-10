@@ -67,6 +67,8 @@ param paymentTimeoutDelay string
 param paymentEvmSeed string
 param paymentMoneroAddress string
 param paymentBitcoinAddress string
+param paymentCheckbotSignTx string
+param paymentCheckbotPubKey string
 
 @secure()
 param evmDepositSeed string
@@ -697,6 +699,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'PAYMENT_BITCOIN_ADDRESS'
           value: paymentBitcoinAddress
+        }
+        {
+          name: 'PAYMENT_CHECKBOT_SIGN_TX'
+          value: paymentCheckbotSignTx
+        }
+        {
+          name: 'PAYMENT_CHECKBOT_PUB_KEY'
+          value: paymentCheckbotPubKey
         }
         {
           name: 'EVM_DEPOSIT_SEED'

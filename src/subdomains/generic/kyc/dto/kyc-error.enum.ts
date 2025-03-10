@@ -19,6 +19,8 @@ export enum KycError {
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
+  BLOCKED = 'Blocked',
+  RELEASED = 'Released',
 }
 
 export const KycErrorMap: Record<KycError, string> = {
@@ -40,6 +42,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your organization name does not match your account name',
   [KycError.COUNTRY_NOT_ALLOWED]: 'Your country is not allowed for KYC',
   [KycError.REVERSED_NAMES]: 'The names in your account are reversed',
+  [KycError.BLOCKED]: 'KYC is blocked',
+  [KycError.RELEASED]: undefined,
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
