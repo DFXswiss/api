@@ -16,6 +16,7 @@ import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlReason } from '../enums/aml-reason.enum';
@@ -35,6 +36,7 @@ export class AmlService {
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly userService: UserService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async postProcessing(
@@ -49,6 +51,15 @@ export class AmlService {
 
     if (entity.amlCheck === CheckStatus.PASS) {
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
+
+      await this.transactionService.updateInternal(entity.transaction, {
+        amlCheck: entity.amlCheck,
+        assets: `${entity.inputReferenceAsset}-${entity.outputAsset.name}`,
+        amountInChf: entity.amountInChf,
+        highRisk: entity.highRisk == true,
+        eventDate: entity.created,
+        amlType: entity.transaction.type,
+      });
 
       // KYC file id
       if (
@@ -67,9 +78,11 @@ export class AmlService {
   ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     let bankData = await this.getBankData(entity);
+    this.logger.verbose(`amlInput bankData ${entity.id}`);
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+      this.logger.verbose(`amlInput nameCheck ${entity.id}`);
 
       // merge & bank transaction verification
       if (bankData.approved) {
@@ -90,7 +103,11 @@ export class AmlService {
                 ? [entity.userData.id, bankData.userData.id]
                 : [bankData.userData.id, entity.userData.id];
 
+            this.logger.verbose(`amlInput mergeBefore ${entity.id}`);
+
             await this.userDataService.mergeUserData(masterId, slaveId, entity.userData.mail, true);
+
+            this.logger.verbose(`amlInput mergeAfter ${entity.id}`);
 
             entity.userData = await this.userDataService.getUserData(masterId, { users: true });
             if (masterId !== bankData.userData.id) bankData = await this.getBankData(entity);

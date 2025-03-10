@@ -16,10 +16,10 @@ import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -51,7 +51,12 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async doAmlCheck(): Promise<void> {
-    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
+    const request: FindOptionsWhere<BuyCrypto> = {
+      inputAmount: Not(IsNull()),
+      inputAsset: Not(IsNull()),
+      chargebackAllowedDateUser: IsNull(),
+      isComplete: false,
+    };
     const entities = await this.buyCryptoRepo.find({
       where: [
         {
@@ -87,6 +92,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
+        this.logger.verbose(`amlCheck buyCrypto currencies ${entity.id}`);
+
         const isPayment = Boolean(entity.cryptoInput?.isPayment);
         const minVolume = await this.transactionHelper.getMinVolume(
           inputCurrency,
@@ -95,6 +102,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           false,
           isPayment,
         );
+        this.logger.verbose(`amlCheck buyCrypto minVolume ${entity.id}`);
 
         const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
