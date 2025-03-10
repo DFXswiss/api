@@ -786,9 +786,9 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
-          wallet: true,
           transactions: true,
         },
+        loadEagerRelations: false,
       }),
       this.userDataRepo.findOne({
         where: { id: slaveId },
@@ -799,9 +799,9 @@ export class UserDataService {
           relatedAccountRelations: true,
           kycSteps: true,
           supportIssues: true,
-          wallet: true,
           transactions: true,
         },
+        loadEagerRelations: false,
       }),
     ]);
     this.logger.verbose(`mergeLog userData load ${master.id}/${slave.id}`);
