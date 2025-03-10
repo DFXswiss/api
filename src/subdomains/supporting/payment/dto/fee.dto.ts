@@ -35,3 +35,7 @@ export class InternalFeeDto extends BaseFeeDto {
   bankRate: number; // bank fee rate
   bankFixed: number; // bank fixed fee
 }
+
+export class InternalChargebackFeeDto extends BaseFeeDto {
+  fees: Fee[];
+}

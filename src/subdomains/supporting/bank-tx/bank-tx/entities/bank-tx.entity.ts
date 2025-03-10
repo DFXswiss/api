@@ -6,6 +6,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
+import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
@@ -229,6 +230,14 @@ export class BankTx extends IEntity {
 
   get user(): User {
     return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
+  }
+
+  get paymentMethodIn(): PaymentMethod {
+    return FiatPaymentMethod.BANK;
+  }
+
+  get chargebackBankFee(): number {
+    return this.chargeAmount;
   }
 
   get feeAmountChf(): number {

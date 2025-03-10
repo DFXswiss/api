@@ -593,6 +593,10 @@ export class BuyCrypto extends IEntity {
     return MailTranslationKey.CRYPTO_CHARGEBACK;
   }
 
+  get chargebackBankFee(): number {
+    return this.bankTx ? this.bankTx.chargeAmount : 0;
+  }
+  
   get wallet(): Wallet {
     return this.user.wallet;
   }
@@ -615,6 +619,10 @@ export class BuyCrypto extends IEntity {
 
   get paymentMethodIn(): PaymentMethod {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
+  }
+
+  get paymentMethodOut(): PaymentMethod {
+    return CryptoPaymentMethod.CRYPTO;
   }
 
   get targetAddress(): string {

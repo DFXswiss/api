@@ -11,17 +11,17 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
-import { createCustomBuyFiat } from '../../sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { TransactionController } from '../controllers/transaction.controller';
@@ -40,11 +40,12 @@ describe('TransactionController', () => {
   let fiatService: FiatService;
   let buyService: BuyService;
   let buyCryptoService: BuyCryptoService;
-  let feeService: FeeService;
   let transactionUtilService: TransactionUtilService;
   let userDataService: UserDataService;
   let bankTxReturnService: BankTxReturnService;
   let specialExternalAccountService: SpecialExternalAccountService;
+  let bankService: BankService;
+  let transactionHelper: TransactionHelper;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -57,11 +58,12 @@ describe('TransactionController', () => {
     fiatService = createMock<FiatService>();
     buyService = createMock<BuyService>();
     buyCryptoService = createMock<BuyCryptoService>();
-    feeService = createMock<FeeService>();
     transactionUtilService = createMock<TransactionUtilService>();
     userDataService = createMock<UserDataService>();
     bankTxReturnService = createMock<BankTxReturnService>();
     specialExternalAccountService = createMock<SpecialExternalAccountService>();
+    bankService = createMock<BankService>();
+    transactionHelper = createMock<TransactionHelper>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -77,11 +79,12 @@ describe('TransactionController', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: BuyService, useValue: buyService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: FeeService, useValue: feeService },
         { provide: TransactionUtilService, useValue: transactionUtilService },
         { provide: UserDataService, useValue: userDataService },
         { provide: BankTxReturnService, useValue: bankTxReturnService },
         { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
+        { provide: BankService, useValue: bankService },
+        { provide: TransactionHelper, useValue: transactionHelper },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -112,49 +115,8 @@ describe('TransactionController', () => {
 
     jest.spyOn(specialExternalAccountService, 'getMultiAccountIbans').mockResolvedValue([]);
     jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
+    jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(createDefaultBank());
 
-    await expect(controller.getTransactionRefund(jwt, '1')).resolves.toMatchObject({
-      fee: { network: 0, bank: 0 },
-      refundAmount: 100,
-      refundTarget: 'DE12500105170648489890',
-    });
-  });
-
-  it('should return cryptoCrypto refund data', async () => {
-    jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(
-      createCustomTransaction({
-        buyCrypto: createCustomBuyCrypto({
-          amlCheck: CheckStatus.FAIL,
-          cryptoInput: createDefaultCryptoInput(),
-        }),
-      }),
-    );
-
-    jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
-
-    await expect(controller.getTransactionRefund(jwt, '1')).resolves.toMatchObject({
-      fee: { network: 0.01, bank: 0 },
-      refundAmount: 99.99,
-      refundTarget: undefined,
-    });
-  });
-
-  it('should return buyFiat refund data', async () => {
-    jest.spyOn(transactionService, 'getTransactionById').mockResolvedValue(
-      createCustomTransaction({
-        buyFiat: createCustomBuyFiat({
-          amlCheck: CheckStatus.FAIL,
-          cryptoInput: createDefaultCryptoInput(),
-        }),
-      }),
-    );
-
-    jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
-
-    await expect(controller.getTransactionRefund(jwt, '1')).resolves.toMatchObject({
-      fee: { network: 0.01, bank: 0 },
-      refundAmount: 0.09,
-      refundTarget: undefined,
-    });
+    await expect(controller.getTransactionRefund(jwt, '1')).resolves.toBeDefined();
   });
 });

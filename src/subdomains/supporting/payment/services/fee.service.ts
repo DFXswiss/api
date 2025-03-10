@@ -29,7 +29,7 @@ import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { InternalFeeDto } from '../dto/fee.dto';
+import { InternalChargebackFeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
@@ -48,6 +48,7 @@ export interface FeeRequest extends FeeRequestBase {
 
 export interface OptionalFeeRequest extends FeeRequestBase {
   user?: User;
+  userData?: UserData;
   wallet?: Wallet;
   accountType?: AccountType;
 }
@@ -55,11 +56,11 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 export interface FeeRequestBase {
   wallet?: Wallet;
   paymentMethodIn: PaymentMethod;
-  paymentMethodOut: PaymentMethod;
+  paymentMethodOut?: PaymentMethod;
   bankIn: CardBankName | IbanBankName;
-  bankOut: CardBankName | IbanBankName;
+  bankOut?: CardBankName | IbanBankName;
   from: Active;
-  to: Active;
+  to?: Active;
   txVolume?: number;
   specialCodes: string[];
   allowCachedBlockchainFee: boolean;
@@ -220,6 +221,17 @@ export class FeeService implements OnModuleInit {
     const fee = await this.getAllFees().then((fees) => fees.find((f) => f.specialCode === specialCode));
     if (!fee) throw new NotFoundException(`Discount code ${specialCode} not found`);
     return fee;
+  }
+
+  async getChargebackFee(request: OptionalFeeRequest): Promise<InternalChargebackFeeDto> {
+    const userFees = await this.getValidFees(request);
+
+    try {
+      return await this.calculateChargebackFee(userFees, request.from, request.allowCachedBlockchainFee);
+    } catch (e) {
+      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      throw e;
+    }
   }
 
   async getUserFee(request: UserFeeRequest): Promise<InternalFeeDto> {
@@ -392,6 +404,29 @@ export class FeeService implements OnModuleInit {
     };
   }
 
+  private async calculateChargebackFee(
+    fees: Fee[],
+    from: Active,
+    allowCachedBlockchainFee: boolean,
+  ): Promise<InternalChargebackFeeDto> {
+    const blockchainFee = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
+
+    // get chargeback fees
+    const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
+    const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
+
+    const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
+    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
+
+    if (!chargebackFees.length) throw new InternalServerErrorException('Chargeback fee is missing');
+    return {
+      fees: chargebackFees,
+      rate: combinedChargebackFeeRate,
+      fixed: combinedChargebackFixedFee ?? 0,
+      network: Math.min(chargebackMinFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+    };
+  }
+
   private async calculateBlockchainFeeInChf(asset: Asset, allowExpiredPrice: boolean): Promise<number> {
     const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
     const price = await this.pricingService.getPrice(feeAsset, this.chf, allowExpiredPrice);
@@ -409,19 +444,28 @@ export class FeeService implements OnModuleInit {
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
-    const accountType = request.user?.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
+    const accountType =
+      request.user?.userData?.accountType ??
+      request.userData?.accountType ??
+      request.accountType ??
+      AccountType.PERSONAL;
     const wallet = request.wallet ?? request.user?.wallet;
-    const userDataId = request.user?.userData?.id;
+    const userDataId = request.user?.userData?.id ?? request.userData?.id;
 
-    const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
+    const discountFeeIds = request.user?.userData?.individualFeeList ?? request.userData?.individualFeeList ?? [];
 
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
         (f) =>
           [FeeType.BASE].includes(f.type) ||
-          ([FeeType.DISCOUNT, FeeType.ADDITION, FeeType.RELATIVE_DISCOUNT, FeeType.BANK, FeeType.SPECIAL].includes(
-            f.type,
-          ) &&
+          ([
+            FeeType.DISCOUNT,
+            FeeType.ADDITION,
+            FeeType.RELATIVE_DISCOUNT,
+            FeeType.CHARGEBACK,
+            FeeType.BANK,
+            FeeType.SPECIAL,
+          ].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||
@@ -432,7 +476,7 @@ export class FeeService implements OnModuleInit {
     // remove ExpiredFee
     userFees
       .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired(userDataId))
-      .forEach((fee) => this.userDataService.removeFee(request.user.userData, fee.id));
+      .forEach((fee) => this.userDataService.removeFee(request.user?.userData ?? request.userData, fee.id));
 
     return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet, userDataId }));
   }
