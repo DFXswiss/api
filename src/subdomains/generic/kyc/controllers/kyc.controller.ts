@@ -48,6 +48,7 @@ import {
   KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
+  KycOperationalData,
   KycPersonalData,
   KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
@@ -278,6 +279,17 @@ export class KycController {
     @Body() data: KycBeneficialData,
   ): Promise<KycStepBase> {
     return this.kycService.updateBeneficialOwnerData(code, +id, data);
+  }
+
+  @Put('data/operational/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateOperationalData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycOperationalData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateOperationActivityData(code, +id, data);
   }
 
   @Put('data/authority/:id')
