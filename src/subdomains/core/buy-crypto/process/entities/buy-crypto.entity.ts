@@ -399,6 +399,7 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
+    blockchainFee?: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -411,6 +412,7 @@ export class BuyCrypto extends IEntity {
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
       mailSendDate: null,
+      blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
     };
 
