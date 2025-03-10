@@ -151,7 +151,7 @@ export class BuyCryptoService {
 
       if (!bankData)
         await this.bankDataService.createVerifyBankData(buy.userData, {
-          name: checkoutTx.cardName ?? buy.userData.completeName,
+          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
