@@ -43,7 +43,7 @@ import {
 } from '../dto/ident-result.dto';
 import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
-  BeneficialOwnerData,
+  ContactPersonData,
   KycBeneficialData,
   KycContactData,
   KycFileData,
@@ -554,7 +554,7 @@ export class KycService {
   }
 
   private async createRelatedUserData(
-    owner: BeneficialOwnerData,
+    owner: ContactPersonData,
     user: UserData,
     relation: UserDataRelationState,
   ): Promise<UserData> {

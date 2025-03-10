@@ -128,7 +128,7 @@ export class KycSignatoryPowerData {
   signatoryPower: SignatoryPower;
 }
 
-export class BeneficialOwnerData extends KycAddress {
+export class ContactPersonData extends KycAddress {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -153,20 +153,20 @@ export class KycBeneficialData {
   @IsBoolean()
   accountHolderIsBeneficialOwner: boolean;
 
-  @ApiPropertyOptional({ type: BeneficialOwnerData })
+  @ApiPropertyOptional({ type: ContactPersonData })
   @ValidateIf((d: KycBeneficialData) => !d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
   @IsNotEmpty()
   @ValidateNested()
-  @Type(() => BeneficialOwnerData)
-  managingDirector: BeneficialOwnerData;
+  @Type(() => ContactPersonData)
+  managingDirector: ContactPersonData;
 
-  @ApiPropertyOptional({ type: BeneficialOwnerData, isArray: true })
+  @ApiPropertyOptional({ type: ContactPersonData, isArray: true })
   @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
   @IsNotEmpty()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => BeneficialOwnerData)
-  beneficialOwners: BeneficialOwnerData[] = [];
+  @Type(() => ContactPersonData)
+  beneficialOwners: ContactPersonData[] = [];
 }
 
 export class KycOperationalData {
