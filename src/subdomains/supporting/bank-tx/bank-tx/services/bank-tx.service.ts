@@ -249,10 +249,11 @@ export class BankTxService {
     return this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx', 'bankTx')
-      .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
+      .leftJoinAndSelect('bankTx.transaction', 'transaction')
+      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
         remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
-      .orderBy('id', 'DESC')
+      .orderBy('bankTx.id', 'DESC')
       .getOne();
   }
 
