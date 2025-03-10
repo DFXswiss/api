@@ -78,9 +78,11 @@ export class AmlService {
   ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     let bankData = await this.getBankData(entity);
+    this.logger.verbose(`amlInput bankData ${entity.id}`);
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+      this.logger.verbose(`amlInput nameCheck ${entity.id}`);
 
       // merge & bank transaction verification
       if (bankData.approved) {
@@ -101,7 +103,11 @@ export class AmlService {
                 ? [entity.userData.id, bankData.userData.id]
                 : [bankData.userData.id, entity.userData.id];
 
+            this.logger.verbose(`amlInput mergeBefore ${entity.id}`);
+
             await this.userDataService.mergeUserData(masterId, slaveId, entity.userData.mail, true);
+
+            this.logger.verbose(`amlInput mergeAfter ${entity.id}`);
 
             entity.userData = await this.userDataService.getUserData(masterId, { users: true });
             if (masterId !== bankData.userData.id) bankData = await this.getBankData(entity);

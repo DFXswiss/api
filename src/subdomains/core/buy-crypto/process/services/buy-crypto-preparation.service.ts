@@ -92,6 +92,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
+        this.logger.verbose(`amlCheck buyCrypto currencies ${entity.id}`);
+
         const isPayment = Boolean(entity.cryptoInput?.isPayment);
         const minVolume = await this.transactionHelper.getMinVolume(
           inputCurrency,
@@ -100,6 +102,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           false,
           isPayment,
         );
+        this.logger.verbose(`amlCheck buyCrypto minVolume ${entity.id}`);
 
         const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;

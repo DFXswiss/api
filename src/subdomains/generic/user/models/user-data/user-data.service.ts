@@ -804,7 +804,11 @@ export class UserDataService {
         },
       }),
     ]);
+    this.logger.verbose(`mergeLog userData load ${master.id}/${slave.id}`);
+
     master.checkIfMergePossibleWith(slave);
+
+    this.logger.verbose(`mergeLog merge check ${master.id}/${slave.id}`);
 
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
 
@@ -823,8 +827,12 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
+    this.logger.verbose(`mergeLog build merge string ${master.id}/${slave.id}`);
+
     const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with mail ${slave.mail} and firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
     this.logger.info(log);
+
+    this.logger.verbose(`mergeLog logged merge string ${master.id}/${slave.id}`);
 
     await this.updateBankTxTime(slave.id);
 
