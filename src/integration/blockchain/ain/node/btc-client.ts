@@ -10,6 +10,16 @@ export interface TransactionHistory {
   amount: number;
 }
 
+export interface TestMempoolResult {
+  txid: string;
+  allowed: boolean;
+  vsize: number;
+  fees: {
+    base: number;
+  };
+  'reject-reason': string;
+}
+
 export class BtcClient extends NodeClient {
   async send(
     addressTo: string,
@@ -58,6 +68,17 @@ export class BtcClient extends NodeClient {
         ),
       true,
     ).then((r) => r.txid);
+  }
+
+  async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
+    return this.callNode<TestMempoolResult[]>(
+      (c) => c.call(NodeCommand.TEST_MEMPOOL_ACCEPT, [[hex], null], 'number'),
+      true,
+    );
+  }
+
+  async sendRawTransaction(hex: string): Promise<string> {
+    return this.callNode<string>((c) => c.call(NodeCommand.SEND_RAW_TRANSACTION, [hex, null], 'number'), true);
   }
 
   async getRecentHistory(txCount = 100): Promise<TransactionHistory[]> {

@@ -45,6 +45,7 @@ export class CryptoService {
     asset: Asset,
     address: string,
     amount: number,
+    label?: string,
   ): Promise<string | undefined> {
     if (!isValid) return undefined;
 
@@ -53,7 +54,7 @@ export class CryptoService {
         return this.lightningService.getInvoiceByLnurlp(address, amount);
 
       case Blockchain.BITCOIN:
-        return this.nodeService.getBtcPaymentRequest(address, amount);
+        return this.nodeService.getBtcPaymentRequest(address, amount, label);
 
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
@@ -63,6 +64,9 @@ export class CryptoService {
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
         return EvmUtil.getPaymentRequest(address, asset, amount);
+
+      case Blockchain.MONERO:
+        return this.moneroService.getPaymentRequest(address, amount);
 
       default:
         return undefined;

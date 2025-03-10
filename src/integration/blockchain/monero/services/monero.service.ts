@@ -33,4 +33,8 @@ export class MoneroService extends BlockchainService {
   async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
     return this.client.verifySignature(message, address, signature).then((v) => v.good);
   }
+
+  getPaymentRequest(address: string, amount: number): string {
+    return `monero:${address}?tx_amount=${amount}`;
+  }
 }

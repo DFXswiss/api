@@ -13,6 +13,8 @@ export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
   SEND = 'send',
+  TEST_MEMPOOL_ACCEPT = 'testmempoolaccept',
+  SEND_RAW_TRANSACTION = 'sendrawtransaction',
 }
 
 export class NodeClient {
