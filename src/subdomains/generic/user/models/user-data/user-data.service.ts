@@ -778,39 +778,41 @@ export class UserDataService {
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
 
-    const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({
-        where: { id: masterId },
-        relations: {
-          users: { wallet: true },
-          bankDatas: true,
-          accountRelations: true,
-          relatedAccountRelations: true,
-          kycSteps: true,
-          supportIssues: true,
-          wallet: true,
-          transactions: true,
-          language: true,
-        },
-        loadEagerRelations: false,
-      }),
-      this.userDataRepo.findOne({
-        where: { id: slaveId },
-        relations: {
-          users: { wallet: true },
-          bankDatas: true,
-          accountRelations: true,
-          relatedAccountRelations: true,
-          kycSteps: true,
-          supportIssues: true,
-          wallet: true,
-          transactions: true,
-          language: true,
-        },
-        loadEagerRelations: false,
-      }),
-    ]);
+    this.logger.info(`Merge Memory before userData load: ${Util.createMemoryLogString()}`);
 
+    const master = await this.userDataRepo.findOne({
+      where: { id: masterId },
+      relations: {
+        users: { wallet: true },
+        bankDatas: true,
+        accountRelations: true,
+        relatedAccountRelations: true,
+        kycSteps: true,
+        supportIssues: true,
+        wallet: true,
+        transactions: true,
+        language: true,
+      },
+      loadEagerRelations: false,
+    });
+
+    const slave = await this.userDataRepo.findOne({
+      where: { id: slaveId },
+      relations: {
+        users: { wallet: true },
+        bankDatas: true,
+        accountRelations: true,
+        relatedAccountRelations: true,
+        kycSteps: true,
+        supportIssues: true,
+        wallet: true,
+        transactions: true,
+        language: true,
+      },
+      loadEagerRelations: false,
+    });
+
+    this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
     this.logger.info(`Merge between ${masterId} and ${slaveId} userData loaded`);
 
     master.checkIfMergePossibleWith(slave);
