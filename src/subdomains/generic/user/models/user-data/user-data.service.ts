@@ -806,6 +806,9 @@ export class UserDataService {
         loadEagerRelations: false,
       }),
     ]);
+
+    this.logger.info(`Merge between ${masterId} and ${slaveId} userData loaded`);
+
     master.checkIfMergePossibleWith(slave);
 
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
