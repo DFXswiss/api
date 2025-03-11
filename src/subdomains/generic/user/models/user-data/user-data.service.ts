@@ -778,38 +778,46 @@ export class UserDataService {
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
 
-    const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({
-        where: { id: masterId },
-        relations: {
-          users: { wallet: true },
-          bankDatas: true,
-          accountRelations: true,
-          relatedAccountRelations: true,
-          kycSteps: true,
-          supportIssues: true,
-          wallet: true,
-          transactions: true,
-          language: true,
-        },
-        loadEagerRelations: false,
-      }),
-      this.userDataRepo.findOne({
-        where: { id: slaveId },
-        relations: {
-          users: { wallet: true },
-          bankDatas: true,
-          accountRelations: true,
-          relatedAccountRelations: true,
-          kycSteps: true,
-          supportIssues: true,
-          wallet: true,
-          transactions: true,
-          language: true,
-        },
-        loadEagerRelations: false,
-      }),
-    ]);
+    const memoryUsage = process.memoryUsage();
+    this.logger.info(
+      `Memory before merge: Heap Used: ${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB; Heap Total: ${(
+        memoryUsage.heapTotal /
+        1024 /
+        1024
+      ).toFixed(2)} MB; RSS: ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`,
+    );
+
+    const master = await this.userDataRepo.findOne({
+      where: { id: masterId },
+      relations: {
+        users: { wallet: true },
+        bankDatas: true,
+        accountRelations: true,
+        relatedAccountRelations: true,
+        kycSteps: true,
+        supportIssues: true,
+        wallet: true,
+        transactions: true,
+        language: true,
+      },
+      loadEagerRelations: false,
+    });
+
+    const slave = await this.userDataRepo.findOne({
+      where: { id: slaveId },
+      relations: {
+        users: { wallet: true },
+        bankDatas: true,
+        accountRelations: true,
+        relatedAccountRelations: true,
+        kycSteps: true,
+        supportIssues: true,
+        wallet: true,
+        transactions: true,
+        language: true,
+      },
+      loadEagerRelations: false,
+    });
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} userData loaded`);
 
