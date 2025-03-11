@@ -778,14 +778,7 @@ export class UserDataService {
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
 
-    const memoryUsage = process.memoryUsage();
-    this.logger.info(
-      `Memory before merge: Heap Used: ${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB; Heap Total: ${(
-        memoryUsage.heapTotal /
-        1024 /
-        1024
-      ).toFixed(2)} MB; RSS: ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`,
-    );
+    this.logger.info(`Merge Memory before userData load: ${Util.createMemoryLogString()}`);
 
     const master = await this.userDataRepo.findOne({
       where: { id: masterId },
@@ -819,6 +812,7 @@ export class UserDataService {
       loadEagerRelations: false,
     });
 
+    this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
     this.logger.info(`Merge between ${masterId} and ${slaveId} userData loaded`);
 
     master.checkIfMergePossibleWith(slave);
