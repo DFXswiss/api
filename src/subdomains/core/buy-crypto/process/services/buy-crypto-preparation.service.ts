@@ -274,7 +274,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
-    if (isAsset(to) && to.type === AssetType.CUSTOM) return 0;
+    if (isAsset(to) && [AssetType.CUSTOM, AssetType.PRESALE].includes(to.type)) return 0;
 
     const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
 
