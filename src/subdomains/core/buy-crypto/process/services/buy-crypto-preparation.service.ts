@@ -182,13 +182,20 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async refreshFee(): Promise<void> {
+    const request: FindOptionsWhere<BuyCrypto> = {
+      amlCheck: CheckStatus.PASS,
+      status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+      isComplete: false,
+      inputReferenceAmount: Not(IsNull()),
+    };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        amlCheck: CheckStatus.PASS,
-        status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
-        isComplete: false,
-        inputReferenceAmount: Not(IsNull()),
-      },
+      where: [
+        {
+          outputAsset: { type: Not(AssetType.PRESALE) },
+          ...request,
+        },
+        { percentFee: IsNull(), ...request },
+      ],
       relations: {
         bankTx: true,
         checkoutTx: true,

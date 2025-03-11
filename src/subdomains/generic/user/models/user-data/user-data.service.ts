@@ -776,6 +776,8 @@ export class UserDataService {
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
+    this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
+
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({
         where: { id: masterId },
@@ -804,6 +806,9 @@ export class UserDataService {
         loadEagerRelations: false,
       }),
     ]);
+
+    this.logger.info(`Merge between ${masterId} and ${slaveId} userData loaded`);
+
     master.checkIfMergePossibleWith(slave);
 
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
