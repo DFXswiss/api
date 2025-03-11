@@ -84,7 +84,7 @@ export class ExchangeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
-    if (DisabledProcess(Process.EXCHANGE_TRADE)) throw new BadRequestException('Safety module deactivated');
+    if (DisabledProcess(Process.EXCHANGE_TRADE)) throw new BadRequestException('Process disabled');
 
     // start and register trade
     const orderId = await this.call(exchange, (e) => e.sell(from.toUpperCase(), to.toUpperCase(), amount));
@@ -121,7 +121,7 @@ export class ExchangeController {
     @Param('exchange') exchange: string,
     @Body() withdrawalDto: WithdrawalOrder,
   ): Promise<WithdrawalResponse> {
-    if (DisabledProcess(Process.EXCHANGE_WITHDRAWAL)) throw new BadRequestException('Safety module deactivated');
+    if (DisabledProcess(Process.EXCHANGE_WITHDRAWAL)) throw new BadRequestException('Process disabled');
 
     const token = withdrawalDto.token.toUpperCase();
     const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.call(exchange, (e) => e.getBalance(token));

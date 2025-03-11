@@ -38,7 +38,7 @@ export class PayoutService {
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {
-      if (DisabledProcess(Process.CRYPTO_PAYOUT)) throw new BadRequestException('Safety module deactivated');
+      if (DisabledProcess(Process.CRYPTO_PAYOUT)) throw new BadRequestException('Process disabled');
 
       if (request.amount < 0) throw new Error('Amount is lower 0');
 
