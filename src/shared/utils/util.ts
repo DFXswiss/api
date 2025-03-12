@@ -537,7 +537,7 @@ export class Util {
     return Boolean(value || value === '');
   }
 
-  static sanitize({ value }: TransformFnParams): boolean | undefined {
+  static sanitize({ value }: TransformFnParams): string | undefined {
     return value
       ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
       : value;
