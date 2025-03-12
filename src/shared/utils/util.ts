@@ -579,10 +579,6 @@ export class Util {
 
   static createMemoryLogString(): string {
     const memoryUsage = process.memoryUsage();
-    return `Heap Used: ${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB; Heap Total: ${(
-      memoryUsage.heapTotal /
-      1024 /
-      1024
-    ).toFixed(2)} MB; RSS (Total memory nest.js): ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`;
+    return `RSS (Total memory): ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`;
   }
 }
