@@ -537,7 +537,7 @@ export class Util {
     return Boolean(value || value === '');
   }
 
-  static sanitize({ value }: TransformFnParams): boolean | undefined {
+  static sanitize({ value }: TransformFnParams): string | undefined {
     return value
       ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
       : value;
@@ -575,5 +575,10 @@ export class Util {
       const timeString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
       return `${timeString} (total ${total})`;
     }
+  }
+
+  static createMemoryLogString(): string {
+    const memoryUsage = process.memoryUsage();
+    return `RSS (Total memory): ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`;
   }
 }

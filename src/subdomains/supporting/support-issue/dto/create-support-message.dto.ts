@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
@@ -9,17 +9,15 @@ export class CreateSupportMessageDto {
   @Transform(Util.sanitize)
   author?: string;
 
-  @ApiPropertyOptional()
+  @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
-  @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.file || m.message))
   message?: string;
 
   @ApiPropertyOptional({ description: 'Base64 encoded file' })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.message || m.file))
   file?: string;
 
   @ApiPropertyOptional({ description: 'Name of the file' })

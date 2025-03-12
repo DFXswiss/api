@@ -16,10 +16,10 @@ import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -51,7 +51,12 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async doAmlCheck(): Promise<void> {
-    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
+    const request: FindOptionsWhere<BuyCrypto> = {
+      inputAmount: Not(IsNull()),
+      inputAsset: Not(IsNull()),
+      chargebackAllowedDateUser: IsNull(),
+      isComplete: false,
+    };
     const entities = await this.buyCryptoRepo.find({
       where: [
         {
@@ -177,20 +182,27 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async refreshFee(): Promise<void> {
+    const request: FindOptionsWhere<BuyCrypto> = {
+      amlCheck: CheckStatus.PASS,
+      status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+      isComplete: false,
+      inputReferenceAmount: Not(IsNull()),
+    };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        amlCheck: CheckStatus.PASS,
-        status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
-        isComplete: false,
-        inputReferenceAmount: Not(IsNull()),
-      },
+      where: [
+        {
+          outputAsset: { type: Not(AssetType.PRESALE) },
+          ...request,
+        },
+        { percentFee: IsNull(), ...request },
+      ],
       relations: {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true, userData: true }, userData: true },
       },
     });
 
@@ -262,7 +274,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
-    if (isAsset(to) && to.type === AssetType.CUSTOM) return 0;
+    if (isAsset(to) && [AssetType.CUSTOM, AssetType.PRESALE].includes(to.type)) return 0;
 
     const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
 

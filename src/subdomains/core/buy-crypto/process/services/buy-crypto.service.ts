@@ -151,7 +151,7 @@ export class BuyCryptoService {
 
       if (!bankData)
         await this.bankDataService.createVerifyBankData(buy.userData, {
-          name: checkoutTx.cardName ?? buy.userData.completeName,
+          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
@@ -412,12 +412,15 @@ export class BuyCryptoService {
 
     TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    let blockchainFee: number;
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      blockchainFee = await this.transactionHelper.getBlockchainFee(buyCrypto.cryptoInput.asset, true);
       await this.payInService.returnPayIn(
         buyCrypto.cryptoInput,
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
       );
+    }
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
@@ -426,6 +429,9 @@ export class BuyCryptoService {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
+        undefined,
+        undefined,
+        blockchainFee,
       ),
     );
   }

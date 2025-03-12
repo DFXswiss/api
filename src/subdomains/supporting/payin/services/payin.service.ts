@@ -257,13 +257,16 @@ export class PayInService {
   }
 
   private async returnPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.findBy({
-      status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
-      action: PayInAction.RETURN,
-      returnTxId: IsNull(),
-      asset: Not(IsNull()),
-      chargebackAmount: Not(IsNull()),
-      isConfirmed: true,
+    const payIns = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        action: PayInAction.RETURN,
+        returnTxId: IsNull(),
+        asset: Not(IsNull()),
+        chargebackAmount: Not(IsNull()),
+        isConfirmed: true,
+      },
+      relations: { buyCrypto: true, buyFiat: true },
     });
 
     if (payIns.length === 0) return;
