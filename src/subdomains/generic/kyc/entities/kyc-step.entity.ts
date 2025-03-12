@@ -5,6 +5,7 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
+import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
@@ -56,7 +57,7 @@ export class KycStep extends IEntity {
   reminderSentDate?: Date;
 
   // --- GETTERS --- //
-  get sessionInfo(): { url: string; type: UrlType } {
+  get sessionInfo(): KycSessionInfoDto {
     const apiUrl = `${Config.url(Config.kycVersion)}/kyc`;
 
     switch (this.name) {
@@ -82,7 +83,11 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
 
       case KycStepName.BENEFICIAL_OWNER:
-        return { url: `${apiUrl}/data/beneficial/${this.id}`, type: UrlType.API };
+        return {
+          url: `${apiUrl}/data/beneficial/${this.id}`,
+          type: UrlType.API,
+          additionalInfo: { accountHolder: this.userData.naturalPersonName },
+        };
 
       case KycStepName.OPERATIONAL_ACTIVITY:
         return { url: `${apiUrl}/data/operational/${this.id}`, type: UrlType.API };
