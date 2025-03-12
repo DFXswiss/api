@@ -122,6 +122,9 @@
     "paymentMoneroAddress": {
       "value": "xxx"
     },
+    "paymentBitcoinAddress": {
+      "value": "xxx"
+    },
     "paymentCheckbotSignTx": {
       "value": "xxx"
     },
