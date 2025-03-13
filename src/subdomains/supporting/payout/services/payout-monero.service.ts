@@ -8,12 +8,12 @@ import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-ba
 
 @Injectable()
 export class PayoutMoneroService extends PayoutBitcoinBasedService {
-  private readonly moneroClient: MoneroClient;
+  private readonly client: MoneroClient;
 
   constructor(private readonly moneroService: MoneroService) {
     super();
 
-    this.moneroClient = moneroService.getDefaultClient();
+    this.client = moneroService.getDefaultClient();
   }
 
   async isHealthy(): Promise<boolean> {
@@ -21,11 +21,11 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async getUnlockedBalance(): Promise<number> {
-    return this.moneroClient.getUnlockedBalance();
+    return this.client.getUnlockedBalance();
   }
 
   async sendToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    const transfer = await this.moneroClient.sendTransfers(payout);
+    const transfer = await this.client.sendTransfers(payout);
 
     if (!transfer) {
       throw new Error(`Error while sending payment by Monero ${payout.map((p) => p.addressTo)}`);
@@ -35,11 +35,11 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async relayTransaction(hex: string): Promise<GetRelayTransactionResultDto> {
-    return this.moneroClient.relayTransaction(hex);
+    return this.client.relayTransaction(hex);
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {
-    const transaction = await this.moneroClient.getTransaction(payoutTxId);
+    const transaction = await this.client.getTransaction(payoutTxId);
 
     const isComplete = MoneroHelper.isTransactionComplete(transaction);
     const payoutFee = isComplete ? transaction.txnFee ?? 0 : 0;
@@ -48,7 +48,7 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async getEstimatedFee(): Promise<number> {
-    const feeEstimate = await this.moneroClient.getFeeEstimate();
+    const feeEstimate = await this.client.getFeeEstimate();
     return feeEstimate.fees[BaseFeePriority.slow];
   }
 }

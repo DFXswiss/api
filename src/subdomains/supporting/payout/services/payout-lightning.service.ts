@@ -5,20 +5,20 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 
 @Injectable()
 export class PayoutLightningService {
-  private readonly lightningClient: LightningClient;
+  private readonly client: LightningClient;
 
   constructor(private readonly lightningService: LightningService) {
-    this.lightningClient = lightningService.getDefaultClient();
+    this.client = lightningService.getDefaultClient();
   }
 
   async isHealthy(): Promise<boolean> {
-    return this.lightningClient.isHealthy();
+    return this.client.isHealthy();
   }
 
   async getEstimatedFee(address: string, amount: number): Promise<number> {
     const publicKey = await this.lightningService.getPublicKeyOfAddress(address);
 
-    const routes = await this.lightningClient.getLndRoutes(publicKey, amount);
+    const routes = await this.client.getLndRoutes(publicKey, amount);
 
     const maxFeeMsat = Math.max(...routes.map((r) => r.total_fees_msat), 0);
 
