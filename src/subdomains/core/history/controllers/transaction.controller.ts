@@ -333,15 +333,8 @@ export class TransactionController {
 
       const refundAsset = FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.bankTx.currency));
 
-      let refundTarget = null;
-
-      try {
-        refundTarget = (await this.validateIban(transaction.bankTx?.iban))
-          ? transaction.bankTx.iban
-          : transaction.targetEntity?.chargebackIban;
-      } catch (_) {
-        refundTarget = transaction.targetEntity?.chargebackIban;
-      }
+      const senderIbanIsValid = await this.validateIban(transaction.bankTx?.iban).catch(() => false);
+      const refundTarget = senderIbanIsValid ? transaction.bankTx?.iban : transaction.targetEntity?.chargebackIban;
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
