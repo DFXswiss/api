@@ -8,12 +8,12 @@ import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-ba
 
 @Injectable()
 export class PayoutMoneroService extends PayoutBitcoinBasedService {
-  private readonly client: MoneroClient;
+  private readonly moneroClient: MoneroClient;
 
-  constructor(private moneroService: MoneroService) {
+  constructor(private readonly moneroService: MoneroService) {
     super();
 
-    this.client = moneroService.getDefaultClient();
+    this.moneroClient = moneroService.getDefaultClient();
   }
 
   async isHealthy(): Promise<boolean> {
@@ -21,11 +21,11 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async getUnlockedBalance(): Promise<number> {
-    return this.client.getUnlockedBalance();
+    return this.moneroClient.getUnlockedBalance();
   }
 
   async sendToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    const transfer = await this.client.sendTransfers(payout);
+    const transfer = await this.moneroClient.sendTransfers(payout);
 
     if (!transfer) {
       throw new Error(`Error while sending payment by Monero ${payout.map((p) => p.addressTo)}`);
@@ -35,11 +35,11 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async relayTransaction(hex: string): Promise<GetRelayTransactionResultDto> {
-    return this.client.relayTransaction(hex);
+    return this.moneroClient.relayTransaction(hex);
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {
-    const transaction = await this.client.getTransaction(payoutTxId);
+    const transaction = await this.moneroClient.getTransaction(payoutTxId);
 
     const isComplete = MoneroHelper.isTransactionComplete(transaction);
     const payoutFee = isComplete ? transaction.txnFee ?? 0 : 0;
@@ -48,7 +48,7 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async getEstimatedFee(): Promise<number> {
-    const feeEstimate = await this.client.getFeeEstimate();
+    const feeEstimate = await this.moneroClient.getFeeEstimate();
     return feeEstimate.fees[BaseFeePriority.slow];
   }
 }

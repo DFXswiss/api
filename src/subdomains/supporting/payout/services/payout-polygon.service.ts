@@ -6,18 +6,18 @@ import { PayoutEvmService } from './payout-evm.service';
 
 @Injectable()
 export class PayoutPolygonService extends PayoutEvmService {
-  protected client: PolygonClient;
+  private readonly polygonClient: PolygonClient;
 
   constructor(polygonService: PolygonService) {
     super(polygonService);
-    this.client = polygonService.getDefaultClient<PolygonClient>();
+    this.polygonClient = polygonService.getDefaultClient<PolygonClient>();
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction();
+    return this.polygonClient.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
+    return this.polygonClient.getCurrentGasCostForTokenTransaction(token);
   }
 }

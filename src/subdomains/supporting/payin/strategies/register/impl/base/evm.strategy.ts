@@ -15,7 +15,6 @@ import { Util } from 'src/shared/utils/util';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Like } from 'typeorm';
 import { PayInEntry } from '../../../../interfaces';
-import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { RegisterStrategy } from './register.strategy';
 
@@ -27,7 +26,6 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
 
   @Inject() protected readonly alchemyWebhookService: AlchemyWebhookService;
   @Inject() protected readonly alchemyService: AlchemyService;
-  @Inject() protected readonly payInRepository: PayInRepository;
   @Inject() private readonly repos: RepositoryFactory;
 
   constructor(protected readonly payInEvmService: PayInEvmService) {

@@ -60,16 +60,16 @@ export class KycWebhookData {
 
 export class KycChangedWebhookDto extends WebhookDto<KycWebhookData> {
   @ApiProperty({ enum: [WebhookType.KYC_CHANGED] })
-  type: WebhookType.KYC_CHANGED;
+  type = WebhookType.KYC_CHANGED;
 
   @ApiProperty({ type: KycWebhookData })
-  data: KycWebhookData;
+  declare data: KycWebhookData;
 }
 
 export class KycFailedWebhookDto extends WebhookDto<KycWebhookData> {
   @ApiProperty({ enum: [WebhookType.KYC_FAILED] })
-  type: WebhookType.KYC_FAILED;
+  type = WebhookType.KYC_FAILED;
 
   @ApiProperty({ type: KycWebhookData })
-  data: KycWebhookData;
+  declare data: KycWebhookData;
 }

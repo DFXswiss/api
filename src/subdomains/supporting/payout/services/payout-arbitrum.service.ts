@@ -6,18 +6,18 @@ import { PayoutEvmService } from './payout-evm.service';
 
 @Injectable()
 export class PayoutArbitrumService extends PayoutEvmService {
-  protected client: ArbitrumClient;
+  private readonly arbitrumClient: ArbitrumClient;
 
   constructor(arbitrumService: ArbitrumService) {
     super(arbitrumService);
-    this.client = arbitrumService.getDefaultClient<ArbitrumClient>();
+    this.arbitrumClient = arbitrumService.getDefaultClient<ArbitrumClient>();
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction();
+    return this.arbitrumClient.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
+    return this.arbitrumClient.getCurrentGasCostForTokenTransaction(token);
   }
 }

@@ -3,36 +3,36 @@ import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export abstract class PayoutEvmService {
-  protected client: EvmClient;
+  private readonly evmClient: EvmClient;
 
   constructor(protected readonly service: EvmService) {
-    this.client = service.getDefaultClient();
+    this.evmClient = service.getDefaultClient();
   }
 
   async sendNativeCoin(address: string, amount: number, nonce?: number): Promise<string> {
-    return this.client.sendNativeCoinFromDex(address, amount, undefined, nonce);
+    return this.evmClient.sendNativeCoinFromDex(address, amount, undefined, nonce);
   }
 
   async sendToken(address: string, tokenName: Asset, amount: number, nonce?: number): Promise<string> {
-    return this.client.sendTokenFromDex(address, tokenName, amount, undefined, nonce);
+    return this.evmClient.sendTokenFromDex(address, tokenName, amount, undefined, nonce);
   }
 
   async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {
-    const isComplete = await this.client.isTxComplete(txHash);
-    const payoutFee = isComplete ? await this.client.getTxActualFee(txHash) : 0;
+    const isComplete = await this.evmClient.isTxComplete(txHash);
+    const payoutFee = isComplete ? await this.evmClient.getTxActualFee(txHash) : 0;
 
     return [isComplete, payoutFee];
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction();
+    return this.evmClient.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
+    return this.evmClient.getCurrentGasCostForTokenTransaction(token);
   }
 
   async getTxNonce(txHash: string): Promise<number> {
-    return this.client.getTxNonce(txHash);
+    return this.evmClient.getTxNonce(txHash);
   }
 }
