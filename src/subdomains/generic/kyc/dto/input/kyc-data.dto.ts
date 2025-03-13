@@ -151,17 +151,17 @@ export class KycBeneficialData {
   @ApiProperty({ description: 'Is the account holder a beneficial owner?' })
   @IsNotEmpty()
   @IsBoolean()
-  accountHolderIsBeneficialOwner: boolean;
+  isAccountHolderInvolved: boolean;
 
   @ApiPropertyOptional({ type: ContactPersonData })
-  @ValidateIf((d: KycBeneficialData) => !d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
+  @ValidateIf((d: KycBeneficialData) => !d.hasBeneficialOwners && !d.isAccountHolderInvolved)
   @IsNotEmpty()
   @ValidateNested()
   @Type(() => ContactPersonData)
   managingDirector: ContactPersonData;
 
   @ApiPropertyOptional({ type: ContactPersonData, isArray: true })
-  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners && !d.accountHolderIsBeneficialOwner)
+  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners && !d.isAccountHolderInvolved)
   @IsNotEmpty()
   @IsArray()
   @ValidateNested({ each: true })
