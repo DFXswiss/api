@@ -21,12 +21,22 @@ export enum KycStepReason {
 }
 
 // step
+export class KycAdditionalInfoBaseDto {}
+
+export class KycAdditionalInfoBeneficialDto extends KycAdditionalInfoBaseDto {
+  @ApiProperty()
+  accountHolder: string;
+}
+
 export class KycSessionInfoDto {
   @ApiProperty()
   url: string;
 
   @ApiProperty({ enum: UrlType })
   type: UrlType;
+
+  @ApiPropertyOptional()
+  additionalInfo?: KycAdditionalInfoBaseDto;
 }
 
 export class KycStepBase {

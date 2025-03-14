@@ -636,8 +636,8 @@ export class UserDataService {
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
   ): Promise<Partial<UserData>> {
-    if (dto.countryId) {
-      userData.country = await this.countryService.getCountry(dto.countryId);
+    if (dto.countryId || dto.country) {
+      userData.country = await this.countryService.getCountry(dto.countryId ?? dto.country.id);
       if (!userData.country) throw new BadRequestException('Country not found');
     }
 
