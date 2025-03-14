@@ -1,11 +1,10 @@
 import {
-  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
-  forwardRef,
+  forwardRef
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
@@ -45,7 +44,7 @@ export class TfaService {
     private readonly tfaRepo: TfaLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TFA_CACHE })
   processCleanupSecretCache() {
@@ -60,10 +59,13 @@ export class TfaService {
 
   async setup(kycHash: string, level: TfaLevel): Promise<Setup2faDto> {
     const user = await this.getUser(kycHash);
+    let type: TfaType;
+    let secret: string;
+    let uri: string;
     if (user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
       // mail 2FA
-      const type = TfaType.MAIL;
-      const secret = Util.randomId().toString().slice(0, 6);
+      type = TfaType.MAIL;
+      secret = Util.randomId().toString().slice(0, 6);
       const codeExpiryMinutes = 30;
 
       this.secretCache.set(user.id, {
@@ -77,20 +79,34 @@ export class TfaService {
 
       return { type };
     } else {
-      // app 2FA
-      if (user.totpSecret) throw new ConflictException('2FA already set up');
+      // 2FA app or passkey
+      const generated = generateSecret({ name: 'DFX.swiss', account: user.mail ?? '' });
 
-      const type = TfaType.APP;
-      const { secret, uri } = generateSecret({ name: 'DFX.swiss', account: user.mail ?? '' });
-
-      this.secretCache.set(user.id, {
-        type,
-        secret,
-        expiryDate: Util.hoursAfter(3),
-      });
-
-      return { type, secret, uri };
+      if (user.publicPasskey) {
+        // passkey already set up
+        type = TfaType.PASSKEY;
+        secret = generated.secret;
+        this.secretCache.set(user.id, {
+          type,
+          secret,
+          expiryDate: Util.hoursAfter(3),
+        });
+      } else if (user.totpSecret) {
+        // 2FA already set up
+        type = TfaType.APP;
+      } else {
+        type = TfaType.UNDEFINED;
+        secret = generated.secret;
+        uri = generated.uri;
+        this.secretCache.set(user.id, {
+          type,
+          secret,
+          expiryDate: Util.hoursAfter(3),
+        });
+      }
     }
+
+    return { type, secret, uri };
   }
 
   async verify(kycHash: string, token: string, ip: string): Promise<void> {

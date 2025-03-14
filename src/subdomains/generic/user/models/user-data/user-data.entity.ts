@@ -341,6 +341,10 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   totpSecret?: string;
 
+  // Passkey
+  @Column({ nullable: true })
+  publicPasskey?: string;
+
   // Point of Sale
   @Column({ default: false })
   paymentLinksAllowed: boolean;
