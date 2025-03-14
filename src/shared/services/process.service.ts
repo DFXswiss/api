@@ -80,7 +80,7 @@ export function DisabledProcess(process: Process): boolean {
 
 @Injectable()
 export class ProcessService implements OnModuleInit {
-  private safetyModeInactive = false;
+  private safetyModeInactive = true;
 
   constructor(private readonly settingService: SettingService) {}
 
@@ -95,13 +95,13 @@ export class ProcessService implements OnModuleInit {
     const allDisabledProcesses = [
       ...(await this.settingService.getDisabledProcesses()),
       ...Config.disabledProcesses(),
-      ...(this.safetyModeInactive ? safetyProcesses : undefined),
+      ...(this.safetyModeInactive ? undefined : safetyProcesses),
     ];
     DisabledProcesses = this.listToMap(allDisabledProcesses);
   }
 
-  public setSafetyMode(deactivate: boolean) {
-    this.safetyModeInactive = deactivate;
+  public setSafetyModeActive(active: boolean) {
+    this.safetyModeInactive = !active;
   }
 
   private listToMap(processes: Process[]): ProcessMap {
