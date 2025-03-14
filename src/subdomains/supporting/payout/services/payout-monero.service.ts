@@ -10,7 +10,7 @@ import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-ba
 export class PayoutMoneroService extends PayoutBitcoinBasedService {
   private readonly client: MoneroClient;
 
-  constructor(private moneroService: MoneroService) {
+  constructor(private readonly moneroService: MoneroService) {
     super();
 
     this.client = moneroService.getDefaultClient();

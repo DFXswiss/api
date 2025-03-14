@@ -3,9 +3,9 @@ import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export abstract class PayoutEvmService {
-  protected client: EvmClient;
+  private readonly client: EvmClient;
 
-  constructor(protected readonly service: EvmService) {
+  constructor(service: EvmService) {
     this.client = service.getDefaultClient();
   }
 
