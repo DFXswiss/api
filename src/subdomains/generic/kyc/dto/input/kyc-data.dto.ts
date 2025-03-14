@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -58,6 +58,7 @@ export class KycAddress {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
+  @Transform(({ value }) => (value ? plainToInstance(EntityDto, { id: value.id }) : value))
   country: Country;
 }
 
