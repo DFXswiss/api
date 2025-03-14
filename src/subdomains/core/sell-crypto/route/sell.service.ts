@@ -216,7 +216,7 @@ export class SellService {
     // update user volume
     const { user } = await this.sellRepo.findOne({
       where: { id: sellId },
-      relations: ['user'],
+      relations: { user: true },
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);

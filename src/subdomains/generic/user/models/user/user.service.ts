@@ -363,7 +363,7 @@ export class UserService {
   private async updateUserDataVolume(userId: number): Promise<void> {
     const { userData } = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ['userData'],
+      relations: { userData: true },
       select: ['id', 'userData'],
     });
     await this.userDataService.updateVolumes(userData.id);
@@ -529,7 +529,7 @@ export class UserService {
   }
 
   async updateApiFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true } });
     if (!user) throw new BadRequestException('User not found');
 
     user.apiFilterCT = ApiKeyService.getFilterCode(filter);

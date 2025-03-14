@@ -265,7 +265,7 @@ export class LiquidityManagementRuleService {
           onFail: onFail ? { id: onFail?.id } : IsNull(),
           params: params ? JSON.stringify(params) : IsNull(),
         },
-        relations: ['onSuccess', 'onFail'],
+        relations: { onSuccess: true, onFail: true },
       }) ?? null
     );
   }
