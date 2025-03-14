@@ -892,6 +892,9 @@ export class KycService {
         break;
 
       case KycStepName.PERSONAL_DATA: {
+        const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
+        if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
+
         const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
         if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
         break;
