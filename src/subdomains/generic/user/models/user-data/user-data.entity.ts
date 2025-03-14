@@ -542,7 +542,11 @@ export class UserData extends IEntity {
   }
 
   get completeName(): string {
-    return this.organizationName ?? [this.firstname, this.surname].filter((n) => n).join(' ');
+    return this.organizationName ?? this.naturalPersonName;
+  }
+
+  get naturalPersonName(): string {
+    return [this.firstname, this.surname].filter((n) => n).join(' ');
   }
 
   get isBlocked(): boolean {

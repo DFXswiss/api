@@ -11,15 +11,17 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -43,6 +45,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly bankService: BankService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly bankTxService: BankTxService,
   ) {}
 
   onModuleInit() {
@@ -51,7 +54,12 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async doAmlCheck(): Promise<void> {
-    const request = { inputAmount: Not(IsNull()), inputAsset: Not(IsNull()), isComplete: false };
+    const request: FindOptionsWhere<BuyCrypto> = {
+      inputAmount: Not(IsNull()),
+      inputAsset: Not(IsNull()),
+      chargebackAllowedDateUser: IsNull(),
+      isComplete: false,
+    };
     const entities = await this.buyCryptoRepo.find({
       where: [
         {
@@ -177,20 +185,27 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async refreshFee(): Promise<void> {
+    const request: FindOptionsWhere<BuyCrypto> = {
+      amlCheck: CheckStatus.PASS,
+      status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+      isComplete: false,
+      inputReferenceAmount: Not(IsNull()),
+    };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        amlCheck: CheckStatus.PASS,
-        status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
-        isComplete: false,
-        inputReferenceAmount: Not(IsNull()),
-      },
+      where: [
+        {
+          outputAsset: { type: Not(AssetType.PRESALE) },
+          ...request,
+        },
+        { percentFee: IsNull(), ...request },
+      ],
       relations: {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true, userData: true }, userData: true },
       },
     });
 
@@ -261,8 +276,31 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     }
   }
 
+  async chargebackFillUp(): Promise<void> {
+    const entities = await this.buyCryptoRepo.findBy({
+      chargebackBankTx: IsNull(),
+      amlCheck: CheckStatus.FAIL,
+      bankTx: { id: Not(IsNull()) },
+      isComplete: false,
+      chargebackRemittanceInfo: Not(IsNull()),
+      chargebackOutput: { id: Not(IsNull()) },
+    });
+
+    for (const entity of entities) {
+      try {
+        const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
+        if (!bankTx) continue;
+
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+        await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
+      } catch (e) {
+        this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
+      }
+    }
+  }
+
   private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
-    if (isAsset(to) && to.type === AssetType.CUSTOM) return 0;
+    if (isAsset(to) && [AssetType.CUSTOM, AssetType.PRESALE].includes(to.type)) return 0;
 
     const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
 

@@ -37,11 +37,13 @@ import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { BankDataService } from '../bank-data/bank-data.service';
 import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
@@ -88,6 +90,9 @@ export class UserDataService {
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
+    private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => BankDataService))
+    private readonly bankDataService: BankDataService,
   ) {}
 
   // --- GETTERS --- //
@@ -183,7 +188,7 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
+    Object.assign(userData, await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto));
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -369,7 +374,7 @@ export class UserDataService {
         location: update.organizationLocation,
         houseNumber: update.organizationHouseNumber,
         zip: update.organizationZip,
-        countryId: update.organizationCountry?.id,
+        country: update.organizationCountry,
       };
 
       update.organization = !userData.organization
@@ -630,9 +635,9 @@ export class UserDataService {
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
-  ): Promise<void> {
-    if (dto.countryId) {
-      userData.country = await this.countryService.getCountry(dto.countryId);
+  ): Promise<Partial<UserData>> {
+    if (dto.countryId || dto.country) {
+      userData.country = await this.countryService.getCountry(dto.countryId ?? dto.country.id);
       if (!userData.country) throw new BadRequestException('Country not found');
     }
 
@@ -695,7 +700,7 @@ export class UserDataService {
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
-        countryId: dto.organizationCountryId,
+        organizationCountryId: dto.organizationCountryId,
         allBeneficialOwnersName: dto.allBeneficialOwnersName,
         allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
         accountOpenerAuthorization: dto.accountOpenerAuthorization,
@@ -704,6 +709,8 @@ export class UserDataService {
         legalEntity: dto.legalEntity,
         signatoryPower: dto.signatoryPower,
       });
+
+    return userData;
   }
 
   // --- KYC CLIENTS --- //
@@ -774,41 +781,59 @@ export class UserDataService {
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
-    const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({
-        where: { id: masterId },
-        relations: {
-          users: { wallet: true },
-          bankDatas: true,
-          accountRelations: true,
-          relatedAccountRelations: true,
-          kycSteps: true,
-          supportIssues: true,
-          wallet: true,
-          transactions: true,
-        },
-      }),
-      this.userDataRepo.findOne({
-        where: { id: slaveId },
-        relations: {
-          users: { wallet: true },
-          bankDatas: true,
-          accountRelations: true,
-          relatedAccountRelations: true,
-          kycSteps: true,
-          supportIssues: true,
-          wallet: true,
-          transactions: true,
-        },
-      }),
-    ]);
+    this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
+    this.logger.info(`Merge Memory before userData load: ${Util.createMemoryLogString()}`);
+
+    const masterTransactions = await this.transactionService.getAllTransactionsForUserData(masterId);
+    const slaveTransactions = await this.transactionService.getAllTransactionsForUserData(slaveId);
+
+    const masterUsers = await this.userRepo.find({
+      where: { userData: { id: masterId } },
+      relations: { userData: true, wallet: true },
+    });
+    const slaveUsers = await this.userRepo.find({
+      where: { userData: { id: slaveId } },
+      relations: { userData: true, wallet: true },
+    });
+
+    const masterBankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
+    const slaveBankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
+
+    const master = await this.userDataRepo.findOne({
+      where: { id: masterId },
+      relations: {
+        accountRelations: true,
+        relatedAccountRelations: true,
+        kycSteps: true,
+        supportIssues: true,
+        wallet: true,
+        language: true,
+      },
+      loadEagerRelations: false,
+    });
+
+    const slave = await this.userDataRepo.findOne({
+      where: { id: slaveId },
+      relations: {
+        accountRelations: true,
+        relatedAccountRelations: true,
+        kycSteps: true,
+        supportIssues: true,
+        wallet: true,
+        language: true,
+      },
+      loadEagerRelations: false,
+    });
+
+    this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
+
     master.checkIfMergePossibleWith(slave);
 
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
 
     const mergedEntitiesString = [
-      slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
-      slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
+      slaveBankDatas.length > 0 && `bank datas ${slaveBankDatas.map((b) => b.id)}`,
+      slaveUsers.length > 0 && `users ${slaveUsers.map((u) => u.id)}`,
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
@@ -816,7 +841,7 @@ export class UserDataService {
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
       slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
-      slave.transactions.length > 0 && `transactions ${slave.transactions.map((s) => s.id)}`,
+      slaveTransactions.length > 0 && `transactions ${slaveTransactions.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -854,13 +879,13 @@ export class UserDataService {
     }
 
     // reassign bank datas, users and userDataRelations
-    master.bankDatas = master.bankDatas.concat(slave.bankDatas);
-    master.users = master.users.concat(slave.users);
+    master.bankDatas = masterBankDatas.concat(slaveBankDatas);
+    master.users = masterUsers.concat(slaveUsers);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     master.supportIssues = master.supportIssues.concat(slave.supportIssues);
-    master.transactions = master.transactions.concat(slave.transactions);
+    master.transactions = masterTransactions.concat(slaveTransactions);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 

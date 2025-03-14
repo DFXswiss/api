@@ -212,6 +212,7 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    maxIdentTries: 7,
 
     downloadTargets: [
       {
@@ -446,6 +447,7 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
     minVolume: 0.01, // CHF
 

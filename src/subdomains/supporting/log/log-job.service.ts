@@ -88,7 +88,9 @@ export class LogJobService {
     const tradingLog = await this.getTradingLog();
 
     // assets
-    const assets = await this.assetService.getAllAssets().then((l) => l.filter((a) => a.type !== AssetType.CUSTOM));
+    const assets = await this.assetService
+      .getAllAssets()
+      .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
     // asset log
     const assetLog = await this.getAssetLog(assets);

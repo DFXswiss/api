@@ -399,6 +399,7 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
+    blockchainFee?: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -411,6 +412,7 @@ export class BuyCrypto extends IEntity {
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
       mailSendDate: null,
+      blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
     };
 
@@ -547,6 +549,10 @@ export class BuyCrypto extends IEntity {
 
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
+  }
+
+  get chargebackBankRemittanceInfo(): string {
+    return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
   get inputPriceStep(): PriceStep[] {
