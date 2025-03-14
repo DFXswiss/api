@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -58,6 +58,7 @@ export class KycAddress {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
+  @Transform(({ value }) => (value ? plainToInstance(EntityDto, { id: value.id }) : value))
   country: Country;
 }
 
@@ -128,7 +129,7 @@ export class KycSignatoryPowerData {
   signatoryPower: SignatoryPower;
 }
 
-export class BeneficialOwnerData extends KycAddress {
+export class ContactPersonData extends KycAddress {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -148,13 +149,37 @@ export class KycBeneficialData {
   @IsBoolean()
   hasBeneficialOwners: boolean;
 
-  @ApiPropertyOptional({ type: BeneficialOwnerData, isArray: true })
-  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners)
+  @ApiProperty({ description: 'Is the account holder a beneficial owner?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  isAccountHolderInvolved: boolean;
+
+  @ApiPropertyOptional({ type: ContactPersonData })
+  @ValidateIf((d: KycBeneficialData) => !d.hasBeneficialOwners && !d.isAccountHolderInvolved)
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => ContactPersonData)
+  managingDirector: ContactPersonData;
+
+  @ApiPropertyOptional({ type: ContactPersonData, isArray: true })
+  @ValidateIf((d: KycBeneficialData) => d.hasBeneficialOwners && !d.isAccountHolderInvolved)
   @IsNotEmpty()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => BeneficialOwnerData)
-  beneficialOwners: BeneficialOwnerData[] = [];
+  @Type(() => ContactPersonData)
+  beneficialOwners: ContactPersonData[] = [];
+}
+
+export class KycOperationalData {
+  @ApiProperty({ description: 'Is the organization operationally active?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  isOperational: boolean;
+
+  @ApiPropertyOptional({ description: 'Organization Website URL' })
+  @IsOptional()
+  @IsString()
+  websiteUrl: string;
 }
 
 export class KycNationalityData {

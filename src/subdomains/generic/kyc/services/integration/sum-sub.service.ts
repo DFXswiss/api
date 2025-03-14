@@ -95,7 +95,7 @@ export class SumsubService {
         applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
       }`,
       'GET',
-      '{}',
+      undefined,
       'arraybuffer',
     ).then(Buffer.from);
 
@@ -111,7 +111,7 @@ export class SumsubService {
       const content = await this.callApi<string>(
         `/resources/inspections/${applicant.inspectionId}/resources/${image.id}`,
         'GET',
-        '{}',
+        undefined,
         'arraybuffer',
       ).then(Buffer.from);
 
@@ -133,7 +133,7 @@ export class SumsubService {
       const content = await this.callApi<string>(
         `/resources/videoIdent/applicant/${applicantId}/media/${composition.compositionMediaId}`,
         'GET',
-        '{}',
+        undefined,
         'arraybuffer',
       ).then(Buffer.from);
 
@@ -152,7 +152,6 @@ export class SumsubService {
     return this.callApi<SumSubVideoData>(
       `/resources/inspections/${applicant.inspectionId}?fields=videoIdentData`,
       'GET',
-      '{}',
     );
   }
 
@@ -199,12 +198,7 @@ export class SumsubService {
     );
   }
 
-  private async callApi<T>(
-    url: string,
-    method: Method = 'GET',
-    data: any = {},
-    responseType?: ResponseType,
-  ): Promise<T> {
+  private async callApi<T>(url: string, method: Method = 'GET', data?: any, responseType?: ResponseType): Promise<T> {
     return this.request<T>(url, method, JSON.stringify(data), responseType).catch((e: HttpError) => {
       this.logger.verbose(`Error during sum sub request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
       throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });
@@ -213,10 +207,11 @@ export class SumsubService {
 
   private async request<T>(url: string, method: Method, data?: any, responseType?: ResponseType): Promise<T> {
     const { ts, signature } = await this.createAccess(method, url, data);
+
     return this.http.request<T>({
       url: `${this.baseUrl}${url}`,
-      method: method,
-      data: data,
+      method,
+      data,
       responseType,
       headers: {
         'Content-Type': 'application/json',
@@ -231,7 +226,7 @@ export class SumsubService {
     const ts = Math.floor(Date.now() / 1000);
     const signature = crypto.createHmac('sha256', Config.kyc.secretKey);
     signature.update(ts + method.toUpperCase() + url);
-    signature.update(data);
+    data && signature.update(data);
     return { ts, signature: signature.digest('hex') };
   }
 

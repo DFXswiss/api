@@ -43,11 +43,13 @@ import {
 } from '../dto/ident-result.dto';
 import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
+  ContactPersonData,
   KycBeneficialData,
   KycContactData,
   KycFileData,
   KycManualIdentData,
   KycNationalityData,
+  KycOperationalData,
   KycPersonalData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -66,7 +68,7 @@ import {
   getSumSubReason,
   getSumsubResult,
 } from '../dto/sum-sub.dto';
-import { KycStep } from '../entities/kyc-step.entity';
+import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
@@ -396,11 +398,7 @@ export class KycService {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
 
-    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
-
-    return KycStepMapper.toStepBase(kycStep);
+    return this.updateKycStepAndLog(kycStep, user, data, requiresInternalReview);
   }
 
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
@@ -410,34 +408,22 @@ export class KycService {
     const allBeneficialOwnersName = [];
     const allBeneficialOwnersDomicile = [];
 
+    if (data.managingDirector) {
+      const managingDirector = await this.createRelatedUserData(
+        data.managingDirector,
+        user,
+        UserDataRelationState.CONTROL_HOLDER,
+      );
+
+      allBeneficialOwnersName.push(managingDirector.verifiedName);
+      allBeneficialOwnersDomicile.push(managingDirector.country.name);
+    }
+
     for (const owner of data.beneficialOwners) {
-      const beneficialOwner = await this.userDataService.createUserData({
-        kycType: KycType.DFX,
-        status: UserDataStatus.KYC_ONLY,
-        firstname: owner.firstName,
-        surname: owner.lastName,
-        street: owner.street,
-        houseNumber: owner.houseNumber,
-        location: owner.city,
-        zip: owner.zip,
-        country: owner.country,
-        verifiedName: `${owner.firstName} ${owner.lastName}`,
-        verifiedCountry: owner.country,
-        organization: user.organization,
-      });
+      const beneficialOwner = await this.createRelatedUserData(owner, user, UserDataRelationState.BENEFICIAL_OWNER);
 
       allBeneficialOwnersName.push(beneficialOwner.verifiedName);
       allBeneficialOwnersDomicile.push(beneficialOwner.country.name);
-
-      await this.userDataRelationService.createUserDataRelationInternal(beneficialOwner, user, {
-        relation: UserDataRelationState.BENEFICIAL_OWNER,
-      });
-
-      await this.bankDataService.createVerifyBankData(beneficialOwner, {
-        type: BankDataType.NAME_CHECK,
-        iban: `NameCheck-${owner.firstName}${owner.lastName}`,
-        name: beneficialOwner.verifiedName,
-      });
     }
 
     await this.userDataService.updateUserDataInternal(user, {
@@ -445,11 +431,14 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    await this.kycStepRepo.update(...kycStep.complete(data));
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
+    return this.updateKycStepAndLog(kycStep, user, data);
+  }
 
-    return KycStepMapper.toStepBase(kycStep);
+  async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    return this.updateKycStepAndLog(kycStep, user, data);
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
@@ -549,6 +538,50 @@ export class KycService {
         dto.reviewResult?.rejectLabels,
       ),
     );
+  }
+
+  private async updateKycStepAndLog(
+    kycStep: KycStep,
+    user: UserData,
+    data: KycStepResult,
+    requiresInternalReview = false,
+  ): Promise<KycStepBase> {
+    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
+  private async createRelatedUserData(
+    owner: ContactPersonData,
+    user: UserData,
+    relation: UserDataRelationState,
+  ): Promise<UserData> {
+    const beneficialOwner = await this.userDataService.createUserData({
+      kycType: KycType.DFX,
+      status: UserDataStatus.KYC_ONLY,
+      firstname: owner.firstName,
+      surname: owner.lastName,
+      street: owner.street,
+      houseNumber: owner.houseNumber,
+      location: owner.city,
+      zip: owner.zip,
+      country: owner.country,
+      verifiedName: `${owner.firstName} ${owner.lastName}`,
+      verifiedCountry: owner.country,
+      organization: user.organization,
+    });
+
+    await this.userDataRelationService.createUserDataRelationInternal(beneficialOwner, user, { relation });
+
+    await this.bankDataService.createVerifyBankData(beneficialOwner, {
+      type: BankDataType.NAME_CHECK,
+      iban: `NameCheck-${owner.firstName}${owner.lastName}`,
+      name: beneficialOwner.verifiedName,
+    });
+
+    return beneficialOwner;
   }
 
   private async updateIdent(
@@ -776,6 +809,9 @@ export class KycService {
       case KycStepName.BENEFICIAL_OWNER:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
+      case KycStepName.OPERATIONAL_ACTIVITY:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
       case KycStepName.AUTHORITY:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
@@ -856,6 +892,9 @@ export class KycService {
         break;
 
       case KycStepName.PERSONAL_DATA: {
+        const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
+        if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
+
         const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
         if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
         break;
