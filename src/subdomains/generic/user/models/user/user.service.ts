@@ -22,6 +22,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -58,6 +59,7 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -137,7 +139,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: true } });
   }
 
   async getNexCustodyIndex(): Promise<number> {
@@ -216,8 +218,9 @@ export class UserService {
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
+    user.userData.users = await this.userRepo.findBy({ userData: { id: user.userData.id } });
 
     // update
     user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
@@ -259,9 +262,10 @@ export class UserService {
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
     if (user.userData.completeName) throw new BadRequestException('Name is already set');
+    user.userData.users = await this.userRepo.findBy({ userData: { id: user.userData.id } });
 
     await this.userDataService.updateUserName(user.userData, dto);
   }
@@ -269,10 +273,11 @@ export class UserService {
   async updateUserData(id: number, dto: KycInputDataDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({
       where: { id },
-      relations: { userData: { users: true }, wallet: true },
+      relations: { userData: true, wallet: true },
     });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0 || (user.userData.mail && user.userData.mail !== dto.mail))
       throw new BadRequestException('KYC already started, mail already set');
+    user.userData.users = await this.userRepo.findBy({ userData: { id: user.userData.id } });
 
     user.userData = await this.userDataService.trySetUserMail(user.userData, dto.mail);
     user.userData = await this.userDataService.updatePersonalData(user.userData, dto);
@@ -311,12 +316,14 @@ export class UserService {
   }
 
   async deactivateUser(userDataId: number, address?: string): Promise<void> {
-    const userData = await this.userDataRepo.findOne({
-      where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
-    });
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (!userData) throw new NotFoundException('User account not found');
     if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
+    userData.users = await this.userRepo.find({
+      where: { userData: { id: userData.id } },
+      relations: { wallet: true },
+    });
+    userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
 
     if (address) {
       const user = userData.users.find((u) => u.address === address);
