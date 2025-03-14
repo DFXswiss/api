@@ -58,7 +58,6 @@ export class KycAddress {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  @Transform(({ value }) => (value && typeof value === 'object' ? { id: value.id } : value), { toClassOnly: true })
   country: Country;
 }
 
