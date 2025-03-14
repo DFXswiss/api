@@ -66,7 +66,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         cryptoInput: true,
         sell: true,
-        transaction: { user: { wallet: true }, userData: { users: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -93,7 +93,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           isPayment,
         );
 
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { users, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
@@ -105,7 +105,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           false,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
+          users,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
@@ -114,7 +114,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           false,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
-          entity.userData.users,
+          users,
         );
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));

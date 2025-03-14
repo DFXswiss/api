@@ -75,7 +75,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true }, userData: { users: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -104,7 +104,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           isPayment,
         );
 
-        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
+        const { users, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
@@ -116,7 +116,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           false,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
-          entity.userData.users,
+          users,
           'checkoutTx',
         );
 
@@ -126,7 +126,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           false,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
+          users,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
@@ -135,7 +135,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           false,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
-          entity.userData.users,
+          users,
         );
 
         const ibanCountry =

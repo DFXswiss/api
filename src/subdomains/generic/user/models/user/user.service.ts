@@ -68,6 +68,10 @@ export class UserService {
     return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
+  async getAllUserDataUsers(userDataId: number, relations: FindOptionsRelations<User> = {}): Promise<User[]> {
+    return this.userRepo.find({ where: { userData: { id: userDataId } }, relations });
+  }
+
   async getUserByAddress(address: string, relations: FindOptionsRelations<User> = {}): Promise<User> {
     return this.userRepo.findOne({ where: { address }, relations });
   }
