@@ -431,11 +431,7 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    return this.updateKycStepAndLog(kycStep, user, {
-      ...data,
-      managingDirector: this.mapContactData(data.managingDirector),
-      beneficialOwners: data.beneficialOwners.map((b) => this.mapContactData(b)),
-    });
+    return this.updateKycStepAndLog(kycStep, user, data);
   }
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
@@ -660,19 +656,6 @@ export class KycService {
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
-  }
-
-  private mapContactData(contactData: ContactPersonData) {
-    if (!contactData) return undefined;
-    return {
-      firstName: contactData.firstName,
-      lastName: contactData.firstName,
-      city: contactData.city,
-      country: { id: contactData.country.id },
-      street: contactData.street,
-      zip: contactData.zip,
-      houseNumber: contactData.houseNumber,
-    };
   }
 
   async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycStepBase> {
