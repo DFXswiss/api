@@ -66,11 +66,7 @@ export class TransactionRequestService {
     });
 
     for (const entity of entities) {
-      try {
-        await this.transactionRequestRepo.update(entity.id, { status: TransactionRequestStatus.CREATED });
-      } catch (e) {
-        this.logger.error(`Error in TxRequest waiting expiry check for id ${entity.id}`, e);
-      }
+      await this.transactionRequestRepo.update(entity.id, { status: TransactionRequestStatus.CREATED });
     }
   }
 

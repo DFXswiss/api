@@ -188,13 +188,13 @@ export class BuyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse()
-  async confirmTransactionRequest(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
       throw new ConflictException('Transaction request is already confirmed');
     if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)
-      throw new BadRequestException('Transaction request too old to confirm');
+      throw new BadRequestException('Transaction request is expired');
 
     await this.transactionRequestService.confirmTransactionRequest(request);
   }
