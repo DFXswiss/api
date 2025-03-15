@@ -29,12 +29,12 @@ export class BuyCryptoDexService {
     try {
       const newBatches = await this.buyCryptoBatchRepo.find({
         where: { status: BuyCryptoBatchStatus.CREATED },
-        relations: ['transactions'],
+        relations: { transactions: true },
       });
 
       const pendingBatches = await this.buyCryptoBatchRepo.find({
         where: { status: BuyCryptoBatchStatus.PENDING_LIQUIDITY },
-        relations: ['transactions'],
+        relations: { transactions: true },
       });
 
       await this.checkPendingBatches(pendingBatches);

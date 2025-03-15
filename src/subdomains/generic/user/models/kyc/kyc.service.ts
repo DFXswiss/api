@@ -61,7 +61,7 @@ export class KycService {
     const wallet = await this.walletRepo.findOneBy({ name: dto.walletName });
     if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
 
-    const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true } });
     if (!dfxUser) throw new NotFoundException('DFX user not found');
     if (dfxUser.userData.kycLevel < KycLevel.LEVEL_30) throw new ConflictException('KYC required');
     if (!wallet.apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
@@ -77,7 +77,10 @@ export class KycService {
       throw new ServiceUnavailableException(`Failed to transfer KYC data: ${e.message}`);
     }
 
-    const externalUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
+    const externalUser = await this.userRepo.findOne({
+      where: { address: result.kycId },
+      relations: { userData: true },
+    });
     if (!externalUser) throw new NotFoundException('KYC user not found');
     if (dfxUser.userData.id == externalUser.userData.id) throw new ConflictException('User already merged');
 
@@ -139,8 +142,9 @@ export class KycService {
   }
 
   private async getUserById(id: number): Promise<UserData> {
-    const userData = await this.userDataService.getUserData(id, { users: true });
+    const userData = await this.userDataService.getUserData(id);
     if (!userData) throw new NotFoundException('User not found');
+    userData.users = await this.userRepo.findBy({ userData: { id } });
     return userData;
   }
 
@@ -158,7 +162,7 @@ export class KycService {
   async getAllKycData(walletId: number): Promise<KycDataDto[]> {
     const wallet = await this.walletRepo.findOne({
       where: { id: walletId },
-      relations: ['users', 'users.userData'],
+      relations: { users: { userData: true } },
     });
 
     return wallet.users.map((b) => this.toKycDataDto(b));
@@ -167,7 +171,7 @@ export class KycService {
   async getKycFiles(userAddress: string, walletId: number): Promise<KycFileDto[]> {
     const user = await this.userRepo.findOne({
       where: { address: userAddress, wallet: { id: walletId } },
-      relations: ['userData', 'wallet'],
+      relations: { userData: true, wallet: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -182,7 +186,7 @@ export class KycService {
   async getKycFile(userAddress: string, walletId: number, type: KycDocumentType): Promise<any> {
     const user = await this.userRepo.findOne({
       where: { address: userAddress, wallet: { id: walletId } },
-      relations: ['userData', 'wallet'],
+      relations: { userData: true, wallet: true },
     });
     if (!user) throw new NotFoundException('User not found');
 

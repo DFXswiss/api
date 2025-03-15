@@ -106,7 +106,7 @@ export class PayInService {
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
     return this.payInRepository.find({
       where: { route: { user: { id: In(userIds) } } },
-      relations: ['route', 'route.user'],
+      relations: { route: { user: true } },
       order: { id: 'DESC' },
     });
   }
