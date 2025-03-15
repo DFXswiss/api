@@ -557,7 +557,9 @@ export class UserDataService {
       }
     }
 
-    return this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(...userData.setUserDataSettings(dto));
+
+    return Object.assign(userData, dto);
   }
 
   // --- KYC --- //
