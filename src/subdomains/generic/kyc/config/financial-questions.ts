@@ -13,7 +13,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     key: 'tnc',
     type: QuestionType.CONFIRMATION,
     options: ['accept'],
-    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL, AccountType.ORGANIZATION],
   },
   {
     key: 'own_funds',
@@ -42,7 +41,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
       'pension',
       'gambling',
     ],
-    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL, AccountType.ORGANIZATION],
   },
   {
     key: 'operative',
@@ -128,24 +126,20 @@ export const FinancialQuestions: FinancialQuestion[] = [
     key: 'risky_business',
     type: QuestionType.SINGLE_CHOICE,
     options: ['yes', 'no'],
-    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL, AccountType.ORGANIZATION],
   },
   {
     key: 'income',
     type: QuestionType.SINGLE_CHOICE,
     options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'],
-    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL, AccountType.ORGANIZATION],
   },
   {
     key: 'assets',
     type: QuestionType.SINGLE_CHOICE,
     options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'],
-    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL, AccountType.ORGANIZATION],
   },
   {
     key: 'notification_of_changes',
     type: QuestionType.CONFIRMATION,
     options: ['accept'],
-    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL, AccountType.ORGANIZATION],
   },
 ];
