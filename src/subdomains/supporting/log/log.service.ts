@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Equal } from 'typeorm';
@@ -10,6 +11,8 @@ import { LogRepository } from './log.repository';
 
 @Injectable()
 export class LogService {
+  private readonly logger = new DfxLogger(LogService);
+
   constructor(private readonly logRepo: LogRepository, private readonly settingService: SettingService) {}
 
   @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { process: Process.LOG_CLEANUP })
@@ -23,8 +26,10 @@ export class LogService {
 
   async create(dto: CreateLogDto): Promise<Log> {
     const maxEntity = await this.maxEntity(dto.system, dto.subsystem, dto.severity);
-    if (dto.message === maxEntity?.message && dto.valid === maxEntity?.valid && dto.category === maxEntity?.category)
+    if (dto.message === maxEntity?.message && dto.valid === maxEntity?.valid && dto.category === maxEntity?.category) {
+      this.logger.verbose('Same log found');
       return maxEntity;
+    }
 
     const newEntity = this.logRepo.create(dto);
     return this.logRepo.save(newEntity);
