@@ -83,25 +83,33 @@ export class LogJobService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
+    this.logger.verbose('FinancialLog Start');
     // trading log
     const tradingLog = await this.getTradingLog();
+    this.logger.verbose('FinancialLog TradingLog');
 
     // assets
     const assets = await this.assetService
       .getAllAssets()
       .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
+    this.logger.verbose(`FinancialLog Assets ${assets.length}`);
 
     // asset log
     const assetLog = await this.getAssetLog(assets);
+    this.logger.verbose('FinancialLog AssetLog');
 
     // balances grouped by financialType
     const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+    this.logger.verbose('FinancialLog BalancesBFinancialType');
 
     // changes
     const changeLog = await this.getChangeLog();
+    this.logger.verbose('FinancialLog ChangeLog');
 
     const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
     const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+
+    this.logger.verbose('FinancialLog Balances');
 
     await this.logService.create({
       system: 'LogService',
