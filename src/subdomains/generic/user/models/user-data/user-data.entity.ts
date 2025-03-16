@@ -345,6 +345,9 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   publicPasskey?: string;
 
+  @Column({ type: 'integer', default: 0 })
+  signCount?: number;
+
   // Point of Sale
   @Column({ default: false })
   paymentLinksAllowed: boolean;
@@ -417,8 +420,8 @@ export class UserData extends IEntity {
         this.users.length === 0
           ? UserDataStatus.KYC_ONLY
           : this.users.some((u) => u.status === UserStatus.ACTIVE)
-          ? UserDataStatus.ACTIVE
-          : UserDataStatus.NA,
+            ? UserDataStatus.ACTIVE
+            : UserDataStatus.NA,
       deactivationDate: null,
     };
   }
@@ -568,19 +571,19 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
-        }
+        street: this.organizationStreet,
+        houseNumber: this.organizationHouseNumber,
+        city: this.organizationLocation,
+        zip: this.organizationZip,
+        country: this.organizationCountry,
+      }
       : {
-          street: this.street,
-          houseNumber: this.houseNumber,
-          city: this.location,
-          zip: this.zip,
-          country: this.country,
-        };
+        street: this.street,
+        houseNumber: this.houseNumber,
+        city: this.location,
+        zip: this.zip,
+        country: this.country,
+      };
   }
 
   get paymentLinksConfigObj(): PaymentLinkConfig {

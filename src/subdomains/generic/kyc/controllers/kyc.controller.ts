@@ -77,7 +77,7 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
+  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) { }
 
   // --- 2FA --- //
   @Get('2fa')
@@ -104,6 +104,40 @@ export class KycController {
     @Body() dto: Verify2faDto,
   ): Promise<void> {
     return this.tfaService.verify(code, dto.token, ip);
+  }
+
+  // --- Passkey --- //
+  @Post('passkey/setup')
+  @ApiCreatedResponse({ description: 'Passkey setup successful' })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async setupPasskey(
+    @Headers(CodeHeaderName) code: string,
+    @Body() credential: {
+      id: string;
+      rawId: string;
+      attestationObject: string;
+      clientDataJSON: string;
+    },
+  ): Promise<void> {
+    return this.tfaService.setupPasskey(code, credential);
+  }
+
+  @Post('passkey/verify')
+  @ApiCreatedResponse({ description: 'Passkey verification successful' })
+  @ApiUnauthorizedResponse(MergedResponse)
+  @ApiForbiddenResponse({ description: 'Invalid or expired passkey' })
+  async verifyPasskey(
+    @Headers(CodeHeaderName) code: string,
+    @Body() credential: {
+      id: string;
+      rawId: string;
+      authenticatorData: string;
+      clientDataJSON: string;
+      signature: string;
+      userHandle: string | null;
+    },
+  ): Promise<void> {
+    return this.tfaService.verifyPasskey(code, credential);
   }
 
   // --- KYC --- //

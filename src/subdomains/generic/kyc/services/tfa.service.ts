@@ -7,6 +7,11 @@ import {
   forwardRef
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import {
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+} from '@simplewebauthn/server';
+import base64url from 'base64url';
 import { generateSecret, verifyToken } from 'node-2fa';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -157,6 +162,86 @@ export class TfaService {
       (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
     );
     if (!isVerified) throw new ForbiddenException(`2FA required${level ? ` (${level.toLowerCase()})` : ''}`);
+  }
+
+  async setupPasskey(kycHash: string, creds: {
+    id: string;
+    rawId: string;
+    attestationObject: string;
+    clientDataJSON: string;
+  }): Promise<void> {
+    const user = await this.getUser(kycHash);
+    const expectedChallenge = this.secretCache.get(user.id);
+
+    const verification = await verifyRegistrationResponse({
+      response: {
+        id: creds.id,
+        rawId: creds.rawId,
+        response: {
+          attestationObject: creds.attestationObject,
+          clientDataJSON: creds.clientDataJSON,
+        },
+        type: 'public-key',
+        clientExtensionResults: {},
+      },
+      expectedChallenge: expectedChallenge.secret,
+      expectedOrigin: 'https://dfx.swiss',
+      expectedRPID: 'dfx.swiss',
+    });
+
+    if (!verification.verified) {
+      throw new ForbiddenException('Passkey setup failed');
+    }
+
+    const { credential } = verification.registrationInfo!;
+
+    user.publicPasskey = base64url.encode(Buffer.from(credential.publicKey));
+    user.signCount = credential.counter;
+
+    await this.userDataService.updateUserData(user.id, user);
+  }
+
+  async verifyPasskey(kycHash: string, credential: {
+    id: string;
+    rawId: string;
+    authenticatorData: string;
+    clientDataJSON: string;
+    signature: string;
+    userHandle: string | null;
+  }): Promise<void> {
+    const user = await this.getUser(kycHash);
+    const expectedChallenge = this.secretCache.get(user.id);
+
+    const verification = await verifyAuthenticationResponse({
+      response: {
+        id: credential.id,
+        rawId: credential.rawId,
+        response: {
+          authenticatorData: credential.authenticatorData,
+          clientDataJSON: credential.clientDataJSON,
+          signature: credential.signature,
+          userHandle: credential.userHandle ? credential.userHandle : undefined,
+        },
+        type: 'public-key',
+        clientExtensionResults: {},
+      },
+      expectedChallenge: expectedChallenge.secret,
+      expectedOrigin: 'https://dfx.swiss',
+      expectedRPID: 'dfx.swiss',
+      credential: {
+        id: credential.rawId,
+        publicKey: base64url.toBuffer(user.publicPasskey),
+        counter: user.signCount,
+      },
+    });
+
+    if (!verification.verified) {
+      throw new ForbiddenException('Invalid or expired passkey');
+    }
+
+    // Update counter to prevent replay attacks
+    user.signCount = verification.authenticationInfo!.newCounter;
+    await this.userDataService.updateUserData(user.id, user);
   }
 
   // --- HELPER METHODS --- //
