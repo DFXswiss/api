@@ -179,441 +179,449 @@ export class LogJobService {
   }
 
   private async getAssetLog(assets: Asset[]): Promise<AssetLog> {
-    // custom balance
-    const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
-    const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
+    try {
+      // custom balance
+      const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
+      const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
-    const customBalances = await Promise.all(
-      Array.from(customAssetMap.entries()).map(async ([e, a]) => {
-        const client = this.blockchainRegistryService.getClient(e);
+      const customBalances = await Promise.all(
+        Array.from(customAssetMap.entries()).map(async ([e, a]) => {
+          const client = this.blockchainRegistryService.getClient(e);
 
-        const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
-          b.flat(),
+          const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
+            b.flat(),
+          );
+          return { blockchain: e, balances };
+        }),
+      );
+
+      // deposit address balance
+      const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
+      const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
+
+      const depositBalances = await Promise.all(
+        Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
+          const client = this.blockchainRegistryService.getClient(e);
+
+          const balances =
+            e === Blockchain.MONERO
+              ? [{ contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
+              : await this.getCustomBalances(client, a, [
+                  EvmUtil.createWallet({
+                    seed: Config.payment.evmSeed,
+                    index: 0,
+                  }).address,
+                ]).then((b) => b.flat());
+          return { blockchain: e, balances };
+        }),
+      );
+
+      // banks
+      const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+      const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
+      const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
+
+      // liq balances
+      const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
+
+      // pending balances
+      const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+
+      const pendingExchangeOrders = pendingOrders.filter((o) => LiquidityManagementExchanges.includes(o.action.system));
+      const pendingBridgeOrders = pendingOrders.filter(
+        (o) =>
+          LiquidityManagementBridges.includes(o.action.system) && ['withdraw', 'deposit'].includes(o.action.command),
+      );
+      const pendingPayIns = await this.payInService.getPendingPayIns();
+      const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
+      const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
+      const pendingBankTx = await this.bankTxService.getPendingTx();
+      const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
+      const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
+
+      // manual balances
+      const manualDebtPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
+      const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
+
+      const useUnfilteredTx = await this.settingService.getObj<boolean>('financeLogUnfilteredTx', false);
+      const financeLogPairIds = await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined);
+
+      const minBankTxId = useUnfilteredTx
+        ? Math.min(
+            ...[
+              financeLogPairIds?.fromKraken.chf.bankTxId,
+              financeLogPairIds?.fromKraken.eur.bankTxId,
+              financeLogPairIds?.toKraken.chf.bankTxId,
+              financeLogPairIds?.toKraken.eur.bankTxId,
+            ],
+          )
+        : undefined;
+      const minExchangeTxId = useUnfilteredTx
+        ? Math.min(
+            ...[
+              financeLogPairIds?.fromKraken.chf.exchangeTxId,
+              financeLogPairIds?.fromKraken.eur.exchangeTxId,
+              financeLogPairIds?.toKraken.chf.exchangeTxId,
+              financeLogPairIds?.toKraken.eur.exchangeTxId,
+            ],
+          )
+        : undefined;
+
+      // pending internal balances
+      // db requests
+      const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
+      const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
+      const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
+        minExchangeTxId,
+        ExchangeName.KRAKEN,
+        [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
+      );
+
+      // fixed sender and receiver data
+
+      // CHF: Kraken -> Maerki
+      const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.WITHDRAWAL &&
+          k.method === 'Bank Frick (SIC) International' &&
+          k.address === 'Maerki Baumann',
+      );
+      const chfReceiverBankTx = recentKrakenBankTx.filter(
+        (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      );
+
+      // EUR: Kraken -> Maerki
+      const eurSenderExchangeTx = recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.WITHDRAWAL &&
+          k.method === 'Bank Frick (SEPA) International' &&
+          k.address === 'Maerki Baumann & Co. AG',
+      );
+      const eurReceiverBankTx = recentKrakenBankTx.filter(
+        (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      );
+
+      // CHF: Maerki -> Kraken
+      const chfSenderBankTx = recentKrakenBankTx.filter(
+        (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      );
+      const chfReceiverExchangeTx = recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.DEPOSIT &&
+          k.method === 'Bank Frick (SIC) International' &&
+          k.address === 'MAEBCHZZXXX',
+      );
+
+      // EUR: Maerki -> Kraken
+      const eurSenderBankTx = recentKrakenBankTx.filter(
+        (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      );
+      const eurReceiverExchangeTx = recentKrakenExchangeTx.filter(
+        (k) =>
+          k.type === ExchangeTxType.DEPOSIT &&
+          k.method === 'Bank Frick (SEPA) International' &&
+          k.address === 'MAEBCHZZXXX',
+      );
+
+      // sender and receiver data
+      const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
+        chfSenderExchangeTx,
+        chfReceiverBankTx,
+      );
+      const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
+        eurSenderExchangeTx,
+        eurReceiverBankTx,
+      );
+
+      const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
+        chfSenderBankTx,
+        chfReceiverExchangeTx,
+      );
+      const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
+        eurSenderBankTx,
+        eurReceiverExchangeTx,
+      );
+
+      // assetLog
+      return assets.reduce((prev, curr) => {
+        const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
+        if (liquidityBalance == null && !curr.isActive) return prev;
+
+        const customBalance = customBalances
+          .find((c) => c.blockchain === curr.blockchain)
+          ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
+
+        const depositBalance = depositBalances
+          .find((c) => c.blockchain === curr.blockchain)
+          ?.balances?.reduce(
+            (sum, result) =>
+              sum +
+              (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+            0,
+          );
+
+        const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+
+        // plus
+        const liquidity =
+          (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+
+        const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
+        const exchangeOrder = pendingExchangeOrders.reduce(
+          (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+          0,
         );
-        return { blockchain: e, balances };
-      }),
-    );
-
-    // deposit address balance
-    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
-    const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
-
-    const depositBalances = await Promise.all(
-      Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
-        const client = this.blockchainRegistryService.getClient(e);
-
-        const balances =
-          e === Blockchain.MONERO
-            ? [{ contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
-            : await this.getCustomBalances(client, a, [
-                EvmUtil.createWallet({
-                  seed: Config.payment.evmSeed,
-                  index: 0,
-                }).address,
-              ]).then((b) => b.flat());
-        return { blockchain: e, balances };
-      }),
-    );
-
-    // banks
-    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
-    const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
-
-    // liq balances
-    const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
-
-    // pending balances
-    const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
-
-    const pendingExchangeOrders = pendingOrders.filter((o) => LiquidityManagementExchanges.includes(o.action.system));
-    const pendingBridgeOrders = pendingOrders.filter(
-      (o) => LiquidityManagementBridges.includes(o.action.system) && ['withdraw', 'deposit'].includes(o.action.command),
-    );
-    const pendingPayIns = await this.payInService.getPendingPayIns();
-    const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
-    const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
-    const pendingBankTx = await this.bankTxService.getPendingTx();
-    const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
-    const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
-
-    // manual balances
-    const manualDebtPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
-    const manualLiqPositions = await this.settingService.getObj<ManualLogPosition[]>('balanceLogLiqPositions', []);
-
-    const useUnfilteredTx = await this.settingService.getObj<boolean>('financeLogUnfilteredTx', false);
-    const financeLogPairIds = await this.settingService.getObj<LogPairId>('financeLogPairIds', undefined);
-
-    const minBankTxId = useUnfilteredTx
-      ? Math.min(
-          ...[
-            financeLogPairIds?.fromKraken.chf.bankTxId,
-            financeLogPairIds?.fromKraken.eur.bankTxId,
-            financeLogPairIds?.toKraken.chf.bankTxId,
-            financeLogPairIds?.toKraken.eur.bankTxId,
-          ],
-        )
-      : undefined;
-    const minExchangeTxId = useUnfilteredTx
-      ? Math.min(
-          ...[
-            financeLogPairIds?.fromKraken.chf.exchangeTxId,
-            financeLogPairIds?.fromKraken.eur.exchangeTxId,
-            financeLogPairIds?.toKraken.chf.exchangeTxId,
-            financeLogPairIds?.toKraken.eur.exchangeTxId,
-          ],
-        )
-      : undefined;
-
-    // pending internal balances
-    // db requests
-    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
-    const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
-    const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
-      minExchangeTxId,
-      ExchangeName.KRAKEN,
-      [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
-    );
-
-    // fixed sender and receiver data
-
-    // CHF: Kraken -> Maerki
-    const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.WITHDRAWAL &&
-        k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'Maerki Baumann',
-    );
-    const chfReceiverBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
-    );
-
-    // EUR: Kraken -> Maerki
-    const eurSenderExchangeTx = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.WITHDRAWAL &&
-        k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'Maerki Baumann & Co. AG',
-    );
-    const eurReceiverBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
-    );
-
-    // CHF: Maerki -> Kraken
-    const chfSenderBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
-    );
-    const chfReceiverExchangeTx = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.DEPOSIT &&
-        k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'MAEBCHZZXXX',
-    );
-
-    // EUR: Maerki -> Kraken
-    const eurSenderBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
-    );
-    const eurReceiverExchangeTx = recentKrakenExchangeTx.filter(
-      (k) =>
-        k.type === ExchangeTxType.DEPOSIT &&
-        k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'MAEBCHZZXXX',
-    );
-
-    // sender and receiver data
-    const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
-      chfSenderExchangeTx,
-      chfReceiverBankTx,
-    );
-    const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
-      eurSenderExchangeTx,
-      eurReceiverBankTx,
-    );
-
-    const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
-      chfSenderBankTx,
-      chfReceiverExchangeTx,
-    );
-    const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
-      eurSenderBankTx,
-      eurReceiverExchangeTx,
-    );
-
-    // assetLog
-    return assets.reduce((prev, curr) => {
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
-      if (liquidityBalance == null && !curr.isActive) return prev;
-
-      const customBalance = customBalances
-        .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
-
-      const depositBalance = depositBalances
-        .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce(
-          (sum, result) =>
-            sum +
-            (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+        const bridgeOrder = pendingBridgeOrders.reduce(
+          (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
           0,
         );
 
-      const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+        // Olky to Maerki
+        const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
+          [curr],
+          recentBankTxFromOlky,
+          BankTxType.INTERNAL,
+          olkyBank.iban,
+          maerkiEurBank.iban,
+        );
 
-      // plus
-      const liquidity =
-        (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+        // Kraken to Maerki
 
-      const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
-      const exchangeOrder = pendingExchangeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
-        0,
-      );
-      const bridgeOrder = pendingBridgeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
-        0,
-      );
+        // filtered lists
+        const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmount(
+          [curr],
+          recentChfKrakenMaerkiTx,
+          ExchangeTxType.WITHDRAWAL,
+          maerkiChfBank.iban,
+        );
+        const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmount(
+          [curr],
+          recentEurKrakenMaerkiTx,
+          ExchangeTxType.WITHDRAWAL,
+          maerkiEurBank.iban,
+        );
+        const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmount(
+          [curr],
+          [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
+          BankTxType.KRAKEN,
+        );
 
-      // Olky to Maerki
-      const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
-        [curr],
-        recentBankTxFromOlky,
-        BankTxType.INTERNAL,
-        olkyBank.iban,
-        maerkiEurBank.iban,
-      );
+        // unfiltered lists
+        const pendingChfKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
+          [curr],
+          chfSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.exchangeTxId),
+          ExchangeTxType.WITHDRAWAL,
+          maerkiChfBank.iban,
+        );
+        const pendingEurKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
+          [curr],
+          eurSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.exchangeTxId),
+          ExchangeTxType.WITHDRAWAL,
+          maerkiEurBank.iban,
+        );
+        const pendingKrakenMaerkiMinusAmountUnfiltered = this.getPendingBankAmount(
+          [curr],
+          [
+            ...eurReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.bankTxId),
+            ...chfReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.bankTxId),
+          ],
+          BankTxType.KRAKEN,
+        );
 
-      // Kraken to Maerki
+        // Maerki to Kraken
 
-      // filtered lists
-      const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmount(
-        [curr],
-        recentChfKrakenMaerkiTx,
-        ExchangeTxType.WITHDRAWAL,
-        maerkiChfBank.iban,
-      );
-      const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurKrakenMaerkiTx,
-        ExchangeTxType.WITHDRAWAL,
-        maerkiEurBank.iban,
-      );
-      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmount(
-        [curr],
-        [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
-        BankTxType.KRAKEN,
-      );
+        // filtered lists
+        const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
+          [curr],
+          [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
+          BankTxType.KRAKEN,
+        );
+        const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
+          [curr],
+          recentChfBankTxKraken,
+          ExchangeTxType.DEPOSIT,
+          maerkiChfBank.iban,
+        );
+        const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmount(
+          [curr],
+          recentEurBankTxKraken,
+          ExchangeTxType.DEPOSIT,
+          maerkiEurBank.iban,
+        );
 
-      // unfiltered lists
-      const pendingChfKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        chfSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.exchangeTxId),
-        ExchangeTxType.WITHDRAWAL,
-        maerkiChfBank.iban,
-      );
-      const pendingEurKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        eurSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.exchangeTxId),
-        ExchangeTxType.WITHDRAWAL,
-        maerkiEurBank.iban,
-      );
-      const pendingKrakenMaerkiMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        [
-          ...eurReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.bankTxId),
-          ...chfReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.bankTxId),
-        ],
-        BankTxType.KRAKEN,
-      );
+        // unfiltered lists
+        const pendingMaerkiKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
+          [curr],
+          [
+            ...chfSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
+            ...eurSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.bankTxId),
+          ],
+          BankTxType.KRAKEN,
+        );
+        const pendingChfMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+          [curr],
+          chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
+          ExchangeTxType.DEPOSIT,
+          maerkiChfBank.iban,
+        );
+        const pendingEurMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+          [curr],
+          eurReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.exchangeTxId),
+          ExchangeTxType.DEPOSIT,
+          maerkiEurBank.iban,
+        );
 
-      // Maerki to Kraken
+        const fromKrakenUnfiltered =
+          pendingChfKrakenMaerkiPlusAmountUnfiltered +
+          pendingEurKrakenMaerkiPlusAmountUnfiltered +
+          pendingKrakenMaerkiMinusAmountUnfiltered;
+        const toKrakenUnfiltered =
+          pendingMaerkiKrakenPlusAmountUnfiltered +
+          pendingChfMaerkiKrakenMinusAmountUnfiltered +
+          pendingEurMaerkiKrakenMinusAmountUnfiltered;
 
-      // filtered lists
-      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
-        [curr],
-        [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
-        BankTxType.KRAKEN,
-      );
-      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
-        [curr],
-        recentChfBankTxKraken,
-        ExchangeTxType.DEPOSIT,
-        maerkiChfBank.iban,
-      );
-      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurBankTxKraken,
-        ExchangeTxType.DEPOSIT,
-        maerkiEurBank.iban,
-      );
+        let fromKraken =
+          pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
+        let toKraken =
+          pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
 
-      // unfiltered lists
-      const pendingMaerkiKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        [
-          ...chfSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
-          ...eurSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.bankTxId),
-        ],
-        BankTxType.KRAKEN,
-      );
-      const pendingChfMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
-        ExchangeTxType.DEPOSIT,
-        maerkiChfBank.iban,
-      );
-      const pendingEurMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        eurReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.exchangeTxId),
-        ExchangeTxType.DEPOSIT,
-        maerkiEurBank.iban,
-      );
+        const errors = [];
 
-      const fromKrakenUnfiltered =
-        pendingChfKrakenMaerkiPlusAmountUnfiltered +
-        pendingEurKrakenMaerkiPlusAmountUnfiltered +
-        pendingKrakenMaerkiMinusAmountUnfiltered;
-      const toKrakenUnfiltered =
-        pendingMaerkiKrakenPlusAmountUnfiltered +
-        pendingChfMaerkiKrakenMinusAmountUnfiltered +
-        pendingEurMaerkiKrakenMinusAmountUnfiltered;
-
-      let fromKraken =
-        pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
-      let toKraken =
-        pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
-
-      const errors = [];
-
-      if (fromKraken !== fromKrakenUnfiltered) {
-        errors.push(`fromKraken !== fromKrakenUnfiltered`);
-        this.logger
-          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
+        if (fromKraken !== fromKrakenUnfiltered) {
+          errors.push(`fromKraken !== fromKrakenUnfiltered`);
+          this.logger
+            .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
-      }
+        }
 
-      if (toKraken !== toKrakenUnfiltered) {
-        errors.push(`toKraken !== toKrakenUnfiltered`);
-        this.logger
-          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
+        if (toKraken !== toKrakenUnfiltered) {
+          errors.push(`toKraken !== toKrakenUnfiltered`);
+          this.logger
+            .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
-      }
+        }
 
-      if (fromKraken < 0) {
-        errors.push(`fromKraken < 0`);
-        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+        if (fromKraken < 0) {
+          errors.push(`fromKraken < 0`);
+          this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
         ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
         pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
-        fromKraken = 0;
-      }
-      if (toKraken < 0) {
-        errors.push(`toKraken < 0`);
-        this.logger.verbose(
-          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
+          fromKraken = 0;
+        }
+        if (toKraken < 0) {
+          errors.push(`toKraken < 0`);
+          this.logger.verbose(
+            `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
           ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
-        );
-        toKraken = 0;
-      }
+          );
+          toKraken = 0;
+        }
 
-      // total pending balance
-      const totalPlusPending =
-        cryptoInput +
-        exchangeOrder +
-        bridgeOrder +
-        pendingOlkyMaerkiAmount +
-        (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
-        (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
-      const totalPlus = liquidity + totalPlusPending;
+        // total pending balance
+        const totalPlusPending =
+          cryptoInput +
+          exchangeOrder +
+          bridgeOrder +
+          pendingOlkyMaerkiAmount +
+          (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
+          (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
+        const totalPlus = liquidity + totalPlusPending;
 
-      // minus
-      const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
+        // minus
+        const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
-      const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
+        const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
+        const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
 
-      const bankTxNull = this.getPendingAmounts(
-        [curr],
-        pendingBankTx.filter((b) => !b.type),
-      ).input;
-      const bankTxPending = this.getPendingAmounts(
-        [curr],
-        pendingBankTx.filter((b) => b.type === BankTxType.PENDING),
-      ).input;
-      const bankTxUnknown = this.getPendingAmounts(
-        [curr],
-        pendingBankTx.filter((b) => b.type === BankTxType.UNKNOWN),
-      ).input;
-      const bankTxGSheet = this.getPendingAmounts(
-        [curr],
-        pendingBankTx.filter((b) => b.type === BankTxType.GSHEET),
-      ).input;
+        const bankTxNull = this.getPendingAmounts(
+          [curr],
+          pendingBankTx.filter((b) => !b.type),
+        ).input;
+        const bankTxPending = this.getPendingAmounts(
+          [curr],
+          pendingBankTx.filter((b) => b.type === BankTxType.PENDING),
+        ).input;
+        const bankTxUnknown = this.getPendingAmounts(
+          [curr],
+          pendingBankTx.filter((b) => b.type === BankTxType.UNKNOWN),
+        ).input;
+        const bankTxGSheet = this.getPendingAmounts(
+          [curr],
+          pendingBankTx.filter((b) => b.type === BankTxType.GSHEET),
+        ).input;
 
-      const bankTxRepeat = this.getPendingAmounts([curr], pendingBankTxRepeat).input;
-      const bankTxReturn = this.getPendingAmounts([curr], pendingBankTxReturn).input;
+        const bankTxRepeat = this.getPendingAmounts([curr], pendingBankTxRepeat).input;
+        const bankTxReturn = this.getPendingAmounts([curr], pendingBankTxReturn).input;
 
-      const totalMinusPending =
-        buyFiat +
-        buyFiatPass +
-        buyCrypto +
-        buyCryptoPass +
-        bankTxNull +
-        bankTxPending +
-        bankTxUnknown +
-        bankTxGSheet +
-        bankTxRepeat +
-        bankTxReturn;
-      const totalMinus = manualDebtPosition + totalMinusPending;
+        const totalMinusPending =
+          buyFiat +
+          buyFiatPass +
+          buyCrypto +
+          buyCryptoPass +
+          bankTxNull +
+          bankTxPending +
+          bankTxUnknown +
+          bankTxGSheet +
+          bankTxRepeat +
+          bankTxReturn;
+        const totalMinus = manualDebtPosition + totalMinusPending;
 
-      prev[curr.id] = {
-        priceChf: curr.approxPriceChf,
-        plusBalance: {
-          total: this.getJsonValue(totalPlus, amountType(curr), true),
-          liquidity: this.getJsonValue(liquidity, amountType(curr)),
-          pending: totalPlusPending
-            ? {
-                total: this.getJsonValue(totalPlusPending, amountType(curr), true),
-                cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
-                exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
-                bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
-                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, amountType(curr)),
-                fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
-                toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
-              }
-            : undefined,
-          monitoring: errors.length
-            ? {
-                fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
-                fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
-                toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
-                toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
-              }
-            : undefined,
-        },
-        minusBalance: {
-          total: this.getJsonValue(totalMinus, amountType(curr), true),
-          debt: this.getJsonValue(manualDebtPosition, amountType(curr)),
-          pending: totalMinusPending
-            ? {
-                total: this.getJsonValue(totalMinusPending, amountType(curr), true),
-                buyFiat: this.getJsonValue(buyFiat, amountType(curr)),
-                buyFiatPass: this.getJsonValue(buyFiatPass, amountType(curr)),
-                buyCrypto: this.getJsonValue(buyCrypto, amountType(curr)),
-                buyCryptoPass: this.getJsonValue(buyCryptoPass, amountType(curr)),
-                bankTxNull: this.getJsonValue(bankTxNull, amountType(curr)),
-                bankTxPending: this.getJsonValue(bankTxPending, amountType(curr)),
-                bankTxUnknown: this.getJsonValue(bankTxUnknown, amountType(curr)),
-                bankTxGSheet: this.getJsonValue(bankTxGSheet, amountType(curr)),
-                bankTxRepeat: this.getJsonValue(bankTxRepeat, amountType(curr)),
-                bankTxReturn: this.getJsonValue(bankTxReturn, amountType(curr)),
-              }
-            : undefined,
-        },
-        error: errors.length ? errors.join(';') : undefined,
-      };
+        prev[curr.id] = {
+          priceChf: curr.approxPriceChf,
+          plusBalance: {
+            total: this.getJsonValue(totalPlus, amountType(curr), true),
+            liquidity: this.getJsonValue(liquidity, amountType(curr)),
+            pending: totalPlusPending
+              ? {
+                  total: this.getJsonValue(totalPlusPending, amountType(curr), true),
+                  cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
+                  exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
+                  bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
+                  fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, amountType(curr)),
+                  fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
+                  toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
+                }
+              : undefined,
+            monitoring: errors.length
+              ? {
+                  fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
+                  fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
+                  toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+                  toKrakenExchangeTxIds: this.getTxIdMonitoringLog([
+                    ...chfReceiverExchangeTx,
+                    ...eurReceiverExchangeTx,
+                  ]),
+                }
+              : undefined,
+          },
+          minusBalance: {
+            total: this.getJsonValue(totalMinus, amountType(curr), true),
+            debt: this.getJsonValue(manualDebtPosition, amountType(curr)),
+            pending: totalMinusPending
+              ? {
+                  total: this.getJsonValue(totalMinusPending, amountType(curr), true),
+                  buyFiat: this.getJsonValue(buyFiat, amountType(curr)),
+                  buyFiatPass: this.getJsonValue(buyFiatPass, amountType(curr)),
+                  buyCrypto: this.getJsonValue(buyCrypto, amountType(curr)),
+                  buyCryptoPass: this.getJsonValue(buyCryptoPass, amountType(curr)),
+                  bankTxNull: this.getJsonValue(bankTxNull, amountType(curr)),
+                  bankTxPending: this.getJsonValue(bankTxPending, amountType(curr)),
+                  bankTxUnknown: this.getJsonValue(bankTxUnknown, amountType(curr)),
+                  bankTxGSheet: this.getJsonValue(bankTxGSheet, amountType(curr)),
+                  bankTxRepeat: this.getJsonValue(bankTxRepeat, amountType(curr)),
+                  bankTxReturn: this.getJsonValue(bankTxReturn, amountType(curr)),
+                }
+              : undefined,
+          },
+          error: errors.length ? errors.join(';') : undefined,
+        };
 
-      return prev;
-    }, {});
+        return prev;
+      }, {});
+    } catch (e) {
+      this.logger.error(`Error in FinancialLog assetLog`, e);
+    }
   }
 
   private async getChangeLog(): Promise<ChangeLog> {
