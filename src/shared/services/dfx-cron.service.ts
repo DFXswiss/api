@@ -55,7 +55,7 @@ export class DfxCronService implements OnModuleInit {
 
     const context = { target: data.instance.constructor.name, method: data.methodName };
     const cronJob = new CronJob(data.params.expression, () => lock(this.wrapFunction(data), context));
-    const cronJobName = `${data.instance.constructor.name}::${data.methodName}`;
+    const cronJobName = `${context.target}::${context.method}`;
 
     this.schedulerRegisty.addCronJob(cronJobName, cronJob);
     cronJob.start();
