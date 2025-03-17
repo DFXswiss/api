@@ -84,51 +84,56 @@ export class LogJobService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
-    // trading log
-    const tradingLog = await this.getTradingLog();
+    try {
+      // trading log
+      const tradingLog = await this.getTradingLog();
 
-    // assets
-    const assets = await this.assetService
-      .getAllAssets()
-      .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
+      // assets
+      const assets = await this.assetService
+        .getAllAssets()
+        .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
-    // asset log
-    const assetLog = await this.getAssetLog(assets);
+      // asset log
+      const assetLog = await this.getAssetLog(assets);
 
-    // balances grouped by financialType
-    const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+      // balances grouped by financialType
+      const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
 
-    // changes
-    const changeLog = await this.getChangeLog();
+      // changes
+      const changeLog = await this.getChangeLog();
 
-    // total balances
-    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
-    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+      // total balances
+      const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
+      const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
 
-    const totalBalanceChf = plusBalanceChf - minusBalanceChf;
+      const totalBalanceChf = plusBalanceChf - minusBalanceChf;
 
-    // safety module
-    const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
-    this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
+      // safety module
+      const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
+      this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
-    await this.logService.create({
-      system: 'LogService',
-      subsystem: 'FinancialDataLog',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify({
-        assets: assetLog,
-        tradings: tradingLog,
-        balancesByFinancialType,
-        balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
-          totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
-        },
-        changes: changeLog,
-      }),
-      valid: null,
-      category: null,
-    });
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'FinancialDataLog',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({
+          assets: assetLog,
+          tradings: tradingLog,
+          balancesByFinancialType,
+          balancesTotal: {
+            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
+            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
+            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
+          },
+          changes: changeLog,
+        }),
+        valid: null,
+        category: null,
+      });
+    } catch (e) {
+      this.processService.setSafetyModeActive(true);
+      this.logger.error('Error in logJobService financeLog', e);
+    }
   }
 
   // --- LOG METHODS --- //
