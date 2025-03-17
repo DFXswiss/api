@@ -9,6 +9,7 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -398,6 +399,7 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
+    blockchainFee?: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -410,6 +412,7 @@ export class BuyCrypto extends IEntity {
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
       mailSendDate: null,
+      blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
     };
 
@@ -548,6 +551,10 @@ export class BuyCrypto extends IEntity {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
+  get chargebackBankRemittanceInfo(): string {
+    return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
   get inputPriceStep(): PriceStep[] {
     return this.inputAsset !== this.inputReferenceAsset
       ? [
@@ -586,16 +593,20 @@ export class BuyCrypto extends IEntity {
     return MailTranslationKey.CRYPTO_CHARGEBACK;
   }
 
+  get wallet(): Wallet {
+    return this.user.wallet;
+  }
+
   get user(): User {
     return this.transaction.user;
   }
 
   get userData(): UserData {
-    return this.user.userData;
+    return this.transaction.userData;
   }
 
   set userData(userData: UserData) {
-    this.user.userData = userData;
+    this.transaction.userData = userData;
   }
 
   get route(): Buy | Swap {

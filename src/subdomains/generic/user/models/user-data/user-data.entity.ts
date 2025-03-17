@@ -21,6 +21,7 @@ import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/s
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
+import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
@@ -477,6 +478,14 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
+    const update: Partial<UserData> = { phone: dto.phone, language: dto.language, currency: dto.currency };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get hasValidNameCheckDate(): boolean {
     return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
   }
@@ -542,7 +551,11 @@ export class UserData extends IEntity {
   }
 
   get completeName(): string {
-    return this.organizationName ?? [this.firstname, this.surname].filter((n) => n).join(' ');
+    return this.organizationName ?? this.naturalPersonName;
+  }
+
+  get naturalPersonName(): string {
+    return [this.firstname, this.surname].filter((n) => n).join(' ');
   }
 
   get isBlocked(): boolean {

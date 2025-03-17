@@ -47,7 +47,7 @@ export class BuyCryptoBatchService {
     try {
       const search: FindOptionsWhere<BuyCrypto> = {
         outputReferenceAsset: Not(IsNull()),
-        outputAsset: { type: Not(AssetType.CUSTOM) },
+        outputAsset: { type: Not(In([AssetType.CUSTOM, AssetType.PRESALE])) },
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
         batch: IsNull(),
@@ -73,7 +73,7 @@ export class BuyCryptoBatchService {
           cryptoInput: true,
           buy: { user: true },
           cryptoRoute: { user: true },
-          transaction: { user: { userData: true } },
+          transaction: { userData: true },
         },
       });
 

@@ -27,7 +27,7 @@ export class UserDtoMapper {
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
-        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses && u.role != UserRole.CUSTODY)
+        .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
         .map((u) => this.mapAddress(u, userData)),
       disabledAddresses: userData.users.filter((u) => u.isBlockedOrDeleted).map((u) => this.mapAddress(u, userData)),
       activeAddress: activeUser && this.mapAddress(activeUser, userData),
@@ -52,6 +52,7 @@ export class UserDtoMapper {
       refCode: user.ref,
       apiKeyCT: userData.apiKeyCT ?? user.apiKeyCT,
       apiFilterCT: ApiKeyService.getFilterArray(userData.apiFilterCT ?? user.apiFilterCT),
+      isCustody: user.role === UserRole.CUSTODY,
     };
 
     return Object.assign(new UserAddressDto(), dto);
