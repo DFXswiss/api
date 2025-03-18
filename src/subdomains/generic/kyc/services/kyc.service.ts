@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -850,7 +851,7 @@ export class KycService {
             name: nextStep,
             type:
               lastTry?.type === KycStepType.VIDEO || lastTry?.type === KycStepType.SUMSUB_VIDEO
-                ? lastTry?.type
+                ? KycStepType.SUMSUB_VIDEO
                 : await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
@@ -905,8 +906,7 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          kycStep.transactionId = IdentService.transactionId(user, kycStep);
-          kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
+          throw new InternalServerErrorException('Intrum Ident not possible');
         }
 
         break;
