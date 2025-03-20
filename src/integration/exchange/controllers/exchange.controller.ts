@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -17,6 +18,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
@@ -82,6 +84,8 @@ export class ExchangeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
+    if (DisabledProcess(Process.EXCHANGE_TRADE)) throw new BadRequestException('Process disabled');
+
     // start and register trade
     const orderId = await this.call(exchange, (e) => e.sell(from.toUpperCase(), to.toUpperCase(), amount));
 
@@ -117,6 +121,8 @@ export class ExchangeController {
     @Param('exchange') exchange: string,
     @Body() withdrawalDto: WithdrawalOrder,
   ): Promise<WithdrawalResponse> {
+    if (DisabledProcess(Process.EXCHANGE_WITHDRAWAL)) throw new BadRequestException('Process disabled');
+
     const token = withdrawalDto.token.toUpperCase();
     const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.call(exchange, (e) => e.getBalance(token));
 
