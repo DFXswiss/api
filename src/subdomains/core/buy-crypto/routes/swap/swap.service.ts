@@ -90,7 +90,7 @@ export class SwapService {
     // update user volume
     const { user } = await this.swapRepo.findOne({
       where: { id: swapId },
-      relations: ['user'],
+      relations: { user: true },
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
@@ -219,7 +219,8 @@ export class SwapService {
   }
 
   private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    user.userData.users = await this.userService.getAllUserDataUsers(user.userData.id);
 
     const {
       timestamp,

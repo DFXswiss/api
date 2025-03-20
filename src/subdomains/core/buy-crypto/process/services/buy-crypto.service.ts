@@ -589,7 +589,13 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: { user: true },
+        cryptoRoute: { user: true },
+      },
     });
   }
 
@@ -599,7 +605,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo
       .find({
         where: { buy: where },
-        relations: ['buy', 'buy.user'],
+        relations: { buy: { user: true } },
       })
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
@@ -610,7 +616,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo
       .find({
         where: { cryptoRoute: where },
-        relations: ['cryptoRoute', 'cryptoRoute.user'],
+        relations: { cryptoRoute: { user: true } },
       })
       .then((history) => history.map(this.toHistoryDto));
   }
@@ -681,9 +687,11 @@ export class BuyCryptoService {
     // buy
     const buy = await this.buyRepo.findOne({
       where: { id: buyId },
-      relations: { user: { wallet: true, userData: { bankDatas: true } } },
+      relations: { user: { wallet: true, userData: true } },
     });
     if (!buy) throw new BadRequestException('Buy route not found');
+
+    buy.user.userData.bankDatas = await this.bankDataService.getAllBankDatasForUser(buy.user.userData.id);
 
     return buy;
   }
@@ -692,7 +700,7 @@ export class BuyCryptoService {
     // cryptoRoute
     const cryptoRoute = await this.swapService
       .getSwapRepo()
-      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
+      .findOne({ where: { id: cryptoRouteId }, relations: { user: { wallet: true } } });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
     return cryptoRoute;
@@ -776,7 +784,13 @@ export class BuyCryptoService {
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
-      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: { user: true },
+        cryptoRoute: { user: true },
+      },
       order: { id: 'DESC' },
     });
   }
@@ -813,7 +827,7 @@ export class BuyCryptoService {
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
-      relations: ['buy', 'buy.asset'],
+      relations: { buy: true },
       loadEagerRelations: false,
     });
 
