@@ -49,14 +49,14 @@ export class AccountMergeService {
     const url = this.buildConfirmationUrl(request.code);
 
     await this.notificationService.sendMail({
-      type: MailType.USER,
+      type: MailType.USER_V2,
       context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
         userData: receiver,
         wallet: receiver.wallet,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
-        prefix: [
+        texts: [
           { key: MailKey.SPACE, params: { value: '3' } },
           {
             key: `${MailTranslationKey.GENERAL}.welcome`,
@@ -70,8 +70,8 @@ export class AccountMergeService {
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.closing` },
           { key: MailKey.SPACE, params: { value: '4' } },
+          { key: MailKey.DFX_TEAM_CLOSING },
         ],
-        suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
       },
       options: { debounce: 60000 },
       correlationId: `${request.id}`,

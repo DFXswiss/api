@@ -256,7 +256,7 @@ export class AuthService {
           },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl },
+            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },

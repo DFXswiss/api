@@ -70,7 +70,7 @@ export class TransactionNotificationService {
               texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.url },
+                  params: { url: entity.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
@@ -132,7 +132,7 @@ export class TransactionNotificationService {
               texts: [
                 {
                   key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.transaction_button`,
-                  params: { url: entity.url },
+                  params: { url: entity.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
