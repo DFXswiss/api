@@ -120,89 +120,6 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  private async paybackToAddressInitiated(): Promise<void> {
-    const search: FindOptionsWhere<BuyCrypto> = {
-      mailSendDate: IsNull(),
-      outputAmount: IsNull(),
-      chargebackDate: Not(IsNull()),
-      amlReason: Not(IsNull()),
-      amlCheck: CheckStatus.FAIL,
-    };
-    const entities = await this.buyCryptoRepo.find({
-      where: [
-        { ...search, chargebackBankTx: Not(IsNull()) },
-        { ...search, chargebackCryptoTxId: Not(IsNull()) },
-        { ...search, checkoutTx: Not(IsNull()) },
-      ],
-      relations: {
-        cryptoInput: true,
-        bankTx: true,
-        checkoutTx: true,
-        transaction: { user: { userData: true } },
-      },
-    });
-
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
-
-    for (const entity of entities) {
-      try {
-        if (
-          entity.userData.mail &&
-          (entity.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
-          !entity.noCommunication
-        ) {
-          await this.notificationService.sendMail({
-            type: MailType.USER_V2,
-            context: MailContext.BUY_CRYPTO_RETURN,
-            input: {
-              userData: entity.userData,
-              title: `${entity.translationReturnMailKey}.title`,
-              salutation: { key: `${entity.translationReturnMailKey}.salutation` },
-              texts: [
-                {
-                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
-                },
-                {
-                  key: `${MailTranslationKey.GENERAL}.link`,
-                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
-                },
-                !AmlReasonWithoutReason.includes(entity.amlReason)
-                  ? {
-                      key: `${MailTranslationKey.CHARGEBACK}.introduction`,
-                      params: {
-                        reason: MailFactory.parseMailKey(MailTranslationKey.CHARGEBACK_REASON, entity.mailReturnReason),
-                        url: entity.userData.dilisenseUrl,
-                        urlText: entity.userData.dilisenseUrl,
-                      },
-                    }
-                  : null,
-                KycAmlReasons.includes(entity.amlReason)
-                  ? {
-                      key: `${MailTranslationKey.CHARGEBACK}.kyc_start`,
-                      params: {
-                        url: entity.userData.kycUrl,
-                        urlText: entity.userData.kycUrl,
-                      },
-                    }
-                  : null,
-                { key: MailKey.SPACE, params: { value: '2' } },
-                { key: `${MailTranslationKey.GENERAL}.support` },
-                { key: MailKey.SPACE, params: { value: '4' } },
-                { key: `${MailTranslationKey.GENERAL}.thanks` },
-                { key: MailKey.DFX_TEAM_CLOSING },
-              ],
-            },
-          });
-        }
-
-        await this.buyCryptoRepo.update(...entity.confirmSentMail());
-      } catch (e) {
-        this.logger.error(`Failed to send buy-crypto payback to address mail ${entity.id}:`, e);
-      }
-    }
-  }
-
   async paymentProcessing(entity: BuyCrypto): Promise<void> {
     try {
       if (entity.userData.mail) {
@@ -345,17 +262,17 @@ export class BuyCryptoNotificationService {
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_RETURN,
             input: {
               userData: entity.userData,
               wallet: entity.user.wallet,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
