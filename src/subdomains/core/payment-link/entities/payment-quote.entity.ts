@@ -97,7 +97,7 @@ export class PaymentQuote extends IEntity {
     return JSON.parse(this.transferAmounts, this.amountReplacer);
   }
 
-  private amountReplacer(key: any, value: any) {
+  private amountReplacer(key: any, value: any): any {
     if (key === 'amount' && typeof value === 'number') return Util.numberToFixedString(value);
 
     return value;
