@@ -4,6 +4,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { BtcClient } from './btc-client';
 import { NodeClient } from './node-client';
 
@@ -74,8 +75,8 @@ export class NodeService {
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
-  getBtcPaymentRequest(address: string, amount: number, label = 'DFX Off-Ramp'): string {
-    return `bitcoin:${address}?amount=${amount}&label=${label}`;
+  getPaymentRequest(address: string, amount: number, label = 'DFX Off-Ramp'): string {
+    return `bitcoin:${address}?amount=${Util.numberToFixedString(amount)}&label=${label}`;
   }
 
   // --- INIT METHODS --- //

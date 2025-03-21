@@ -231,7 +231,7 @@ export class PaymentLinkService {
         asset: pendingPayment.currency.name,
         amount: pendingPayment.amount,
       },
-      transferAmounts: actualQuote.transferAmountsAsObj,
+      transferAmounts: actualQuote.transferAmountsForPayRequest,
     };
 
     return payRequest;

@@ -54,7 +54,7 @@ export class CryptoService {
         return this.lightningService.getInvoiceByLnurlp(address, amount);
 
       case Blockchain.BITCOIN:
-        return this.nodeService.getBtcPaymentRequest(address, amount, label);
+        return this.nodeService.getPaymentRequest(address, amount, label);
 
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
