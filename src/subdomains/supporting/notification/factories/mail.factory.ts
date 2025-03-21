@@ -55,7 +55,7 @@ interface SpecialTag {
 }
 
 const UserMailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
-const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px` };
+const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle}` };
 
 @Injectable()
 export class MailFactory {
@@ -162,18 +162,21 @@ export class MailFactory {
 
   private createUserV2Mail(request: MailRequest): UserMailV2 {
     const { correlationId, options } = request;
-    const { userData, title, salutation, texts } = request.input as MailRequestUserInputV2;
+    const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
 
     const lang = userData.language.symbol.toLowerCase();
 
-    return new UserMailV2({
-      to: userData.mail,
-      subject: this.translate(title, lang),
-      salutation: salutation && this.translate(salutation.key, lang, salutation.params),
-      texts: texts && this.getMailAffix(texts, lang),
-      correlationId,
-      options,
-    });
+    return new UserMailV2(
+      {
+        to: userData.mail,
+        subject: this.translate(title, lang),
+        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
+        texts: texts && this.getMailAffix(texts, lang),
+        correlationId,
+        options,
+      },
+      wallet,
+    );
   }
 
   private createPersonalMail(request: MailRequest): PersonalMail {
@@ -224,16 +227,13 @@ export class MailFactory {
       case MailKey.DFX_TEAM_CLOSING:
         return [
           DefaultEmptyLine,
-          DefaultEmptyLine,
           {
             text: this.translate(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
             style: UserMailDefaultStyle,
           },
-          DefaultEmptyLine,
-          DefaultEmptyLine,
-          DefaultEmptyLine,
-          DefaultEmptyLine,
           { text: this.translate(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
+          DefaultEmptyLine,
+          DefaultEmptyLine,
         ];
 
       default:
@@ -248,14 +248,24 @@ export class MailFactory {
               specialTag?.tag === 'url'
                 ? {
                     link: element.params?.url ?? specialTag.value,
+                    button: element.params?.button,
                     text: specialTag.value,
                     textSuffix: specialTag.textSuffix,
                   }
                 : undefined,
             mail:
-              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
+              specialTag?.tag === 'mail'
+                ? {
+                    address: specialTag.value,
+                    textSuffix: specialTag.textSuffix,
+                    button: element.params?.button,
+                  }
+                : undefined,
             style: element.params?.style ?? UserMailDefaultStyle,
             text: specialTag?.text ?? text,
+            marginBottom: element.params?.marginBottom ?? '10px',
+            marginTop: element.params?.marginTop ?? '10px',
+            underline: element.params?.underline,
           },
         ];
     }

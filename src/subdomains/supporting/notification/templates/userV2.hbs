@@ -1,91 +1,360 @@
-<style>
-  html, body, table {
-    background-color: #072440;
-    color: #ffffff;
-    font-family: Open Sans,Helvetica,Arial,sans-serif;
-  }
-
-  .default-text {
-  }
-  
-  .logo {
-    height: 100px;
-    width: 156.25px;
-  }
-  
-  .salutation {
-    color: #f5516c;
-    font-weight: 800;
-    font-size: 24px;
-  }
-  
-  .social-link {
-    text-decoration: none;
-  }
-
-  .social {
-    height: 15px;
-  }
-  
-  .spacer-h {
-    height: 10px;
-  }
-  
-  .spacer-v {
-    width: 10px;
-  }
-</style>
-
-<html>
-
-  <body>
-    <img align='center' class='logo' src='https://dfx.swiss/wp-content/uploads/2022/07/02.03.2022_DFX_Logo_grund_dunkel_1.png' />
-
-    <p align='center' class='salutation'>{{salutation}}</p>
-
-    {{#each texts}}
-      <p align='center' class='default-text' style='font-family:{{this.style}}'>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+    <head>
+        <!--[if gte mso 9]>
+        <xml>
+        <o:OfficeDocumentSettings>
+            <o:AllowPNG/>
+            <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="x-apple-disable-message-reformatting">
+        <!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->
+        <title></title>
+    
+        <style type="text/css">
         
-        {{{this.text}}}
+            @media only screen and (min-width: 520px) {
+                .u-row {
+                width: 500px !important;
+                }
 
-        {{#if this.url}}<a style='color:white' href='{{this.url.link}}'>{{this.url.text}}</a>
-          {{#if this.url.textSuffix}}{{this.url.textSuffix}}{{/if}}
-        {{/if}}
-        {{#if this.mail}}<a style='color:white' href='mailto:{{this.mail.address}}'>{{this.mail.address}}</a>
-          {{#if this.mail.textSuffix}}{{this.mail.textSuffix}}{{/if}}
-        {{/if}}
-      </p>
-    {{/each}}
+                .u-row .u-col {
+                vertical-align: top;
+                }
+    
+                .u-row .u-col-100 {
+                width: 500px !important;
+                }            
+            }
 
-    <table border='0' cellpadding='0' cellspacing='0' width='100%'>
-      <tr class='spacer-h'></tr>
-      <tr>
-        <td>
-          <a class='social-link' href='{{twitterUrl}}'>
-            <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/twitter.png' />
-          </a>
-        </td>
-        <td class='spacer-v'></td>
-        <td>
-          <a class='social-link' href='{{telegramUrl}}'>
-            <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/telegram.png' />
-          </a>
-        </td>
-        <td class='spacer-v'></td>
-        <td>
-          <a class='social-link' href='{{instagramUrl}}'>
-            <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/instagram.png' />
-          </a>
-        </td>
-        <td class='spacer-v'></td>
-        <td>
-          <a class='social-link' href='{{linkedinUrl}}'>
-            <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/linkedin.png' />
-          </a>
-        </td>
-      </tr>
-      <tr class='spacer-h'></tr>
-    </table>
-  </body>
+            @media only screen and (max-width: 520px) {
+                .u-row-container {
+                max-width: 100% !important;
+                padding-left: 0px !important;
+                padding-right: 0px !important;
+                }
+
+                .u-row {
+                width: 100% !important;
+                }
+
+                .u-row .u-col {
+                display: block !important;
+                width: 100% !important;
+                min-width: 320px !important;
+                max-width: 100% !important;
+                }
+
+                .u-row .u-col > div {
+                margin: 0 auto;
+                }
+
+
+                .u-row .u-col img {
+                max-width: 100% !important;
+                }
+            }
+            
+            body {
+                margin:0;
+                padding:0
+            }
+            
+            table,td,tr {
+                border-collapse:collapse;
+                vertical-align:top
+            }
+
+            p {
+                margin:0
+            }
+
+            .ie-container table,.mso-container table {
+                table-layout:fixed
+            }
+
+            .logo {
+                display: block;
+                margin: 0 auto;
+                width: 100%;
+                max-width: 500%;
+                height: auto;
+                margin-bottom: 30px;
+                outline: none;
+                text-decoration: none;
+                display: inline-block !important;
+                border: none;
+                float: none;
+            }
+
+            .salutation {
+                color: #f5516c;
+                font-weight: bold;
+                font-size: 24px;
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .btn {
+                box-sizing: border-box;
+                display: inline-block;
+                text-decoration: none;
+                -webkit-text-size-adjust: none;
+                text-align: center;
+                color: #FFFFFF; 
+                background-color: #0000ee; 
+                border-radius: 4px;
+                -webkit-border-radius: 4px; 
+                -moz-border-radius: 4px; 
+                width:54%; 
+                max-width:100%; 
+                overflow-wrap: break-word; 
+                word-break: break-word;
+                word-wrap:break-word; 
+                mso-border-alt: none;
+                font-size: 15px;
+            }
+
+            .social-links {
+                text-align: center;
+                padding: 0 12px;
+            }
+
+            {{!-- .social-links a {
+                display: inline-block;
+                margin-right: 25px;
+            } --}}
+
+            .social-links img {
+                height: 30px;
+                width: auto;
+                display: block;
+            }
+
+            * {
+                line-height:inherit
+            }
+
+            a[x-apple-data-detectors=true] {
+                color:inherit!important;
+                text-decoration:none!important;
+            }
+
+
+            table, td { 
+                color: #000000; 
+            }
+
+            #u_body a { 
+                color: #0000ee; 
+                text-decoration: underline; 
+            }
+
+        </style>
+    
+    
+
+    </head>
+
+    <body class="clean-body u_body" style="margin: 0;padding: 0;-webkit-text-size-adjust: 100%;background-color: #F7F8F9;color: #000000">
+        <div class='hidden' style='display:none'>
+        <div class='pre-header'>
+            <span>{{salutation}}</span>
+        </div>
+        </div>
+        
+        <!--[if IE]><div class="ie-container"><![endif]-->
+        <!--[if mso]><div class="mso-container"><![endif]-->
+        <table id="u_body" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: #F7F8F9;width:100%" cellpadding="0" cellspacing="0">
+            <tbody>
+                <tr style="vertical-align: top">
+                    <td style="word-break: break-word;border-collapse: collapse !important;vertical-align: top">
+                        <!--[if (mso)|(IE)]><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: #F7F8F9;"><![endif]-->
+
+
+
+                        {{!-- Logo Block --}}
+                        <div class="u-row-container" style="padding: 0px;background-color: #1e1a2e">
+                        <div class="u-row" style="margin: 0 auto;min-width: 320px;max-width: 500px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
+                        <div style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
+                        <!--[if (mso)|(IE)]><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding: 0px;background-color: #1e1a2e;" align="center"><table cellpadding="0" cellspacing="0" border="0" style="width:500px;"><tr style="background-color: transparent;"><![endif]-->
+                        <!--[if (mso)|(IE)]><td align="center" width="500" style="background-color: #1e1a2e;width: 500px;padding: 12px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;" valign="top"><![endif]-->
+                        <div class="u-col u-col-100" style="max-width: 320px;min-width: 500px;display: table-cell;vertical-align: top;">
+                        <div style="background-color: #1e1a2e;height: 100%;width: 100% !important;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;">
+                        <!--[if (!mso)&(!IE)]><!--><div style="box-sizing: border-box; height: 100%; padding: 24px 12px 12px 12px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;"><!--<![endif]-->
+
+                        <table style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+                            <tbody>
+                                <tr>
+                                    <td style="overflow-wrap:break-word;word-break:break-word;padding:50px 0px 0px 0px;font-family:arial,helvetica,sans-serif;" align="left">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td style="padding-right: 0px;padding-left: 0px;" align="center">
+                                                    <img align="center" class="logo" border="0" src="https://dfx.swiss/wp-content/uploads/2022/07/02.03.2022_DFX_Logo_grund_dunkel_1.png" alt="DFX Logo" title=""/>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!--[if (!mso)&(!IE)]><!--></div><!--<![endif]-->
+                        </div>
+                        </div>
+                        <!--[if (mso)|(IE)]></td><![endif]-->
+                        <!--[if (mso)|(IE)]></tr></table></td></tr></table><![endif]-->
+                        </div>
+                        </div>
+                        </div>
+
+
+
+
+                        {{!-- Salutation Block --}}
+                        <div class="u-row-container" style="padding: 0px;background-color: #1e1a2e">
+                        <div class="u-row" style="margin: 0 auto;min-width: 320px;max-width: 500px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
+                        <div style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
+                        <!--[if (mso)|(IE)]><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding: 0px;background-color: #1e1a2e;" align="center"><table cellpadding="0" cellspacing="0" border="0" style="width:500px;"><tr style="background-color: transparent;"><![endif]-->
+                        <!--[if (mso)|(IE)]><td align="center" width="500" style="width: 500px;padding: 23px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;" valign="top"><![endif]-->
+                        <div class="u-col u-col-100" style="max-width: 320px;min-width: 500px;display: table-cell;vertical-align: top;">
+                        <div style="height: 100%;width: 100% !important;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;">
+                        <!--[if (!mso)&(!IE)]><!--><div style="box-sizing: border-box; height: 100%; padding: 23px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;"><!--<![endif]-->
+
+                        <table style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+                            <tbody>
+                                <tr>
+                                    <td style="overflow-wrap:break-word;word-break:break-word;padding:20px 0px 0px 0px;font-family:arial,helvetica,sans-serif;" align="left">
+                                        <div class="salutation">
+                                            <p style="line-height: 140%;"><strong>{{salutation}}</strong></p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!--[if (!mso)&(!IE)]><!--></div><!--<![endif]-->
+                        </div>
+                        </div>
+                        <!--[if (mso)|(IE)]></td><![endif]-->
+                        <!--[if (mso)|(IE)]></tr></table></td></tr></table><![endif]-->
+                        </div>
+                        </div>
+                        </div>
+
+
+
+
+                        {{!-- Texts Block --}}
+                        {{#each texts}}
+                        <div class="u-row-container" style="padding: 0px;background-color: #1e1a2e">
+                        <div class="u-row" style="margin: 0 auto;min-width: 320px;max-width: 500px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
+                        <div style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
+                        <!--[if (mso)|(IE)]><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding: 0px;background-color: #1e1a2e;" align="center"><table cellpadding="0" cellspacing="0" border="0" style="width:500px;"><tr style="background-color: transparent;"><![endif]-->
+                        <!--[if (mso)|(IE)]><td align="center" width="500" style="width: 500px;padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;" valign="top"><![endif]-->
+                        <div class="u-col u-col-100" style="max-width: 320px;min-width: 500px;display: table-cell;vertical-align: top;">
+                        <div style="height: 100%;width: 100% !important;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;">
+                        <!--[if (!mso)&(!IE)]><!--><div style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;"><!--<![endif]-->
+
+                        <table style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+                            <tbody>
+                                <tr style='font-family:{{this.style}}'>
+                                    <td style="overflow-wrap:break-word;word-break:break-word;padding:20px 0px 0px 0px;font-family:arial,helvetica,sans-serif;" align="left"> 
+                                        <div style="font-size: 13px; color: #f7f8f9; line-height: 140%; text-align: center; word-wrap: break-word;">
+                                            <p class='default-text' style="font-family:{{this.style}}">
+                                                {{#if this.underline}} <u>{{{this.text}}}</u> {{else}} {{{this.text}}} {{/if}}
+
+                                                {{#if this.url}}
+                                                    {{#if this.url.button}}<!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->{{/if}}
+                                                    {{#if this.url.button}}<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href='{{this.url.link}}' style="height:32px; v-text-anchor:middle; width:200px;" arcsize="12.5%"  stroke="f" fillcolor="#0000ee"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->{{/if}}
+                                                    {{#if this.url.button}}<a href='{{this.url.link}}' target="_blank" class="v-button btn" style="color: #FFFFFF;text-decoration: none;">{{else}}<a href='{{this.url.link}}' target="_blank" style="color: #FFFFFF;">{{/if}}
+                                                    <span style="display:block;padding:10px 20px;line-height:120%;"><strong><span style="line-height: 12px;">{{this.url.text}}</span></strong></span>
+
+                                                    </a>
+                                                    {{#if this.url.button}}<!--[if mso]></center></v:roundrect><![endif]-->{{/if}}
+                                                    {{#if this.url.textSuffix}} {{this.url.textSuffix}} {{/if}}
+                                                {{/if}}
+                                                {{#if this.mail}}
+                                                    <a style='color:white' href='mailto:{{this.mail.address}}' {{#if this.mail.button}}class='v-button btn'{{/if}}>{{this.mail.address}}</a>
+                                                    {{#if this.mail.textSuffix}} {{this.mail.textSuffix}} {{/if}}
+                                                {{/if}}
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!--[if (!mso)&(!IE)]><!--></div><!--<![endif]-->
+                        </div>
+                        </div>
+                        <!--[if (mso)|(IE)]></td><![endif]-->
+                        <!--[if (mso)|(IE)]></tr></table></td></tr></table><![endif]-->
+                        </div>
+                        </div>
+                        </div>
+                        {{/each}}
+
+
+
+
+                        {{!-- Social Block --}}
+                        <div class="u-row-container" style="padding: 0px;background-color: #1e1a2e">
+                        <div class="u-row" style="margin: 0 auto;min-width: 320px;max-width: 500px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
+                        <div style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
+                        <!--[if (mso)|(IE)]><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding: 0px;background-color: #1e1a2e;" align="center"><table cellpadding="0" cellspacing="0" border="0" style="width:500px;"><tr style="background-color: transparent;"><![endif]-->
+                        <!--[if (mso)|(IE)]><td align="center" width="500" style="width: 500px;padding: 23px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;" valign="top"><![endif]-->
+                        <div class="u-col u-col-100" style="max-width: 320px;min-width: 500px;display: table-cell;vertical-align: top;">
+                        <div style="height: 100%;width: 100% !important;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;">
+                        <!--[if (!mso)&(!IE)]><!--><div style="box-sizing: border-box; height: 100%; padding: 23px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;border-radius: 0px;-webkit-border-radius: 0px; -moz-border-radius: 0px;"><!--<![endif]-->
+
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" align="center">
+                                <tr>
+                                    <td align="center">
+                                        <table role="presentation" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td class="social-links">
+                                                    <a href="{{twitterUrl}}"><img src="https://dfx.swiss/wp-content/uploads/2022/07/twitter.png" alt="Twitter" border="0"></a>
+                                                </td>
+                                                <td class="social-links">
+                                                    <a href="{{telegramUrl}}"><img src="https://dfx.swiss/wp-content/uploads/2022/07/telegram.png" alt="Telegram" border="0"></a>
+                                                </td>
+                                                <td class="social-links">
+                                                    <a href="{{instagramUrl}}"><img src="https://dfx.swiss/wp-content/uploads/2022/07/instagram.png" alt="Instagram" border="0"></a>
+                                                </td>
+                                                <td class="social-links">
+                                                    <a href="{{linkedinUrl}}"><img src="https://dfx.swiss/wp-content/uploads/2022/07/linkedin.png" alt="LinkedIn" border="0"></a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+
+                        <!--[if (!mso)&(!IE)]><!--></div><!--<![endif]-->
+                        </div>
+                        </div>
+                        <!--[if (mso)|(IE)]></td><![endif]-->
+                        <!--[if (mso)|(IE)]></tr></table></td></tr></table><![endif]-->
+                        </div>
+                        </div>
+                        </div>
+
+
+
+
+                        <!--[if (mso)|(IE)]></td></tr></table><![endif]-->
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <!--[if mso]></div><![endif]-->
+        <!--[if IE]></div><![endif]-->
+    </body>
 
 </html>

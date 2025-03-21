@@ -25,12 +25,17 @@ export interface MailAffix {
     link: string;
     text: string;
     textSuffix?: string;
+    button: string;
   };
   mail?: {
     address: string;
     textSuffix?: string;
+    button: string;
   };
   style?: string;
+  marginTop?: string;
+  marginBottom?: string;
+  underline?: string;
   text: string;
 }
 
@@ -38,6 +43,10 @@ export enum MailParamKey {
   STYLE = 'style',
   VALUE = 'value',
   URL = 'url',
+  BUTTON = 'button',
+  UNDERLINE = 'underline',
+  MARGIN_TOP = 'marginTop',
+  MARGIN_BOTTOM = 'marginBottom',
 }
 
 export type TranslationParams = { [key in MailParamKey]?: string } | Record<string, string>;

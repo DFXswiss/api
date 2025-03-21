@@ -1,11 +1,13 @@
 import { Config } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
 import { NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
 export interface MailRequestUserInputV2 {
   userData: UserData;
+  wallet: Wallet;
   title: string;
   salutation?: TranslationItem;
   texts: TranslationItem[];
@@ -25,7 +27,7 @@ export interface UserMailParamsV2 {
 }
 
 export class UserMailV2 extends Mail {
-  constructor(params: UserMailParamsV2) {
+  constructor(params: UserMailParamsV2, wallet: Wallet) {
     const defaultParams: Partial<UserMailParamsV2> = {
       twitterUrl: Config.social.twitter,
       telegramUrl: Config.social.telegram,
@@ -33,6 +35,10 @@ export class UserMailV2 extends Mail {
       instagramUrl: Config.social.instagram,
     };
 
-    super({ ...params, template: 'userV2', templateParams: { ...defaultParams, ...params } });
+    super({
+      ...params,
+      template: wallet?.name === 'onchainlabs' ? 'onChainLabs' : 'userV2',
+      templateParams: { ...defaultParams, ...params },
+    });
   }
 }
