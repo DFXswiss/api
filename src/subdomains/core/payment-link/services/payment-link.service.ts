@@ -158,7 +158,7 @@ export class PaymentLinkService {
       route,
       externalId: dto.externalId,
       status: PaymentLinkStatus.ACTIVE,
-      uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID),
+      uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
       street: dto.config?.recipient?.address?.street,
@@ -196,8 +196,9 @@ export class PaymentLinkService {
   async createPayRequest(
     uniqueId: string,
     standardParam: PaymentStandard = PaymentStandard.OPEN_CRYPTO_PAY,
+    waitTimeout = 10,
   ): Promise<PaymentLinkPayRequestDto> {
-    const pendingPayment = await this.waitForPendingPayment(uniqueId);
+    const pendingPayment = await this.waitForPendingPayment(uniqueId, waitTimeout);
     if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentErrorResponse(uniqueId, standardParam));
 
     const { standards, displayQr } = pendingPayment.link.configObj;
@@ -236,12 +237,12 @@ export class PaymentLinkService {
     return payRequest;
   }
 
-  private async waitForPendingPayment(uniqueId: string): Promise<PaymentLinkPayment> {
+  private async waitForPendingPayment(uniqueId: string, timeout: number): Promise<PaymentLinkPayment> {
     return Util.poll(
       () => this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId),
       (p) => p?.status === PaymentLinkPaymentStatus.PENDING,
-      1000, // interval 1 sec
-      10000, // timeout 10 sec
+      1000,
+      timeout * 1000,
     );
   }
 

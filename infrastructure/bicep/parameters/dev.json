@@ -122,6 +122,15 @@
     "paymentMoneroAddress": {
       "value": "xxx"
     },
+    "paymentBitcoinAddress": {
+      "value": "xxx"
+    },
+    "paymentCheckbotSignTx": {
+      "value": "xxx"
+    },
+    "paymentCheckbotPubKey": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },
@@ -396,7 +405,7 @@
       "value": "https://dev.payment.dfx.swiss"
     },
     "servicesUrl": {
-      "value": "https://dev.services.dfx.swiss"
+      "value": "https://dev.app.dfx.swiss"
     },
     "limitRequestSupportBanner": {
       "value": "xxx"

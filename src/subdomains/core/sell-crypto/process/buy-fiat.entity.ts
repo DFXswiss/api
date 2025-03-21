@@ -3,10 +3,11 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -35,8 +36,7 @@ export class BuyFiat extends IEntity {
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
-  @OneToOne(() => BankTx, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => BankTx, { nullable: true })
   bankTx?: BankTx;
 
   @ManyToOne(() => BankData, { nullable: true })
@@ -254,6 +254,7 @@ export class BuyFiat extends IEntity {
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
+    blockchainFee?: number,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -264,6 +265,7 @@ export class BuyFiat extends IEntity {
       chargebackAllowedBy,
       amlCheck: CheckStatus.FAIL,
       mailReturnSendDate: null,
+      blockchainFee,
     };
 
     Object.assign(this, update);
@@ -317,6 +319,8 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
+    const paymentLinkFeeAmount = Util.roundReadable(outputReferenceAmount * paymentLinkFee, AmountType.FIAT_FEE);
+
     const update: Partial<BuyFiat> =
       inputReferenceAmountMinusFee < 0
         ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
@@ -337,7 +341,7 @@ export class BuyFiat extends IEntity {
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
-            outputAmount: Util.roundReadable(outputReferenceAmount * (1 - paymentLinkFee), true),
+            outputAmount: Util.roundReadable(outputReferenceAmount - paymentLinkFeeAmount, AmountType.FIAT),
             outputReferenceAmount,
             priceSteps: this.priceSteps,
           };
@@ -354,6 +358,19 @@ export class BuyFiat extends IEntity {
       outputAmount,
       outputReferenceAmount: this.outputReferenceAmount ?? outputAmount,
       priceSteps: this.priceSteps,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  complete(remittanceInfo: string, outputDate: Date, bankTx: BankTx): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      remittanceInfo,
+      outputDate,
+      bankTx,
+      isComplete: true,
     };
 
     Object.assign(this, update);
@@ -456,13 +473,17 @@ export class BuyFiat extends IEntity {
     return this.totalFeeAmountChf;
   }
 
+  get wallet(): Wallet {
+    return this.user.wallet;
+  }
+
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
       exchangeRate: Util.roundReadable(
         (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount),
-        false,
+        AmountType.ASSET,
       ),
-      rate: Util.roundReadable(this.inputAmount / this.outputAmount, false),
+      rate: Util.roundReadable(this.inputAmount / this.outputAmount, AmountType.ASSET),
     };
   }
 
@@ -471,11 +492,11 @@ export class BuyFiat extends IEntity {
   }
 
   get userData(): UserData {
-    return this.user.userData;
+    return this.transaction.userData;
   }
 
   set userData(userData: UserData) {
-    this.user.userData = userData;
+    this.transaction.userData = userData;
   }
 
   get noCommunication(): boolean {

@@ -1,5 +1,5 @@
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
 import { Fiat } from '../fiat.entity';
@@ -44,8 +44,8 @@ export class FiatDtoMapper {
     const price = fiat.approxPriceChf ?? 1;
 
     return {
-      minVolume: Util.roundReadable(min / price, true),
-      maxVolume: Util.roundReadable(max / price, true),
+      minVolume: Util.roundReadable(min / price, AmountType.FIAT),
+      maxVolume: Util.roundReadable(max / price, AmountType.FIAT),
     };
   }
 

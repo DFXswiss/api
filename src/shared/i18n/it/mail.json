@@ -2,7 +2,7 @@
     "general": {
         "dfx_team_closing": "Tuo DFX team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
-        "support": "Se hai domande,<br>siamo felici di aiutarti su [url:https://services.dfx.swiss/support].",
+        "support": "Se hai domande,<br>siamo felici di aiutarti su [url:https://app.dfx.swiss/support].",
         "thanks": "Grazie mille per la tua fiducia",
         "welcome": "Ciao {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
@@ -30,6 +30,7 @@
             },
             "currency_exchange": "A proposito: il conto bancario {bankAccount} è un conto {bankAsset}, se inviate {inputAsset} questo sarà scambiato direttamente in banca e noi riceveremo {bankAsset}.<br>Se possibile, inviate {bankAsset} direttamente a questo conto bancario."
         },
+        "warning": "Attenzione:<br><br><br>C'è un numero crescente di truffatori (di solito belle donne) che vi scrivono attraverso i social media (ad esempio linkedIn) e vi promettono investimenti apparentemente redditizi dopo un po' di tempo.<br>Fate attenzione e, in caso di dubbio, non inviate denaro.<br><br>C'è il rischio di una perdita totale se si seguono le istruzioni di questo sconosciuto e gli si invia del denaro, ad esempio",
         "crypto_output": {
             "title": "Attività in criptovaluta pagata",
             "salutation": "Le vostre attività in criptovaluta sono state pagate al vostro indirizzo"
@@ -106,7 +107,7 @@
                 "line1": "Per favore, richiedi un nuovo limite annuale.",
                 "line2": "Una volta che il nuovo limite è stato approvato,<br> procederemo con la tua transazione.",
                 "line3": "Aumentare il limite?",
-                "line4": "È possibile richiedere un aumento del limite tramite il seguente link:<br>[url:https://services.dfx.swiss/support/issue?issue-type=LimitRequest]",
+                "line4": "È possibile richiedere un aumento del limite tramite il seguente link:<br>[url:https://app.dfx.swiss/support/issue?issue-type=LimitRequest]",
                 "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             },
             "annual_limit_without_kyc": {
@@ -227,7 +228,7 @@
             "title": "Confermare l'e-mail",
             "salutation": "Confermare l'e-mail",
             "message": "Fare clic sul seguente link per confermare la posta per un altro account:<br>[url:{urlText}]",
-            "closing": "Se non avete inserito le vostre mail in un altro account DFX, contattate immediatamente il supporto al numero [url:https://services.dfx.swiss/support]."
+            "closing": "Se non avete inserito le vostre mail in un altro account DFX, contattate immediatamente il supporto al numero [url:https://app.dfx.swiss/support]."
         },
         "added_address": {
             "title": "Indirizzo aggiunto al conto",
@@ -268,6 +269,6 @@
             "salutation": "Hai richiesto di cambiare il tuo indirizzo e-mail"
         },
         "message": "Il codice di verifica è:<br>{code}",
-        "closing": "Il codice di verifica è valido per {expiration} minuti. Si prega di non condividere questo codice di verifica con altre persone. Se non avete richiesto un codice di verifica, contattate immediatamente l'assistenza via [url:https://services.dfx.swiss/support]."
+        "closing": "Il codice di verifica è valido per {expiration} minuti. Si prega di non condividere questo codice di verifica con altre persone. Se non avete richiesto un codice di verifica, contattate immediatamente l'assistenza via [url:https://app.dfx.swiss/support]."
     }
 }

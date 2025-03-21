@@ -1,4 +1,5 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -51,6 +52,7 @@ export class UserDtoMapper {
       refCode: user.ref,
       apiKeyCT: userData.apiKeyCT ?? user.apiKeyCT,
       apiFilterCT: ApiKeyService.getFilterArray(userData.apiFilterCT ?? user.apiFilterCT),
+      isCustody: user.role === UserRole.CUSTODY,
     };
 
     return Object.assign(new UserAddressDto(), dto);

@@ -34,6 +34,9 @@ export class Wallet extends IEntity {
   isKycClient: boolean;
 
   @Column({ default: false })
+  displayFraudWarning: boolean;
+
+  @Column({ default: false })
   usesDummyAddresses: boolean;
 
   @Column({ nullable: true })
@@ -51,14 +54,23 @@ export class Wallet extends IEntity {
   @Column({ length: 256, nullable: true })
   apiKey?: string;
 
-  @Column({ default: AmlRule.DEFAULT })
-  amlRule: AmlRule;
+  @Column({ default: '0' })
+  amlRules: string; // semicolon separated amlRule id's
 
   @Column({ length: 'MAX', nullable: true })
   webhookConfig?: string; // JSON string
 
   get webhookConfigObject(): WebhookConfig | undefined {
     return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;
+  }
+
+  get amlRuleList(): AmlRule[] {
+    return (
+      this.amlRules
+        ?.split(';')
+        .map((num) => Number(num))
+        .filter((num) => Object.values(AmlRule).includes(num)) ?? []
+    );
   }
 
   isValidForWebhook(type: WebhookType, consented: boolean): boolean {

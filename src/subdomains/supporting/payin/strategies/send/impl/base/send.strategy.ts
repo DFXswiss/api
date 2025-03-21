@@ -8,13 +8,13 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AmountType, Util } from 'src/shared/utils/util';
 import {
   CryptoInput,
   PayInConfirmationType,
   PayInStatus,
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SendStrategyRegistry } from './send.strategy-registry';
@@ -107,30 +107,28 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
   // --- FEES --- //
   protected async getMinInputFee(asset: Asset): Promise<number> {
-    return this.transactionHelper.getBlockchainFee(asset, true);
+    return this.transactionHelper.getBlockchainFeeInChf(asset, true);
   }
 
   protected async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
     return this.transactionHelper.getMinConfirmations(payIn, direction);
   }
 
-  protected async getEstimatedFee(
+  protected async getEstimatedForwardFee(
     asset: Asset,
     amount: number,
     targetAddress: string,
-  ): Promise<{ nativeFee: number; targetFee: number }> {
+  ): Promise<{ feeNativeAsset: number; feeInputAsset: number; maxFeeInputAsset: number }> {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
-    const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
+    if (!nativeFee.amount) return { feeNativeAsset: 0, feeInputAsset: 0, maxFeeInputAsset: 0 };
 
-    return { nativeFee: nativeFee.amount, targetFee };
-  }
+    const nativeAssetPrice = await this.priceProvider.getPrice(nativeFee.asset, asset, true);
+    const chfPrice = await this.priceProvider.getPrice(this.chf, asset, true);
 
-  private async getFeeAmountInPayInAsset(asset: Asset, nativeFee: FeeResult): Promise<number> {
-    return nativeFee.amount ? this.getFeeReferenceAmount(nativeFee.asset, nativeFee.amount, asset) : 0;
-  }
-
-  private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const price = await this.priceProvider.getPrice(fromAsset, toAsset, true);
-    return price.convert(fromAmount, 8);
+    return {
+      feeNativeAsset: nativeFee.amount,
+      feeInputAsset: Util.roundReadable(nativeAssetPrice.convert(nativeFee.amount), AmountType.ASSET_FEE),
+      maxFeeInputAsset: chfPrice.convert(Config.maxBlockchainFee, 8),
+    };
   }
 }

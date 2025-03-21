@@ -15,6 +15,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
@@ -29,7 +30,6 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -42,6 +42,7 @@ import { UpdateTransactionInternalDto } from 'src/subdomains/supporting/payment/
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
@@ -66,6 +67,7 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
@@ -84,10 +86,13 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
-    private readonly userDataService: UserDataService,
     @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    @Inject(forwardRef(() => AmlService))
+    private readonly amlService: AmlService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -128,6 +133,7 @@ export class BuyCryptoService {
     await this.createEntity(entity, {
       type: TransactionTypeInternal.BUY_CRYPTO,
       user: buy.user,
+      userData: buy.userData,
       resetMailSendDate: true,
     });
   }
@@ -145,7 +151,7 @@ export class BuyCryptoService {
 
       if (!bankData)
         await this.bankDataService.createVerifyBankData(buy.userData, {
-          name: checkoutTx.cardName ?? buy.userData.completeName,
+          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
@@ -165,6 +171,7 @@ export class BuyCryptoService {
     await this.createEntity(entity, {
       type: TransactionTypeInternal.BUY_CRYPTO,
       user: buy.user,
+      userData: buy.userData,
     });
   }
 
@@ -185,6 +192,7 @@ export class BuyCryptoService {
       {
         type: TransactionTypeInternal.CRYPTO_CRYPTO,
         user: swap.user,
+        userData: swap.userData,
       },
       request,
     );
@@ -199,7 +207,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         chargebackOutput: true,
         bankData: true,
       },
@@ -280,8 +288,7 @@ export class BuyCryptoService {
       isComplete: dto.isComplete,
     };
 
-    if (BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
-      await this.buyCryptoNotificationService.paymentProcessing(entity);
+    const amlCheckBefore = entity.amlCheck;
 
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
@@ -292,13 +299,26 @@ export class BuyCryptoService {
       }),
     );
 
-    if (entity.cryptoInput && dto.amlCheck)
-      await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
-    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
+    if (forceUpdate.amlCheck) {
+      if (update.amlCheck === CheckStatus.PASS) {
+        await this.buyCryptoNotificationService.paymentProcessing(entity);
 
-    // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
-      await this.userService.activateUser(entity.user);
+        const inputReferenceCurrency =
+          entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
+
+        const last30dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(30, entity.transaction.created),
+          Util.daysAfter(30, entity.transaction.created),
+          entity.userData.users,
+        );
+
+        await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
+      } else {
+        await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
+      }
     }
 
     // create sift transaction
@@ -328,7 +348,7 @@ export class BuyCryptoService {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
 
@@ -392,12 +412,15 @@ export class BuyCryptoService {
 
     TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    let blockchainFee: number;
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      blockchainFee = await this.transactionHelper.getBlockchainFee(buyCrypto.cryptoInput.asset, true);
       await this.payInService.returnPayIn(
         buyCrypto.cryptoInput,
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
       );
+    }
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
@@ -406,6 +429,9 @@ export class BuyCryptoService {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
+        undefined,
+        undefined,
+        blockchainFee,
       ),
     );
   }
@@ -422,7 +448,12 @@ export class BuyCryptoService {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
+    if (
+      !(await this.transactionUtilService.validateChargebackIban(
+        chargebackIban,
+        chargebackIban !== buyCrypto.bankTx.iban,
+      ))
+    )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount)
@@ -436,6 +467,7 @@ export class BuyCryptoService {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
+        buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
   }
@@ -452,8 +484,7 @@ export class BuyCryptoService {
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
       .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')
@@ -602,7 +633,7 @@ export class BuyCryptoService {
 
     // transaction
     request = await this.getAndCompleteTxRequest(entity, request);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, { ...dto, request });
+    entity.transaction = await this.transactionService.updateInternal(entity.transaction, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
 

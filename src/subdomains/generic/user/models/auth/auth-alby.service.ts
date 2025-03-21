@@ -110,6 +110,6 @@ export class AuthAlbyService {
   }
 
   private get fallbackUrl(): string {
-    return `${Config.frontend.payment}/error`;
+    return `${Config.frontend.services}/error`;
   }
 }

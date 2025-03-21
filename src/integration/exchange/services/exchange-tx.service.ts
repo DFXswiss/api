@@ -1,12 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
@@ -36,11 +36,8 @@ export class ExchangeTxService implements OnModuleInit {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
   async syncExchanges() {
-    if (DisabledProcess(Process.EXCHANGE_TX_SYNC)) return;
-
     const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
     const transactions = await Promise.all(ExchangeSyncs.map((s) => this.getTransactionsFor(s, since))).then((tx) =>
       tx.flat(),
@@ -71,6 +68,25 @@ export class ExchangeTxService implements OnModuleInit {
           const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
+        }
+      }
+
+      if (entity.amount && !entity.amountChf) {
+        const currencyName = entity.type === ExchangeTxType.TRADE ? entity.symbol.split('/')[0] : entity.currency;
+
+        if (currencyName === 'CHF') {
+          entity.amountChf = entity.amount;
+        } else {
+          const currency =
+            (await this.fiatService.getFiatByName(currencyName)) ??
+            (await this.assetService.getAssetByQuery({
+              blockchain: undefined,
+              type: undefined,
+              name: currencyName,
+            }));
+          const priceChf = await this.pricingService.getPrice(currency, this.chf, true);
+
+          entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }
       }
 

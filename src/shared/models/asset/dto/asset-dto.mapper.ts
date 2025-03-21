@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
 import { Asset } from '../asset.entity';
 import { AssetDetailDto, AssetDto, FeeTier } from './asset.dto';
@@ -40,8 +40,8 @@ export class AssetDtoMapper {
       limits:
         asset.buyable || asset.sellable
           ? {
-              minVolume: Util.roundReadable(spec.minVolume / price, false),
-              maxVolume: Util.roundReadable(Config.tradingLimits.yearlyDefault / price, false),
+              minVolume: Util.roundReadable(spec.minVolume / price, AmountType.ASSET),
+              maxVolume: Util.roundReadable(Config.tradingLimits.yearlyDefault / price, AmountType.ASSET),
             }
           : { minVolume: 0, maxVolume: 0 },
     });

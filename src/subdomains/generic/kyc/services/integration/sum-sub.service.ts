@@ -8,7 +8,13 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
-import { ApplicantType, SumSubDataResult, SumsubResult, SumSubVideoData } from '../../dto/sum-sub.dto';
+import {
+  ApplicantType,
+  SumSubDataResult,
+  SumSubDocumentMetaData,
+  SumsubResult,
+  SumSubVideoData,
+} from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { KycStepType } from '../../enums/kyc.enum';
@@ -38,7 +44,10 @@ export class SumsubService {
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
     const { webhook } = kycStep.getResult<SumsubResult>();
-    return [await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId)];
+    return [
+      await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId),
+      ...(await this.getDocumentMedia(webhook.applicantId, kycStep.transactionId)),
+    ];
   }
 
   async getMedia(kycStep: KycStep): Promise<IdentDocument[]> {
@@ -48,6 +57,10 @@ export class SumsubService {
 
   async getApplicantData(applicantId: string): Promise<SumSubDataResult> {
     return this.callApi<SumSubDataResult>(`/resources/applicants/${applicantId}/one`, 'GET');
+  }
+
+  async getApplicantMetadata(applicantId: string): Promise<SumSubDocumentMetaData> {
+    return this.callApi(`/resources/applicants/${applicantId}/metadata/resources`, 'GET');
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -82,11 +95,34 @@ export class SumsubService {
         applicantType == ApplicantType.COMPANY ? 'companyReport' : 'applicantReport'
       }`,
       'GET',
-      '{}',
+      undefined,
       'arraybuffer',
     ).then(Buffer.from);
 
     return { name: this.fileName(transactionId, 'pdf'), content, contentType: ContentType.PDF };
+  }
+
+  private async getDocumentMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {
+    const applicant = await this.getApplicantData(applicantId);
+    const applicantMetaData = await this.getApplicantMetadata(applicantId);
+
+    const identDocuments = [];
+    for (const image of applicantMetaData.items) {
+      const content = await this.callApi<string>(
+        `/resources/inspections/${applicant.inspectionId}/resources/${image.id}`,
+        'GET',
+        undefined,
+        'arraybuffer',
+      ).then(Buffer.from);
+
+      identDocuments.push({
+        name: this.fileName(`${transactionId}-${image.id}`, 'png'),
+        content,
+        contentType: ContentType.PNG,
+      });
+    }
+
+    return identDocuments;
   }
 
   private async getVideoMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {
@@ -97,7 +133,7 @@ export class SumsubService {
       const content = await this.callApi<string>(
         `/resources/videoIdent/applicant/${applicantId}/media/${composition.compositionMediaId}`,
         'GET',
-        '{}',
+        undefined,
         'arraybuffer',
       ).then(Buffer.from);
 
@@ -116,7 +152,6 @@ export class SumsubService {
     return this.callApi<SumSubVideoData>(
       `/resources/inspections/${applicant.inspectionId}?fields=videoIdentData`,
       'GET',
-      '{}',
     );
   }
 
@@ -163,12 +198,7 @@ export class SumsubService {
     );
   }
 
-  private async callApi<T>(
-    url: string,
-    method: Method = 'GET',
-    data: any = {},
-    responseType?: ResponseType,
-  ): Promise<T> {
+  private async callApi<T>(url: string, method: Method = 'GET', data?: any, responseType?: ResponseType): Promise<T> {
     return this.request<T>(url, method, JSON.stringify(data), responseType).catch((e: HttpError) => {
       this.logger.verbose(`Error during sum sub request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
       throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });
@@ -177,10 +207,11 @@ export class SumsubService {
 
   private async request<T>(url: string, method: Method, data?: any, responseType?: ResponseType): Promise<T> {
     const { ts, signature } = await this.createAccess(method, url, data);
+
     return this.http.request<T>({
       url: `${this.baseUrl}${url}`,
-      method: method,
-      data: data,
+      method,
+      data,
       responseType,
       headers: {
         'Content-Type': 'application/json',
@@ -195,7 +226,7 @@ export class SumsubService {
     const ts = Math.floor(Date.now() / 1000);
     const signature = crypto.createHmac('sha256', Config.kyc.secretKey);
     signature.update(ts + method.toUpperCase() + url);
-    signature.update(data);
+    data && signature.update(data);
     return { ts, signature: signature.digest('hex') };
   }
 

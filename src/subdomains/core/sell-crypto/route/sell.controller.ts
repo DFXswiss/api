@@ -17,9 +17,9 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
@@ -28,7 +28,6 @@ import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
-import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
@@ -54,14 +53,13 @@ export class SellController {
     private readonly buyFiatService: BuyFiatService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
-    private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly assetService: AssetService,
   ) {}
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
     return this.sellService.getUserSells(jwt.user).then((l) => this.toDtoList(l));
@@ -69,7 +67,7 @@ export class SellController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: SellDto })
   async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
     return this.sellService.get(jwt.user, +id).then((l) => this.toDto(l));
@@ -77,7 +75,7 @@ export class SellController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
     dto.currency ??= dto.fiat;
@@ -144,25 +142,19 @@ export class SellController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return Util.retry(
-      () => this.sellService.createSell(jwt.user, { ...dto, blockchain: dto.asset.blockchain }, true),
-      2,
-      0,
-      undefined,
-      (e) => e.message?.includes('duplicate key'),
-    ).then((sell) => this.toPaymentInfoDto(jwt.user, sell, dto));
+    return this.sellService.createSellPaymentInfo(jwt.user, dto);
   }
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
@@ -178,7 +170,7 @@ export class SellController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
     return this.sellService.updateSell(jwt.user, +id, dto).then((s) => this.toDto(s));
@@ -230,72 +222,5 @@ export class SellController {
       minFee: { amount: fee.network, asset: 'CHF' },
       minDeposits: [minDeposit],
     };
-  }
-
-  private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
-
-    const {
-      timestamp,
-      minVolume,
-      minVolumeTarget,
-      maxVolume,
-      maxVolumeTarget,
-      exchangeRate,
-      rate,
-      estimatedAmount,
-      sourceAmount: amount,
-      isValid,
-      error,
-      exactPrice,
-      feeSource,
-      feeTarget,
-      priceSteps,
-    } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      dto.targetAmount,
-      dto.asset,
-      dto.currency,
-      CryptoPaymentMethod.CRYPTO,
-      FiatPaymentMethod.BANK,
-      !dto.exactPrice,
-      user,
-    );
-
-    const sellDto: SellPaymentInfoDto = {
-      id: 0, // set during request creation
-      timestamp,
-      routeId: sell.id,
-      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: sell.active ? sell.deposit.address : undefined,
-      blockchain: dto.asset.blockchain,
-      minDeposit: { amount: minVolume, asset: dto.asset.dexName },
-      minVolume,
-      minFee: feeSource.min,
-      minVolumeTarget,
-      minFeeTarget: feeTarget.min,
-      fees: feeSource,
-      exchangeRate,
-      rate,
-      exactPrice,
-      priceSteps,
-      estimatedAmount,
-      amount,
-      currency: FiatDtoMapper.toDto(dto.currency),
-      beneficiary: { name: user.userData.verifiedName, iban: sell.iban },
-      asset: AssetDtoMapper.toDto(dto.asset),
-      maxVolume,
-      maxVolumeTarget,
-      feesTarget: feeTarget,
-      paymentRequest: sell.active
-        ? await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount)
-        : undefined,
-      isValid,
-      error,
-    };
-
-    await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
-
-    return sellDto;
   }
 }

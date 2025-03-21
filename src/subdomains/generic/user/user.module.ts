@@ -12,6 +12,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { AccountMerge } from './models/account-merge/account-merge.entity';
@@ -32,6 +33,9 @@ import { CustodyProviderRepository } from './models/custody-provider/custody-pro
 import { CustodyProviderService } from './models/custody-provider/custody-provider.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
+import { Organization } from './models/organization/organization.entity';
+import { OrganizationRepository } from './models/organization/organization.repository';
+import { OrganizationService } from './models/organization/organization.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -50,7 +54,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, CustodyProvider]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, CustodyProvider, Organization]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -60,6 +64,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankModule,
     SiftModule,
     SupportIssueModule,
+    TransactionModule,
   ],
   controllers: [
     UserV2Controller,
@@ -97,6 +102,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     AccountMergeService,
     CustodyProviderService,
     CustodyProviderRepository,
+    OrganizationService,
+    OrganizationRepository,
   ],
   exports: [
     UserService,
@@ -106,6 +113,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     WalletService,
     AccountMergeService,
     CustodyProviderService,
+    UserDataRelationService,
+    AuthService,
   ],
 })
 export class UserModule {}

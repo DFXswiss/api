@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
@@ -25,10 +25,8 @@ export class BuyFiatNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BUY_FIAT_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
-    if (DisabledProcess(Process.BUY_FIAT_MAIL)) return;
     await this.paymentCompleted();
     await this.chargebackInitiated();
     await this.pendingBuyFiat();
@@ -44,7 +42,7 @@ export class BuyFiatNotificationService {
         outputAmount: Not(IsNull()),
       },
       relations: {
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { userData: true, user: { wallet: true } },
       },
     });
 
@@ -56,7 +54,7 @@ export class BuyFiatNotificationService {
             context: MailContext.BUY_FIAT_COMPLETED,
             input: {
               userData: entity.userData,
-              wallet: entity.user.wallet,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.FIAT_OUTPUT}.title`,
               salutation: { key: `${MailTranslationKey.FIAT_OUTPUT}.salutation` },
               suffix: [
@@ -202,7 +200,7 @@ export class BuyFiatNotificationService {
         amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: { sell: true, transaction: { user: { userData: true, wallet: true } } },
+      relations: { sell: true, transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
@@ -215,7 +213,7 @@ export class BuyFiatNotificationService {
             context: MailContext.BUY_FIAT_PENDING,
             input: {
               userData: entity.userData,
-              wallet: entity.user.wallet,
+              wallet: entity.wallet,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
@@ -275,7 +273,7 @@ export class BuyFiatNotificationService {
         amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
-      relations: { sell: true, cryptoInput: true, transaction: { user: { userData: true, wallet: true } } },
+      relations: { sell: true, cryptoInput: true, transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} chargeback email(s)`);
@@ -292,7 +290,7 @@ export class BuyFiatNotificationService {
             context: MailContext.BUY_FIAT_RETURN,
             input: {
               userData: entity.userData,
-              wallet: entity.user.wallet,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               suffix: [
@@ -355,7 +353,7 @@ export class BuyFiatNotificationService {
         amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
       },
-      relations: { transaction: { user: { userData: true, wallet: true } } },
+      relations: { transaction: { userData: true, user: { wallet: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);
@@ -368,7 +366,7 @@ export class BuyFiatNotificationService {
             context: MailContext.BUY_FIAT_CHARGEBACK_UNCONFIRMED,
             input: {
               userData: entity.userData,
-              wallet: entity.user.wallet,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.title`,
               salutation: {
                 key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation`,

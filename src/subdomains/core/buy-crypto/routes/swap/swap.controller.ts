@@ -17,6 +17,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -30,7 +31,6 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
-import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { CreateSwapDto } from './dto/create-swap.dto';
@@ -52,14 +52,13 @@ export class SwapController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
-    private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly assetService: AssetService,
   ) {}
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async getAllSwap(@GetJwt() jwt: JwtPayload): Promise<SwapDto[]> {
     return this.swapService.getUserSwaps(jwt.user).then((l) => this.toDtoList(jwt.user, l));
@@ -67,7 +66,7 @@ export class SwapController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: SwapDto })
   async getSwap(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
     return this.swapService.get(jwt.user, +id).then((l) => this.toDto(jwt.user, l));
@@ -75,7 +74,7 @@ export class SwapController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async createSwap(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSwapDto): Promise<SwapDto> {
     dto.targetAsset ??= dto.asset;
@@ -140,25 +139,19 @@ export class SwapController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: SwapPaymentInfoDto })
   async createSwapWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSwapPaymentInfoDto,
   ): Promise<SwapPaymentInfoDto> {
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
-    return Util.retry(
-      () => this.swapService.createSwap(jwt.user, dto.sourceAsset.blockchain, dto.targetAsset, true),
-      2,
-      0,
-      undefined,
-      (e) => e.message?.includes('duplicate key'),
-    ).then((crypto) => this.toPaymentInfoDto(jwt.user, crypto, dto));
+    return this.swapService.createSwapPaymentInfo(jwt.user, dto);
   }
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSwap(
     @GetJwt() jwt: JwtPayload,
@@ -174,7 +167,7 @@ export class SwapController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiExcludeEndpoint()
   async updateSwapRoute(
     @GetJwt() jwt: JwtPayload,
@@ -228,71 +221,5 @@ export class SwapController {
       minDeposits: [minDeposit],
       minFee: { amount: fee.network, asset: 'CHF' },
     };
-  }
-
-  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
-
-    const {
-      timestamp,
-      minVolume,
-      minVolumeTarget,
-      maxVolume,
-      maxVolumeTarget,
-      exchangeRate,
-      rate,
-      estimatedAmount,
-      sourceAmount: amount,
-      isValid,
-      error,
-      exactPrice,
-      feeSource,
-      feeTarget,
-      priceSteps,
-    } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      dto.targetAmount,
-      dto.sourceAsset,
-      dto.targetAsset,
-      CryptoPaymentMethod.CRYPTO,
-      CryptoPaymentMethod.CRYPTO,
-      !dto.exactPrice,
-      user,
-    );
-
-    const swapDto: SwapPaymentInfoDto = {
-      id: 0, // set during request creation
-      timestamp,
-      routeId: swap.id,
-      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: swap.active ? swap.deposit.address : undefined,
-      blockchain: dto.sourceAsset.blockchain,
-      minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
-      minVolume,
-      minFee: feeSource.min,
-      minVolumeTarget,
-      minFeeTarget: feeTarget.min,
-      fees: feeSource,
-      feesTarget: feeTarget,
-      exchangeRate,
-      rate,
-      exactPrice,
-      priceSteps,
-      estimatedAmount,
-      amount,
-      targetAsset: AssetDtoMapper.toDto(dto.targetAsset),
-      sourceAsset: AssetDtoMapper.toDto(dto.sourceAsset),
-      maxVolume,
-      maxVolumeTarget,
-      paymentRequest: swap.active
-        ? await this.cryptoService.getPaymentRequest(isValid, dto.sourceAsset, swap.deposit.address, amount)
-        : undefined,
-      isValid,
-      error,
-    };
-
-    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
-
-    return swapDto;
   }
 }

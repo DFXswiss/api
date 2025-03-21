@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -13,6 +14,7 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
@@ -49,6 +51,8 @@ describe('BuyFiatService', () => {
   let payInService: PayInService;
   let userDataService: UserDataService;
   let buyFiatNotificationService: BuyFiatNotificationService;
+  let amlService: AmlService;
+  let transactionHelper: TransactionHelper;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -66,6 +70,8 @@ describe('BuyFiatService', () => {
     payInService = createMock<PayInService>();
     userDataService = createMock<UserDataService>();
     buyFiatNotificationService = createMock<BuyFiatNotificationService>();
+    amlService = createMock<AmlService>();
+    transactionHelper = createMock<TransactionHelper>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -86,6 +92,8 @@ describe('BuyFiatService', () => {
         { provide: PayInService, useValue: payInService },
         { provide: UserDataService, useValue: userDataService },
         { provide: BuyFiatNotificationService, useValue: buyFiatNotificationService },
+        { provide: AmlService, useValue: amlService },
+        { provide: TransactionHelper, useValue: transactionHelper },
       ],
     }).compile();
 
@@ -163,14 +171,14 @@ describe('BuyFiatService', () => {
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
-        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
+        txUrl: 'https://etherscan.io/tx/IN_TX_ID_0',
         ...txOne,
         outputAsset: txOne.outputAsset.name,
       }),
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_1',
-        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_1',
+        txUrl: 'https://etherscan.io/tx/IN_TX_ID_1',
         ...txTwo,
         outputAsset: txTwo.outputAsset.name,
       }),
@@ -185,7 +193,7 @@ describe('BuyFiatService', () => {
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
-        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
+        txUrl: 'https://etherscan.io/tx/IN_TX_ID_0',
         ...txSmallAmount,
         outputAsset: txSmallAmount.outputAsset.name,
       }),

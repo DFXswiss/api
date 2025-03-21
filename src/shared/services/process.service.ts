@@ -1,8 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Lock } from 'src/shared/utils/lock';
 import { SettingService } from '../models/setting/setting.service';
+import { DfxCron } from '../utils/cron';
 
 export enum Process {
   PAY_OUT = 'PayOut',
@@ -55,7 +55,9 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
-  TX_REQUEST_UID_SYNC = 'TxRequestUidSync',
+  ORGANIZATION_SYNC = 'OrganizationSync',
+  BANK_TX_RETURN = 'BankTxReturn',
+  LOG_CLEANUP = 'LogCleanup',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
@@ -76,8 +78,7 @@ export class ProcessService implements OnModuleInit {
     void this.resyncDisabledProcesses();
   }
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
-  @Lock(1800)
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
   async resyncDisabledProcesses(): Promise<void> {
     const allDisabledProcesses = [...(await this.settingService.getDisabledProcesses()), ...Config.disabledProcesses()];
     DisabledProcesses = this.listToMap(allDisabledProcesses);

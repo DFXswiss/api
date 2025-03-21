@@ -33,6 +33,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
@@ -41,11 +42,13 @@ import { Util } from 'src/shared/utils/util';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
+  KycBeneficialData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
+  KycOperationalData,
   KycPersonalData,
   KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
@@ -79,7 +82,7 @@ export class KycController {
   // --- 2FA --- //
   @Get('2fa')
   @ApiOkResponse({ description: '2FA active' })
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
     return this.tfaService.check(jwt.account, ip, level);
   }
@@ -197,10 +200,10 @@ export class KycController {
     return this.kycService.updateKycStep(code, +id, data, false);
   }
 
-  @Put('data/stock/:id')
+  @Put('data/owner/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
-  async updateStockRegisterData(
+  async updateOwnerDirectoryData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
@@ -265,6 +268,28 @@ export class KycController {
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, true);
+  }
+
+  @Put('data/beneficial/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateBeneficialData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycBeneficialData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateBeneficialOwnerData(code, +id, data);
+  }
+
+  @Put('data/operational/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateOperationalData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycOperationalData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateOperationActivityData(code, +id, data);
   }
 
   @Put('data/authority/:id')

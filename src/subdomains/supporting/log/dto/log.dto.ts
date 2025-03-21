@@ -78,6 +78,7 @@ type AssetLogPlusPending = {
   total: number;
   cryptoInput?: number;
   exchangeOrder?: number;
+  bridgeOrder?: number;
   fromOlky?: number;
   fromKraken?: number;
   toKraken?: number;

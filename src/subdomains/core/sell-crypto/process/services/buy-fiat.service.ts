@@ -3,12 +3,11 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -16,6 +15,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
@@ -54,8 +54,11 @@ export class BuyFiatService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
-    private readonly userDataService: UserDataService,
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
+    @Inject(forwardRef(() => AmlService))
+    private readonly amlService: AmlService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -73,9 +76,10 @@ export class BuyFiatService {
 
     // transaction
     request = await this.getAndCompleteTxRequest(entity, request);
-    entity.transaction = await this.transactionService.update(entity.transaction.id, {
+    entity.transaction = await this.transactionService.updateInternal(entity.transaction, {
       type: TransactionTypeInternal.BUY_FIAT,
       user: sell.user,
+      userData: sell.userData,
       request,
     });
 
@@ -104,7 +108,7 @@ export class BuyFiatService {
         fiatOutput: true,
         bankTx: true,
         cryptoInput: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -157,17 +161,15 @@ export class BuyFiatService {
       isComplete: dto.isComplete,
       comment: update.comment,
     };
-    if (BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck === CheckStatus.PASS)
-      await this.buyFiatNotificationService.paymentProcessing(entity);
+
+    const amlCheckBefore = entity.amlCheck;
 
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
-    if (dto.amlCheck) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
-    if (dto.amlReason === AmlReason.VIDEO_IDENT_NEEDED) await this.userDataService.triggerVideoIdent(entity.userData);
+    if (forceUpdate.amlCheck) {
+      if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
 
-    // activate user
-    if (entity.amlCheck === CheckStatus.PASS && entity.user) {
-      await this.userService.activateUser(entity.user);
+      await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
     }
 
     // payment webhook
@@ -191,8 +193,7 @@ export class BuyFiatService {
       .select('buyFiat')
       .leftJoinAndSelect('buyFiat.sell', 'sell')
       .leftJoinAndSelect('buyFiat.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')
@@ -227,7 +228,7 @@ export class BuyFiatService {
     const extended = await this.extendBuyFiat(buyFiat);
 
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, buyFiat.userData, extended) : undefined;
   }
 
   async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {
@@ -235,7 +236,7 @@ export class BuyFiatService {
       where: { id: buyFiatId },
       relations: {
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
@@ -263,12 +264,15 @@ export class BuyFiatService {
 
     TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    let blockchainFee: number;
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
       await this.payInService.returnPayIn(
         buyFiat.cryptoInput,
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
       );
+    }
 
     await this.buyFiatRepo.update(
       ...buyFiat.chargebackFillUp(
@@ -277,6 +281,7 @@ export class BuyFiatService {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
+        blockchainFee,
       ),
     );
   }

@@ -14,7 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -30,11 +30,13 @@ import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Util } from 'src/shared/utils/util';
+import { DfxCron } from 'src/shared/utils/cron';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -102,7 +104,7 @@ export class TransactionController {
   ) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_MINUTE)
+  @DfxCron(CronExpression.EVERY_MINUTE)
   checkLists() {
     for (const [key, refundData] of this.refundList.entries()) {
       if (!this.isRefundDataValid(refundData)) this.refundList.delete(key);
@@ -121,13 +123,16 @@ export class TransactionController {
   }
 
   @Get('single')
-  @ApiExcludeEndpoint()
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
+  @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
     @Query('uid') uid?: string,
-    @Query('external-id') externalId?: string,
+    @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, externalId, ckoId });
+    const transaction = await this.getTransaction({ uid, orderUid, ckoId });
 
     const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -197,16 +202,18 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDetailDto })
   @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
-  @ApiQuery({ name: 'request-id', description: 'Transaction request ID', required: false })
+  @ApiQuery({ name: 'order-id', description: 'Order ID', required: false })
+  @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
   @ApiQuery({ name: 'external-id', description: 'External transaction ID', required: false })
   async getSingleTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query('id') id?: string,
     @Query('uid') uid?: string,
-    @Query('request-id') requestId?: string,
+    @Query('order-id') orderId?: string,
+    @Query('order-uid') orderUid?: string,
     @Query('external-id') externalId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, requestId, externalId });
+    const transaction = await this.getTransaction({ id, uid, orderId, orderUid, externalId }, jwt.account);
 
     if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
@@ -245,7 +252,7 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
     const buys = await this.buyService.getUserDataBuys(jwt.account);
@@ -260,7 +267,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
@@ -288,10 +295,11 @@ export class TransactionController {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: true,
       bankTxReturn: true,
-      user: { userData: true },
+      userData: true,
       checkoutTx: true,
-      buyCrypto: { cryptoInput: { route: { user: true } }, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: { route: { user: true } } },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
@@ -314,6 +322,9 @@ export class TransactionController {
       if (transaction.targetEntity?.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
 
+      const userData = await this.userDataService.getUserData(jwt.account);
+      await this.transactionService.updateInternal(transaction, { userData });
+
       const bankFeeAmount = transaction.bankTx.chargeAmount;
 
       const inputAmount = transaction.bankTx.amount + transaction.bankTx.chargeAmount;
@@ -322,18 +333,17 @@ export class TransactionController {
 
       const refundAsset = FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.bankTx.currency));
 
-      const refundTarget = (await this.validateIban(transaction.bankTx?.iban))
-        ? transaction.bankTx.iban
-        : transaction.targetEntity?.chargebackIban;
+      const senderIbanIsValid = await this.validateIban(transaction.bankTx?.iban).catch(() => false);
+      const refundTarget = senderIbanIsValid ? transaction.bankTx?.iban : transaction.targetEntity?.chargebackIban;
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
         inputAmount,
         inputAsset: refundAsset,
-        refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, true),
+        refundAmount: Util.roundReadable(inputAmount - bankFeeAmount, AmountType.FIAT),
         fee: {
           network: 0,
-          bank: Util.roundReadable(bankFeeAmount, true),
+          bank: Util.roundReadable(bankFeeAmount, AmountType.FIAT_FEE),
         },
         refundAsset,
         refundTarget,
@@ -349,11 +359,14 @@ export class TransactionController {
       if (transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
 
+      const amountType = transaction.targetEntity.cryptoInput ? AmountType.ASSET : AmountType.FIAT;
+      const feeAmountType = transaction.targetEntity.cryptoInput ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
+
       const inputAmount = Util.roundReadable(
         transaction.bankTx
           ? transaction.bankTx.amount + transaction.bankTx.chargeAmount
           : transaction.targetEntity.inputAmount,
-        !transaction.targetEntity.cryptoInput,
+        amountType,
       );
 
       const networkFeeAmount = transaction.targetEntity.cryptoInput
@@ -363,10 +376,7 @@ export class TransactionController {
       const bankFeeAmount =
         transaction.targetEntity.cryptoInput || transaction.checkoutTx ? 0 : inputAmount - transaction.bankTx.amount;
 
-      const totalFeeAmount = Util.roundReadable(
-        networkFeeAmount + bankFeeAmount,
-        !transaction.targetEntity.cryptoInput,
-      );
+      const totalFeeAmount = Util.roundReadable(networkFeeAmount + bankFeeAmount, feeAmountType);
 
       if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
@@ -392,12 +402,12 @@ export class TransactionController {
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
-        inputAmount: Util.roundReadable(inputAmount, !transaction.targetEntity.cryptoInput),
+        inputAmount: Util.roundReadable(inputAmount, amountType),
         inputAsset: refundAsset,
-        refundAmount: inputAmount - totalFeeAmount,
+        refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
         fee: {
-          network: Util.roundReadable(networkFeeAmount, !transaction.targetEntity.cryptoInput),
-          bank: Util.roundReadable(bankFeeAmount, !transaction.targetEntity.cryptoInput),
+          network: Util.roundReadable(networkFeeAmount, feeAmountType),
+          bank: Util.roundReadable(bankFeeAmount, feeAmountType),
         },
         refundAsset,
         refundTarget,
@@ -418,16 +428,12 @@ export class TransactionController {
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
-      bankTx: { transaction: true },
-      bankTxReturn: true,
-      user: { userData: true },
-      buyCrypto: {
-        transaction: { user: { userData: true } },
-        cryptoInput: { route: { user: true } },
-        bankTx: true,
-        checkoutTx: true,
-      },
-      buyFiat: { transaction: { user: { userData: true } }, cryptoInput: { route: { user: true } } },
+      bankTx: { transaction: { userData: true } },
+      bankTxReturn: { bankTx: true },
+      userData: true,
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
+      buyFiat: { cryptoInput: true, transaction: { userData: true } },
+      refReward: true,
     });
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
@@ -448,9 +454,8 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {
-      const userData = await this.userDataService.getUserData(jwt.account);
       transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN }, userData)
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
     }
 
@@ -491,7 +496,7 @@ export class TransactionController {
     return (
       IbanTools.validateIBAN(iban).valid &&
       !multiAccountIbans.includes(iban) &&
-      (await this.transactionUtilService.validateChargebackIban(iban))
+      (await this.transactionUtilService.validateChargebackIban(iban, false))
     );
   }
 
@@ -540,34 +545,43 @@ export class TransactionController {
     }).then((list) => list.filter((dto) => dto));
   }
 
-  private async getTransaction({
-    id,
-    uid,
-    requestId,
-    externalId,
-    ckoId,
-  }: {
-    id?: string;
-    uid?: string;
-    requestId?: string;
-    externalId?: string;
-    ckoId?: string;
-  }): Promise<Transaction | undefined> {
+  private async getTransaction(
+    {
+      id,
+      uid,
+      orderId,
+      orderUid,
+      externalId,
+      ckoId,
+    }: {
+      id?: string;
+      uid?: string;
+      orderId?: string;
+      orderUid?: string;
+      externalId?: string;
+      ckoId?: string;
+    },
+    accountId?: number,
+  ): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
       checkoutTx: true,
+      userData: true,
       user: { userData: true },
+      request: true,
     };
 
     let transaction: Transaction;
     if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (requestId) transaction = await this.transactionService.getTransactionByRequestId(+requestId, relations);
-    if (externalId) transaction = await this.transactionService.getTransactionByExternalId(externalId, relations);
+    if (orderId) transaction = await this.transactionService.getTransactionByRequestId(+orderId, relations);
+    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if (externalId && accountId)
+      transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return transaction;

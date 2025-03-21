@@ -12,14 +12,27 @@ export type KeyType<T, U> = {
 
 type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
+export enum AmountType {
+  ASSET = 'Asset',
+  FIAT = 'Fiat',
+  ASSET_FEE = 'AssetFee',
+  FIAT_FEE = 'FiatFee',
+}
+
 export class Util {
   // --- MATH --- //
-  static roundReadable(amount: number, isFiat: boolean, assetPrecision?: number): number {
-    return isFiat
-      ? amount < 0.01
-        ? this.round(amount, 2)
-        : this.ceil(amount, 2)
-      : this.roundByPrecision(amount, assetPrecision ?? 5);
+  static roundReadable(amount: number, type: AmountType, assetPrecision?: number): number {
+    switch (type) {
+      case AmountType.ASSET:
+      case AmountType.ASSET_FEE:
+        return this.roundByPrecision(amount, assetPrecision ?? 5);
+
+      case AmountType.FIAT:
+        return this.round(amount, 2);
+
+      case AmountType.FIAT_FEE:
+        return amount < 0.01 ? this.round(amount, 2) : this.ceil(amount, 2);
+    }
   }
 
   static round(amount: number, decimals: number): number {
@@ -148,7 +161,7 @@ export class Util {
       .replace(/ue/g, 'u')
       .replace(/oe/g, 'o')
       .replace(/[ñń]/g, 'n')
-      .replace(/[ł]/g, 'l')
+      .replace(/[łļ]/g, 'l')
       .replace(/[f]/g, 'ph')
       .replace(/[çčć]/g, 'c')
       .replace(/[ßșšś]/g, 's')
@@ -524,7 +537,7 @@ export class Util {
     return Boolean(value || value === '');
   }
 
-  static sanitize({ value }: TransformFnParams): boolean | undefined {
+  static sanitize({ value }: TransformFnParams): string | undefined {
     return value
       ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
       : value;
@@ -562,5 +575,10 @@ export class Util {
       const timeString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
       return `${timeString} (total ${total})`;
     }
+  }
+
+  static createMemoryLogString(): string {
+    const memoryUsage = process.memoryUsage();
+    return `RSS (Total memory): ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`;
   }
 }
