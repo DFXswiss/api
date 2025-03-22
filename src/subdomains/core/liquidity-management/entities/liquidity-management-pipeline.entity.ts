@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinTable, ManyToOne, OneToMany } from 'typeorm';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
@@ -16,6 +17,9 @@ export class LiquidityManagementPipeline extends IEntity {
     where: `status IN ('${LiquidityManagementPipelineStatus.CREATED}', '${LiquidityManagementPipelineStatus.IN_PROGRESS}')`,
   })
   rule: LiquidityManagementRule;
+
+  @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.liquidityPipeline)
+  buyCryptos: BuyCrypto[];
 
   @Column({ length: 256 })
   type: LiquidityOptimizationType;

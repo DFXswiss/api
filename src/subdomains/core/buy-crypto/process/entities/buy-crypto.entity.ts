@@ -6,6 +6,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -79,6 +80,9 @@ export class BuyCrypto extends IEntity {
 
   @ManyToOne(() => BankData, { nullable: true })
   bankData?: BankData;
+
+  @ManyToOne(() => LiquidityManagementPipeline, (liquidityPipeline) => liquidityPipeline.buyCryptos, { nullable: true })
+  liquidityPipeline?: LiquidityManagementPipeline;
 
   // Mail
   @Column({ length: 256, nullable: true })
