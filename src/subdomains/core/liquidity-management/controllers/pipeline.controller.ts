@@ -26,7 +26,7 @@ export class LiquidityManagementPipelineController {
   async buyLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
     const { assetId, amount, targetOptimal } = dto;
 
-    return this.lmService.buyLiquidity(assetId, amount, targetOptimal);
+    return this.lmService.buyLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
   }
 
   @Post('sell')
@@ -36,7 +36,7 @@ export class LiquidityManagementPipelineController {
   async sellLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
     const { assetId, amount, targetOptimal } = dto;
 
-    return this.lmService.sellLiquidity(assetId, amount, targetOptimal);
+    return this.lmService.sellLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
   }
 
   @Get(':id/status')
