@@ -75,7 +75,7 @@ export class MailFactory {
         return this.createErrorMonitoringMail(request);
       }
 
-      case MailType.USER: {
+      case MailType.USER_DEPRECATED: {
         return this.createUserMail(request);
       }
 

@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "I tuoi fondi sono stati rimborsati",
                 "salutation": "I tuoi fondi sono stati rimborsati all'indirizzo del tuo portafoglio",
-                "payment_link": "Qui trovi l'ID della transazione<br>con il tuo prelievo: [url:Link]"
+                "payment_link": "Qui trovi l'ID della transazione<br>con il tuo prelievo: [url:Link]",
+                "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sul rimborso:<br>[url:clicca qui]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
@@ -174,13 +175,7 @@
                 "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
             }
         },
-        "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",
-        "blockchain": "Blockchain",
-        "bank_account": "Conto corrente bancario",
-        "remittance_info": "Utilizzo della banca",
-        "transaction_id": "ID transazione",
-        "wallet_address": "Indirizzo del Wallet",
-        "reimbursed": "Rimborsato"
+        "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]"
     },
     "referral": {
         "title": "Pagamento delle Ricompense dai Referral",

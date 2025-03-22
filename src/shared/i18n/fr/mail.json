@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Remboursement des fonds",
                 "salutation": "Vos fonds ont été remboursés sur votre adresse de wallet",
-                "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]"
+                "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]",
+                "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre remboursement:<br>[url:cliquez ici]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
@@ -174,13 +175,7 @@
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             }
         },
-        "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
-        "blockchain": "Blockchain",
-        "bank_account": "Compte bancaire",
-        "remittance_info": "Motif du paiement",
-        "transaction_id": "ID de la transaction",
-        "wallet_address": "Adresse du portefeuille",
-        "reimbursed": "Remboursés"
+        "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]"
     },
     "referral": {
         "title": "Paiement de la prime de parrainage",

@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an deine Wallet-Adresse zurückerstattet",
-                "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]"
+                "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]",
+                "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Rückzahlung:<br>[url:Klick hier]"
             },
             "introduction": "Grund, warum wir zurückerstattet haben:<br>{reason}",
             "reasons": {
@@ -174,13 +175,7 @@
                 "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
             }
         },
-        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
-        "blockchain": "Blockchain",
-        "bank_account": "Bank Konto",
-        "remittance_info": "Verwendungszweck",
-        "transaction_id": "Transaktions-ID",
-        "wallet_address": "Wallet-Adresse",
-        "reimbursed": "Erstattet"
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"
     },
     "referral": {
         "title": "Auszahlung Referral Rewards",
