@@ -185,8 +185,7 @@
     "referral": {
         "title": "Pago de Recompensas por Referidos",
         "salutation": "Tus recompensas por referidos han sido pagadas",
-        "output_amount": "Cantidad",
-        "payment_link": "Aquí puedes encontrar la ID de la transacción del pago de referidos: [url:Link]",
+        "transaction_button": "Haga clic en el siguiente botón para obtener más información sobre su recompensa por recomendación:<br>[url:haga clic aquí]",
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
     },
     "kyc": {

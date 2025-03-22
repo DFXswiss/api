@@ -185,8 +185,7 @@
     "referral": {
         "title": "Paiement de la prime de parrainage",
         "salutation": "Votre prime de parrainage a été versée",
-        "output_amount": "Montant",
-        "payment_link": "Voici l'ID de transaction de votre prime de parrainage: [url:Link]",
+        "transaction_button": "Cliquez sur le bouton ci-dessous pour plus de détails sur votre récompense de parrainage:<br>[url:cliquez ici]",
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
     "kyc": {

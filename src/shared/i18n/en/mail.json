@@ -185,8 +185,7 @@
     "referral": {
         "title": "Payout Referral Rewards",
         "salutation": "Your referral rewards have been paid out",
-        "output_amount": "Amount",
-        "payment_link": "Here you can find the transaction ID for your referral payout: [url:Link]",
+        "transaction_button": "Click the button below for more details about your referral reward:<br>[url:click here]",
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
     "kyc": {

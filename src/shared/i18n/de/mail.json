@@ -185,8 +185,7 @@
     "referral": {
         "title": "Auszahlung Referral Rewards",
         "salutation": "Deine RefCode Rewards wurden ausgezahlt",
-        "output_amount": "Betrag",
-        "payment_link": "Dies ist die Transaktions-ID: [url:Link]",
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deinem Referral Reward:<br>[url:Klick hier]",
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {

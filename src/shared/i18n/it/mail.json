@@ -185,8 +185,7 @@
     "referral": {
         "title": "Pagamento delle Ricompense dai Referral",
         "salutation": "Le tue ricompense dai referral sono state pagate",
-        "output_amount": "Importo",
-        "payment_link": "Qui puoi trovare l'ID della transazione per il pagamento delle ricompense dai tuoi referral: [url:Link]",
+        "transaction_button": "Cliccate sul pulsante qui sotto per maggiori dettagli sulla vostra ricompensa di segnalazione:<br>[url:clicca qui]",
         "dfx_ambassador": "Sei un vero Ambasciatore DFX - grazie per promuovere DFX!"
     },
     "kyc": {
