@@ -1,4 +1,3 @@
-import { InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -252,21 +251,29 @@ export class BuyCrypto extends IEntity {
     if (
       Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
       this.liquidityPipeline &&
-      this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.FAILED
+      ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
+        this.liquidityPipeline.status,
+      )
     ) {
       if (
         this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
         !this.liquidityPipeline.orders?.length
       )
-        throw new InternalServerErrorException('LiquidityPipeline not completed');
+        throw new Error('LiquidityPipeline not completed');
 
       const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
-      this.outputReferenceAmount = pipelinePrice.convert(this.inputReferenceAmountMinusFee, 8);
-      this.priceStepsObject = [
-        ...this.inputPriceStep,
-        ...price.steps.filter((s) => s.from !== pipelinePrice.source || s.to !== pipelinePrice.target),
-        ...pipelinePrice.steps,
-      ];
+      const filteredPriceSteps = price.steps.filter(
+        (s) => s.from !== pipelinePrice.source || s.to !== pipelinePrice.target,
+      );
+      const filteredPrice = filteredPriceSteps.reduce((prev, curr) => prev * curr.price, 1);
+
+      const totalPrice = Price.join(
+        this.liquidityPipeline.orders[0].exchangePrice,
+        Price.create(this.inputReferenceAsset, pipelinePrice.source, filteredPrice),
+      );
+
+      this.outputReferenceAmount = totalPrice.convert(this.inputReferenceAmountMinusFee, 8);
+      this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];
 
       return this;
     }

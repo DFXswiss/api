@@ -93,9 +93,11 @@ export class BuyCryptoBatchService {
         txWithAssets.filter(
           (t) =>
             !t.liquidityPipeline ||
-            [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.COMPLETE].includes(
-              t.liquidityPipeline.status,
-            ),
+            [
+              LiquidityManagementPipelineStatus.FAILED,
+              LiquidityManagementPipelineStatus.STOPPED,
+              LiquidityManagementPipelineStatus.COMPLETE,
+            ].includes(t.liquidityPipeline.status),
         ),
       );
       const batches = await this.createBatches(txWithReferenceAmount);

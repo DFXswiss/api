@@ -52,7 +52,6 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   abstract getStableToken(): Promise<Asset>;
-  abstract get priceSource(): string;
 
   private async mint(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const equityPrice = await this.frankencoinBasedService.getEquityPrice();
@@ -74,7 +73,6 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
         inputAmount: stableBuyingAmount,
         inputAsset: stableToken.name,
         outputAsset: order.target?.name,
-        priceSource: this.priceSource,
       });
 
       const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);

@@ -24,10 +24,6 @@ export class FrankencoinAdapter extends FrankencoinBasedAdapter {
     );
   }
 
-  get priceSource(): string {
-    return 'Frankencoin';
-  }
-
   async getStableToken(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: 'ZCHF',

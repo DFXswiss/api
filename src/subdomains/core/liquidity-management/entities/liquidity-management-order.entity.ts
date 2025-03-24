@@ -13,9 +13,6 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   status: LiquidityManagementOrderStatus;
 
-  @Column({ length: 256, nullable: true })
-  priceSource?: string;
-
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
 
@@ -74,7 +71,7 @@ export class LiquidityManagementOrder extends IEntity {
       this.inputAmount / this.amount,
       undefined,
       undefined,
-      PriceStep.create(this.priceSource, this.inputAsset, this.outputAsset, this.inputAmount / this.amount),
+      PriceStep.create(this.action.system, this.inputAsset, this.outputAsset, this.inputAmount / this.amount),
     );
   }
 

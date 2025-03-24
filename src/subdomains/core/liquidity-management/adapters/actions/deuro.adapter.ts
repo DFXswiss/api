@@ -24,10 +24,6 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
     );
   }
 
-  get priceSource(): string {
-    return 'dEURO';
-  }
-
   async getStableToken(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: 'DEURO',
