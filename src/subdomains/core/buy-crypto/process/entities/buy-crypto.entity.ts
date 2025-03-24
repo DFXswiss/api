@@ -247,6 +247,21 @@ export class BuyCrypto extends IEntity {
   // --- ENTITY METHODS --- //
 
   calculateOutputReferenceAmount(price: Price): this {
+    if (
+      Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
+      this.liquidityPipeline?.orders?.length // TODO more checks needed? Is order always filled with exchangePrice at this point?
+    ) {
+      const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
+      this.outputReferenceAmount = pipelinePrice.convert(this.inputReferenceAmountMinusFee, 8);
+      this.priceStepsObject = [
+        ...this.inputPriceStep,
+        ...price.steps.filter((s) => s.from !== pipelinePrice.source || s.to !== pipelinePrice.target),
+        ...pipelinePrice.steps,
+      ];
+
+      return this;
+    }
+
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     this.priceStepsObject = [...this.priceStepsObject, ...this.inputPriceStep, ...price.steps];
     return this;

@@ -8,6 +8,7 @@ import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
+import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
 import { LiquidityManagementBalanceService } from '../../../services/liquidity-management-balance.service';
 import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
@@ -24,6 +25,7 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     system: LiquidityManagementSystem,
     private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly frankencoinBasedService: FrankencoinBasedService,
+    private readonly liquidityManagementOrderRepo: LiquidityManagementOrderRepository,
   ) {
     super(system);
 
@@ -67,6 +69,13 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
       );
 
     try {
+      await this.liquidityManagementOrderRepo.update(order.id, {
+        inputAmount: stableBuyingAmount,
+        inputAsset: stableToken.name,
+        outputAsset: order.target?.name,
+        priceSource: 'SmartContractMint',
+      });
+
       const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);
 
       const equityContract = this.frankencoinBasedService.getEquityContract();

@@ -4,6 +4,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
+import { LiquidityManagementOrder } from './liquidity-management-order.entity';
 import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 
 @Entity()
@@ -20,6 +21,9 @@ export class LiquidityManagementPipeline extends IEntity {
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.liquidityPipeline)
   buyCryptos: BuyCrypto[];
+
+  @OneToMany(() => LiquidityManagementOrder, (orders) => orders.pipeline)
+  orders: LiquidityManagementOrder[];
 
   @Column({ length: 256 })
   type: LiquidityOptimizationType;
