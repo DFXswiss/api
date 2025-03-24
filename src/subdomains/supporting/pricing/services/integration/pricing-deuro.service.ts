@@ -7,9 +7,16 @@ import { PricingProvider } from './pricing-provider';
 
 @Injectable()
 export class PricingDeuroService extends PricingProvider implements OnModuleInit {
-  private static readonly DEURO = 'DEURO';
+  private static readonly DEURO = 'dEURO';
+  private static readonly NDEPS = 'nDEPS';
   private static readonly DEPS = 'DEPS';
-  private static readonly ALLOWED_ASSETS = [PricingDeuroService.DEURO, PricingDeuroService.DEPS];
+
+  private static readonly ALLOWED_ASSETS = [
+    PricingDeuroService.DEURO,
+    PricingDeuroService.NDEPS,
+    PricingDeuroService.DEPS,
+  ];
+
   private static readonly CONTRACT_FEE = 0;
 
   private deuroService: DEuroService;
