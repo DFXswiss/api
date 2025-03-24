@@ -1,3 +1,4 @@
+import { InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -7,6 +8,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -249,8 +251,15 @@ export class BuyCrypto extends IEntity {
   calculateOutputReferenceAmount(price: Price): this {
     if (
       Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
-      this.liquidityPipeline?.orders?.length // TODO more checks needed? Is order always filled with exchangePrice at this point?
+      this.liquidityPipeline &&
+      this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.FAILED
     ) {
+      if (
+        this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
+        !this.liquidityPipeline.orders?.length
+      )
+        throw new InternalServerErrorException('LiquidityPipeline not completed');
+
       const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
       this.outputReferenceAmount = pipelinePrice.convert(this.inputReferenceAmountMinusFee, 8);
       this.priceStepsObject = [

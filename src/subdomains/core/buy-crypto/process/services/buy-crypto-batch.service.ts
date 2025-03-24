@@ -4,7 +4,10 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
+import {
+  LiquidityManagementPipelineStatus,
+  LiquidityManagementRuleStatus,
+} from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -74,6 +77,7 @@ export class BuyCryptoBatchService {
           buy: { user: true },
           cryptoRoute: { user: true },
           transaction: { userData: true },
+          liquidityPipeline: { orders: true },
         },
       });
 
@@ -85,7 +89,15 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
-      const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets);
+      const txWithReferenceAmount = await this.defineReferenceAmount(
+        txWithAssets.filter(
+          (t) =>
+            !t.liquidityPipeline ||
+            [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.COMPLETE].includes(
+              t.liquidityPipeline.status,
+            ),
+        ),
+      );
       const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
