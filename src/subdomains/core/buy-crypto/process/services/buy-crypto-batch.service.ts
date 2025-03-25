@@ -92,7 +92,8 @@ export class BuyCryptoBatchService {
       const txWithReferenceAmount = await this.defineReferenceAmount(
         txWithAssets.filter(
           (t) =>
-            !t.liquidityPipeline ||
+            (!t.liquidityPipeline &&
+              !txWithAssets.find((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
             [
               LiquidityManagementPipelineStatus.FAILED,
               LiquidityManagementPipelineStatus.STOPPED,
