@@ -33,9 +33,10 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
     if (!PricingDeuroService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);
     if (!PricingDeuroService.ALLOWED_ASSETS.includes(to)) throw new Error(`to asset ${to} is not allowed`);
 
-    const contractPrice = await this.deuroService.getDEPSPrice();
+    // TODO: This calculation is only correct for purchases
+    const contractPrice = (await this.deuroService.getDEPSPrice()) * (1 + PricingDeuroService.CONTRACT_FEE);
     const assetPrice = from === PricingDeuroService.DEURO ? contractPrice : 1 / contractPrice;
 
-    return Price.create(from, to, Util.round(assetPrice / (1 - PricingDeuroService.CONTRACT_FEE), 8));
+    return Price.create(from, to, Util.round(assetPrice, 8));
   }
 }
