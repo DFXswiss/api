@@ -89,7 +89,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
         const deuroContract = this.deuroClient.getDEuroContract();
 
         const calculateAssignedReserve = await deuroContract.calculateAssignedReserve(
-          position.minted,
+          position.principal,
           position.reserveContribution,
         );
 
@@ -106,7 +106,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
           },
           details: {
             availableAmount: EvmUtil.fromWeiAmount(position.availableForClones),
-            totalBorrowed: EvmUtil.fromWeiAmount(position.minted),
+            totalBorrowed: EvmUtil.fromWeiAmount(position.principal),
             liquidationPrice: EvmUtil.fromWeiAmount(position.price, 36 - position.collateralDecimals),
             retainedReserve: EvmUtil.fromWeiAmount(calculateAssignedReserve),
             limit: EvmUtil.fromWeiAmount(position.limitForClones),
