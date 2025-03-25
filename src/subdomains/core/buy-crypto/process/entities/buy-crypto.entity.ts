@@ -265,12 +265,9 @@ export class BuyCrypto extends IEntity {
       const filteredPriceSteps = price.steps.filter(
         (s) => s.from !== pipelinePrice.source || s.to !== pipelinePrice.target,
       );
-      const filteredPrice = filteredPriceSteps.reduce((prev, curr) => prev * curr.price, 1);
 
-      const totalPrice = Price.join(
-        this.liquidityPipeline.orders[0].exchangePrice,
-        Price.create(this.inputReferenceAsset, pipelinePrice.source, filteredPrice),
-      );
+      const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);
+      const totalPrice = Price.create(this.inputReferenceAsset, this.outputAsset.name, totalPriceValue);
 
       this.outputReferenceAmount = totalPrice.convert(this.inputReferenceAmountMinusFee, 8);
       this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];

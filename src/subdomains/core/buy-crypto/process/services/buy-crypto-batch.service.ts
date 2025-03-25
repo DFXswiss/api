@@ -89,18 +89,18 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
-      const txWithReferenceAmount = await this.defineReferenceAmount(
-        txWithAssets.filter(
-          (t) =>
-            (!t.liquidityPipeline &&
-              !txWithAssets.find((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-            [
-              LiquidityManagementPipelineStatus.FAILED,
-              LiquidityManagementPipelineStatus.STOPPED,
-              LiquidityManagementPipelineStatus.COMPLETE,
-            ].includes(t.liquidityPipeline.status),
-        ),
+      const filteredTx = txWithAssets.filter(
+        (t) =>
+          (!t.liquidityPipeline &&
+            !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
+          [
+            LiquidityManagementPipelineStatus.FAILED,
+            LiquidityManagementPipelineStatus.STOPPED,
+            LiquidityManagementPipelineStatus.COMPLETE,
+          ].includes(t.liquidityPipeline.status),
       );
+
+      const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
       const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
