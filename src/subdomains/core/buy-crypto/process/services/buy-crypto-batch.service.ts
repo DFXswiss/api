@@ -46,7 +46,7 @@ export class BuyCryptoBatchService {
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
       const search: FindOptionsWhere<BuyCrypto> = {
-        outputReferenceAsset: Not(IsNull()),
+        outputReferenceAsset: { id: Not(IsNull()) },
         outputAsset: { type: Not(In([AssetType.CUSTOM, AssetType.PRESALE])) },
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
