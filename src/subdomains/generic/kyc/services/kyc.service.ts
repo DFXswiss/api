@@ -32,6 +32,7 @@ import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
@@ -126,10 +127,11 @@ export class KycService {
         status: KycStepStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const identStep of expiredIdentSteps) {
+      identStep.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: identStep.userData.id } });
       const user = identStep.userData;
       const step = user.getPendingStepOrThrow(identStep.id);
 
@@ -155,11 +157,12 @@ export class KycService {
         name: KycStepName.NATIONALITY_DATA,
         status: KycStepStatus.INTERNAL_REVIEW,
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
         const errors = this.getNationalityErrors(entity, nationality);
@@ -189,11 +192,12 @@ export class KycService {
         status: KycStepStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.resultData;
 
         const nationality = result.nationality
@@ -1096,7 +1100,13 @@ export class KycService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true, kycSteps: { userData: true } });
+    const userData = await this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
+    userData.kycSteps = await this.kycStepRepo.find({
+      where: { userData: { id: userData.id } },
+      relations: { userData: true },
+    });
+
+    return userData;
   }
 
   private async getUserByTransactionOrThrow(

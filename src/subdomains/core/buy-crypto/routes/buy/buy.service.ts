@@ -63,7 +63,7 @@ export class BuyService {
     // update user volume
     const { user } = await this.buyRepo.findOne({
       where: { id: buyId },
-      relations: ['user'],
+      relations: { user: true },
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
@@ -211,7 +211,8 @@ export class BuyService {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    user.userData.users = await this.userService.getAllUserDataUsers(user.userData.id);
 
     const {
       timestamp,
