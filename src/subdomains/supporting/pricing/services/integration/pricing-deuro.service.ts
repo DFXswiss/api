@@ -17,7 +17,7 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
     PricingDeuroService.DEPS,
   ];
 
-  private static readonly CONTRACT_FEE = 0;
+  private static readonly CONTRACT_FEE = 0.02;
 
   private deuroService: DEuroService;
 
