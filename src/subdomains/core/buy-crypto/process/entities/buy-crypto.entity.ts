@@ -44,6 +44,7 @@ export enum BuyCryptoStatus {
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
+  STOPPED = 'Stopped',
 }
 
 @Entity()

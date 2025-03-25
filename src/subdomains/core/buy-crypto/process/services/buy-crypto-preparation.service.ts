@@ -187,7 +187,14 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   async refreshFee(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
       amlCheck: CheckStatus.PASS,
-      status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+      status: Not(
+        In([
+          BuyCryptoStatus.READY_FOR_PAYOUT,
+          BuyCryptoStatus.PAYING_OUT,
+          BuyCryptoStatus.COMPLETE,
+          BuyCryptoStatus.STOPPED,
+        ]),
+      ),
       isComplete: false,
       inputReferenceAmount: Not(IsNull()),
     };
