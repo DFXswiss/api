@@ -4,7 +4,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementSystem } from '../../enums';
-import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 import { LiquidityManagementBalanceService } from '../../services/liquidity-management-balance.service';
 import { FrankencoinBasedAdapter } from './base/frankencoin-based.adapter';
 
@@ -13,15 +12,9 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
   constructor(
     liquidityManagementBalanceService: LiquidityManagementBalanceService,
     deuroService: DEuroService,
-    liquidityManagementOrderRepo: LiquidityManagementOrderRepository,
     private readonly assetService: AssetService,
   ) {
-    super(
-      LiquidityManagementSystem.DEURO,
-      liquidityManagementBalanceService,
-      deuroService,
-      liquidityManagementOrderRepo,
-    );
+    super(LiquidityManagementSystem.DEURO, liquidityManagementBalanceService, deuroService);
   }
 
   async getStableToken(): Promise<Asset> {

@@ -14,13 +14,16 @@ export class LiquidityManagementOrder extends IEntity {
   status: LiquidityManagementOrderStatus;
 
   @Column({ type: 'float', nullable: true })
+  amount?: number;
+
+  @Column({ type: 'float', nullable: true })
   inputAmount?: number;
 
   @Column({ length: 256, nullable: true })
   inputAsset?: string;
 
   @Column({ type: 'float', nullable: true })
-  amount?: number;
+  outputAmount?: number;
 
   @Column({ length: 256, nullable: true })
   outputAsset?: string;
@@ -65,13 +68,15 @@ export class LiquidityManagementOrder extends IEntity {
   }
 
   get exchangePrice(): Price {
+    const price = this.inputAmount / this.outputAmount;
+
     return Price.create(
       this.inputAsset,
       this.outputAsset,
-      this.inputAmount / this.amount,
+      price,
       undefined,
       undefined,
-      PriceStep.create(this.action.system, this.inputAsset, this.outputAsset, this.inputAmount / this.amount),
+      PriceStep.create(this.action.system, this.inputAsset, this.outputAsset, price),
     );
   }
 
