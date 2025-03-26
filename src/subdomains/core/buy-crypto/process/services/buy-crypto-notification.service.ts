@@ -87,17 +87,17 @@ export class BuyCryptoNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_COMPLETED,
             input: {
               userData: entity.userData,
               wallet: entity.wallet,
               title: `${MailTranslationKey.CRYPTO_OUTPUT}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_OUTPUT}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
@@ -130,16 +130,16 @@ export class BuyCryptoNotificationService {
     try {
       if (entity.userData.mail) {
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context: MailContext.BUY_CRYPTO_PROCESSING,
           input: {
             userData: entity.userData,
             title: `${MailTranslationKey.PROCESSING}.title`,
             salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
-            suffix: [
+            texts: [
               {
                 key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                params: { url: entity.transaction.url },
+                params: { url: entity.transaction.url, button: 'true' },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.link`,
@@ -181,7 +181,7 @@ export class BuyCryptoNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_PENDING,
             input: {
               userData: entity.userData,
@@ -190,7 +190,7 @@ export class BuyCryptoNotificationService {
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
-              suffix: [
+              texts: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
@@ -268,17 +268,17 @@ export class BuyCryptoNotificationService {
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_RETURN,
             input: {
               userData: entity.userData,
               wallet: entity.wallet,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
@@ -341,7 +341,7 @@ export class BuyCryptoNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_CHARGEBACK_UNCONFIRMED,
             input: {
               userData: entity.userData,
@@ -350,10 +350,10 @@ export class BuyCryptoNotificationService {
               salutation: {
                 key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation`,
               },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: MailKey.DFX_TEAM_CLOSING },
