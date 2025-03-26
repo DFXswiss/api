@@ -12,6 +12,7 @@ import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
@@ -241,6 +242,10 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     });
 
     return this.getTvlByCollaterals(collaterals);
+  }
+
+  async getCollateralPrice(_: CollateralWithTotalBalance): Promise<number | undefined> {
+    return;
   }
 
   async getFrankencoinInfo(): Promise<FrankencoinInfoDto> {

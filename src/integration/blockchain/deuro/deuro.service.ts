@@ -11,6 +11,8 @@ import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FrankencoinService } from '../frankencoin/frankencoin.service';
+import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
@@ -32,8 +34,11 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   private usd: Fiat;
   private eur: Fiat;
+  private chf: Fiat;
 
   private deuroClient: DEuroClient;
+
+  private frankencoinService: FrankencoinService;
 
   constructor(
     private readonly moduleRef: ModuleRef,
@@ -49,8 +54,11 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       this.moduleRef.get(BlockchainRegistryService, { strict: false }),
     );
 
+    this.frankencoinService = this.moduleRef.get(FrankencoinService, { strict: false });
+
     this.usd = await this.fiatService.getFiatByName('USD');
     this.eur = await this.fiatService.getFiatByName('EUR');
+    this.chf = await this.fiatService.getFiatByName('CHF');
 
     this.deuroClient = new DEuroClient(this.getEvmClient());
   }
@@ -186,6 +194,15 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     });
 
     return this.getTvlByCollaterals(collaterals);
+  }
+
+  async getCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
+    if (collateral.symbol === 'WFPS') {
+      const fpsPriceInChf = await this.frankencoinService.getFPSPrice();
+      const priceChfToUsd = await this.getPrice(this.chf, this.usd);
+
+      return 1 / priceChfToUsd.convert(fpsPriceInChf);
+    }
   }
 
   async getDEuroInfo(): Promise<DEuroInfoDto> {
