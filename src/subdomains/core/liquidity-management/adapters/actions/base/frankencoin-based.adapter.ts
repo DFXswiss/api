@@ -44,7 +44,14 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     const client = this.frankencoinBasedService.getEvmClient();
     const txHash = order.correlationId;
 
-    return client.isTxComplete(txHash);
+    try {
+      const result = await client.getSwapResult(txHash, order.pipeline.rule.targetAsset);
+      order.outputAmount = result;
+
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // --- COMMAND IMPLEMENTATIONS --- //
