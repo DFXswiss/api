@@ -10,7 +10,8 @@ export class PricingFrankencoinService extends PricingProvider implements OnModu
   private static readonly ZCHF = 'ZCHF';
   private static readonly FPS = 'FPS';
   private static readonly ALLOWED_ASSETS = [PricingFrankencoinService.ZCHF, PricingFrankencoinService.FPS];
-  private static readonly CONTRACT_FEE = 0;
+
+  private static readonly CONTRACT_FEE = 0.003;
 
   private frankencoinService: FrankencoinService;
 
@@ -26,9 +27,10 @@ export class PricingFrankencoinService extends PricingProvider implements OnModu
     if (!PricingFrankencoinService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);
     if (!PricingFrankencoinService.ALLOWED_ASSETS.includes(to)) throw new Error(`to asset ${to} is not allowed`);
 
-    const contractPrice = await this.frankencoinService.getFPSPrice();
+    // TODO: This calculation is only correct for purchases
+    const contractPrice = (await this.frankencoinService.getFPSPrice()) * (1 + PricingFrankencoinService.CONTRACT_FEE);
     const assetPrice = from === PricingFrankencoinService.ZCHF ? contractPrice : 1 / contractPrice;
 
-    return Price.create(from, to, Util.round(assetPrice / (1 - PricingFrankencoinService.CONTRACT_FEE), 8));
+    return Price.create(from, to, Util.round(assetPrice, 8));
   }
 }

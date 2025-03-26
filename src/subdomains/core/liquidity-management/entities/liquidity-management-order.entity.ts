@@ -1,4 +1,6 @@
+import { Active } from 'src/shared/models/active';
 import { IEntity } from 'src/shared/models/entity';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
@@ -12,9 +14,21 @@ export class LiquidityManagementOrder extends IEntity {
   status: LiquidityManagementOrderStatus;
 
   @Column({ type: 'float', nullable: true })
+  inputAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  inputAsset?: string;
+
+  @Column({ type: 'float', nullable: true })
   amount?: number;
 
-  @ManyToOne(() => LiquidityManagementPipeline, { eager: true, nullable: false })
+  @Column({ length: 256, nullable: true })
+  outputAsset?: string;
+
+  @ManyToOne(() => LiquidityManagementPipeline, (liquidityPipeline) => liquidityPipeline.buyCryptos, {
+    eager: true,
+    nullable: false,
+  })
   @JoinTable()
   pipeline: LiquidityManagementPipeline;
 
@@ -48,6 +62,21 @@ export class LiquidityManagementOrder extends IEntity {
     order.previousOrderId = previousOrderId;
 
     return order;
+  }
+
+  get exchangePrice(): Price {
+    return Price.create(
+      this.inputAsset,
+      this.outputAsset,
+      this.inputAmount / this.amount,
+      undefined,
+      undefined,
+      PriceStep.create(this.action.system, this.inputAsset, this.outputAsset, this.inputAmount / this.amount),
+    );
+  }
+
+  get target(): Active {
+    return this.pipeline.rule.targetAsset ?? this.pipeline.rule.targetFiat;
   }
 
   //*** PUBLIC API ***//

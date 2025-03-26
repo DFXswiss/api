@@ -70,8 +70,8 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
 
     const amount = +requested - +balance;
 
-    const pipelineId = await this.liquidityManagementService.buyLiquidity(assetId, amount, true);
-    return pipelineId.toString();
+    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, amount, true);
+    return pipeline.id.toString();
   }
 
   // --- COMPLETION CHECKS --- //

@@ -15,6 +15,7 @@ export enum PriceSource {
   FIXER = 'Fixer',
   CURRENCY = 'Currency',
   FRANKENCOIN = 'Frankencoin',
+  DEURO = 'dEURO',
   EBEL2X = 'Ebel2X',
   CONSTANT = 'Constant',
 }
