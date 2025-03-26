@@ -244,7 +244,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     return this.getTvlByCollaterals(collaterals);
   }
 
-  async getCollateralPrice(_: CollateralWithTotalBalance): Promise<number | undefined> {
+  async getCustomCollateralPrice(_: CollateralWithTotalBalance): Promise<number | undefined> {
     return;
   }
 

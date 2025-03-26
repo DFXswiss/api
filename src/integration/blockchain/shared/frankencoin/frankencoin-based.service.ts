@@ -48,7 +48,7 @@ export abstract class FrankencoinBasedService {
     let tvl = 0;
 
     for (const collateralWithTotalBalance of collateralsWithTotalBalances) {
-      let collateralPrice = await this.getCollateralPrice(collateralWithTotalBalance);
+      let collateralPrice = await this.getCustomCollateralPrice(collateralWithTotalBalance);
 
       if (!collateralPrice) collateralPrice = await this.getCoinGeckoPrice(collateralWithTotalBalance);
 
@@ -69,5 +69,5 @@ export abstract class FrankencoinBasedService {
     if (price) return price.price;
   }
 
-  abstract getCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined>;
+  abstract getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined>;
 }

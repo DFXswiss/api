@@ -196,7 +196,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return this.getTvlByCollaterals(collaterals);
   }
 
-  async getCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
+  async getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
     if (collateral.symbol === 'WFPS') {
       const fpsPriceInChf = await this.frankencoinService.getFPSPrice();
       const priceChfToUsd = await this.getPrice(this.chf, this.usd);
