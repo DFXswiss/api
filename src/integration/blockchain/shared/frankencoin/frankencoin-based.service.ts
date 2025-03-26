@@ -4,6 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { CollateralWithTotalBalance } from '../dto/frankencoin-based.dto';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
 import { EvmUtil } from '../evm/evm.util';
@@ -33,7 +34,7 @@ export abstract class FrankencoinBasedService {
   async getTvlByCollaterals(collaterals: FrankencoinBasedCollateralDto[]): Promise<number> {
     const groupedCollaterals = groupBy(collaterals, (i) => i.collateral);
 
-    const collateralsWithTotalBalances = Object.keys(groupedCollaterals).map((key) => {
+    const collateralsWithTotalBalances: CollateralWithTotalBalance[] = Object.keys(groupedCollaterals).map((key) => {
       const first = groupedCollaterals[key][0];
       return {
         address: first.collateral,
@@ -47,16 +48,26 @@ export abstract class FrankencoinBasedService {
     let tvl = 0;
 
     for (const collateralWithTotalBalance of collateralsWithTotalBalances) {
-      const price = await this.pricingService.getPriceFrom(
-        PriceSource.COIN_GECKO,
-        collateralWithTotalBalance.address.toLowerCase(),
-        'usd',
-        'contract',
-      );
+      let collateralPrice = await this.getCustomCollateralPrice(collateralWithTotalBalance);
 
-      if (price) tvl += collateralWithTotalBalance.totalBalance / price.price;
+      if (!collateralPrice) collateralPrice = await this.getCoinGeckoPrice(collateralWithTotalBalance);
+
+      if (collateralPrice) tvl += collateralWithTotalBalance.totalBalance / collateralPrice;
     }
 
     return tvl;
   }
+
+  private async getCoinGeckoPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
+    const price = await this.pricingService.getPriceFrom(
+      PriceSource.COIN_GECKO,
+      collateral.address.toLowerCase(),
+      'usd',
+      'contract',
+    );
+
+    if (price) return price.price;
+  }
+
+  abstract getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined>;
 }
