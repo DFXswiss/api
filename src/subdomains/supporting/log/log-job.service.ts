@@ -40,6 +40,7 @@ import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
+import { FiatOutputService } from '../fiat-output/fiat-output.service';
 import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
 import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
@@ -79,6 +80,7 @@ export class LogJobService {
     private readonly refRewardService: RefRewardService,
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
@@ -93,6 +95,9 @@ export class LogJobService {
 
     // asset log
     const assetLog = await this.getAssetLog(assets);
+
+    // liq management
+    await this.liqManagement(assets, assetLog);
 
     // balances grouped by financialType
     const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
@@ -608,6 +613,48 @@ export class LogJobService {
 
       return prev;
     }, {});
+  }
+
+  private async liqManagement(assets: Asset[], assetLog: AssetLog): Promise<void> {
+    const liqManagementAssets = assets.filter(
+      (a) => (a.blockchain as string) === 'MaerkiBaumann' && a.dexName !== 'USD',
+    );
+
+    const uncompletedFiatOutputs = await this.fiatOutputService.getUncompletedFiatOutputs();
+
+    for (const asset of liqManagementAssets) {
+      const log = assetLog[asset.id];
+      const accountIban = asset.dexName === 'EUR' ? 'CH6808573177975201814' : 'CH3408573177975200001';
+      const iban = asset.dexName === 'EUR' ? 'LI29088110104623K003E' : 'LI67088110104623K002C';
+      const fiatOutputAmount = Util.sumObjValue(
+        uncompletedFiatOutputs.filter((f) => f.accountIban === accountIban),
+        'amount',
+      );
+      const currentLiq = (log.plusBalance.liquidity ?? 0) - log.minusBalance.total - fiatOutputAmount;
+
+      if (currentLiq > Config.liqManagement.minLiqAmount && currentLiq < Config.liqManagement.maxLiqAmount) {
+        const entityId = await this.fiatOutputService
+          .getLastFiatOutput('LiqManagement')
+          .then((f) => f.originEntityId + 1);
+        const valutaDate = new Date();
+        valutaDate.setHours(0, 0, 0, 0);
+
+        await this.fiatOutputService.create({
+          type: 'LiqManagement',
+          originEntityId: entityId,
+          amount: 9500,
+          currency: asset.dexName,
+          name: 'Payward Trading Ltd.',
+          address: '2429, Wickhams Cay II',
+          city: 'Tortola, VG1110, British Virgin Islands',
+          remittanceInfo: `AA46 N84G V443 TDXA DFX-Pay-${entityId}`,
+          accountIban,
+          iban,
+          bic: 'BFRILI22XXX',
+          valutaDate,
+        });
+      }
+    }
   }
 
   private async getChangeLog(): Promise<ChangeLog> {

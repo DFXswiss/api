@@ -9,10 +9,11 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { TradingModule } from 'src/subdomains/core/trading/trading.module';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { BankModule } from '../bank/bank.module';
+import { FiatOutputModule } from '../fiat-output/fiat-output.module';
 import { PayInModule } from '../payin/payin.module';
+import { PayoutModule } from '../payout/payout.module';
 import { LogJobService } from './log-job.service';
 import { LogModule } from './log.module';
-import { PayoutModule } from '../payout/payout.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { PayoutModule } from '../payout/payout.module';
     BlockchainModule,
     ReferralModule,
     PayoutModule,
+    FiatOutputModule,
   ],
   controllers: [],
   providers: [LogJobService],

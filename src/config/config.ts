@@ -444,6 +444,11 @@ export class Configuration {
     customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
   };
 
+  liqManagement = {
+    minLiqAmount: 60000,
+    maxLiqAmount: 500000,
+  };
+
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,

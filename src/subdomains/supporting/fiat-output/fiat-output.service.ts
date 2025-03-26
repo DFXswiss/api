@@ -164,6 +164,14 @@ export class FiatOutputService {
       .getOne();
   }
 
+  async getUncompletedFiatOutputs(): Promise<FiatOutput[]> {
+    return this.fiatOutputRepo.findBy({ isComplete: false });
+  }
+
+  async getLastFiatOutput(type: string): Promise<FiatOutput> {
+    return this.fiatOutputRepo.findOne({ where: { type }, order: { id: 'DESC' } });
+  }
+
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
     if (!entity.remittanceInfo) return undefined;
 
