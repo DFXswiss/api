@@ -263,9 +263,7 @@ export class BuyCrypto extends IEntity {
         throw new Error('LiquidityPipeline not completed');
 
       const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
-      const filteredPriceSteps = price.steps.filter(
-        (s) => s.from !== pipelinePrice.source || s.to !== pipelinePrice.target,
-      );
+      const filteredPriceSteps = price.steps.slice(0, -1);
 
       const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);
       const totalPrice = Price.create(this.inputReferenceAsset, this.outputAsset.name, totalPriceValue);
