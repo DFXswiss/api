@@ -188,7 +188,7 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    Object.assign(userData, await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto));
+    dto = await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
