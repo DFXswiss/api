@@ -97,7 +97,7 @@ export class BuyCryptoBatchService {
             LiquidityManagementPipelineStatus.FAILED,
             LiquidityManagementPipelineStatus.STOPPED,
             LiquidityManagementPipelineStatus.COMPLETE,
-          ].includes(t.liquidityPipeline.status),
+          ].includes(t.liquidityPipeline?.status),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
