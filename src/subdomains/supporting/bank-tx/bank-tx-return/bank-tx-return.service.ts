@@ -8,7 +8,6 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IsNull, Not } from 'typeorm';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -105,7 +104,7 @@ export class BankTxReturnService implements OnModuleInit {
     }
   }
 
-  async create(bankTx: BankTx, userData?: UserData): Promise<BankTxReturn> {
+  async create(bankTx: BankTx): Promise<BankTxReturn> {
     let entity = await this.bankTxReturnRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
@@ -113,7 +112,7 @@ export class BankTxReturnService implements OnModuleInit {
       type: TransactionTypeInternal.BANK_TX_RETURN,
     });
 
-    entity = this.bankTxReturnRepo.create({ bankTx, transaction, userData });
+    entity = this.bankTxReturnRepo.create({ bankTx, transaction, userData: bankTx.transaction.userData });
 
     return this.bankTxReturnRepo.save(entity);
   }
@@ -152,7 +151,7 @@ export class BankTxReturnService implements OnModuleInit {
   async refundBankTxReturn(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
     const bankTxReturn = await this.bankTxReturnRepo.findOne({
       where: { id: buyCryptoId },
-      relations: { transaction: { user: { userData: true } }, bankTx: true },
+      relations: { transaction: { userData: true }, bankTx: true },
     });
 
     if (!bankTxReturn) throw new NotFoundException('BankTxReturn not found');
@@ -176,7 +175,12 @@ export class BankTxReturnService implements OnModuleInit {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
+    if (
+      !(await this.transactionUtilService.validateChargebackIban(
+        chargebackIban,
+        chargebackIban !== bankTxReturn.bankTx.iban,
+      ))
+    )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {

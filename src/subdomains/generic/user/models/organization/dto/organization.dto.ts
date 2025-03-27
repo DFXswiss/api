@@ -8,7 +8,6 @@ export interface OrganizationDto {
   houseNumber?: string;
   location?: string;
   zip?: string;
-  countryId?: number;
   country?: Country;
   allBeneficialOwnersName?: string;
   allBeneficialOwnersDomicile?: string;
@@ -17,4 +16,12 @@ export interface OrganizationDto {
   accountOpener?: UserData;
   legalEntity?: LegalEntity;
   signatoryPower?: SignatoryPower;
+  // TODO: temp code
+  organizationName?: string;
+  organizationStreet?: string;
+  organizationHouseNumber?: string;
+  organizationLocation?: string;
+  organizationZip?: string;
+  organizationCountry?: Country;
+  organizationCountryId?: number;
 }

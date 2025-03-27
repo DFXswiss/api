@@ -39,7 +39,7 @@ export class SupportIssueDtoMapper {
   }
 
   static mapTransaction(transaction: Transaction): SupportIssueTransactionDto {
-    if (!transaction) return null;
+    if (!transaction?.id) return null;
 
     return {
       uid: transaction.uid,

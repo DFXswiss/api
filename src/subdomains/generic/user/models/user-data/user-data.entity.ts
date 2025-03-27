@@ -21,6 +21,7 @@ import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/s
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
+import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
@@ -80,12 +81,6 @@ export enum SignatoryPower {
   SINGLE = 'Single',
   DOUBLE = 'Double',
   NONE = 'None',
-}
-
-export enum RiskState {
-  A = 'a',
-  B = 'b',
-  C = 'c',
 }
 
 export enum BlankType {
@@ -221,9 +216,6 @@ export class UserData extends IEntity {
   // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
-
-  @Column({ length: 256, nullable: true })
-  riskState?: RiskState;
 
   @Column({ nullable: true })
   highRisk?: boolean;
@@ -501,6 +493,18 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      phone: dto.phone ?? this.phone,
+      language: dto.language ?? this.language,
+      currency: dto.currency ?? this.currency,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get hasValidNameCheckDate(): boolean {
     return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
   }
@@ -566,7 +570,11 @@ export class UserData extends IEntity {
   }
 
   get completeName(): string {
-    return this.organizationName ?? [this.firstname, this.surname].filter((n) => n).join(' ');
+    return this.organizationName ?? this.naturalPersonName;
+  }
+
+  get naturalPersonName(): string {
+    return [this.firstname, this.surname].filter((n) => n).join(' ');
   }
 
   get isBlocked(): boolean {

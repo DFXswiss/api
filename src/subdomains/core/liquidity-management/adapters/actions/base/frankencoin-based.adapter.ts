@@ -44,7 +44,14 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     const client = this.frankencoinBasedService.getEvmClient();
     const txHash = order.correlationId;
 
-    return client.isTxComplete(txHash);
+    try {
+      const result = await client.getSwapResult(txHash, order.pipeline.rule.targetAsset);
+      order.outputAmount = result;
+
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // --- COMMAND IMPLEMENTATIONS --- //
@@ -67,6 +74,10 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
       );
 
     try {
+      order.inputAmount = stableBuyingAmount;
+      order.inputAsset = stableToken.name;
+      order.outputAsset = order.target?.name;
+
       const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);
 
       const equityContract = this.frankencoinBasedService.getEquityContract();

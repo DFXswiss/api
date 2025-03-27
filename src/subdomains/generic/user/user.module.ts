@@ -12,6 +12,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { AccountMerge } from './models/account-merge/account-merge.entity';
@@ -65,6 +66,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankModule,
     SiftModule,
     SupportIssueModule,
+    TransactionModule,
   ],
   controllers: [
     UserV2Controller,
@@ -115,6 +117,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     WalletService,
     AccountMergeService,
     CustodyProviderService,
+    UserDataRelationService,
+    AuthService,
   ],
 })
 export class UserModule {}

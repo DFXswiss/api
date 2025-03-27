@@ -13,5 +13,5 @@ export class CreateUserDataDto extends UpdateUserDataDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)
-  wallet: Wallet;
+  wallet?: Wallet;
 }

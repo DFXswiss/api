@@ -67,6 +67,7 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
@@ -150,7 +151,7 @@ export class BuyCryptoService {
 
       if (!bankData)
         await this.bankDataService.createVerifyBankData(buy.userData, {
-          name: checkoutTx.cardName ?? buy.userData.completeName,
+          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
@@ -206,7 +207,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { userData: true, wallet: true } },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         chargebackOutput: true,
         bankData: true,
       },
@@ -306,12 +307,12 @@ export class BuyCryptoService {
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.amountInChf ? undefined : entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
@@ -347,7 +348,7 @@ export class BuyCryptoService {
         bankTx: true,
         checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { userData: true } },
+        transaction: { userData: true },
       },
     });
 
@@ -411,12 +412,15 @@ export class BuyCryptoService {
 
     TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    let blockchainFee: number;
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      blockchainFee = await this.transactionHelper.getBlockchainFee(buyCrypto.cryptoInput.asset, true);
       await this.payInService.returnPayIn(
         buyCrypto.cryptoInput,
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
       );
+    }
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
@@ -425,6 +429,9 @@ export class BuyCryptoService {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
+        undefined,
+        undefined,
+        blockchainFee,
       ),
     );
   }
@@ -441,7 +448,12 @@ export class BuyCryptoService {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
+    if (
+      !(await this.transactionUtilService.validateChargebackIban(
+        chargebackIban,
+        chargebackIban !== buyCrypto.bankTx.iban,
+      ))
+    )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount)
@@ -455,6 +467,7 @@ export class BuyCryptoService {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
+        buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
   }
@@ -471,8 +484,7 @@ export class BuyCryptoService {
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
       .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

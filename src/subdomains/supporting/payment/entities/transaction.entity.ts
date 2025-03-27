@@ -111,13 +111,13 @@ export class Transaction extends IEntity {
   checkoutTx?: CheckoutTx;
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transaction)
-  supportIssues: SupportIssue[];
+  supportIssues?: SupportIssue[];
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user?: User;
 
   @ManyToOne(() => UserData, (userData) => userData.transactions, { nullable: true })
-  userData: UserData;
+  userData?: UserData;
 
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
@@ -125,10 +125,11 @@ export class Transaction extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  mailSent(recipientMail?: string): UpdateResult<Transaction> {
-    const update: Partial<BuyCrypto> = {
-      recipientMail: recipientMail ?? this.userData?.mail,
+  mailSent(userData?: UserData): UpdateResult<Transaction> {
+    const update: Partial<Transaction> = {
+      recipientMail: userData?.mail ?? this.userData?.mail,
       mailSendDate: new Date(),
+      userData,
     };
 
     Object.assign(this, update);

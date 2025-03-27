@@ -24,7 +24,7 @@ export class DEuroClient {
             collateralDecimals
             limitForClones
             availableForClones
-            minted
+            principal
             reserveContribution
             expiration
             closed

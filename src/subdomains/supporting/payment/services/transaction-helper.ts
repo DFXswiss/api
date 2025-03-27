@@ -49,6 +49,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly feeService: FeeService,
     @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
+    @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly walletService: WalletService,
@@ -118,8 +119,12 @@ export class TransactionHelper implements OnModuleInit {
     return this.convert(minVolume, price, from);
   }
 
-  async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
+  async getBlockchainFeeInChf(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
     return this.feeService.getBlockchainFeeInChf(asset, allowCachedBlockchainFee);
+  }
+
+  async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
+    return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
   }
 
   getMinSpecs(from: Active, to: Active): TxMinSpec {
@@ -326,19 +331,18 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getVolumeChfSince(
-    inputAmount: number,
+    inputAmount: number | undefined,
     from: Active,
     allowExpiredPrice: boolean,
+    users: User[],
     dateFrom?: Date,
     dateTo?: Date,
-    users?: User[],
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-
-    if (!users?.length) return price.convert(inputAmount);
-
     const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, type);
+    if (inputAmount == null) return previousVolume;
+
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
     return price.convert(inputAmount) + previousVolume;
   }

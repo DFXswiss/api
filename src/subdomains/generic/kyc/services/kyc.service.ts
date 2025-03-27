@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -25,9 +26,11 @@ import { MergeReason } from '../../user/models/account-merge/account-merge.entit
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { UserDataRelationState } from '../../user/models/user-data-relation/dto/user-data-relation.enum';
+import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -41,10 +44,13 @@ import {
 } from '../dto/ident-result.dto';
 import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
+  ContactPersonData,
+  KycBeneficialData,
   KycContactData,
   KycFileData,
   KycManualIdentData,
   KycNationalityData,
+  KycOperationalData,
   KycPersonalData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -63,7 +69,7 @@ import {
   getSumSubReason,
   getSumsubResult,
 } from '../dto/sum-sub.dto';
-import { KycStep } from '../entities/kyc-step.entity';
+import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
@@ -86,7 +92,8 @@ export class KycService {
   private readonly webhookQueue: QueueHandler;
 
   constructor(
-    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService))
+    private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
     private readonly financialService: FinancialService,
     private readonly documentService: KycDocumentService,
@@ -98,12 +105,15 @@ export class KycService {
     private readonly tfaService: TfaService,
     private readonly kycFileService: KycFileService,
     private readonly kycNotificationService: KycNotificationService,
-    @Inject(forwardRef(() => BankDataService)) private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => BankDataService))
+    private readonly bankDataService: BankDataService,
     private readonly walletService: WalletService,
     private readonly accountMergeService: AccountMergeService,
     private readonly webhookService: WebhookService,
     private readonly sumsubService: SumsubService,
     private readonly mailFactory: MailFactory,
+    @Inject(forwardRef(() => UserDataRelationService))
+    private readonly userDataRelationService: UserDataRelationService,
   ) {
     this.webhookQueue = new QueueHandler();
   }
@@ -389,11 +399,47 @@ export class KycService {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
 
-    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
+    return this.updateKycStepAndLog(kycStep, user, data, requiresInternalReview);
+  }
 
-    return KycStepMapper.toStepBase(kycStep);
+  async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    const allBeneficialOwnersName = [];
+    const allBeneficialOwnersDomicile = [];
+
+    if (data.managingDirector) {
+      const managingDirector = await this.createRelatedUserData(
+        data.managingDirector,
+        user,
+        UserDataRelationState.CONTROL_HOLDER,
+      );
+
+      allBeneficialOwnersName.push(managingDirector.verifiedName);
+      allBeneficialOwnersDomicile.push(managingDirector.country.name);
+    }
+
+    for (const owner of data.beneficialOwners) {
+      const beneficialOwner = await this.createRelatedUserData(owner, user, UserDataRelationState.BENEFICIAL_OWNER);
+
+      allBeneficialOwnersName.push(beneficialOwner.verifiedName);
+      allBeneficialOwnersDomicile.push(beneficialOwner.country.name);
+    }
+
+    await this.userDataService.updateUserDataInternal(user, {
+      allBeneficialOwnersName: allBeneficialOwnersName.join('\n'),
+      allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
+    });
+
+    return this.updateKycStepAndLog(kycStep, user, data);
+  }
+
+  async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    return this.updateKycStepAndLog(kycStep, user, data);
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
@@ -495,6 +541,50 @@ export class KycService {
     );
   }
 
+  private async updateKycStepAndLog(
+    kycStep: KycStep,
+    user: UserData,
+    data: KycStepResult,
+    requiresInternalReview = false,
+  ): Promise<KycStepBase> {
+    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
+  private async createRelatedUserData(
+    owner: ContactPersonData,
+    user: UserData,
+    relation: UserDataRelationState,
+  ): Promise<UserData> {
+    const beneficialOwner = await this.userDataService.createUserData({
+      kycType: KycType.DFX,
+      status: UserDataStatus.KYC_ONLY,
+      firstname: owner.firstName,
+      surname: owner.lastName,
+      street: owner.street,
+      houseNumber: owner.houseNumber,
+      location: owner.city,
+      zip: owner.zip,
+      country: owner.country,
+      verifiedName: `${owner.firstName} ${owner.lastName}`,
+      verifiedCountry: owner.country,
+      organization: user.organization,
+    });
+
+    await this.userDataRelationService.createUserDataRelationInternal(beneficialOwner, user, { relation });
+
+    await this.bankDataService.createVerifyBankData(beneficialOwner, {
+      type: BankDataType.NAME_CHECK,
+      iban: `NameCheck-${owner.firstName}${owner.lastName}`,
+      name: beneficialOwner.verifiedName,
+    });
+
+    return beneficialOwner;
+  }
+
   private async updateIdent(
     type: IdentType,
     transactionId: string,
@@ -548,11 +638,14 @@ export class KycService {
         break;
 
       case IdentShortResult.FAIL:
+      case IdentShortResult.RETRY:
         // retrigger personal data step, if data was wrong
         if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
           await this.initiateStep(user, KycStepName.PERSONAL_DATA, undefined, true);
 
-        await this.kycStepRepo.update(...kycStep.fail(dto));
+        await this.kycStepRepo.update(
+          ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
+        );
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
         await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
 
@@ -705,13 +798,19 @@ export class KycService {
 
       case KycStepName.NATIONALITY_DATA:
       case KycStepName.LEGAL_ENTITY:
-      case KycStepName.STOCK_REGISTER:
+      case KycStepName.OWNER_DIRECTORY:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.COMMERCIAL_REGISTER:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.SIGNATORY_POWER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.BENEFICIAL_OWNER:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.OPERATIONAL_ACTIVITY:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.AUTHORITY:
@@ -721,11 +820,14 @@ export class KycService {
         const identSteps = user.getStepsWith(KycStepName.IDENT);
         if (
           identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
-          identSteps.some((i) =>
-            i
-              .getResult<SumsubResult>()
-              ?.webhook?.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
-          )
+          ((identSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) ||
+            identSteps.length > Config.kyc.maxIdentTries ||
+            identSteps.some((i) =>
+              i
+                .getResult<SumsubResult>()
+                ?.webhook?.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
+            )) &&
+            !identSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED)))
         )
           return { nextStep: undefined };
 
@@ -749,7 +851,7 @@ export class KycService {
             name: nextStep,
             type:
               lastTry?.type === KycStepType.VIDEO || lastTry?.type === KycStepType.SUMSUB_VIDEO
-                ? lastTry?.type
+                ? KycStepType.SUMSUB_VIDEO
                 : await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
@@ -791,6 +893,9 @@ export class KycService {
         break;
 
       case KycStepName.PERSONAL_DATA: {
+        const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
+        if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
+
         const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
         if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
         break;
@@ -801,8 +906,7 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          kycStep.transactionId = IdentService.transactionId(user, kycStep);
-          kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
+          throw new InternalServerErrorException('Intrum Ident not possible');
         }
 
         break;
@@ -1016,7 +1120,8 @@ export class KycService {
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
     const has2faSteps = user.kycSteps.some(
       (s) =>
-        (s.name === KycStepName.FINANCIAL_DATA || (s.name === KycStepName.IDENT && s.type !== KycStepType.MANUAL)) &&
+        ([KycStepName.FINANCIAL_DATA, KycStepName.BENEFICIAL_OWNER].includes(s.name) ||
+          (s.name === KycStepName.IDENT && s.type !== KycStepType.MANUAL)) &&
         s.isInProgress,
     );
     if (has2faSteps) await this.verify2fa(user, ip);

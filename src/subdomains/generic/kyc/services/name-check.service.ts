@@ -111,7 +111,7 @@ export class NameCheckService implements OnModuleInit {
       await this.nameCheckLogRepo.update(nameCheck.id, {
         riskEvaluation: RiskEvaluation.CANCELED,
         riskEvaluationDate: new Date(),
-        comment: 'Ident refresh',
+        comment: `${bankData.type} refresh`,
       });
     }
 

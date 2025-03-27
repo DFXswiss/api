@@ -1,11 +1,14 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AssetService } from 'src/shared/models/asset/asset.service';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { RouteService } from 'src/subdomains/core/route/route.service';
-import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyRepository } from '../buy.repository';
 import { BuyService } from '../buy.service';
 
@@ -13,30 +16,39 @@ describe('BuyService', () => {
   let service: BuyService;
 
   let buyRepo: BuyRepository;
-  let assetService: AssetService;
   let userService: UserService;
-  let bankAccountService: BankAccountService;
   let routeService: RouteService;
-  let bankDataService: BankDataService;
+  let transactionHelper: TransactionHelper;
+  let swissQrService: SwissQRService;
+  let paymentInfoService: PaymentInfoService;
+  let bankService: BankService;
+  let transactionRequestService: TransactionRequestService;
+  let checkoutService: CheckoutService;
 
   beforeEach(async () => {
     buyRepo = createMock<BuyRepository>();
-    assetService = createMock<AssetService>();
     userService = createMock<UserService>();
-    bankAccountService = createMock<BankAccountService>();
     routeService = createMock<RouteService>();
-    bankDataService = createMock<BankDataService>();
+    paymentInfoService = createMock<PaymentInfoService>();
+    swissQrService = createMock<SwissQRService>();
+    bankService = createMock<BankService>();
+    transactionRequestService = createMock<TransactionRequestService>();
+    transactionHelper = createMock<TransactionHelper>();
+    checkoutService = createMock<CheckoutService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         BuyService,
         { provide: BuyRepository, useValue: buyRepo },
-        { provide: AssetService, useValue: assetService },
         { provide: UserService, useValue: userService },
-        { provide: BankAccountService, useValue: bankAccountService },
         { provide: RouteService, useValue: routeService },
-        { provide: BankDataService, useValue: bankDataService },
+        { provide: TransactionHelper, useValue: transactionHelper },
+        { provide: SwissQRService, useValue: swissQrService },
+        { provide: PaymentInfoService, useValue: paymentInfoService },
+        { provide: BankService, useValue: bankService },
+        { provide: TransactionRequestService, useValue: transactionRequestService },
+        { provide: CheckoutService, useValue: checkoutService },
       ],
     }).compile();
 
