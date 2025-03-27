@@ -881,7 +881,7 @@ export class KycService {
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: data.documentType,
           identDocumentId: kycStep.identDocumentId,
-          olkypayAllowed: userData.olkypayAllowed == null ? true : userData.olkypayAllowed,
+          olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
 
