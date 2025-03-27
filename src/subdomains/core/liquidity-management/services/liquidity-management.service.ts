@@ -130,12 +130,12 @@ export class LiquidityManagementService {
     rule: LiquidityManagementRule,
     result: LiquidityState,
   ): Promise<LiquidityManagementPipeline> {
+    const pipeline = await this.findRunningPipeline(rule);
+    if (pipeline) return pipeline;
+
     if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
       throw new ConflictException(`Pipeline for rule ${rule.id} cannot be started (status ${rule.status})`);
     }
-
-    const pipeline = await this.findExistingPipeline(rule);
-    if (pipeline) return pipeline;
 
     this.logRuleExecution(rule, result);
 
@@ -148,7 +148,7 @@ export class LiquidityManagementService {
     return savedPipeline;
   }
 
-  private findExistingPipeline(rule: LiquidityManagementRule): Promise<LiquidityManagementPipeline | undefined> {
+  private findRunningPipeline(rule: LiquidityManagementRule): Promise<LiquidityManagementPipeline | undefined> {
     return this.pipelineRepo.findOneBy({
       rule: { id: rule.id },
       status: In([LiquidityManagementPipelineStatus.CREATED, LiquidityManagementPipelineStatus.IN_PROGRESS]),
