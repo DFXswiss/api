@@ -14,7 +14,6 @@ import {
   GetBalanceResultDto,
   GetFeeEstimateResultDto,
   GetInfoResultDto,
-  GetRelayTransactionResultDto,
   GetSendTransferResultDto,
   GetTransactionResultDto,
   GetTransfersResultDto,
@@ -258,21 +257,6 @@ export class MoneroClient extends BlockchainClient {
       fee: sendTransferResult.result.fee,
       txid: sendTransferResult.result.tx_hash,
     });
-  }
-
-  async relayTransaction(hex: string): Promise<GetRelayTransactionResultDto> {
-    const hexToUse = hex.toLowerCase().startsWith('0x') ? hex.substring(0, 2) : hex;
-
-    return this.http.post<GetRelayTransactionResultDto>(
-      `${Config.blockchain.monero.rpc.url}/json_rpc`,
-      {
-        method: 'relay_tx',
-        params: {
-          hex: hexToUse,
-        },
-      },
-      this.httpConfig(),
-    );
   }
 
   async getTransfers(type: MoneroTransactionType, blockHeight: number): Promise<MoneroTransferDto[]> {

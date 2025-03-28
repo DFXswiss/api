@@ -93,6 +93,7 @@ export class LnUrlForwardService {
       asset,
       amount: isMsat ? LightningHelper.msatToBtc(amount) : amount,
       quoteUniqueId: params.quote,
+      tx: params.tx,
       hex: params.hex,
     };
   }
