@@ -57,6 +57,8 @@ export enum Process {
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
+  USER_DATA = 'UserData',
+  USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
 }
 
