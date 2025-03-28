@@ -364,11 +364,7 @@ export class PaymentQuoteService {
 
   private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const transactionResponse = await this.payoutMoneroService.relayTransaction(transferInfo.hex);
-
-      transactionResponse.error
-        ? quote.txFailed(transactionResponse.error.message)
-        : quote.txMempool(transactionResponse.result.tx_hash);
+      transferInfo.tx ? quote.txMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
     } catch (e) {
       quote.txFailed(e.message);
     }
