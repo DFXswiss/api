@@ -3,6 +3,11 @@ import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { LegalEntity, SignatoryPower, UserData } from '../user-data/user-data.entity';
 
+export enum AccountOpenerAuthorization {
+  SINGLE_SIGNATURE = 'Einzelunterschrift',
+  AUTHORIZATION = 'Vollmacht',
+}
+
 @Entity()
 export class Organization extends IEntity {
   @Column({ length: 256, nullable: true })
@@ -27,7 +32,7 @@ export class Organization extends IEntity {
   allBeneficialOwnersDomicile?: string;
 
   @Column({ length: 256, nullable: true })
-  accountOpenerAuthorization?: string;
+  accountOpenerAuthorization?: AccountOpenerAuthorization;
 
   @Column({ nullable: true })
   complexOrgStructure?: boolean;

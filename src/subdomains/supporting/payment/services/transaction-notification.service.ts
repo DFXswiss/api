@@ -118,6 +118,7 @@ export class TransactionNotificationService {
           entity.bankTx.senderAccount,
           undefined,
           { userData: { wallet: true } },
+          false,
         );
         if (!bankData) continue;
 
@@ -145,7 +146,7 @@ export class TransactionNotificationService {
             },
           });
 
-          await this.repo.update(...entity.mailSent(bankData.userData.mail));
+          await this.repo.update(...entity.mailSent(bankData.userData));
         }
       } catch (e) {
         this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);

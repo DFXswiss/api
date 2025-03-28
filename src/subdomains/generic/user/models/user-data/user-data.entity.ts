@@ -19,7 +19,7 @@ import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/b
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
-import { Organization } from '../organization/organization.entity';
+import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
@@ -194,7 +194,7 @@ export class UserData extends IEntity {
 
   // TODO remove
   @Column({ length: 256, nullable: true })
-  accountOpenerAuthorization?: string;
+  accountOpenerAuthorization?: AccountOpenerAuthorization;
 
   @Column({ length: 256, nullable: true })
   phone?: string;
@@ -394,6 +394,19 @@ export class UserData extends IEntity {
       this.id,
       { blackSquadRecipientMail: this.blackSquadRecipientMail, blackSquadMailSendDate: this.blackSquadMailSendDate },
     ];
+  }
+
+  setAccountOpenerAuthorization(signatoryPower: SignatoryPower): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      accountOpenerAuthorization:
+        signatoryPower === SignatoryPower.SINGLE
+          ? AccountOpenerAuthorization.SINGLE_SIGNATURE
+          : AccountOpenerAuthorization.AUTHORIZATION,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   deactivateUserData(): UpdateResult<UserData> {
