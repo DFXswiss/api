@@ -934,8 +934,17 @@ export class KycService {
   }
 
   async completeCommercialRegister(userData: UserData): Promise<UserData> {
-    if (!userData.verifiedName && userData.organizationName)
-      return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
+    if (
+      (!userData.verifiedName && userData.organizationName) ||
+      (userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate)
+    )
+      return this.userDataService.updateUserDataInternal(userData, {
+        verifiedName: !userData.verifiedName && userData.organizationName ? userData.organizationName : undefined,
+        pep:
+          userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate
+            ? false
+            : undefined,
+      });
   }
 
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
