@@ -122,7 +122,7 @@ export class NameCheckService implements OnModuleInit {
       `nameCheck-${Date.now().toLocaleString()}`,
       buffer,
       contentType as ContentType,
-      false, // TODO protected data or not?
+      true,
     );
 
     return riskData;
