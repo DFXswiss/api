@@ -59,7 +59,7 @@ export const FinancialQuestions: FinancialQuestion[] = [
       'other',
     ],
   },
-  { key: 'risky_business', type: QuestionType.SINGLE_CHOICE, options: ['yes', 'no'] },
+  { key: 'risky_business', type: QuestionType.SINGLE_CHOICE, options: ['yes_risky_business', 'no_risky_business'] },
   { key: 'income', type: QuestionType.SINGLE_CHOICE, options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'] },
   { key: 'assets', type: QuestionType.SINGLE_CHOICE, options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'] },
   { key: 'notification_of_changes', type: QuestionType.CONFIRMATION, options: ['accept'] },
