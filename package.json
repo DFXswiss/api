@@ -29,7 +29,7 @@
     "@defichain/jellyfish-api-jsonrpc": "^3.30.1",
     "@defichain/jellyfish-network": "^3.39.1",
     "@defichain/whale-api-client": "^3.39.1",
-    "@deuro/eurocoin": "^1.0.9",
+    "@deuro/eurocoin": "^1.0.12",
     "@dhedge/v2-sdk": "^1.10.7",
     "@eth-optimism/sdk": "^3.3.3",
     "@maticnetwork/maticjs": "^3.9.2",

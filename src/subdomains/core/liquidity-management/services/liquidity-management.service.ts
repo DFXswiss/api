@@ -10,7 +10,7 @@ import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus } from '../enums';
-import { LiquidityState, PipelineId } from '../interfaces';
+import { LiquidityState } from '../interfaces';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementBalanceService } from './liquidity-management-balance.service';
@@ -42,7 +42,7 @@ export class LiquidityManagementService {
 
   //*** PUBLIC API ***//
 
-  async buyLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<PipelineId> {
+  async buyLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
     if (!rule.deficitStartAction) {
@@ -56,7 +56,7 @@ export class LiquidityManagementService {
     return this.executeRule(rule, liquidityState);
   }
 
-  async sellLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<PipelineId> {
+  async sellLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
     if (!rule.redundancyStartAction) {
@@ -126,8 +126,14 @@ export class LiquidityManagementService {
     }
   }
 
-  private async executeRule(rule: LiquidityManagementRule, result: LiquidityState): Promise<PipelineId> {
-    if (rule.status !== LiquidityManagementRuleStatus.ACTIVE || (await this.findExistingPipeline(rule))) {
+  private async executeRule(
+    rule: LiquidityManagementRule,
+    result: LiquidityState,
+  ): Promise<LiquidityManagementPipeline> {
+    const pipeline = await this.findRunningPipeline(rule);
+    if (pipeline) return pipeline;
+
+    if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
       throw new ConflictException(`Pipeline for rule ${rule.id} cannot be started (status ${rule.status})`);
     }
 
@@ -139,10 +145,10 @@ export class LiquidityManagementService {
     rule.processing();
     await this.ruleRepo.save(rule);
 
-    return savedPipeline.id;
+    return savedPipeline;
   }
 
-  private findExistingPipeline(rule: LiquidityManagementRule): Promise<LiquidityManagementPipeline | undefined> {
+  private findRunningPipeline(rule: LiquidityManagementRule): Promise<LiquidityManagementPipeline | undefined> {
     return this.pipelineRepo.findOneBy({
       rule: { id: rule.id },
       status: In([LiquidityManagementPipelineStatus.CREATED, LiquidityManagementPipelineStatus.IN_PROGRESS]),

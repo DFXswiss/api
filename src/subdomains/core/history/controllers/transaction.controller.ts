@@ -333,9 +333,8 @@ export class TransactionController {
 
       const refundAsset = FiatDtoMapper.toDto(await this.fiatService.getFiatByName(transaction.bankTx.currency));
 
-      const refundTarget = (await this.validateIban(transaction.bankTx?.iban))
-        ? transaction.bankTx.iban
-        : transaction.targetEntity?.chargebackIban;
+      const senderIbanIsValid = await this.validateIban(transaction.bankTx?.iban).catch(() => false);
+      const refundTarget = senderIbanIsValid ? transaction.bankTx?.iban : transaction.targetEntity?.chargebackIban;
 
       refundData = {
         expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
@@ -430,7 +429,7 @@ export class TransactionController {
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { transaction: { userData: true } },
-      bankTxReturn: true,
+      bankTxReturn: { bankTx: true },
       userData: true,
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
       buyFiat: { cryptoInput: true, transaction: { userData: true } },
@@ -497,7 +496,7 @@ export class TransactionController {
     return (
       IbanTools.validateIBAN(iban).valid &&
       !multiAccountIbans.includes(iban) &&
-      (await this.transactionUtilService.validateChargebackIban(iban))
+      (await this.transactionUtilService.validateChargebackIban(iban, false))
     );
   }
 

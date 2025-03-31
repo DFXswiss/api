@@ -187,7 +187,9 @@ export class LogJobService {
     );
 
     // deposit address balance
-    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
+    const paymentAssets = assets.filter(
+      (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.BITCOIN].includes(a.blockchain),
+    );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
     const depositBalances = await Promise.all(

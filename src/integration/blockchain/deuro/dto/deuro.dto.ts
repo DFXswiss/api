@@ -8,7 +8,7 @@ export interface DEuroPositionGraphDto extends FrankencoinBasedCollateralDto {
   price: string;
   limitForClones: string;
   availableForClones: string;
-  minted: string;
+  principal: string;
   reserveContribution: number;
   expiration: string;
   closed: boolean;

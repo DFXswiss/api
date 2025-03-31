@@ -4,7 +4,10 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
+import {
+  LiquidityManagementPipelineStatus,
+  LiquidityManagementRuleStatus,
+} from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -46,7 +49,7 @@ export class BuyCryptoBatchService {
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
       const search: FindOptionsWhere<BuyCrypto> = {
-        outputReferenceAsset: Not(IsNull()),
+        outputReferenceAsset: { id: Not(IsNull()) },
         outputAsset: { type: Not(In([AssetType.CUSTOM, AssetType.PRESALE])) },
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
@@ -74,6 +77,7 @@ export class BuyCryptoBatchService {
           buy: { user: true },
           cryptoRoute: { user: true },
           transaction: { userData: true },
+          liquidityPipeline: { orders: true },
         },
       });
 
@@ -85,7 +89,18 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
-      const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets);
+      const filteredTx = txWithAssets.filter(
+        (t) =>
+          (!t.liquidityPipeline &&
+            !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
+          [
+            LiquidityManagementPipelineStatus.FAILED,
+            LiquidityManagementPipelineStatus.STOPPED,
+            LiquidityManagementPipelineStatus.COMPLETE,
+          ].includes(t.liquidityPipeline?.status),
+      );
+
+      const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
       const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
@@ -346,8 +361,13 @@ export class BuyCryptoBatchService {
       // order liquidity
       try {
         const asset = oa;
-        const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
-        this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${orderId}`);
+        const pipeline = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
+        this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
+
+        await this.buyCryptoRepo.update(
+          { id: In(batch.transactions.map((b) => b.id)) },
+          { liquidityPipeline: pipeline },
+        );
       } catch (e) {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
 

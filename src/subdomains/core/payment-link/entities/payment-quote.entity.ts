@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferMethod } from '../dto/payment-link.dto';
@@ -90,6 +91,16 @@ export class PaymentQuote extends IEntity {
 
   get transferAmountsAsObj(): TransferAmount[] {
     return JSON.parse(this.transferAmounts);
+  }
+
+  get transferAmountsForPayRequest(): TransferAmount[] {
+    return JSON.parse(this.transferAmounts, this.amountReplacer);
+  }
+
+  private amountReplacer(key: any, value: any): any {
+    if (key === 'amount' && typeof value === 'number') return Util.numberToFixedString(value);
+
+    return value;
   }
 
   getTransferAmount(method: TransferMethod): TransferAmount | undefined {

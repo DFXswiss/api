@@ -11,6 +11,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -43,6 +45,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly bankService: BankService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly bankTxService: BankTxService,
   ) {}
 
   onModuleInit() {
@@ -108,31 +111,31 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.checkoutTx ? entity.inputReferenceAmount : 0,
+          entity.amountInChf ? undefined : entity.checkoutTx ? entity.inputReferenceAmount : 0,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
-          entity.userData.users,
           'checkoutTx',
         );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.amountInChf ? undefined : entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.amountInChf ? undefined : entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
-          entity.userData.users,
         );
 
         const ibanCountry =
@@ -184,7 +187,14 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   async refreshFee(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
       amlCheck: CheckStatus.PASS,
-      status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+      status: Not(
+        In([
+          BuyCryptoStatus.READY_FOR_PAYOUT,
+          BuyCryptoStatus.PAYING_OUT,
+          BuyCryptoStatus.COMPLETE,
+          BuyCryptoStatus.STOPPED,
+        ]),
+      ),
       isComplete: false,
       inputReferenceAmount: Not(IsNull()),
     };
@@ -269,6 +279,29 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async chargebackFillUp(): Promise<void> {
+    const entities = await this.buyCryptoRepo.findBy({
+      chargebackBankTx: IsNull(),
+      amlCheck: CheckStatus.FAIL,
+      bankTx: { id: Not(IsNull()) },
+      isComplete: false,
+      chargebackRemittanceInfo: Not(IsNull()),
+      chargebackOutput: { id: Not(IsNull()) },
+    });
+
+    for (const entity of entities) {
+      try {
+        const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
+        if (!bankTx) continue;
+
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+        await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
+      } catch (e) {
+        this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
       }
     }
   }
