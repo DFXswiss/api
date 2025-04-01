@@ -99,7 +99,7 @@ export class ProcessService implements OnModuleInit {
     const allDisabledProcesses = [
       ...(await this.settingService.getDisabledProcesses()),
       ...Config.disabledProcesses(),
-      ...(this.safetyModeInactive ? undefined : safetyProcesses),
+      ...(this.safetyModeInactive ? [] : safetyProcesses),
     ];
     DisabledProcesses = this.listToMap(allDisabledProcesses);
   }
