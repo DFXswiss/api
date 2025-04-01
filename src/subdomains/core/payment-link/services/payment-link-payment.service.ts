@@ -196,15 +196,13 @@ export class PaymentLinkPaymentService {
 
     pendingPayment.link = paymentLink;
 
-    await this.doSave(pendingPayment.cancel(), true);
-    await this.cancelQuotesForPayment(pendingPayment);
+    await this.cancelByPayment(pendingPayment);
 
     return paymentLink;
   }
 
   async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
-    if (payment.mode !== PaymentLinkPaymentMode.MULTIPLE) await this.doSave(payment.cancel(), true);
-
+    await this.doSave(payment.cancel(), true);
     await this.cancelQuotesForPayment(payment);
   }
 
