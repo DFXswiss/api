@@ -386,14 +386,7 @@ export class TransactionHelper implements OnModuleInit {
         ? await this.fiatService.getFiatByName(refundEntity.currency)
         : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputReferenceAsset));
 
-    const chargebackFee = await this.feeService.getChargebackFee({
-      from: inputCurrency,
-      paymentMethodIn: refundEntity.paymentMethodIn,
-      bankIn,
-      specialCodes: [],
-      allowCachedBlockchainFee: false,
-      userData,
-    });
+    const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
 
     const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
     const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
@@ -403,7 +396,15 @@ export class TransactionHelper implements OnModuleInit {
       amountType,
     );
 
-    const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
+    const chargebackFee = await this.feeService.getChargebackFee({
+      from: inputCurrency,
+      txVolume: price.invert().convert(inputAmount),
+      paymentMethodIn: refundEntity.paymentMethodIn,
+      bankIn,
+      specialCodes: [],
+      allowCachedBlockchainFee: false,
+      userData,
+    });
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);

@@ -337,7 +337,7 @@ export class TransactionController {
       ? undefined
       : transaction.checkoutTx
       ? CardBankName.CHECKOUT
-      : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b.name);
+      : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
 
     const refundTarget = await this.getRefundTarget(transaction);
 
