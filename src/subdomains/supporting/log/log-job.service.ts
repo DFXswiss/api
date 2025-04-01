@@ -14,7 +14,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -79,48 +79,62 @@ export class LogJobService {
     private readonly refRewardService: RefRewardService,
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
+    private readonly processService: ProcessService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
-    // trading log
-    const tradingLog = await this.getTradingLog();
+    try {
+      // trading log
+      const tradingLog = await this.getTradingLog();
 
-    // assets
-    const assets = await this.assetService
-      .getAllAssets()
-      .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
+      // assets
+      const assets = await this.assetService
+        .getAllAssets()
+        .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
-    // asset log
-    const assetLog = await this.getAssetLog(assets);
+      // asset log
+      const assetLog = await this.getAssetLog(assets);
 
-    // balances grouped by financialType
-    const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+      // balances grouped by financialType
+      const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
 
-    // changes
-    const changeLog = await this.getChangeLog();
+      // changes
+      const changeLog = await this.getChangeLog();
 
-    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
-    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
+      // total balances
+      const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
+      const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
 
-    await this.logService.create({
-      system: 'LogService',
-      subsystem: 'FinancialDataLog',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify({
-        assets: assetLog,
-        tradings: tradingLog,
-        balancesByFinancialType,
-        balancesTotal: {
-          plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-          minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
-          totalBalanceChf: this.getJsonValue(plusBalanceChf - minusBalanceChf, AmountType.FIAT, true),
-        },
-        changes: changeLog,
-      }),
-      valid: null,
-      category: null,
-    });
+      const totalBalanceChf = plusBalanceChf - minusBalanceChf;
+
+      // safety module
+      const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
+      if (DisabledProcess(Process.SAFETY_MODULE))
+        this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
+
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'FinancialDataLog',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({
+          assets: assetLog,
+          tradings: tradingLog,
+          balancesByFinancialType,
+          balancesTotal: {
+            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
+            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
+            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
+          },
+          changes: changeLog,
+        }),
+        valid: null,
+        category: null,
+      });
+    } catch (e) {
+      this.processService.setSafetyModeActive(true);
+      this.logger.error('Error in logJobService financeLog', e);
+    }
   }
 
   // --- LOG METHODS --- //
