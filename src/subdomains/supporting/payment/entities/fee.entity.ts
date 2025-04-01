@@ -10,13 +10,14 @@ import { Bank } from '../../bank/bank/bank.entity';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
-  BASE = 'Base',
-  DISCOUNT = 'Discount',
-  RELATIVE_DISCOUNT = 'RelativeDiscount',
-  ADDITION = 'Addition',
-  CUSTOM = 'Custom',
-  SPECIAL = 'Special',
-  BANK = 'Bank',
+  SPECIAL = 'Special', // Single use only, highest prio applies to all
+  CUSTOM = 'Custom', // Single use only, second highest prio
+  BASE = 'Base', // Single use only, absolute base fee
+  DISCOUNT = 'Discount', // Single use only, absolute discount
+  RELATIVE_DISCOUNT = 'RelativeDiscount', // Single use only, relative discount
+  ADDITION = 'Addition', // Multiple use possible, additive fee
+  CHARGEBACK = 'Chargeback', // Multiple use possible, additive fee
+  BANK = 'Bank', // Multiple use possible, additive fee
 }
 
 @Entity()
@@ -74,7 +75,7 @@ export class Fee extends IEntity {
   wallet?: Wallet;
 
   @ManyToOne(() => Bank, { nullable: true, eager: true })
-  bank: Bank;
+  bank?: Bank;
 
   // Volume columns
 
