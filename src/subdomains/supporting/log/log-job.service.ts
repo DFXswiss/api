@@ -110,7 +110,7 @@ export class LogJobService {
 
       // safety module
       const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
-      if (DisabledProcess(Process.SAFETY_MODULE))
+      if (!DisabledProcess(Process.SAFETY_MODULE))
         this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
       await this.logService.create({
