@@ -47,6 +47,7 @@ export class Configuration {
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
+  exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
 
   defaults = {
     currency: 'EUR',

@@ -111,31 +111,31 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.checkoutTx ? entity.inputReferenceAmount : 0,
+          entity.amountInChf ? undefined : entity.checkoutTx ? entity.inputReferenceAmount : 0,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
-          entity.userData.users,
           'checkoutTx',
         );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.amountInChf ? undefined : entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.amountInChf ? undefined : entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
-          entity.userData.users,
         );
 
         const ibanCountry =
@@ -187,7 +187,14 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   async refreshFee(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
       amlCheck: CheckStatus.PASS,
-      status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+      status: Not(
+        In([
+          BuyCryptoStatus.READY_FOR_PAYOUT,
+          BuyCryptoStatus.PAYING_OUT,
+          BuyCryptoStatus.COMPLETE,
+          BuyCryptoStatus.STOPPED,
+        ]),
+      ),
       isComplete: false,
       inputReferenceAmount: Not(IsNull()),
     };

@@ -207,7 +207,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         chargebackOutput: true,
         bankData: true,
       },
@@ -307,12 +307,12 @@ export class BuyCryptoService {
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
+          entity.amountInChf ? undefined : entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
+          entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);

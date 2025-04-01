@@ -331,19 +331,18 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getVolumeChfSince(
-    inputAmount: number,
+    inputAmount: number | undefined,
     from: Active,
     allowExpiredPrice: boolean,
+    users: User[],
     dateFrom?: Date,
     dateTo?: Date,
-    users?: User[],
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-
-    if (!users?.length) return price.convert(inputAmount);
-
     const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, type);
+    if (inputAmount == null) return previousVolume;
+
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
     return price.convert(inputAmount) + previousVolume;
   }
