@@ -37,8 +37,8 @@
       "yes": "Ja",
       "no": "Nein",
       "accept": "Akzeptieren",
-      "yes_risky_business": "Risikobehaftete Tätigkeiten",
-      "no_risky_business": "Keine risikobehaftete Tätigkeiten",
+      "yes_risky_business": "Ja (risikobehaftet)",
+      "no_risky_business": "Nein (nicht risikobehaftet)",
 
       "employment_income": "Einkünfte aus unselbständiger Tätigkeit",
       "real_estate_sale": "Verkauf von Immobilien",
