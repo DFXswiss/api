@@ -188,7 +188,7 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    Object.assign(userData, await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto));
+    dto = await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -557,7 +557,9 @@ export class UserDataService {
       }
     }
 
-    return this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(...userData.setUserDataSettings(dto));
+
+    return Object.assign(userData, dto);
   }
 
   // --- KYC --- //
@@ -784,21 +786,6 @@ export class UserDataService {
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
     this.logger.info(`Merge Memory before userData load: ${Util.createMemoryLogString()}`);
 
-    const masterTransactions = await this.transactionService.getAllTransactionsForUserData(masterId);
-    const slaveTransactions = await this.transactionService.getAllTransactionsForUserData(slaveId);
-
-    const masterUsers = await this.userRepo.find({
-      where: { userData: { id: masterId } },
-      relations: { userData: true, wallet: true },
-    });
-    const slaveUsers = await this.userRepo.find({
-      where: { userData: { id: slaveId } },
-      relations: { userData: true, wallet: true },
-    });
-
-    const masterBankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
-    const slaveBankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
-
     const master = await this.userDataRepo.findOne({
       where: { id: masterId },
       relations: {
@@ -811,6 +798,12 @@ export class UserDataService {
       },
       loadEagerRelations: false,
     });
+    master.transactions = await this.transactionService.getAllTransactionsForUserData(masterId);
+    master.users = await this.userRepo.find({
+      where: { userData: { id: masterId } },
+      relations: { userData: true, wallet: true },
+    });
+    master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
 
     const slave = await this.userDataRepo.findOne({
       where: { id: slaveId },
@@ -824,6 +817,12 @@ export class UserDataService {
       },
       loadEagerRelations: false,
     });
+    slave.transactions = await this.transactionService.getAllTransactionsForUserData(slaveId);
+    slave.users = await this.userRepo.find({
+      where: { userData: { id: slaveId } },
+      relations: { userData: true, wallet: true },
+    });
+    slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
 
     this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
 
@@ -832,8 +831,8 @@ export class UserDataService {
     if (slave.kycLevel > master.kycLevel) throw new BadRequestException('Slave kycLevel can not be higher as master');
 
     const mergedEntitiesString = [
-      slaveBankDatas.length > 0 && `bank datas ${slaveBankDatas.map((b) => b.id)}`,
-      slaveUsers.length > 0 && `users ${slaveUsers.map((u) => u.id)}`,
+      slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
+      slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
@@ -841,7 +840,7 @@ export class UserDataService {
       slave.individualFees && `individualFees ${slave.individualFees}`,
       slave.kycClients && `kycClients ${slave.kycClients}`,
       slave.supportIssues.length > 0 && `supportIssues ${slave.supportIssues.map((s) => s.id)}`,
-      slaveTransactions.length > 0 && `transactions ${slaveTransactions.map((s) => s.id)}`,
+      slave.transactions.length > 0 && `transactions ${slave.transactions.map((s) => s.id)}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -879,13 +878,13 @@ export class UserDataService {
     }
 
     // reassign bank datas, users and userDataRelations
-    master.bankDatas = masterBankDatas.concat(slaveBankDatas);
-    master.users = masterUsers.concat(slaveUsers);
+    master.bankDatas = master.bankDatas.concat(slave.bankDatas);
+    master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     master.kycSteps = master.kycSteps.concat(slave.kycSteps);
     master.supportIssues = master.supportIssues.concat(slave.supportIssues);
-    master.transactions = masterTransactions.concat(slaveTransactions);
+    master.transactions = master.transactions.concat(slave.transactions);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 

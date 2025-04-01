@@ -61,6 +61,8 @@ export enum Process {
   EXCHANGE_TRADE = 'ExchangeTrade',
   FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
   CRYPTO_PAYOUT = 'CryptoPayout',
+  USER_DATA = 'UserData',
+  USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
 }

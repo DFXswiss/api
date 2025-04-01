@@ -14,8 +14,6 @@ import { TradingInfo } from '../dto/trading.dto';
 import { PriceConfig, TradingRule } from '../entities/trading-rule.entity';
 import { PoolOutOfRangeException } from '../exceptions/pool-out-of-range.exception';
 
-const START_AMOUNT_IN = 10000; // CHF
-
 @Injectable()
 export class TradingService {
   private readonly logger = new DfxLogger(TradingService);
@@ -106,11 +104,13 @@ export class TradingService {
 
     const coin = await this.assetService.getNativeAsset(tradingInfo.assetIn.blockchain);
 
-    const poolBalance = await client.getTokenBalance(tradingInfo.assetOut, poolContract.address);
+    const [assetInBalance, assetOutBalance] = await client
+      .getTokenBalances([tradingInfo.assetIn, tradingInfo.assetOut], poolContract.address)
+      .then((r) => r.map((b) => b.balance ?? 0));
     const poolBalanceLimit = 0.99; // cannot swap 100% of the pool balance, therefore reduce by 1%
-    const checkPoolBalance = poolBalance * poolBalanceLimit;
+    const checkPoolBalance = assetOutBalance * poolBalanceLimit;
 
-    let amountIn = START_AMOUNT_IN * tradingInfo.assetIn.minimalPriceReferenceAmount;
+    let amountIn = usePriceImpact * assetInBalance;
 
     let { targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
       tradingInfo.assetIn,

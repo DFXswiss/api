@@ -16,6 +16,8 @@
       "yes": "Yes",
       "no": "No",
       "accept": "Accept",
+      "yes_risky_business": "Attività a rischio",
+      "no_risky_business": "Nessuna attività rischiosa",
 
       "employment_income": "Income from employment",
       "real_estate_sale": "Sale of property",

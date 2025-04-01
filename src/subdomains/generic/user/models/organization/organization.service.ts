@@ -36,7 +36,7 @@ export class OrganizationService {
             name: entity.organizationName,
             street: entity.organizationStreet,
             houseNumber: entity.organizationHouseNumber,
-            location: entity.location,
+            location: entity.organizationLocation,
             zip: entity.organizationZip,
             country: entity.organizationCountry,
             allBeneficialOwnersName: entity.allBeneficialOwnersName,
