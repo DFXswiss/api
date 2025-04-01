@@ -89,8 +89,8 @@ export class TransactionUtilService {
       throw new BadRequestException('You can not refund more than the input amount');
   }
 
-  async validateChargebackIban(iban: string): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban);
+  async validateChargebackIban(iban: string, validateIbanCountry: boolean): Promise<boolean> {
+    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, validateIbanCountry);
     const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
     const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 

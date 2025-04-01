@@ -1,3 +1,5 @@
+import { Test } from '@nestjs/testing';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
@@ -5,6 +7,12 @@ import { BuyCrypto } from '../buy-crypto.entity';
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price, steps: [] });
 }
+
+beforeEach(async () => {
+  await Test.createTestingModule({
+    providers: [TestUtil.provideConfig()],
+  }).compile();
+});
 
 describe('BuyCrypto', () => {
   describe('#calculateOutputReferenceAmount(...)', () => {

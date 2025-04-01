@@ -6,6 +6,8 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -44,6 +46,7 @@ export enum BuyCryptoStatus {
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
+  STOPPED = 'Stopped',
 }
 
 @Entity()
@@ -79,6 +82,9 @@ export class BuyCrypto extends IEntity {
 
   @ManyToOne(() => BankData, { nullable: true })
   bankData?: BankData;
+
+  @ManyToOne(() => LiquidityManagementPipeline, (liquidityPipeline) => liquidityPipeline.buyCryptos, { nullable: true })
+  liquidityPipeline?: LiquidityManagementPipeline;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -243,6 +249,31 @@ export class BuyCrypto extends IEntity {
   // --- ENTITY METHODS --- //
 
   calculateOutputReferenceAmount(price: Price): this {
+    if (
+      Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
+      this.liquidityPipeline &&
+      ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
+        this.liquidityPipeline.status,
+      )
+    ) {
+      if (
+        this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
+        !this.liquidityPipeline.orders?.length
+      )
+        throw new Error('LiquidityPipeline not completed');
+
+      const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
+      const filteredPriceSteps = price.steps.slice(0, -1);
+
+      const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);
+      const totalPrice = Price.create(this.inputReferenceAsset, this.outputAsset.name, totalPriceValue);
+
+      this.outputReferenceAmount = totalPrice.convert(this.inputReferenceAmountMinusFee, 8);
+      this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];
+
+      return this;
+    }
+
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     this.priceStepsObject = [...this.priceStepsObject, ...this.inputPriceStep, ...price.steps];
     return this;
@@ -399,6 +430,7 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
+    blockchainFee?: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -411,6 +443,7 @@ export class BuyCrypto extends IEntity {
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
       mailSendDate: null,
+      blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
     };
 
@@ -547,6 +580,10 @@ export class BuyCrypto extends IEntity {
 
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
+  }
+
+  get chargebackBankRemittanceInfo(): string {
+    return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
   get inputPriceStep(): PriceStep[] {

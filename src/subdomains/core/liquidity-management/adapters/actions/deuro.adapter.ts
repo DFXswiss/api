@@ -19,7 +19,7 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
 
   async getStableToken(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
-      name: 'DEURO',
+      name: 'dEURO',
       type: AssetType.TOKEN,
       blockchain: Blockchain.ETHEREUM,
     });

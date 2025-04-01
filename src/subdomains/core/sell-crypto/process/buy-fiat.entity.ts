@@ -259,6 +259,7 @@ export class BuyFiat extends IEntity {
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
+    blockchainFee?: number,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -269,6 +270,7 @@ export class BuyFiat extends IEntity {
       chargebackAllowedBy,
       amlCheck: CheckStatus.FAIL,
       mailReturnSendDate: null,
+      blockchainFee,
     };
 
     Object.assign(this, update);

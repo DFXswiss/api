@@ -263,7 +263,7 @@ export class FeeService implements OnModuleInit {
   }
 
   async getBlockchainFeeInChf(active: Active, allowCached: boolean): Promise<number> {
-    if (isAsset(active) && active.type !== AssetType.CUSTOM) {
+    if (isAsset(active) && ![AssetType.CUSTOM, AssetType.PRESALE].includes(active.type)) {
       const where = {
         asset: { id: active.id },
         updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),

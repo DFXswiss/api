@@ -364,10 +364,10 @@ export class TransactionController {
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { transaction: { userData: true } },
-      bankTxReturn: true,
+      bankTxReturn: { bankTx: true },
       userData: true,
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
-      buyFiat: { cryptoInput: true },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
+      buyFiat: { cryptoInput: true, transaction: { userData: true } },
       refReward: true,
     });
 
@@ -444,7 +444,9 @@ export class TransactionController {
   private async validateIban(iban: string): Promise<boolean> {
     if (!iban) return false;
 
-    return IbanTools.validateIBAN(iban).valid && (await this.transactionUtilService.validateChargebackIban(iban));
+    return (
+      IbanTools.validateIBAN(iban).valid && (await this.transactionUtilService.validateChargebackIban(iban, false))
+    );
   }
 
   private isRefundDataValid(refundData: RefundDataDto): boolean {

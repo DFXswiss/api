@@ -1,12 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Equal } from 'typeorm';
-import { CreateLogDto, UpdateLogDto } from './dto/create-log.dto';
+import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
 import { Log } from './log.entity';
 import { LogRepository } from './log.repository';
 
 @Injectable()
 export class LogService {
-  constructor(private logRepo: LogRepository) {}
+  constructor(private readonly logRepo: LogRepository, private readonly settingService: SettingService) {}
+
+  @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { process: Process.LOG_CLEANUP })
+  async cleanup(): Promise<void> {
+    const logCleanupSettings = await this.settingService.getObj<LogCleanupSetting[]>('logCleanup', []);
+
+    for (const logCleanupSetting of logCleanupSettings) {
+      await this.logRepo.keepOnePerDay(logCleanupSetting);
+    }
+  }
 
   async create(dto: CreateLogDto): Promise<Log> {
     const maxEntity = await this.maxEntity(dto.system, dto.subsystem, dto.severity);

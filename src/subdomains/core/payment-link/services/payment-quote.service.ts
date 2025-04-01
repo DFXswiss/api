@@ -1,15 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
-import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
@@ -39,6 +40,7 @@ export class PaymentQuoteService {
     Blockchain.OPTIMISM,
     Blockchain.BASE,
     Blockchain.MONERO,
+    Blockchain.BITCOIN,
   ];
 
   constructor(
@@ -48,7 +50,7 @@ export class PaymentQuoteService {
     private readonly pricingService: PricingService,
     private readonly evmGasPriceService: EvmGasPriceService,
     private readonly payoutMoneroService: PayoutMoneroService,
-    private readonly moneroService: MoneroService,
+    private readonly payoutBitcoinService: PayoutBitcoinService,
   ) {}
 
   // --- JOBS --- //
@@ -251,6 +253,8 @@ export class PaymentQuoteService {
         return this.evmGasPriceService.getGasPrice(blockchain);
       case Blockchain.MONERO:
         return MoneroHelper.xmrToAu(await this.payoutMoneroService.getEstimatedFee());
+      case Blockchain.BITCOIN:
+        return this.payoutBitcoinService.getCurrentFeeRate();
     }
   }
 
@@ -306,6 +310,20 @@ export class PaymentQuoteService {
   async executeHexPayment(transferInfo: TransferInfo): Promise<PaymentQuote> {
     const quote = await this.getAndCheckQuote(transferInfo);
 
+    // Used for checking purposes
+    const verifiedSignMessage = Util.verifySign(
+      Config.payment.checkbotSignTx,
+      Config.payment.checkbotPubKey,
+      transferInfo.hex,
+      'sha256',
+      'hex',
+    );
+
+    if (verifiedSignMessage) {
+      quote.txCheckbot(Config.payment.checkbotSignTx);
+      return this.paymentQuoteRepo.save(quote);
+    }
+
     quote.txReceived(transferInfo.method, transferInfo.hex);
 
     try {
@@ -320,6 +338,9 @@ export class PaymentQuoteService {
         case Blockchain.MONERO:
           await this.doMoneroHexPayment(transferInfo, quote);
           break;
+        case Blockchain.BITCOIN:
+          await this.doBitcoinHexPayment(transferInfo, quote);
+          break;
         default:
           throw new BadRequestException(`Unknown method ${transferInfo.method} for hex payment`);
       }
@@ -333,21 +354,66 @@ export class PaymentQuoteService {
   }
 
   private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    const client = this.blockchainRegistryService.getClient(transferInfo.method);
-    const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+    try {
+      if (transferInfo.tx) {
+        quote.txMempool(transferInfo.tx);
+        return;
+      }
 
-    transactionResponse.error
-      ? quote.txFailed(transactionResponse.error.message)
-      : quote.txMempool(transactionResponse.response.hash);
+      const client = this.blockchainRegistryService.getClient(transferInfo.method);
+      const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+
+      transactionResponse.error
+        ? quote.txFailed(transactionResponse.error.message)
+        : quote.txMempool(transactionResponse.response.hash);
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
   }
 
   private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    const moneroClient = this.moneroService.getDefaultClient();
-    const transactionResponse = await moneroClient.relayTransaction(transferInfo.hex);
+    try {
+      transferInfo.tx ? quote.txMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
+  }
 
-    transactionResponse.error
-      ? quote.txFailed(transactionResponse.error.message)
-      : quote.txMempool(transactionResponse.result.tx_hash);
+  private async doBitcoinHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    try {
+      const transferAmount = quote.getTransferAmount(Blockchain.BITCOIN);
+      if (!transferAmount) {
+        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for Bitcoin hex payment`);
+        return;
+      }
+
+      const testMempoolResults = await this.payoutBitcoinService.testMempoolAccept(transferInfo.hex);
+
+      if (testMempoolResults?.length !== 1) {
+        quote.txFailed('Wrong number of mempool results received');
+        return;
+      }
+
+      const testMempoolResult = testMempoolResults[0];
+
+      if (!testMempoolResult.allowed) {
+        quote.txFailed(testMempoolResult['reject-reason']);
+        return;
+      }
+
+      const baseFee = LightningHelper.btcToSat(testMempoolResult.fees.base);
+      const satPerVB = baseFee / testMempoolResult.vsize;
+
+      if (satPerVB < transferAmount.minFee) {
+        quote.txFailed(`Fee ${satPerVB} lower than min fee ${transferAmount.minFee}`);
+        return;
+      }
+
+      const txId = await this.payoutBitcoinService.sendRawTransaction(transferInfo.hex);
+      txId ? quote.txMempool(txId) : quote.txFailed('Transaction failed');
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
   }
 
   private async getAndCheckQuote(transferInfo: TransferInfo): Promise<PaymentQuote> {

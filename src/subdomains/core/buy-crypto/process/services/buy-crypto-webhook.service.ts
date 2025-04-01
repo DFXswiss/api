@@ -16,18 +16,12 @@ export class BuyCryptoWebhookService {
   async triggerWebhookManual(id: number): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({
       where: { id },
-      relations: [
-        'buy',
-        'buy.user',
-        'buy.user.wallet',
-        'buy.user.userData',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.wallet',
-        'cryptoInput',
-        'bankTx',
-        'checkoutTx',
-      ],
+      relations: {
+        transaction: { user: { wallet: true }, userData: true },
+        cryptoInput: true,
+        bankTx: true,
+        checkoutTx: true,
+      },
     });
     if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
 
@@ -38,8 +32,8 @@ export class BuyCryptoWebhookService {
     const extended = await this.extendBuyCrypto(buyCrypto);
 
     buyCrypto.isCryptoCryptoTransaction
-      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, extended)
-      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, extended);
+      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended)
+      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
   }
 
   async extendBuyCrypto(buyCrypto: BuyCrypto): Promise<BuyCryptoExtended> {

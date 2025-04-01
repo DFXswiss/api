@@ -15,6 +15,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
@@ -56,6 +57,8 @@ export class BuyFiatService {
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
     @Inject(forwardRef(() => AmlService))
     private readonly amlService: AmlService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -225,7 +228,7 @@ export class BuyFiatService {
     const extended = await this.extendBuyFiat(buyFiat);
 
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, buyFiat.userData, extended) : undefined;
   }
 
   async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {
@@ -261,12 +264,15 @@ export class BuyFiatService {
 
     TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    let blockchainFee: number;
+    if (dto.chargebackAllowedDate && chargebackAmount) {
+      blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
       await this.payInService.returnPayIn(
         buyFiat.cryptoInput,
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
       );
+    }
 
     await this.buyFiatRepo.update(
       ...buyFiat.chargebackFillUp(
@@ -275,6 +281,7 @@ export class BuyFiatService {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
+        blockchainFee,
       ),
     );
   }
