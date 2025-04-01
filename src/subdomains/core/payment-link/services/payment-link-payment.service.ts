@@ -196,7 +196,8 @@ export class PaymentLinkPaymentService {
 
     pendingPayment.link = paymentLink;
 
-    await this.cancelByPayment(pendingPayment);
+    await this.doSave(pendingPayment.cancel(), true);
+    await this.cancelQuotesForPayment(pendingPayment);
 
     return paymentLink;
   }
