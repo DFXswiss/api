@@ -5,10 +5,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import {
-  TransactionRequest,
-  TransactionRequestType,
-} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import {
   KycRequiredReason,
   LimitExceededReason,
@@ -22,8 +19,11 @@ import {
 } from '../../../supporting/payment/dto/transaction.dto';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { Buy } from '../../buy-crypto/routes/buy/buy.entity';
+import { Swap } from '../../buy-crypto/routes/swap/swap.entity';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { Sell } from '../../sell-crypto/route/sell.entity';
 
 export class BuyCryptoExtended extends BuyCrypto {
   inputAssetEntity: Active;
@@ -38,6 +38,7 @@ export class RefRewardExtended extends RefReward {
 }
 
 export class TransactionRequestExtended extends TransactionRequest {
+  route: Buy | Sell | Swap;
   sourceAssetEntity: Active;
   targetAssetEntity: Active;
 }
@@ -169,6 +170,8 @@ export class TransactionDtoMapper {
 
   // Waiting TxRequest
   static mapTxRequestTransaction(txRequest: TransactionRequestExtended): TransactionDto {
+    const fees = TransactionDtoMapper.mapFees(txRequest);
+
     const dto: TransactionDto = {
       id: null,
       uid: txRequest.uid,
@@ -185,11 +188,11 @@ export class TransactionDtoMapper {
       outputBlockchain: isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity?.blockchain : null,
       outputPaymentMethod: txRequest.targetPaymentMethod,
       priceSteps: null,
-      feeAmount: txRequest.totalFee
-        ? Util.roundReadable(txRequest.totalFee * txRequest.amount, feeAmountType(txRequest.sourceAssetEntity))
+      feeAmount: fees.total
+        ? Util.roundReadable(fees.total * txRequest.amount, feeAmountType(txRequest.sourceAssetEntity))
         : null,
-      feeAsset: txRequest.totalFee ? txRequest.sourceAssetEntity.name : null,
-      fees: TransactionDtoMapper.mapFees(txRequest),
+      feeAsset: fees.total ? txRequest.sourceAssetEntity.name : null,
+      fees,
       inputTxId: null,
       inputTxUrl: null,
       outputTxId: null,
@@ -211,7 +214,7 @@ export class TransactionDtoMapper {
     return {
       ...this.mapTxRequestTransaction(txRequest),
       sourceAccount: null,
-      targetAccount: txRequest.type === TransactionRequestType.BUY ? txRequest.user?.address : null, // TODO: load route relation for iban?
+      targetAccount: txRequest.route.targetAccount,
     };
   }
 

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -9,14 +9,17 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { GetSwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
 import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/swap-payment-info.dto';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { TransactionRequestExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
-import { Between, FindOptionsRelations, LessThan, MoreThan } from 'typeorm';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { Between, FindOptionsRelations, IsNull, LessThan, MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import {
   TransactionRequest,
@@ -36,6 +39,10 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    private readonly buyService: BuyService,
+    private readonly sellService: SellService,
+    @Inject(forwardRef(() => SwapService))
+    private readonly swapService: SwapService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -43,7 +50,10 @@ export class TransactionRequestService {
   async txRequestStatusSync() {
     if (DisabledProcess(Process.TX_REQUEST_STATUS_SYNC)) return;
 
-    const entities = await this.transactionRequestRepo.find({ where: { isComplete: true }, take: 5000 });
+    const entities = await this.transactionRequestRepo.find({
+      where: { isComplete: true, status: IsNull() },
+      take: 5000,
+    });
 
     for (const entity of entities) {
       try {
@@ -250,7 +260,24 @@ export class TransactionRequestService {
         ? await this.fiatService.getFiat(txRequest.targetId)
         : await this.assetService.getAssetById(txRequest.targetId);
 
-    return Object.assign(txRequest, { sourceAssetEntity, targetAssetEntity });
+    const transactionRequestExtended = Object.assign(txRequest, { sourceAssetEntity, targetAssetEntity });
+
+    switch (txRequest.type) {
+      case TransactionRequestType.BUY:
+        return Object.assign(transactionRequestExtended, {
+          route: await this.buyService.get(undefined, txRequest.routeId),
+        });
+
+      case TransactionRequestType.SELL:
+        return Object.assign(transactionRequestExtended, {
+          route: await this.sellService.get(undefined, txRequest.routeId),
+        });
+
+      case TransactionRequestType.SWAP:
+        return Object.assign(transactionRequestExtended, {
+          route: await this.swapService.get(undefined, txRequest.routeId),
+        });
+    }
   }
 
   async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
