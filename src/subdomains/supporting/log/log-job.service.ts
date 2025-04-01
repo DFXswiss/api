@@ -14,7 +14,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -110,7 +110,8 @@ export class LogJobService {
 
       // safety module
       const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
-      this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
+      if (DisabledProcess(Process.SAFETY_MODULE))
+        this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
       await this.logService.create({
         system: 'LogService',

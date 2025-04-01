@@ -62,6 +62,7 @@ export enum Process {
   FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
   CRYPTO_PAYOUT = 'CryptoPayout',
   LOG_CLEANUP = 'LogCleanup',
+  SAFETY_MODULE = 'SafetyModule',
 }
 
 const safetyProcesses: Process[] = [
