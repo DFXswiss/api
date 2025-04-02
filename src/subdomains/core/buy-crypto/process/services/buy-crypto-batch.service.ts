@@ -4,10 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import {
-  LiquidityManagementPipelineStatus,
-  LiquidityManagementRuleStatus,
-} from 'src/subdomains/core/liquidity-management/enums';
+import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -93,11 +90,7 @@ export class BuyCryptoBatchService {
         (t) =>
           (!t.liquidityPipeline &&
             !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-          [
-            LiquidityManagementPipelineStatus.FAILED,
-            LiquidityManagementPipelineStatus.STOPPED,
-            LiquidityManagementPipelineStatus.COMPLETE,
-          ].includes(t.liquidityPipeline?.status),
+          t.liquidityPipeline,
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
@@ -300,6 +293,8 @@ export class BuyCryptoBatchService {
       } = liquidity;
 
       const isPurchaseRequired = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
+
+      // TODO stop running pipeline?
 
       return isPurchaseRequired ? purchaseFee : { amount: 0, asset: purchaseFee.asset };
     } catch (e) {

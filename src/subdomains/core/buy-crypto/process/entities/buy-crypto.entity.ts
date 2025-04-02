@@ -252,16 +252,9 @@ export class BuyCrypto extends IEntity {
     if (
       Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
       this.liquidityPipeline &&
-      ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
-        this.liquidityPipeline.status,
-      )
+      this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
+      this.liquidityPipeline.orders?.length
     ) {
-      if (
-        this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
-        !this.liquidityPipeline.orders?.length
-      )
-        throw new Error('LiquidityPipeline not completed');
-
       const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
       const filteredPriceSteps = price.steps.slice(0, -1);
 
@@ -627,7 +620,7 @@ export class BuyCrypto extends IEntity {
   get chargebackBankFee(): number {
     return this.bankTx ? this.bankTx.chargeAmount : 0;
   }
-  
+
   get wallet(): Wallet {
     return this.user.wallet;
   }
