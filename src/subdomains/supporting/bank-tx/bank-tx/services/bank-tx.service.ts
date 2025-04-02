@@ -175,16 +175,16 @@ export class BankTxService {
           continue;
         }
 
-        const update: Partial<BankTx> = {
-          accountingFeePercent: entity.buyCrypto?.percentFee ?? entity.buyFiats?.[0]?.percentFee,
-        };
+        const update: Partial<BankTx> = {};
 
         if (entity.type === BankTxType.BUY_CRYPTO) {
+          update.accountingFeePercent = entity.buyCrypto.percentFee;
           update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
           update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
           update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
           update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
         } else {
+          update.accountingFeePercent = entity.buyFiats[0].percentFee;
           update.accountingFeeAmount =
             update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
           update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
