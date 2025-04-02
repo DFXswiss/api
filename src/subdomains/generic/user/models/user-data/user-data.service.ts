@@ -193,7 +193,7 @@ export class UserDataService {
       relations: { wallet: true },
     });
 
-    Object.assign(userData, await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto));
+    dto = await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -563,7 +563,9 @@ export class UserDataService {
       }
     }
 
-    return this.userDataRepo.save(Object.assign(userData, dto));
+    await this.userDataRepo.update(...userData.setUserDataSettings(dto));
+
+    return Object.assign(userData, dto);
   }
 
   // --- KYC --- //

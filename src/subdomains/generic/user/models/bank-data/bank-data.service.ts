@@ -201,11 +201,12 @@ export class BankDataService {
     iban: string,
     userDataId?: number,
     relations: FindOptionsRelations<BankData> = { userData: true },
+    filterTypeUser = true,
   ): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
       .find({
-        where: { iban, userData: { id: userDataId }, type: Not(BankDataType.USER) },
+        where: { iban, userData: { id: userDataId }, type: filterTypeUser ? Not(BankDataType.USER) : undefined },
         relations,
       })
       .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);

@@ -5,6 +5,7 @@ import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/e
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { ProcessService } from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
@@ -46,6 +47,7 @@ describe('LogJobService', () => {
   let refRewardService: RefRewardService;
   let tradingOrderService: TradingOrderService;
   let payoutService: PayoutService;
+  let processService: ProcessService;
 
   beforeEach(async () => {
     tradingRuleService = createMock<TradingRuleService>();
@@ -66,6 +68,7 @@ describe('LogJobService', () => {
     refRewardService = createMock<RefRewardService>();
     tradingOrderService = createMock<TradingOrderService>();
     payoutService = createMock<PayoutService>();
+    processService = createMock<ProcessService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -89,6 +92,7 @@ describe('LogJobService', () => {
         { provide: RefRewardService, useValue: refRewardService },
         { provide: TradingOrderService, useValue: tradingOrderService },
         { provide: PayoutService, useValue: payoutService },
+        { provide: ProcessService, useValue: processService },
         TestUtil.provideConfig(),
       ],
     }).compile();

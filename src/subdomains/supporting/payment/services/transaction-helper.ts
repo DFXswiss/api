@@ -1,28 +1,34 @@
-import { Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PricingService } from '../../pricing/services/pricing.service';
@@ -331,19 +337,18 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getVolumeChfSince(
-    inputAmount: number,
+    inputAmount: number | undefined,
     from: Active,
     allowExpiredPrice: boolean,
+    users: User[],
     dateFrom?: Date,
     dateTo?: Date,
-    users?: User[],
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-
-    if (!users?.length) return price.convert(inputAmount);
-
     const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, type);
+    if (inputAmount == null) return previousVolume;
+
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
     return price.convert(inputAmount) + previousVolume;
   }
@@ -367,6 +372,63 @@ export class TransactionHelper implements OnModuleInit {
     );
 
     return buyCryptoVolume + buyFiatVolume;
+  }
+
+  async getRefundData(
+    refundEntity: BankTx | BuyCrypto | BuyFiat,
+    userData: UserData,
+    bankIn: CardBankName | IbanBankName,
+    refundTarget: string,
+    isFiat: boolean,
+  ): Promise<RefundDataDto> {
+    const inputCurrency =
+      refundEntity instanceof BankTx
+        ? await this.fiatService.getFiatByName(refundEntity.currency)
+        : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputReferenceAsset));
+
+    const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
+
+    const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
+    const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
+
+    const inputAmount = Util.roundReadable(
+      refundEntity instanceof BankTx ? refundEntity.amount + refundEntity.chargeAmount : refundEntity.inputAmount,
+      amountType,
+    );
+
+    const chargebackFee = await this.feeService.getChargebackFee({
+      from: inputCurrency,
+      txVolume: price.invert().convert(inputAmount),
+      paymentMethodIn: refundEntity.paymentMethodIn,
+      bankIn,
+      specialCodes: [],
+      allowCachedBlockchainFee: false,
+      userData,
+    });
+
+    const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
+    const networkFeeAmount = price.convert(chargebackFee.network);
+    const bankFeeAmount = refundEntity.chargebackBankFee;
+
+    const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
+    if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
+
+    const refundAsset =
+      inputCurrency instanceof Asset ? AssetDtoMapper.toDto(inputCurrency) : FiatDtoMapper.toDto(inputCurrency);
+
+    return {
+      expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
+      inputAmount: Util.roundReadable(inputAmount, amountType),
+      inputAsset: refundAsset,
+      refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
+      fee: {
+        dfx: Util.roundReadable(dfxFeeAmount, feeAmountType),
+        network: Util.roundReadable(networkFeeAmount, feeAmountType),
+        bank: Util.roundReadable(bankFeeAmount, feeAmountType),
+      },
+      refundAsset,
+      refundTarget,
+    };
   }
 
   private async getNetworkStartFee(to: Active, allowExpiredPrice: boolean, user?: User): Promise<number> {

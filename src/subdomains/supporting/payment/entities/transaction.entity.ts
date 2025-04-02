@@ -125,10 +125,11 @@ export class Transaction extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  mailSent(recipientMail?: string): UpdateResult<Transaction> {
-    const update: Partial<BuyCrypto> = {
-      recipientMail: recipientMail ?? this.userData?.mail,
+  mailSent(userData?: UserData): UpdateResult<Transaction> {
+    const update: Partial<Transaction> = {
+      recipientMail: userData?.mail ?? this.userData?.mail,
       mailSendDate: new Date(),
+      userData,
     };
 
     Object.assign(this, update);
@@ -162,5 +163,9 @@ export class Transaction extends IEntity {
 
   get targetEntity(): BuyCrypto | BuyFiat | RefReward | BankTxReturn | undefined {
     return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? this.bankTxReturn ?? undefined;
+  }
+
+  get refundTargetEntity(): BuyCrypto | BuyFiat | BankTx | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? (!this.type && this.bankTx) ?? undefined;
   }
 }

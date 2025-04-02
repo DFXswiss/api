@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -854,7 +855,7 @@ export class KycService {
             name: nextStep,
             type:
               lastTry?.type === KycStepType.VIDEO || lastTry?.type === KycStepType.SUMSUB_VIDEO
-                ? lastTry?.type
+                ? KycStepType.SUMSUB_VIDEO
                 : await this.userDataService.getIdentMethod(user),
             preventDirectEvaluation,
           },
@@ -909,8 +910,7 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          kycStep.transactionId = IdentService.transactionId(user, kycStep);
-          kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
+          throw new InternalServerErrorException('Intrum Ident not possible');
         }
 
         break;
@@ -938,8 +938,17 @@ export class KycService {
   }
 
   async completeCommercialRegister(userData: UserData): Promise<UserData> {
-    if (!userData.verifiedName && userData.organizationName)
-      return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
+    if (
+      (!userData.verifiedName && userData.organizationName) ||
+      (userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate)
+    )
+      return this.userDataService.updateUserDataInternal(userData, {
+        verifiedName: !userData.verifiedName && userData.organizationName ? userData.organizationName : undefined,
+        pep:
+          userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate
+            ? false
+            : undefined,
+      });
   }
 
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
@@ -989,6 +998,7 @@ export class KycService {
             identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
           identDocumentType: data.documentType,
           identDocumentId: kycStep.identDocumentId,
+          olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
 

@@ -354,21 +354,26 @@ export class PaymentQuoteService {
   }
 
   private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    const client = this.blockchainRegistryService.getClient(transferInfo.method);
-    const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+    try {
+      if (transferInfo.tx) {
+        quote.txMempool(transferInfo.tx);
+        return;
+      }
 
-    transactionResponse.error
-      ? quote.txFailed(transactionResponse.error.message)
-      : quote.txMempool(transactionResponse.response.hash);
+      const client = this.blockchainRegistryService.getClient(transferInfo.method);
+      const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+
+      transactionResponse.error
+        ? quote.txFailed(transactionResponse.error.message)
+        : quote.txMempool(transactionResponse.response.hash);
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
   }
 
   private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const transactionResponse = await this.payoutMoneroService.relayTransaction(transferInfo.hex);
-
-      transactionResponse.error
-        ? quote.txFailed(transactionResponse.error.message)
-        : quote.txMempool(transactionResponse.result.tx_hash);
+      transferInfo.tx ? quote.txMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
     } catch (e) {
       quote.txFailed(e.message);
     }

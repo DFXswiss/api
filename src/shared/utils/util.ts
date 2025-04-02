@@ -581,4 +581,8 @@ export class Util {
     const memoryUsage = process.memoryUsage();
     return `RSS (Total memory): ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`;
   }
+
+  static numberToFixedString(value: number, precision = 8): string {
+    return value.toFixed(precision).replace(/0+$/, '');
+  }
 }
