@@ -317,6 +317,29 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     }
   }
 
+  async chargebackFillUp(): Promise<void> {
+    const entities = await this.buyCryptoRepo.findBy({
+      chargebackBankTx: IsNull(),
+      amlCheck: CheckStatus.FAIL,
+      bankTx: { id: Not(IsNull()) },
+      isComplete: false,
+      chargebackRemittanceInfo: Not(IsNull()),
+      chargebackOutput: { id: Not(IsNull()) },
+    });
+
+    for (const entity of entities) {
+      try {
+        const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
+        if (!bankTx) continue;
+
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+        await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
+      } catch (e) {
+        this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
+      }
+    }
+  }
+
   private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
     if (isAsset(to) && [AssetType.CUSTOM, AssetType.PRESALE].includes(to.type)) return 0;
 
