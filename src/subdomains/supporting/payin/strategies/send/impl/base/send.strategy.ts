@@ -8,6 +8,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AmountType, Util } from 'src/shared/utils/util';
 import {
   CryptoInput,
   PayInConfirmationType,
@@ -106,7 +107,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
   // --- FEES --- //
   protected async getMinInputFee(asset: Asset): Promise<number> {
-    return this.transactionHelper.getBlockchainFee(asset, true);
+    return this.transactionHelper.getBlockchainFeeInChf(asset, true);
   }
 
   protected async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
@@ -126,7 +127,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
     return {
       feeNativeAsset: nativeFee.amount,
-      feeInputAsset: nativeAssetPrice.convert(nativeFee.amount, 8),
+      feeInputAsset: Util.roundReadable(nativeAssetPrice.convert(nativeFee.amount), AmountType.ASSET_FEE),
       maxFeeInputAsset: chfPrice.convert(Config.maxBlockchainFee, 8),
     };
   }

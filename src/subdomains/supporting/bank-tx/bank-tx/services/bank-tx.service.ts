@@ -15,7 +15,6 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -179,7 +178,7 @@ export class BankTxService {
     return this.updateInternal(bankTx, dto);
   }
 
-  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, userData?: UserData): Promise<BankTx> {
+  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto): Promise<BankTx> {
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -190,7 +189,7 @@ export class BankTxService {
           await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
-          bankTx.bankTxReturn = await this.bankTxReturnService.create(bankTx, userData);
+          bankTx.bankTxReturn = await this.bankTxReturnService.create(bankTx);
           break;
         case BankTxType.BANK_TX_REPEAT:
           await this.bankTxRepeatService.create(bankTx);
@@ -200,7 +199,7 @@ export class BankTxService {
             await this.transactionService.updateInternal(bankTx.transaction, {
               type: TransactionBankTxTypeMapper[dto.type],
               user: bankTx.user,
-              userData: bankTx.user?.userData ?? userData,
+              userData: bankTx.user?.userData,
             });
           break;
       }
@@ -250,10 +249,11 @@ export class BankTxService {
     return this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx', 'bankTx')
-      .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
+      .leftJoinAndSelect('bankTx.transaction', 'transaction')
+      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
         remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
-      .orderBy('id', 'DESC')
+      .orderBy('bankTx.id', 'DESC')
       .getOne();
   }
 

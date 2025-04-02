@@ -36,7 +36,7 @@ export class OrganizationService {
             name: entity.organizationName,
             street: entity.organizationStreet,
             houseNumber: entity.organizationHouseNumber,
-            location: entity.location,
+            location: entity.organizationLocation,
             zip: entity.organizationZip,
             country: entity.organizationCountry,
             allBeneficialOwnersName: entity.allBeneficialOwnersName,
@@ -58,21 +58,24 @@ export class OrganizationService {
   async createOrganization(dto: OrganizationDto): Promise<Organization> {
     const organization = this.organizationRepo.create(dto);
 
-    if (dto.countryId) {
-      organization.country = await this.countryService.getCountry(dto.countryId);
-      if (!organization.country) throw new BadRequestException('Country not found');
-    }
-
     return this.organizationRepo.save(organization);
   }
 
   async updateOrganizationInternal(entity: Organization, dto: OrganizationDto): Promise<Organization> {
-    if (dto.countryId) {
-      entity.country = await this.countryService.getCountry(dto.countryId);
+    if (dto.organizationCountryId) {
+      entity.country = await this.countryService.getCountry(dto.organizationCountryId);
       if (!entity.country) throw new BadRequestException('Country not found');
     }
 
-    Object.assign(entity, dto);
+    Object.assign(entity, {
+      ...dto,
+      name: dto.name ?? dto.organizationName,
+      street: dto.street ?? dto.organizationStreet,
+      houseNumber: dto.houseNumber ?? dto.organizationHouseNumber,
+      location: dto.location ?? dto.organizationLocation,
+      zip: dto.zip ?? dto.organizationZip,
+      country: dto.country ?? dto.organizationCountry,
+    });
 
     return this.organizationRepo.save(entity);
   }

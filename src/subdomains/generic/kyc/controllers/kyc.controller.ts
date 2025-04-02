@@ -42,11 +42,13 @@ import { Util } from 'src/shared/utils/util';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
+  KycBeneficialData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
+  KycOperationalData,
   KycPersonalData,
   KycSignatoryPowerData,
 } from '../dto/input/kyc-data.dto';
@@ -198,10 +200,10 @@ export class KycController {
     return this.kycService.updateKycStep(code, +id, data, false);
   }
 
-  @Put('data/stock/:id')
+  @Put('data/owner/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
-  async updateStockRegisterData(
+  async updateOwnerDirectoryData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycFileData,
@@ -266,6 +268,28 @@ export class KycController {
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, true);
+  }
+
+  @Put('data/beneficial/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateBeneficialData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycBeneficialData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateBeneficialOwnerData(code, +id, data);
+  }
+
+  @Put('data/operational/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateOperationalData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycOperationalData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateOperationActivityData(code, +id, data);
   }
 
   @Put('data/authority/:id')

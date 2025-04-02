@@ -118,12 +118,18 @@ export class TransactionService {
     });
   }
 
+  async getAllTransactionsForUserData(
+    userDataId: number,
+    relations: FindOptionsRelations<Transaction> = {},
+  ): Promise<Transaction[]> {
+    return this.repo.find({ where: { userData: { id: userDataId } }, relations });
+  }
+
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {
     return this.repo
       .createQueryBuilder('transaction')
       .select('transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('userData.country', 'country')

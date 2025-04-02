@@ -6,7 +6,7 @@
       "source_of_funds": { "title": "Source of the assets to be invested", "description": "Where does most of the money come from?" },
       "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
       "employer": { "title": "Employer", "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer." },
-      "sector": { "title": "Branche", "description": "What industry do you work in or did you last work in?" },
+      "sector": { "title": "Industry", "description": "What industry do you work in or did you last work in?" },
       "risky_business": { "title": "Risky business activities", "description": "Are you involved in potentially risky business activities such as arms dealing, casinos, diamonds, exotic animals, pornography or prostitution?" },
       "income": { "title": "Annual income", "description": "What is your annual income?" },
       "assets": { "title": "Assets", "description": "What is your total wealth?" },
@@ -16,6 +16,8 @@
       "yes": "Yes",
       "no": "No",
       "accept": "Accept",
+      "yes_risky_business": "Yes (risky)",
+      "no_risky_business": "No (not risky)",
 
       "employment_income": "Income from employment",
       "real_estate_sale": "Sale of property",
@@ -24,7 +26,7 @@
       "company_sale": "Sale of companies",
       "company_profits": "Corporate profits / dividends",
       "inheritance": "Heritage",
-      "gift": "Donation / Donation",
+      "gift": "Gift / Donation",
       "pension": "Pension fund / pension",
       "gambling": "Gambling winnings",
 

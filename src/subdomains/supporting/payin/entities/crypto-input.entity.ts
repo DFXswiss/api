@@ -2,7 +2,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
@@ -174,8 +173,9 @@ export class CryptoInput extends IEntity {
     const maxApplicableFee = maxFee ? maxFee : feeCap;
 
     if (estimatedFee > maxApplicableFee) {
-      const feePercent = Util.toPercent(estimatedFee / totalAmount);
-      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent})`);
+      throw new FeeLimitExceededException(
+        `Forward fee is too high (estimated ${estimatedFee}, max. ${maxApplicableFee})`,
+      );
     }
   }
 

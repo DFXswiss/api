@@ -43,28 +43,28 @@ export class WebhookService {
   }
 
   // --- PAYMENT WEBHOOKS --- //
-  async fiatCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
+  async fiatCryptoUpdate(user: User, userData: UserData, payment: BuyCryptoExtended): Promise<void> {
     const payload = WebhookDataMapper.mapFiatCryptoData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
   }
 
-  async cryptoCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
+  async cryptoCryptoUpdate(user: User, userData: UserData, payment: BuyCryptoExtended): Promise<void> {
     const payload = WebhookDataMapper.mapCryptoCryptoData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
   }
 
-  async cryptoFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
+  async cryptoFiatUpdate(user: User, userData: UserData, payment: BuyFiatExtended): Promise<void> {
     const payload = WebhookDataMapper.mapCryptoFiatData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
   }
 
-  async fiatFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
+  async fiatFiatUpdate(user: User, userData: UserData, payment: BuyFiatExtended): Promise<void> {
     const payload = WebhookDataMapper.mapFiatFiatData(payment);
 
-    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, userData, [user]);
   }
 
   // --- HELPER METHODS --- //
