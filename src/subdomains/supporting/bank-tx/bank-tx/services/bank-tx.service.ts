@@ -161,6 +161,7 @@ export class BankTxService {
         accountingAmountBeforeFee: IsNull(),
         amount: Not(IsNull()),
         chargeAmount: Not(IsNull()),
+        type: Not(In(BankTxUnassignedTypes)),
       },
       relations: { buyCrypto: true, buyFiats: true },
     });
@@ -174,42 +175,30 @@ export class BankTxService {
           continue;
         }
 
-        const accountingFeePercent = entity.buyCrypto?.percentFee ?? entity.buyFiats?.[0]?.percentFee;
-        const accountingFeeAmount =
-          accountingFeePercent *
-          (entity.type === BankTxType.BUY_CRYPTO
-            ? entity.amount + entity.chargeAmount
-            : entity.type === BankTxType.BUY_FIAT
-            ? (entity.amount + entity.chargeAmount) / (1 - accountingFeePercent)
-            : undefined);
-        const accountingAmountAfterFee =
-          entity.type === BankTxType.BUY_CRYPTO
-            ? entity.amount + entity.chargeAmount - accountingFeeAmount
-            : entity.type === BankTxType.BUY_FIAT
-            ? entity.amount + entity.chargeAmount
-            : undefined;
+        const update: Partial<BankTx> = {
+          accountingFeePercent: entity.buyCrypto?.percentFee ?? entity.buyFiats?.[0]?.percentFee,
+        };
 
-        const accountingAmountBeforeFeeChf =
-          entity.type === BankTxType.BUY_CRYPTO
-            ? entity.buyCrypto.amountInChf
-            : entity.type === BankTxType.BUY_FIAT
-            ? entity.buyFiats[0].amountInChf / (1 - accountingFeePercent)
-            : undefined;
-
-        const accountingAmountAfterFeeChf =
-          entity.type === BankTxType.BUY_CRYPTO
-            ? entity.buyCrypto.amountInChf * (1 - accountingFeePercent)
-            : entity.type === BankTxType.BUY_FIAT
-            ? entity.buyFiats[0].amountInChf
-            : undefined;
+        if (entity.type === BankTxType.BUY_CRYPTO) {
+          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
+          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
+          update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
+          update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
+        } else {
+          update.accountingFeeAmount =
+            update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
+          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
+          update.accountingAmountBeforeFeeChf = entity.buyFiats[0].amountInChf / (1 - update.accountingFeePercent);
+          update.accountingAmountAfterFeeChf = entity.buyFiats[0].amountInChf;
+        }
 
         await this.bankTxRepo.update(entity.id, {
           accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
-          accountingFeePercent: Util.roundReadable(accountingFeePercent, AmountType.FIAT),
-          accountingFeeAmount: Util.roundReadable(accountingFeeAmount, AmountType.FIAT),
-          accountingAmountAfterFee: Util.roundReadable(accountingAmountAfterFee, AmountType.FIAT),
-          accountingAmountBeforeFeeChf: Util.roundReadable(accountingAmountBeforeFeeChf, AmountType.FIAT),
-          accountingAmountAfterFeeChf: Util.roundReadable(accountingAmountAfterFeeChf, AmountType.FIAT),
+          accountingFeePercent: Util.roundReadable(update.accountingFeePercent, AmountType.FIAT),
+          accountingFeeAmount: Util.roundReadable(update.accountingFeeAmount, AmountType.FIAT),
+          accountingAmountAfterFee: Util.roundReadable(update.accountingAmountAfterFee, AmountType.FIAT),
+          accountingAmountBeforeFeeChf: Util.roundReadable(update.accountingAmountBeforeFeeChf, AmountType.FIAT),
+          accountingAmountAfterFeeChf: Util.roundReadable(update.accountingAmountAfterFeeChf, AmountType.FIAT),
         });
       } catch (e) {
         this.logger.error(`Error during bankTx ${entity.id} fill:`, e);
