@@ -49,7 +49,7 @@ export enum Direction {
 }
 
 export abstract class EvmClient extends BlockchainClient {
-  protected http: HttpService;
+  readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
   readonly chainId: ChainId;
 

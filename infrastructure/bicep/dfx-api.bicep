@@ -142,6 +142,7 @@ param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
 
 param deuroGraphUrl string
+param deuroApiUrl string
 
 param ebel2XContractAddress string
 
@@ -931,6 +932,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DEURO_GRAPH_URL'
           value: deuroGraphUrl
+        }
+        {
+          name: 'DEURO_API_URL'
+          value: deuroApiUrl
         }
         {
           name: 'EBEL2X_CONTRACT_ADDRESS'
