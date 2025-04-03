@@ -294,8 +294,6 @@ export class BuyCryptoBatchService {
 
       const isPurchaseRequired = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
 
-      // TODO stop running pipeline?
-
       return isPurchaseRequired ? purchaseFee : { amount: 0, asset: purchaseFee.asset };
     } catch (e) {
       if (e instanceof MissingBuyCryptoLiquidityException) {
