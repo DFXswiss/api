@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
@@ -6,9 +7,12 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
+import { FileType } from '../dto/kyc-file.dto';
 import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
+import { ContentType } from '../enums/content-type.enum';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
 import { DilisenseService } from './integration/dilisense.service';
+import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class NameCheckService implements OnModuleInit {
@@ -20,6 +24,7 @@ export class NameCheckService implements OnModuleInit {
     private readonly nameCheckLogRepo: NameCheckLogRepository,
     private readonly dilisenseService: DilisenseService,
     private readonly userDataService: UserDataService,
+    private readonly documentService: KycDocumentService,
   ) {}
 
   onModuleInit() {
@@ -45,7 +50,8 @@ export class NameCheckService implements OnModuleInit {
 
     // Personal name check
     if (bankData.userData.accountType !== AccountType.ORGANIZATION) {
-      const sanctionData = await this.dilisenseService.getRiskData(
+      const sanctionData = await this.getRiskDataAndUploadPdf(
+        bankData.userData,
         bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
           ? bankData.userData.verifiedName
           : bankData.name,
@@ -56,12 +62,16 @@ export class NameCheckService implements OnModuleInit {
     }
 
     // Business name check
-    const personalSanctionData = await this.dilisenseService.getRiskData(
+    const personalSanctionData = await this.getRiskDataAndUploadPdf(
+      bankData.userData,
       `${bankData.userData.firstname} ${bankData.userData.surname}`,
       bankData.userData.birthday,
     );
 
-    const businessSanctionData = await this.dilisenseService.getRiskData(bankData.userData.organizationName);
+    const businessSanctionData = await this.getRiskDataAndUploadPdf(
+      bankData.userData,
+      bankData.userData.organizationName,
+    );
 
     const riskStatus = [
       await this.classifyRiskData(personalSanctionData, bankData),
@@ -99,6 +109,23 @@ export class NameCheckService implements OnModuleInit {
     }
 
     return RiskStatus.SANCTIONED;
+  }
+
+  async getRiskDataAndUploadPdf(userData: UserData, name: string, dob?: Date): Promise<DilisenseApiData> {
+    const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, dob);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(pdfData);
+    await this.documentService.uploadFile(
+      userData,
+      FileType.NAME_CHECK,
+      `nameCheck-${Date.now().toLocaleString()}`,
+      buffer,
+      contentType as ContentType,
+      true,
+    );
+
+    return riskData;
   }
 
   async closeAndRefreshRiskStatus(bankData: BankData): Promise<void> {
