@@ -349,7 +349,7 @@ export class TransactionHelper implements OnModuleInit {
 
     price ??= await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
-    return price.convert(tx.inputAmount) + previousVolume;
+    return price.convert(tx.inputReferenceAmount) + previousVolume;
   }
 
   async getVolumeSince(
