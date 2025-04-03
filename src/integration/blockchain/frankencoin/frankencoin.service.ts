@@ -5,7 +5,6 @@ import { Contract } from 'ethers';
 import { Config } from 'src/config/config';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
@@ -32,8 +31,6 @@ import { FrankencoinClient } from './frankencoin-client';
 
 @Injectable()
 export class FrankencoinService extends FrankencoinBasedService implements OnModuleInit {
-  private readonly logger = new DfxLogger(FrankencoinService);
-
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
 
