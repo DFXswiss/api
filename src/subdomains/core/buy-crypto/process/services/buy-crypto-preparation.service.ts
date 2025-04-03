@@ -11,6 +11,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -275,6 +276,40 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async chargebackTx(): Promise<void> {
+    const baseRequest: FindOptionsWhere<BuyCrypto> = {
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: Not(IsNull()),
+      chargebackAmount: Not(IsNull()),
+      isComplete: false,
+      transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+    };
+    const entities = await this.buyCryptoRepo.find({
+      where: [
+        { ...baseRequest, chargebackIban: Not(IsNull()) },
+        { ...baseRequest, checkoutTx: { id: Not(IsNull()) } },
+      ],
+      relations: { checkoutTx: true, bankTx: true, cryptoInput: true, transaction: { userData: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        const chargebackAllowedDate = new Date();
+        const chargebackAllowedBy = 'API';
+
+        if (entity.bankTx) {
+          await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+        } else if (entity.cryptoInput) {
+          await this.buyCryptoService.refundCryptoInput(entity, { chargebackAllowedDate, chargebackAllowedBy });
+        } else {
+          await this.buyCryptoService.refundCheckoutTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+        }
+      } catch (e) {
+        this.logger.error(`Failed buyCrypto chargeback job ${entity.id}:`, e);
       }
     }
   }
