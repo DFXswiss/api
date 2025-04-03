@@ -234,7 +234,12 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_4:
-        if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) return AmlError.WEEKLY_LIMIT_REACHED;
+        if (
+          last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule &&
+          entity instanceof BuyCrypto &&
+          entity.checkoutTx
+        )
+          return AmlError.WEEKLY_LIMIT_REACHED;
         break;
 
       case AmlRule.RULE_6:

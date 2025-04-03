@@ -111,31 +111,27 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.checkoutTx ? entity.inputReferenceAmount : 0,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
           'checkoutTx',
+          referenceChfPrice,
         );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const ibanCountry =
