@@ -392,6 +392,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       where: {
         chargebackAllowedDate: IsNull(),
         chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAmount: Not(IsNull()),
         isComplete: false,
         transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
         chargebackAddress: Not(IsNull()),

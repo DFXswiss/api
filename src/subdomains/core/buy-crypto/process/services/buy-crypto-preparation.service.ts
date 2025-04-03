@@ -288,6 +288,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     const baseRequest: FindOptionsWhere<BuyCrypto> = {
       chargebackAllowedDate: IsNull(),
       chargebackAllowedDateUser: Not(IsNull()),
+      chargebackAmount: Not(IsNull()),
       isComplete: false,
       transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
     };
