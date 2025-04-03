@@ -1,6 +1,7 @@
 import { Contract } from 'ethers';
 import { groupBy, sumBy } from 'lodash';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -12,6 +13,8 @@ import { BlockchainRegistryService } from '../services/blockchain-registry.servi
 import { FrankencoinBasedCollateralDto } from './frankencoin-based.dto';
 
 export abstract class FrankencoinBasedService {
+  protected readonly logger = new DfxLogger(this.constructor.name);
+
   private pricingService: PricingService;
   private registryService: BlockchainRegistryService;
 
@@ -59,14 +62,18 @@ export abstract class FrankencoinBasedService {
   }
 
   private async getCoinGeckoPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
-    const price = await this.pricingService.getPriceFrom(
-      PriceSource.COIN_GECKO,
-      collateral.address.toLowerCase(),
-      'usd',
-      'contract',
-    );
+    try {
+      const price = await this.pricingService.getPriceFrom(
+        PriceSource.COIN_GECKO,
+        collateral.address.toLowerCase(),
+        'usd',
+        'contract',
+      );
 
-    if (price) return price.price;
+      if (price) return price.price;
+    } catch (e) {
+      this.logger.error(`Failed to get price for collateral ${collateral.address}:`, e);
+    }
   }
 
   abstract getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined>;

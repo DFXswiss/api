@@ -9,7 +9,7 @@ import {
   PaymentLinkPayRequestDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
-import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
+import { PaymentLinkPaymentMode, PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
@@ -115,7 +115,7 @@ export class LnUrlForwardService {
     const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
     if (!payment) throw new NotFoundException('No pending payment found');
 
-    await this.paymentLinkPaymentService.cancelByPayment(payment);
+    if (payment.mode !== PaymentLinkPaymentMode.MULTIPLE) await this.paymentLinkPaymentService.cancelByPayment(payment);
 
     return PaymentLinkDtoMapper.toPaymentDto(payment);
   }

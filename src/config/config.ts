@@ -620,7 +620,8 @@ export class Configuration {
       },
     },
     deuro: {
-      deuroGraphUrl: process.env.DEURO_GRAPH_URL,
+      graphUrl: process.env.DEURO_GRAPH_URL,
+      apiUrl: process.env.DEURO_API_URL,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

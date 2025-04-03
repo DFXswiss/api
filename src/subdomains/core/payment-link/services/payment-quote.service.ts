@@ -421,7 +421,7 @@ export class PaymentQuoteService {
 
     if (!quoteUniqueId) throw new BadRequestException('Quote parameter missing');
     if (!transferInfo.method) throw new BadRequestException('Method parameter missing');
-    if (!transferInfo.hex) throw new BadRequestException('Hex parameter missing');
+    if (!transferInfo.hex && !transferInfo.tx) throw new BadRequestException('Hex or Tx parameter missing');
 
     const actualQuote = await this.getActualQuoteByUniqueId(quoteUniqueId);
     if (!actualQuote) throw new NotFoundException(`No actual quote with ID ${quoteUniqueId} found`);

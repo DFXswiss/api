@@ -100,21 +100,19 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));

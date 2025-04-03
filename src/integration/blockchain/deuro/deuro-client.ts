@@ -1,9 +1,9 @@
-import { ADDRESS, DecentralizedEUROABI, EquityABI } from '@deuro/eurocoin';
+import { ADDRESS, DecentralizedEUROABI, EquityABI, PositionV2ABI, StablecoinBridgeABI } from '@deuro/eurocoin';
 import { Contract } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import { EvmClient } from '../shared/evm/evm-client';
-import { DEuroDepsGraphDto, DEuroPositionGraphDto } from './dto/deuro.dto';
+import { DEuroDepsGraphDto, DEuroPositionGraphDto, DEuroSavingsInfoDto } from './dto/deuro.dto';
 
 export class DEuroClient {
   constructor(private readonly evmClient: EvmClient) {}
@@ -35,9 +35,15 @@ export class DEuroClient {
     `;
 
     return request<{ positionV2s: { items: [DEuroPositionGraphDto] } }>(
-      Config.blockchain.deuro.deuroGraphUrl,
+      Config.blockchain.deuro.graphUrl,
       document,
     ).then((r) => r.positionV2s.items);
+  }
+
+  async getSavingsInfo(): Promise<DEuroSavingsInfoDto> {
+    const url = `${Config.blockchain.deuro.apiUrl}/savings/core/info`;
+
+    return this.evmClient.http.get<DEuroSavingsInfoDto>(url);
   }
 
   async getDEPS(): Promise<DEuroDepsGraphDto> {
@@ -54,7 +60,7 @@ export class DEuroClient {
       }
     `;
 
-    return request<{ dEPS: DEuroDepsGraphDto }>(Config.blockchain.deuro.deuroGraphUrl, document).then((r) => r.dEPS);
+    return request<{ dEPS: DEuroDepsGraphDto }>(Config.blockchain.deuro.graphUrl, document).then((r) => r.dEPS);
   }
 
   getDEuroContract(): Contract {
@@ -63,5 +69,21 @@ export class DEuroClient {
 
   getEquityContract(): Contract {
     return new Contract(ADDRESS[this.evmClient.chainId].equity, EquityABI, this.evmClient.wallet);
+  }
+
+  getPositionContract(address: string): Contract {
+    return new Contract(address, PositionV2ABI, this.evmClient.wallet);
+  }
+
+  getBridgeEURCContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURC, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEURSContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURS, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeVEURContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeVEUR, StablecoinBridgeABI, this.evmClient.wallet);
   }
 }
