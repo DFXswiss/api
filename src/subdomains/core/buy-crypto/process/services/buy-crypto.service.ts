@@ -566,7 +566,7 @@ export class BuyCryptoService {
       .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
 
     if (excludedId) {
-      request.andWhere('buyCrypto.id != excludedId', { excludedId });
+      request.andWhere('buyCrypto.id != :excludedId', { excludedId });
     }
     if (!type) {
       request.andWhere(

@@ -344,7 +344,7 @@ export class BuyFiatService {
       .andWhere('buyFiat.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
 
     if (excludedId) {
-      request.andWhere('buyCrypto.id != excludedId', { excludedId });
+      request.andWhere('buyCrypto.id != :excludedId', { excludedId });
     }
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
