@@ -53,7 +53,7 @@ export abstract class FrankencoinBasedService {
     for (const collateralWithTotalBalance of collateralsWithTotalBalances) {
       let collateralPrice = await this.getCustomCollateralPrice(collateralWithTotalBalance);
 
-      if (!collateralPrice) collateralPrice = await this.getCoinGeckoPrice(collateralWithTotalBalance);
+      if (!collateralPrice) collateralPrice = await this.getCoinGeckoPrice(collateralWithTotalBalance.address);
 
       if (collateralPrice) tvl += collateralWithTotalBalance.totalBalance / collateralPrice;
     }
@@ -61,18 +61,18 @@ export abstract class FrankencoinBasedService {
     return tvl;
   }
 
-  private async getCoinGeckoPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
+  async getCoinGeckoPrice(contractaddress: string): Promise<number | undefined> {
     try {
       const price = await this.pricingService.getPriceFrom(
         PriceSource.COIN_GECKO,
-        collateral.address.toLowerCase(),
+        contractaddress.toLowerCase(),
         'usd',
         'contract',
       );
 
       if (price) return price.price;
     } catch (e) {
-      this.logger.error(`Failed to get price for collateral ${collateral.address}:`, e);
+      this.logger.error(`Failed to get price for collateral ${contractaddress}:`, e);
     }
   }
 
