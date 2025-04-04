@@ -180,12 +180,20 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return EvmUtil.fromWeiAmount(deuroTotalSupply);
   }
 
+  getWalletAddress(): string {
+    return this.deuroClient.getWalletAddress();
+  }
+
   getEquityContract(): Contract {
     return this.deuroClient.getEquityContract();
   }
 
   async getEquityPrice(): Promise<number> {
     return this.getDEPSPrice();
+  }
+
+  getDEPSWrapperContract(): Contract {
+    return this.deuroClient.getDEPSWrapperContract();
   }
 
   async getDEPSPrice(): Promise<number> {
