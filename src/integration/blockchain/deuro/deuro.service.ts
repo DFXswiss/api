@@ -220,7 +220,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
       const eurTokenContract = this.deuroClient.getErc20Contract(eurTokenAddress);
       const eurTokenPrice =
-        (await this.getCoinGeckoPrice(eurTokenContract.address)) ?? (await this.getBridgeTvlFallback());
+        (await this.getCoinGeckoPrice(eurTokenContract.address)) ?? (await this.getBridgePriceFallback());
 
       const minted = await bridgeContract.minted();
       const mintedValue = EvmUtil.fromWeiAmount(minted);
@@ -231,7 +231,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return tvl;
   }
 
-  private async getBridgeTvlFallback(): Promise<number> {
+  private async getBridgePriceFallback(): Promise<number> {
     const eurcContract = this.deuroClient.getBridgeEURCContract();
     const eurcTokenAddress = await eurcContract.eur();
     const eurcTokenContract = this.deuroClient.getErc20Contract(eurcTokenAddress);
