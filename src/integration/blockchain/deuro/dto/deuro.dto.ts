@@ -86,6 +86,6 @@ export interface DEuroSavingsLogDto {
 }
 
 export interface DEuroBridgeLogDto {
-  token: string;
+  symbol: string;
   minted: number;
 }
