@@ -119,7 +119,7 @@ export class NameCheckService implements OnModuleInit {
     await this.documentService.uploadFile(
       userData,
       FileType.NAME_CHECK,
-      `nameCheck-${Date.now().toLocaleString()}`,
+      `${new Date().toISOString()}-nameCheck`,
       buffer,
       contentType as ContentType,
       true,
