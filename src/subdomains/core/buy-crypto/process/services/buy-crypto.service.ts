@@ -307,12 +307,13 @@ export class BuyCryptoService {
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          undefined,
+          undefined,
+          inputReferenceCurrency,
+          false,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
@@ -544,6 +545,7 @@ export class BuyCryptoService {
     userIds: number[],
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
+    excludedId?: number,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
     const request = this.buyCryptoRepo
@@ -563,6 +565,9 @@ export class BuyCryptoService {
       )
       .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
 
+    if (excludedId) {
+      request.andWhere('buyCrypto.id != :excludedId', { excludedId });
+    }
     if (!type) {
       request.andWhere(
         new Brackets((query) =>

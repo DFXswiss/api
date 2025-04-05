@@ -630,9 +630,19 @@ export class UserData extends IEntity {
     return this.kycSteps.filter(
       (s) =>
         (!name || s.name === name) &&
-        (!type || s.type === type) &&
+        (!type || [type, this.getDeprecatedStepTypes(type)].includes(s.type)) &&
         (!sequenceNumber || s.sequenceNumber === sequenceNumber),
     );
+  }
+
+  getDeprecatedStepTypes(type?: KycStepType): KycStepType {
+    switch (type) {
+      case KycStepType.SUMSUB_AUTO:
+        return KycStepType.AUTO;
+
+      case KycStepType.SUMSUB_VIDEO:
+        return KycStepType.VIDEO;
+    }
   }
 
   getPendingStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {

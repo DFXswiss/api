@@ -104,8 +104,9 @@ export class ProcessService implements OnModuleInit {
     DisabledProcesses = this.listToMap(allDisabledProcesses);
   }
 
-  public setSafetyModeActive(active: boolean) {
+  public async setSafetyModeActive(active: boolean) {
     this.safetyModeInactive = !active;
+    await this.resyncDisabledProcesses();
   }
 
   private listToMap(processes: Process[]): ProcessMap {

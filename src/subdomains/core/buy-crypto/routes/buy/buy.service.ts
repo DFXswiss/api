@@ -184,6 +184,7 @@ export class BuyService {
     return this.buyRepo
       .createQueryBuilder('buy')
       .select('buy')
+      .leftJoinAndSelect('buy.deposit', 'deposit')
       .leftJoinAndSelect('buy.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')

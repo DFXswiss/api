@@ -9,6 +9,7 @@ import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -100,21 +101,19 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          users,
+          entity,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          users,
+          entity,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
@@ -383,6 +382,31 @@ export class BuyFiatPreparationService implements OnModuleInit {
         { buyFiats },
         buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
       );
+    }
+  }
+
+  async chargebackTx(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAmount: Not(IsNull()),
+        isComplete: false,
+        transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+        chargebackAddress: Not(IsNull()),
+      },
+      relations: { cryptoInput: true, transaction: { userData: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyFiatService.refundBuyFiatInternal(entity, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'API',
+        });
+      } catch (e) {
+        this.logger.error(`Failed buyCrypto chargeback job ${entity.id}:`, e);
+      }
     }
   }
 }
