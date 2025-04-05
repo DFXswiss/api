@@ -687,11 +687,9 @@ export class BuyCryptoService {
     // buy
     const buy = await this.buyRepo.findOne({
       where: { id: buyId },
-      relations: { user: { wallet: true, userData: true } },
+      relations: { user: { wallet: true, userData: { bankDatas: true } } },
     });
     if (!buy) throw new BadRequestException('Buy route not found');
-
-    buy.user.userData.bankDatas = await this.bankDataService.getAllBankDatasForUser(buy.user.userData.id);
 
     return buy;
   }

@@ -103,8 +103,7 @@ export class AuthService {
       wallet: true,
       custodyProvider: true,
     });
-    const userData = userDataId && (await this.userDataService.getUserData(userDataId));
-    if (userData) userData.users = await this.userService.getAllUserDataUsers(userData.id);
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
 
     if (userData && existingUser && existingUser.userData.id !== userDataId) {
       throw new ConflictException('Address already linked to another account');
@@ -161,12 +160,11 @@ export class AuthService {
     if (isCompany) return this.companySignIn(dto, userIp);
 
     const user = await this.userService.getUserByAddress(dto.address, {
-      userData: true,
+      userData: { users: true },
       custodyProvider: true,
       wallet: true,
     });
     if (!user) throw new NotFoundException('User not found');
-    user.userData.users = await this.userService.getAllUserDataUsers(user.userData.id);
 
     if (user.userData.isDeactivated)
       user.userData = await this.userDataService.updateUserDataInternal(
@@ -275,8 +273,7 @@ export class AuthService {
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const account = await this.userDataService.getUserData(entry.userDataId);
-      account.users = await this.userService.getAllUserDataUsers(account.id);
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
 
       if (account.isDeactivated)

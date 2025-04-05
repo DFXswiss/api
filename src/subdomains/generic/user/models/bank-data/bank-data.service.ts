@@ -123,10 +123,9 @@ export class BankDataService {
   }
 
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: { bankDatas: true } });
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
-    userData.bankDatas = await this.bankDataRepo.findBy({ userData: { id: userData.id } });
 
     return this.createVerifyBankData(userData, dto);
   }
