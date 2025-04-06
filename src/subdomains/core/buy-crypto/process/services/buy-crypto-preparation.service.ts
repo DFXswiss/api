@@ -113,6 +113,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          users,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
           'checkoutTx',
@@ -121,6 +122,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
           undefined,
@@ -129,6 +131,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
           undefined,

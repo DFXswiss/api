@@ -308,6 +308,7 @@ export class BuyCryptoService {
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
           undefined,
