@@ -184,14 +184,9 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { wallet: true },
+      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
     });
     if (!userData) throw new NotFoundException('User data not found');
-    userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
-    userData.users = await this.userRepo.find({
-      where: { userData: { id: userData.id } },
-      relations: { wallet: true },
-    });
 
     dto = await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
@@ -245,8 +240,7 @@ export class UserDataService {
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
-      const userData = await this.getUserData(userDataId);
-      if (userData) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
+      const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData?.verifiedName) {
         errorLog += !userData
@@ -627,10 +621,9 @@ export class UserDataService {
   }
 
   async checkApiKey(key: string, sign: string, timestamp: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOneBy({ apiKeyCT: key });
+    const userData = await this.userDataRepo.findOne({ where: { apiKeyCT: key }, relations: { users: true } });
     if (!userData) throw new NotFoundException('API key not found');
     if (!ApiKeyService.isValidSign(userData, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
-    userData.users = await this.userRepo.findBy({ userData: { id: userData.id } });
 
     return userData;
   }
