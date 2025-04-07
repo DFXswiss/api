@@ -72,8 +72,8 @@ export class AmlHelperService {
     }
 
     // AmlRule asset/fiat check
-    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
-    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, , last7dCheckoutVolume));
+    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, , last7dCheckoutVolume));
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.approved === null) {
@@ -105,7 +105,7 @@ export class AmlHelperService {
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
       for (const amlRule of entity.user.wallet.amlRuleList) {
-        errors.push(this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume));
+        errors.push(this.amlRuleCheck(amlRule, entity, , last7dCheckoutVolume));
       }
 
       if (entity.bankTx) {
@@ -206,7 +206,7 @@ export class AmlHelperService {
   static amlRuleCheck(
     amlRule: AmlRule,
     entity: BuyCrypto | BuyFiat,
-    amountInChf: number,
+    : number,
     last7dCheckoutVolume: number,
   ): AmlError | undefined {
     switch (amlRule) {
@@ -263,7 +263,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 10000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        if (amountInChf > 1000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
         break;
     }
 
