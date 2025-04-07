@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, Index, ManyToOne, OneToOne } from 'typeorm';
 import { IEntity } from '../entity';
@@ -98,6 +99,9 @@ export class Asset extends IEntity {
 
   @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
   liquidityManagementRule: LiquidityManagementRule;
+
+  @OneToOne(() => Asset, (asset) => asset.bank, { eager: true })
+  bank?: Bank;
 
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;

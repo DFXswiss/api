@@ -53,7 +53,7 @@ export enum Process {
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
-  FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
+  FIAT_OUTPUT = 'FiatOutput',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TRANSACTION_USER_SYNC = 'TransactionUserSync',
   ORGANIZATION_SYNC = 'OrganizationSync',

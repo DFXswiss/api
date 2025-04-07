@@ -9,12 +9,20 @@ import { FiatOutput } from '../fiat-output/fiat-output.entity';
 import { FiatOutputRepository } from '../fiat-output/fiat-output.repository';
 import { FiatOutputService } from '../fiat-output/fiat-output.service';
 import { Ep2ReportService } from './ep2-report.service';
+import { FiatOutputJobService } from './fiat-output-job.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([FiatOutput]), SharedModule, forwardRef(() => BankTxModule)],
 
   controllers: [FiatOutputController],
-  providers: [FiatOutputRepository, BuyFiatRepository, BuyCryptoRepository, FiatOutputService, Ep2ReportService],
+  providers: [
+    FiatOutputRepository,
+    BuyFiatRepository,
+    BuyCryptoRepository,
+    FiatOutputService,
+    Ep2ReportService,
+    FiatOutputJobService,
+  ],
   exports: [FiatOutputService],
 })
 export class FiatOutputModule {}
