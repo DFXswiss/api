@@ -47,7 +47,7 @@ export class TradingService {
     const upperCheckPrice = checkPrice.price * tradingRule.upperTarget;
 
     const currentPrice =
-      tradingRule.source2 === PriceSource.DEX
+      tradingRule.config2.source === PriceSource.DEX
         ? poolPrice.price / (1 + EvmUtil.poolFeeFactor(tradingRule.poolFee))
         : poolPrice.price;
 

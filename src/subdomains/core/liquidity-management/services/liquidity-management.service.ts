@@ -9,7 +9,7 @@ import { In, Not } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus } from '../enums';
+import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
@@ -53,7 +53,7 @@ export class LiquidityManagementService {
 
     const liquidityState = { deficit: amount, redundancy: 0 };
 
-    return this.executeRule(rule, liquidityState);
+    return this.executeRule(rule, liquidityState, LiquidityOptimizationType.DEFICIT);
   }
 
   async sellLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<LiquidityManagementPipeline> {
@@ -67,7 +67,7 @@ export class LiquidityManagementService {
 
     const liquidityState = { deficit: 0, redundancy: amount };
 
-    return this.executeRule(rule, liquidityState);
+    return this.executeRule(rule, liquidityState, LiquidityOptimizationType.REDUNDANCY);
   }
 
   //*** HELPER METHODS ***//
@@ -129,8 +129,9 @@ export class LiquidityManagementService {
   private async executeRule(
     rule: LiquidityManagementRule,
     result: LiquidityState,
+    pipelineType?: LiquidityOptimizationType,
   ): Promise<LiquidityManagementPipeline> {
-    const pipeline = await this.findRunningPipeline(rule);
+    const pipeline = await this.findRunningPipeline(rule, pipelineType);
     if (pipeline) return pipeline;
 
     if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
@@ -148,10 +149,14 @@ export class LiquidityManagementService {
     return savedPipeline;
   }
 
-  private findRunningPipeline(rule: LiquidityManagementRule): Promise<LiquidityManagementPipeline | undefined> {
+  private findRunningPipeline(
+    rule: LiquidityManagementRule,
+    type?: LiquidityOptimizationType,
+  ): Promise<LiquidityManagementPipeline | undefined> {
     return this.pipelineRepo.findOneBy({
       rule: { id: rule.id },
       status: In([LiquidityManagementPipelineStatus.CREATED, LiquidityManagementPipelineStatus.IN_PROGRESS]),
+      type,
     });
   }
 

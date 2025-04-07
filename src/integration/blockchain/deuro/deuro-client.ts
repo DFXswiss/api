@@ -1,4 +1,11 @@
-import { ADDRESS, DecentralizedEUROABI, EquityABI, PositionV2ABI, StablecoinBridgeABI } from '@deuro/eurocoin';
+import {
+  ADDRESS,
+  DecentralizedEUROABI,
+  EquityABI,
+  ERC20ABI,
+  PositionV2ABI,
+  StablecoinBridgeABI,
+} from '@deuro/eurocoin';
 import { Contract } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
@@ -73,6 +80,23 @@ export class DEuroClient {
 
   getPositionContract(address: string): Contract {
     return new Contract(address, PositionV2ABI, this.evmClient.wallet);
+  }
+
+  getErc20Contract(address: string): Contract {
+    return new Contract(address, ERC20ABI, this.evmClient.wallet);
+  }
+
+  getBridgeContracts(): Contract[] {
+    return [
+      this.getBridgeEURTContract(),
+      this.getBridgeEURCContract(),
+      this.getBridgeEURSContract(),
+      this.getBridgeVEURContract(),
+    ];
+  }
+
+  getBridgeEURTContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURT, StablecoinBridgeABI, this.evmClient.wallet);
   }
 
   getBridgeEURCContract(): Contract {

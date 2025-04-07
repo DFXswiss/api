@@ -12,13 +12,13 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -91,6 +91,7 @@ export class BankTxService {
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
+    await this.fillBankTx();
   }
 
   async checkTransactions(): Promise<void> {
@@ -128,7 +129,7 @@ export class BankTxService {
     if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
-  async assignTransactions() {
+  async assignTransactions(): Promise<void> {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
     if (!unassignedBankTx.length) return;
 
@@ -150,6 +151,57 @@ export class BankTxService {
         : { type: BankTxType.GSHEET };
 
       await this.update(tx.id, update);
+    }
+  }
+
+  async fillBankTx(): Promise<void> {
+    const entities = await this.bankTxRepo.find({
+      where: {
+        accountingAmountBeforeFee: IsNull(),
+        amount: Not(IsNull()),
+        chargeAmount: Not(IsNull()),
+        type: Not(In(BankTxUnassignedTypes)),
+      },
+      relations: { buyCrypto: true, buyFiats: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (![BankTxType.BUY_CRYPTO, BankTxType.BUY_FIAT].includes(entity.type)) {
+          await this.bankTxRepo.update(entity.id, {
+            accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          });
+          continue;
+        }
+
+        const update: Partial<BankTx> = {};
+
+        if (entity.type === BankTxType.BUY_CRYPTO) {
+          update.accountingFeePercent = entity.buyCrypto.percentFee;
+          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
+          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
+          update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
+          update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
+        } else {
+          update.accountingFeePercent = entity.buyFiats[0].percentFee;
+          update.accountingFeeAmount =
+            update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
+          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
+          update.accountingAmountBeforeFeeChf = entity.buyFiats[0].amountInChf / (1 - update.accountingFeePercent);
+          update.accountingAmountAfterFeeChf = entity.buyFiats[0].amountInChf;
+        }
+
+        await this.bankTxRepo.update(entity.id, {
+          accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          accountingFeePercent: Util.roundReadable(update.accountingFeePercent, AmountType.FIAT),
+          accountingFeeAmount: Util.roundReadable(update.accountingFeeAmount, AmountType.FIAT),
+          accountingAmountAfterFee: Util.roundReadable(update.accountingAmountAfterFee, AmountType.FIAT),
+          accountingAmountBeforeFeeChf: Util.roundReadable(update.accountingAmountBeforeFeeChf, AmountType.FIAT),
+          accountingAmountAfterFeeChf: Util.roundReadable(update.accountingAmountAfterFeeChf, AmountType.FIAT),
+        });
+      } catch (e) {
+        this.logger.error(`Error during bankTx ${entity.id} fill:`, e);
+      }
     }
   }
 
