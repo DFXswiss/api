@@ -29,6 +29,8 @@ export class BuyCryptoJobService {
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
+    await this.buyCryptoPreparationService.chargebackTx();
+    await this.buyCryptoPreparationService.chargebackFillUp();
     await this.buyCryptoNotificationService.sendNotificationMails();
   }
 }

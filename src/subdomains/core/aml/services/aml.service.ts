@@ -16,6 +16,7 @@ import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlReason } from '../enums/aml-reason.enum';
@@ -35,6 +36,7 @@ export class AmlService {
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly userService: UserService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async postProcessing(
@@ -48,7 +50,16 @@ export class AmlService {
       await this.userDataService.triggerVideoIdent(entity.userData);
 
     if (entity.amlCheck === CheckStatus.PASS) {
-      if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user);
+      if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
+
+      await this.transactionService.updateInternal(entity.transaction, {
+        amlCheck: entity.amlCheck,
+        assets: `${entity.inputReferenceAsset}-${entity.outputAsset.name}`,
+        amountInChf: entity.amountInChf,
+        highRisk: entity.highRisk == true,
+        eventDate: entity.created,
+        amlType: entity.transaction.type,
+      });
 
       // KYC file id
       if (
@@ -164,7 +175,7 @@ export class AmlService {
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService
         .getValidBankDatasForUser(entity.userData.id)
-        .then((b) => b.filter((b) => b.type !== BankDataType.USER));
+        .then((b) => b.filter((b) => ![BankDataType.USER, BankDataType.NAME_CHECK].includes(b.type)));
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 

@@ -39,7 +39,7 @@ export class BaseRefund {
 }
 
 export class BankTxRefund extends BaseRefund {
-  refundIban: string;
+  refundIban?: string;
   chargebackOutput?: FiatOutput;
 }
 

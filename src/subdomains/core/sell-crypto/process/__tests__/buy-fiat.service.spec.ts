@@ -14,6 +14,7 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
@@ -51,6 +52,7 @@ describe('BuyFiatService', () => {
   let userDataService: UserDataService;
   let buyFiatNotificationService: BuyFiatNotificationService;
   let amlService: AmlService;
+  let transactionHelper: TransactionHelper;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -69,6 +71,7 @@ describe('BuyFiatService', () => {
     userDataService = createMock<UserDataService>();
     buyFiatNotificationService = createMock<BuyFiatNotificationService>();
     amlService = createMock<AmlService>();
+    transactionHelper = createMock<TransactionHelper>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -90,6 +93,7 @@ describe('BuyFiatService', () => {
         { provide: UserDataService, useValue: userDataService },
         { provide: BuyFiatNotificationService, useValue: buyFiatNotificationService },
         { provide: AmlService, useValue: amlService },
+        { provide: TransactionHelper, useValue: transactionHelper },
       ],
     }).compile();
 

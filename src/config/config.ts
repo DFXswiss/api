@@ -47,6 +47,7 @@ export class Configuration {
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   fiatOutputBankPuffer = 100;
+  exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
 
   defaults = {
     currency: 'EUR',
@@ -213,6 +214,7 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    maxIdentTries: 7,
 
     downloadTargets: [
       {
@@ -393,8 +395,9 @@ export class Configuration {
   };
 
   frontend = {
+    allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
+    services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
-    services: process.env.SERVICES_URL,
   };
 
   fixer = {
@@ -446,6 +449,7 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
     minVolume: 0.01, // CHF
 
@@ -458,6 +462,9 @@ export class Configuration {
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
+    checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
     fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
@@ -510,10 +517,16 @@ export class Configuration {
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
+      custodySeed: process.env.EVM_CUSTODY_SEED,
       minimalPreparationFee: 0.00000001,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
+        index: accountIndex,
+      }),
+
+      custodyAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.custodySeed,
         index: accountIndex,
       }),
     },
@@ -608,7 +621,8 @@ export class Configuration {
       },
     },
     deuro: {
-      deuroGraphUrl: process.env.DEURO_GRAPH_URL,
+      graphUrl: process.env.DEURO_GRAPH_URL,
+      apiUrl: process.env.DEURO_API_URL,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

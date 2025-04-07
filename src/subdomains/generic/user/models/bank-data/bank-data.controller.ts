@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, NotFoundException, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -29,6 +29,7 @@ export class BankDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async doNameCheck(@Param('id') id: string): Promise<RiskStatus> {
     const bankData = await this.bankDataService.getBankData(+id);
+    if (!bankData) throw new NotFoundException('BankData not found');
     return this.nameCheckService.refreshRiskStatus(bankData);
   }
 }

@@ -12,6 +12,7 @@ export enum AssetType {
   CUSTOM = 'Custom',
   CUSTODY = 'Custody',
   POOL = 'Pool',
+  PRESALE = 'Presale',
 }
 
 export enum AssetCategory {
