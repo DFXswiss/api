@@ -630,19 +630,9 @@ export class UserData extends IEntity {
     return this.kycSteps.filter(
       (s) =>
         (!name || s.name === name) &&
-        (!type || [type, this.getDeprecatedStepTypes(type)].includes(s.type)) &&
+        (!type || s.type === type) &&
         (!sequenceNumber || s.sequenceNumber === sequenceNumber),
     );
-  }
-
-  getDeprecatedStepTypes(type?: KycStepType): KycStepType {
-    switch (type) {
-      case KycStepType.SUMSUB_AUTO:
-        return KycStepType.AUTO;
-
-      case KycStepType.SUMSUB_VIDEO:
-        return KycStepType.VIDEO;
-    }
   }
 
   getPendingStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
@@ -661,7 +651,21 @@ export class UserData extends IEntity {
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
-    return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
+    const existingSteps = [
+      this.getStepsWith(stepName, stepType),
+      this.getStepsWith(stepName, this.getDeprecatedStepTypes(stepType)),
+    ].flat();
+    return Math.max(...existingSteps.map((s) => s.sequenceNumber + 1), 0);
+  }
+
+  getDeprecatedStepTypes(type?: KycStepType): KycStepType {
+    switch (type) {
+      case KycStepType.SUMSUB_AUTO:
+        return KycStepType.AUTO;
+
+      case KycStepType.SUMSUB_VIDEO:
+        return KycStepType.VIDEO;
+    }
   }
 
   hasCompletedStep(stepName: KycStepName): boolean {
