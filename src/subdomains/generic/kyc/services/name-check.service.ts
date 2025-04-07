@@ -122,7 +122,7 @@ export class NameCheckService implements OnModuleInit {
       `${Util.isoDate(new Date()).replace(/-/g, '')}-NameCheck-${userData.id}-${Util.isoTime(new Date()).replace(
         /-/g,
         '',
-      )}.${contentType}`,
+      )}.pdf`,
       buffer,
       contentType as ContentType,
       true,
