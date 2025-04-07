@@ -218,9 +218,8 @@ export class UserService {
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true, wallet: true } });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
-    user.userData.users = await this.userRepo.findBy({ userData: { id: user.userData.id } });
 
     // update
     user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
@@ -262,10 +261,9 @@ export class UserService {
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
+    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true } } });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
     if (user.userData.completeName) throw new BadRequestException('Name is already set');
-    user.userData.users = await this.userRepo.findBy({ userData: { id: user.userData.id } });
 
     await this.userDataService.updateUserName(user.userData, dto);
   }
@@ -273,11 +271,10 @@ export class UserService {
   async updateUserData(id: number, dto: KycInputDataDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({
       where: { id },
-      relations: { userData: true, wallet: true },
+      relations: { userData: { users: true }, wallet: true },
     });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0 || (user.userData.mail && user.userData.mail !== dto.mail))
       throw new BadRequestException('KYC already started, mail already set');
-    user.userData.users = await this.userRepo.findBy({ userData: { id: user.userData.id } });
 
     user.userData = await this.userDataService.trySetUserMail(user.userData, dto.mail);
     user.userData = await this.userDataService.updatePersonalData(user.userData, dto);
