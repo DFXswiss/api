@@ -34,7 +34,7 @@ export class DilisenseService {
         }),
       };
     } catch (e) {
-      throw new ServiceUnavailableException(e);
+      throw new ServiceUnavailableException('Error in dilisense riskData request', e);
     }
   }
 }

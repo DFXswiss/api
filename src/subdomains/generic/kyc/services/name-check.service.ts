@@ -115,7 +115,7 @@ export class NameCheckService implements OnModuleInit {
     const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, dob);
 
     // upload file
-    const { contentType, buffer } = Util.fromBase64(pdfData);
+    const { contentType, buffer } = Util.fromBase64(`application/pdf;base64,${pdfData}`);
     await this.documentService.uploadFile(
       userData,
       FileType.NAME_CHECK,
