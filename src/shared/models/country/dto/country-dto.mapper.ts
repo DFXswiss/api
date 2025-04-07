@@ -9,6 +9,7 @@ export class CountryDtoMapper {
       name: country.name,
       foreignName: country.foreignName,
       locationAllowed: country.ipEnable,
+      ibanAllowed: country.fatfEnable,
       kycAllowed: country.dfxEnable,
       kycOrganizationAllowed: country.dfxOrganizationEnable,
       nationalityAllowed: country.nationalityStepEnable,
