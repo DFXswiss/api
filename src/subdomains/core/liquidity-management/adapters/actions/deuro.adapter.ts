@@ -11,7 +11,7 @@ import { FrankencoinBasedAdapter } from './base/frankencoin-based.adapter';
 export class DEuroAdapter extends FrankencoinBasedAdapter {
   constructor(
     liquidityManagementBalanceService: LiquidityManagementBalanceService,
-    deuroService: DEuroService,
+    readonly deuroService: DEuroService,
     private readonly assetService: AssetService,
   ) {
     super(LiquidityManagementSystem.DEURO, liquidityManagementBalanceService, deuroService);

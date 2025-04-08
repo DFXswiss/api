@@ -617,6 +617,7 @@ export class Configuration {
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
+        fpsWrapper: process.env.ZCHF_FPS_WRAPPER_CONTRACT_ADDRESS,
       },
     },
     deuro: {
