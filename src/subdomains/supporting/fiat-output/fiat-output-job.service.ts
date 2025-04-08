@@ -14,6 +14,7 @@ import { In, IsNull, Not } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
+import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
@@ -31,6 +32,7 @@ export class FiatOutputJobService {
     private readonly countryService: CountryService,
     private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly assetService: AssetService,
+    private readonly logService: LogService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -38,6 +40,7 @@ export class FiatOutputJobService {
     await this.fillPreValutaDate();
     await this.fillIsReadyDate();
     await this.setBatchId();
+    await this.setDates();
     await this.bankTxSearch();
   }
 
@@ -192,6 +195,24 @@ export class FiatOutputJobService {
       } else {
         currentBatch.push(entity);
       }
+    }
+  }
+
+  private async setDates(): Promise<void> {
+    const entities = await this.fiatOutputRepo.find({
+      where: { batchId: Not(IsNull()), isTransmittedDate: IsNull(), isComplete: false },
+    });
+
+    const logEntities = await this.logService.getBankLogs(entities.map((f) => `MSG-${f.batchId}-`));
+
+    for (const entity of entities) {
+      if (!logEntities.some((l) => l.message.includes(`MSG-${entity.batchId}-`))) continue;
+
+      await this.fiatOutputRepo.update(entity.id, {
+        isTransmittedDate: new Date(),
+        isConfirmedDate: new Date(),
+        isApprovedDate: new Date(),
+      });
     }
   }
 
