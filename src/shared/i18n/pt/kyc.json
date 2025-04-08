@@ -1,16 +1,23 @@
 {
   "financial": {
     "question": {
-      "tnc": { "title": "General Terms and Conditions", "description": "I accept the terms and conditions" },
-      "own_funds": { "title": "Source of the assets to be invested", "description": "I confirm that all assets that I contribute to DFX belong exclusively to me." },
-      "source_of_funds": { "title": "Source of the assets to be invested", "description": "Where does most of the money come from?" },
-      "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
-      "employer": { "title": "Employer", "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer." },
-      "sector": { "title": "Branche", "description": "What industry do you work in or did you last work in?" },
-      "risky_business": { "title": "Risky business activities", "description": "Are you involved in potentially risky business activities such as arms dealing, casinos, diamonds, exotic animals, pornography or prostitution?" },
-      "income": { "title": "Annual income", "description": "What is your annual income?" },
-      "assets": { "title": "Assets", "description": "What is your total wealth?" },
-      "notification_of_changes": { "title": "Notification of changes", "description": "I confirm that I will immediately inform DFX via app.dfx.swiss/support/issue of any relevant changes on my part." }
+      "tnc": { "title": "", "description": "" },
+      "own_funds": { "title": "", "description": "" },
+      "own_funds_organization": { "title": "", "description": "" },
+      "source_of_funds": { "title": "", "description": "" },
+      "area": { "title": "", "description": "" },
+      "operative": { "title": "", "description": "" },
+      "occupation": { "title": "", "description": "" },
+      "employer": { "title": "", "description": "" },
+      "sector": { "title": "", "description": "" },
+      "sector_organization": { "title": "", "description": "" },
+      "risky_business": { "title": "", "description": "" },
+      "risky_business_organization": { "title": "", "description": "" },
+      "income": { "title": "", "description": "" },
+      "income_organization": { "title": "", "description": "" },
+      "assets": { "title": "", "description": "" },
+      "assets_organization": { "title": "", "description": "" },
+      "notification_of_changes": { "title": "", "description": "" }
     },
     "option": {
       "yes": "Yes",

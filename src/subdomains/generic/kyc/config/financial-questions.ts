@@ -1,14 +1,31 @@
+import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { QuestionType } from '../enums/kyc.enum';
 
 export interface FinancialQuestion {
   key: string;
   type: QuestionType;
   options?: string[];
+  accountTypes?: AccountType[];
 }
 
 export const FinancialQuestions: FinancialQuestion[] = [
-  { key: 'tnc', type: QuestionType.CONFIRMATION, options: ['accept'] },
-  { key: 'own_funds', type: QuestionType.CONFIRMATION, options: ['accept'] },
+  {
+    key: 'tnc',
+    type: QuestionType.CONFIRMATION,
+    options: ['accept'],
+  },
+  {
+    key: 'own_funds',
+    type: QuestionType.CONFIRMATION,
+    options: ['accept'],
+    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL],
+  },
+  {
+    key: 'own_funds_organizatiuon',
+    type: QuestionType.CONFIRMATION,
+    options: ['accept'],
+    accountTypes: [AccountType.ORGANIZATION],
+  },
   {
     key: 'source_of_funds',
     type: QuestionType.MULTIPLE_CHOICE,
@@ -26,11 +43,27 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
   },
   {
+    key: 'operative',
+    type: QuestionType.SINGLE_CHOICE,
+    options: ['yes', 'no'],
+    accountTypes: [AccountType.ORGANIZATION],
+  },
+  {
+    key: 'area',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.SOLE_PROPRIETORSHIP],
+  },
+  {
     key: 'occupation',
     type: QuestionType.SINGLE_CHOICE,
     options: ['apprentice', 'employed', 'employed_management', 'self_employed', 'unemployed', 'retired', 'privatier'],
+    accountTypes: [AccountType.PERSONAL],
   },
-  { key: 'employer', type: QuestionType.TEXT },
+  {
+    key: 'employer',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+  },
   {
     key: 'sector',
     type: QuestionType.SINGLE_CHOICE,
@@ -58,9 +91,55 @@ export const FinancialQuestions: FinancialQuestion[] = [
       'insurance',
       'other',
     ],
+    accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   },
-  { key: 'risky_business', type: QuestionType.SINGLE_CHOICE, options: ['yes_risky_business', 'no_risky_business'] },
-  { key: 'income', type: QuestionType.SINGLE_CHOICE, options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'] },
-  { key: 'assets', type: QuestionType.SINGLE_CHOICE, options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'] },
-  { key: 'notification_of_changes', type: QuestionType.CONFIRMATION, options: ['accept'] },
+  {
+    key: 'sector_organization',
+    type: QuestionType.SINGLE_CHOICE,
+    options: [
+      'no_business',
+      'automotive',
+      'bank_finance',
+      'advisory',
+      'education',
+      'pharma',
+      'it',
+      'energy_environment',
+      'research_development',
+      'health_social_services',
+      'trade_consumption',
+      'handicraft',
+      'real_estate_facility_management',
+      'internet_multimedia',
+      'culture_entertainment_events',
+      'marketing_pr',
+      'legal_tax',
+      'telecommunication',
+      'textile_fashion',
+      'traffic_transport_logistics',
+      'insurance',
+      'other',
+    ],
+    accountTypes: [AccountType.ORGANIZATION],
+  },
+  {
+    key: 'risky_business',
+    type: QuestionType.SINGLE_CHOICE,
+    options: ['yes', 'no'],
+  },
+  {
+    key: 'income',
+    type: QuestionType.SINGLE_CHOICE,
+    options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'],
+  },
+  {
+    key: 'assets',
+    type: QuestionType.SINGLE_CHOICE,
+    options: ['50k', '50k_100k', '100k_500k', '500k_1m', '1m'],
+  },
+  {
+    key: 'notification_of_changes',
+    type: QuestionType.CONFIRMATION,
+    options: ['accept'],
+  },
 ];
