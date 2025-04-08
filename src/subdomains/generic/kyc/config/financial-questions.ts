@@ -147,7 +147,7 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   },
   // {
-  //   key: 'other_description',
+  //   key: 'sector_description',
   //   type: QuestionType.TEXT,
   //   accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   //   condition: {
@@ -190,7 +190,7 @@ export const FinancialQuestions: FinancialQuestion[] = [
     options: ['yes_risky_business', 'no_risky_business'],
   },
   // {
-  //   key: 'yes_description',
+  //   key: 'risky_business_description',
   //   type: QuestionType.TEXT,
   //   condition: {
   //     question: 'risky_business',
