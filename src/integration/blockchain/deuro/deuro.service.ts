@@ -192,7 +192,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return this.getDEPSPrice();
   }
 
-  getDEPSWrapperContract(): Contract {
+  getWrapperContract(): Contract {
     return this.deuroClient.getDEPSWrapperContract();
   }
 
