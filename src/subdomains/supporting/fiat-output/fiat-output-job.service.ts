@@ -11,7 +11,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { In, IsNull, Not } from 'typeorm';
-import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { LogService } from '../log/log.service';
@@ -234,6 +234,8 @@ export class FiatOutputJobService {
         if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
         await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created, isComplete: true });
+
+        if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
         this.logger.error(`Error in fiatOutput bankTx search job: ${entity.id}`, e);
       }
@@ -242,5 +244,18 @@ export class FiatOutputJobService {
 
   private async getLastBatchId(): Promise<number> {
     return this.fiatOutputRepo.findOne({ order: { batchId: 'DESC' } }).then((u) => u.batchId);
+  }
+
+  private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {
+    switch (type) {
+      case FiatOutputType.BUY_FIAT:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_FIAT });
+
+      case FiatOutputType.BANK_TX_REPEAT:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_REPEAT });
+
+      case FiatOutputType.BANK_TX_RETURN:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN });
+    }
   }
 }
