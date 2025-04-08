@@ -187,7 +187,7 @@ export const FinancialQuestions: FinancialQuestion[] = [
   {
     key: 'risky_business',
     type: QuestionType.SINGLE_CHOICE,
-    options: ['yes', 'no'],
+    options: ['yes_risky_business', 'no_risky_business'],
   },
   // {
   //   key: 'yes_description',

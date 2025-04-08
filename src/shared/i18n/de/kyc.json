@@ -72,8 +72,11 @@
       "yes": "Ja",
       "no": "Nein",
       "accept": "Akzeptieren",
+<<<<<<< HEAD
       "yes_risky_business": "Ja (risikobehaftet)",
       "no_risky_business": "Nein (nicht risikobehaftet)",
+=======
+>>>>>>> develop
       "employment_income": "Einkünfte aus unselbständiger Tätigkeit",
       "real_estate_sale": "Verkauf von Immobilien",
       "share_sale": "Verkauf von Aktien oder anderen Kapitalanlagen",

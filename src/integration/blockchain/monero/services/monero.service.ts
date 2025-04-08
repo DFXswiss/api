@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { BlockchainService } from '../../shared/util/blockchain.service';
 import { MoneroClient } from '../monero-client';
 
@@ -35,7 +36,6 @@ export class MoneroService extends BlockchainService {
   }
 
   getPaymentRequest(address: string, amount: number): string {
-    //return `monero:${address}?tx_amount=${Util.numberToFixedString(amount)}`;
-    return `monero:${address}?tx_amount=${amount}`;
+    return `monero:${address}?tx_amount=${Util.numberToFixedString(amount)}`;
   }
 }
