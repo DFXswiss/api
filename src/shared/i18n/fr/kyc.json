@@ -59,8 +59,8 @@
       "apprentice_description": { "title": "Employer", "description": "Quel est le nom de votre université?" },
       "self_employed_description": { "title": "Employer", "description": "Que faites-vous exactement dans la vie?" },
       "privatier_description": { "title": "Employer", "description": "Comment en êtes-vous arrivé là ?" },
-      "other_description": { "title": "Sector", "description": "Quel est le nom de votre secteur ?" },
-      "yes_description": {
+      "sector_description": { "title": "Sector", "description": "Quel est le nom de votre secteur ?" },
+      "risky_business_description": {
         "title": "Activités commerciales à risque",
         "description": "Comment cela se fait-il ?"
       }

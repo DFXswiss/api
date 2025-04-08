@@ -23,8 +23,8 @@
       "apprentice_description": { "title": "", "description": "" },
       "self_employed_description": { "title": "", "description": "" },
       "privatier_description": { "title": "", "description": "" },
-      "other_description": { "title": "", "description": "" },
-      "yes_description": { "title": "", "description": "" }
+      "sector_description": { "title": "", "description": "" },
+      "risky_business_description": { "title": "", "description": "" }
     },
     "option": {
       "yes": "Yes",

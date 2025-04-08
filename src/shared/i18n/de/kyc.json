@@ -62,8 +62,8 @@
       "apprentice_description": { "title": "Berufliche Tätigkeit", "description": "Wie heißt deine Uni/Schule?" },
       "self_employed_description": { "title": "Berufliche Tätigkeit", "description": "Was arbeitest du denn genau?" },
       "privatier_description": { "title": "Berufliche Tätigkeit", "description": "Wie bist du dazu gekommen?" },
-      "other_description": { "title": "Branche", "description": "Wie heißt deine Branche?" },
-      "yes_description": {
+      "sector_description": { "title": "Branche", "description": "Wie heißt deine Branche?" },
+      "risky_business_description": {
         "title": "Risikobehaftete Geschäftstätigkeiten",
         "description": "Wie denn genau?"
       }

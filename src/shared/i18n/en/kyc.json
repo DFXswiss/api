@@ -56,8 +56,8 @@
       "apprentice_description": { "title": "Employer", "description": "What is the name of your university/school?" },
       "self_employed_description": { "title": "Employer", "description": "What exactly do you do for a living?" },
       "privatier_description": { "title": "Employer", "description": "How did you come about?" },
-      "other_description": { "title": "Sector", "description": "How is the name of your sector?" },
-      "yes_description": {
+      "sector_description": { "title": "Sector", "description": "How is the name of your sector?" },
+      "risky_business_description": {
         "title": "Risky business activities",
         "description": "How exactly?"
       }
