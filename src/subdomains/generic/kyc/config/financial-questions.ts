@@ -12,6 +12,10 @@ export interface FinancialQuestion {
   };
 }
 
+export function getFinancialQuestions(accountType: AccountType): FinancialQuestion[] {
+  return FinancialQuestions.filter((q) => !q.accountTypes || q.accountTypes.includes(accountType));
+}
+
 export const FinancialQuestions: FinancialQuestion[] = [
   {
     key: 'tnc',
