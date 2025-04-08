@@ -1,30 +1,69 @@
 {
   "financial": {
     "question": {
-      "tnc": { "title": "", "description": "" },
-      "own_funds": { "title": "", "description": "" },
-      "own_funds_organization": { "title": "", "description": "" },
-      "source_of_funds": { "title": "", "description": "" },
-      "area": { "title": "", "description": "" },
-      "operative": { "title": "", "description": "" },
-      "occupation": { "title": "", "description": "" },
-      "employer": { "title": "", "description": "" },
-      "sector": { "title": "", "description": "" },
-      "sector_organization": { "title": "", "description": "" },
-      "risky_business": { "title": "", "description": "" },
-      "risky_business_organization": { "title": "", "description": "" },
-      "income": { "title": "", "description": "" },
-      "income_organization": { "title": "", "description": "" },
-      "assets": { "title": "", "description": "" },
-      "assets_organization": { "title": "", "description": "" },
-      "notification_of_changes": { "title": "", "description": "" },
-      "retired_description": { "title": "", "description": "" },
-      "unemployed_description": { "title": "", "description": "" },
-      "apprentice_description": { "title": "", "description": "" },
-      "self_employed_description": { "title": "", "description": "" },
-      "privatier_description": { "title": "", "description": "" },
-      "other_description": { "title": "", "description": "" },
-      "yes_description": { "title": "", "description": "" }
+      "tnc": { "title": "Condiciones generales", "description": "Acepto las condiciones generales" },
+      "own_funds": {
+        "title": "Origen de los activos que se van a invertir",
+        "description": "Confirmo que todos los activos que aporto a DFX me pertenecen en exclusiva."
+      },
+      "own_funds_organization": {
+        "title": "Origen de los activos que se van a invertir",
+        "description": "Confirmo que todos los activos que aporto a DFX pertenecen exclusivamente a mi organización registrada."
+      },
+      "source_of_funds": {
+        "title": "Origen de los activos que se van a invertir",
+        "description": "¿De dónde procede la mayor parte del dinero?"
+      },
+      "area": {
+        "title": "Área autónomos",
+        "description": "¿En qué sector trabaja por cuenta propia? Describa su actividad y sus clientes en 2-3 frases."
+      },
+      "operative": {
+        "title": "Organización",
+        "description": "¿Está operativa la empresa?"
+      },
+      "occupation": { "title": "Actividad profesional", "description": "¿Cómo describiría su trabajo?" },
+      "employer": {
+        "title": "Empresario",
+        "description": "¿Cuál es el nombre de su empleador? Para las personas sin relación laboral, cuál es el nombre de su universidad, escuela o, para los jubilados, parados y pensionistas, el nombre de su último empleador."
+      },
+      "sector": { "title": "Industria", "description": "¿En qué sector trabaja o trabajó por última vez?" },
+      "sector_organization": {
+        "title": "Rama",
+        "description": "¿En qué sector trabaja su organización?"
+      },
+      "risky_business": {
+        "title": "Actividades empresariales de riesgo",
+        "description": "¿Participa en actividades potencialmente arriesgadas como tráfico de armas, casinos, diamantes, animales exóticos, pornografía o prostitución?"
+      },
+      "risky_business_organization": {
+        "title": "Actividades empresariales de riesgo",
+        "description": "¿Participa su organización en actividades empresariales potencialmente arriesgadas, como tráfico de armas, casinos, diamantes, animales exóticos, pornografía o prostitución?"
+      },
+      "income": { "title": "Ingresos anuales", "description": "¿Cuál es su renta anual?" },
+      "income_organization": {
+        "title": "Facturación anual",
+        "description": "¿Cuál es la facturación anual de su organización?"
+      },
+      "assets": { "title": "Activos", "description": "¿Cuál es su patrimonio total?" },
+      "assets_organization": { "title": "Activos", "description": "¿Cuál es el balance de la organización?" },
+      "notification_of_changes": {
+        "title": "Notificación de cambios",
+        "description": "Confirmo que informaré inmediatamente a DFX a través de app.dfx.swiss/support/issue de cualquier cambio relevante por mi parte."
+      },
+      "retired_description": { "title": "Empresario", "description": "¿Cuál fue su último trabajo?" },
+      "unemployed_description": { "title": "Empresario", "description": "¿Cuál fue su último trabajo?" },
+      "apprentice_description": {
+        "title": "Empresario",
+        "description": "¿Cuál es el nombre de su universidad/escuela?"
+      },
+      "self_employed_description": { "title": "Empresario", "description": "¿A qué se dedica exactamente?" },
+      "privatier_description": { "title": "Empresario", "description": "¿Cómo surgió?" },
+      "other_description": { "title": "Sector", "description": "¿Cómo se llama su sector?" },
+      "yes_description": {
+        "title": "Actividades empresariales de riesgo",
+        "description": "¿Cómo exactamente?"
+      }
     },
     "option": {
       "yes": "Sí",

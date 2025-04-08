@@ -25,7 +25,7 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL],
   },
   {
-    key: 'own_funds_organizatiuon',
+    key: 'own_funds_organization',
     type: QuestionType.CONFIRMATION,
     options: ['accept'],
     accountTypes: [AccountType.ORGANIZATION],
@@ -63,51 +63,51 @@ export const FinancialQuestions: FinancialQuestion[] = [
     options: ['apprentice', 'employed', 'employed_management', 'self_employed', 'unemployed', 'retired', 'privatier'],
     accountTypes: [AccountType.PERSONAL],
   },
-  {
-    key: 'retired_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    condition: {
-      question: 'occupation',
-      response: 'retired',
-    },
-  },
-  {
-    key: 'unemployed_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    condition: {
-      question: 'occupation',
-      response: 'unemployed',
-    },
-  },
-  {
-    key: 'apprentice_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    condition: {
-      question: 'occupation',
-      response: 'apprentice',
-    },
-  },
-  {
-    key: 'self_employed_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    condition: {
-      question: 'occupation',
-      response: 'self_employed',
-    },
-  },
-  {
-    key: 'privatier_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    condition: {
-      question: 'occupation',
-      response: 'privatier',
-    },
-  },
+  // {
+  //   key: 'retired_description',
+  //   type: QuestionType.TEXT,
+  //   accountTypes: [AccountType.PERSONAL],
+  //   condition: {
+  //     question: 'occupation',
+  //     response: 'retired',
+  //   },
+  // },
+  // {
+  //   key: 'unemployed_description',
+  //   type: QuestionType.TEXT,
+  //   accountTypes: [AccountType.PERSONAL],
+  //   condition: {
+  //     question: 'occupation',
+  //     response: 'unemployed',
+  //   },
+  // },
+  // {
+  //   key: 'apprentice_description',
+  //   type: QuestionType.TEXT,
+  //   accountTypes: [AccountType.PERSONAL],
+  //   condition: {
+  //     question: 'occupation',
+  //     response: 'apprentice',
+  //   },
+  // },
+  // {
+  //   key: 'self_employed_description',
+  //   type: QuestionType.TEXT,
+  //   accountTypes: [AccountType.PERSONAL],
+  //   condition: {
+  //     question: 'occupation',
+  //     response: 'self_employed',
+  //   },
+  // },
+  // {
+  //   key: 'privatier_description',
+  //   type: QuestionType.TEXT,
+  //   accountTypes: [AccountType.PERSONAL],
+  //   condition: {
+  //     question: 'occupation',
+  //     response: 'privatier',
+  //   },
+  // },
   {
     key: 'employer',
     type: QuestionType.TEXT,
@@ -142,15 +142,15 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
     accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   },
-  {
-    key: 'other_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
-    condition: {
-      question: 'sector',
-      response: 'other',
-    },
-  },
+  // {
+  //   key: 'other_description',
+  //   type: QuestionType.TEXT,
+  //   accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
+  //   condition: {
+  //     question: 'sector',
+  //     response: 'other',
+  //   },
+  // },
   {
     key: 'sector_organization',
     type: QuestionType.SINGLE_CHOICE,
@@ -185,14 +185,14 @@ export const FinancialQuestions: FinancialQuestion[] = [
     type: QuestionType.SINGLE_CHOICE,
     options: ['yes', 'no'],
   },
-  {
-    key: 'yes_description',
-    type: QuestionType.TEXT,
-    condition: {
-      question: 'risky_business',
-      response: 'yes',
-    },
-  },
+  // {
+  //   key: 'yes_description',
+  //   type: QuestionType.TEXT,
+  //   condition: {
+  //     question: 'risky_business',
+  //     response: 'yes',
+  //   },
+  // },
   {
     key: 'income',
     type: QuestionType.SINGLE_CHOICE,
