@@ -233,7 +233,7 @@ export class FiatOutputJobService {
         const bankTx = await this.getMatchingBankTx(entity);
         if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
-        await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
+        await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created, isComplete: true });
       } catch (e) {
         this.logger.error(`Error in fiatOutput bankTx search job: ${entity.id}`, e);
       }
