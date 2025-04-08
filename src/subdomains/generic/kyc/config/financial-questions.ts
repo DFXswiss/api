@@ -6,6 +6,10 @@ export interface FinancialQuestion {
   type: QuestionType;
   options?: string[];
   accountTypes?: AccountType[];
+  condition?: {
+    question: string;
+    response: string;
+  };
 }
 
 export const FinancialQuestions: FinancialQuestion[] = [
@@ -60,6 +64,51 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.PERSONAL],
   },
   {
+    key: 'retired_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    condition: {
+      question: 'occupation',
+      response: 'retired',
+    },
+  },
+  {
+    key: 'unemployed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    condition: {
+      question: 'occupation',
+      response: 'unemployed',
+    },
+  },
+  {
+    key: 'apprentice_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    condition: {
+      question: 'occupation',
+      response: 'apprentice',
+    },
+  },
+  {
+    key: 'self_employed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    condition: {
+      question: 'occupation',
+      response: 'self_employed',
+    },
+  },
+  {
+    key: 'privatier_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    condition: {
+      question: 'occupation',
+      response: 'privatier',
+    },
+  },
+  {
     key: 'employer',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],
@@ -94,6 +143,15 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   },
   {
+    key: 'other_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
+    condition: {
+      question: 'sector',
+      response: 'other',
+    },
+  },
+  {
     key: 'sector_organization',
     type: QuestionType.SINGLE_CHOICE,
     options: [
@@ -126,6 +184,14 @@ export const FinancialQuestions: FinancialQuestion[] = [
     key: 'risky_business',
     type: QuestionType.SINGLE_CHOICE,
     options: ['yes', 'no'],
+  },
+  {
+    key: 'yes_description',
+    type: QuestionType.TEXT,
+    condition: {
+      question: 'risky_business',
+      response: 'yes',
+    },
   },
   {
     key: 'income',

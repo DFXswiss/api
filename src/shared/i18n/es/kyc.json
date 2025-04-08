@@ -17,7 +17,14 @@
       "income_organization": { "title": "", "description": "" },
       "assets": { "title": "", "description": "" },
       "assets_organization": { "title": "", "description": "" },
-      "notification_of_changes": { "title": "", "description": "" }
+      "notification_of_changes": { "title": "", "description": "" },
+      "retired_description": { "title": "", "description": "" },
+      "unemployed_description": { "title": "", "description": "" },
+      "apprentice_description": { "title": "", "description": "" },
+      "self_employed_description": { "title": "", "description": "" },
+      "privatier_description": { "title": "", "description": "" },
+      "other_description": { "title": "", "description": "" },
+      "yes_description": { "title": "", "description": "" }
     },
     "option": {
       "yes": "Sí",
