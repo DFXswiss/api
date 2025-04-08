@@ -1109,13 +1109,7 @@ export class KycService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    const userData = await this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
-    userData.kycSteps = await this.kycStepRepo.find({
-      where: { userData: { id: userData.id } },
-      relations: { userData: true },
-    });
-
-    return userData;
+    return await this.userDataService.getByKycHashOrThrow(kycHash, { users: true, kycSteps: true });
   }
 
   private async getUserByTransactionOrThrow(
