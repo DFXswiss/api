@@ -2,15 +2,71 @@
   "financial": {
     "question": {
       "tnc": { "title": "Termini e condizioni generali", "description": "Accetto i termini e le condizioni" },
-      "own_funds": { "title": "Fonte del patrimonio da investire", "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente a me." },
-      "source_of_funds": { "title": "Fonte del patrimonio da investire", "description": "Da dove proviene la maggior parte del denaro?" },
+      "own_funds": {
+        "title": "Fonte del patrimonio da investire",
+        "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente a me."
+      },
+      "own_funds_organization": {
+        "title": "Fonte del patrimonio da investire",
+        "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente alla mia organizzazione registrata."
+      },
+      "source_of_funds": {
+        "title": "Fonte del patrimonio da investire Fonte del patrimonio da investire",
+        "description": "Da dove proviene la maggior parte del denaro?"
+      },
+      "area": {
+        "title": "Area lavoratori autonomi",
+        "description": "In quale settore svolge un'attività autonoma? Descrivete la vostra attività e i vostri clienti in 2-3 frasi."
+      },
+      "operative": {
+        "title": "Organizzazione",
+        "description": "L'azienda è operativa?"
+      },
       "occupation": { "title": "Attività professionale", "description": "Come descriverebbe il suo lavoro?" },
-      "employer": { "title": "Empresario", "description": "Qual è il nome del vostro datore di lavoro? Per le persone che non hanno un rapporto di lavoro, qual è il nome dell'università, della scuola o, per i pensionati, i disoccupati e i cassaintegrati, il nome dell'ultimo datore di lavoro." },
-      "sector": { "title": "Industria", "description": "In quale settore lavora o ha lavorato l'ultima volta?" },
-      "risky_business": { "title": "Attività commerciali a rischio", "description": "Siete coinvolti in attività commerciali potenzialmente rischiose come traffico d'armi, casinò, diamanti, animali esotici, pornografia o prostituzione?" },
+      "employer": {
+        "title": "Datore di lavoro",
+        "description": "Qual è il nome del vostro datore di lavoro? Per le persone che non hanno un rapporto di lavoro, qual è il nome dell'università, della scuola o, per i pensionati, i disoccupati e i cassaintegrati, il nome dell'ultimo datore di lavoro."
+      },
+      "sector": { "title": "Filiale", "description": "In quale settore lavora o ha lavorato l'ultima volta?" },
+      "sector_organization": {
+        "title": "Filiale",
+        "description": "In quale settore opera la vostra organizzazione?"
+      },
+      "risky_business": {
+        "title": "Attività commerciali a rischio",
+        "description": "Siete coinvolti in attività commerciali potenzialmente rischiose come traffico d'armi, casinò, diamanti, animali esotici, pornografia o prostituzione?"
+      },
+      "risky_business_organization": {
+        "title": "Attività commerciali a rischio",
+        "description": "La vostra organizzazione è coinvolta in attività commerciali potenzialmente rischiose come il traffico di armi, i casinò, i diamanti, gli animali esotici, la pornografia o la prostituzione?"
+      },
       "income": { "title": "Reddito annuo", "description": "Qual è il suo reddito annuale?" },
+      "income_organization": {
+        "title": "Fatturato annuo",
+        "description": "Qual è il fatturato annuo della vostra organizzazione?"
+      },
       "assets": { "title": "Attività", "description": "Qual è il vostro patrimonio complessivo?" },
-      "notification_of_changes": { "title": "Notifica delle modifiche", "description": "Confermo che informerò immediatamente DFX tramite app.dfx.swiss/support/issue di qualsiasi cambiamento rilevante da parte mia." }
+      "assets_organization": { "title": "Attività", "description": "Qual è il bilancio dell'organizzazione?" },
+      "notification_of_changes": {
+        "title": "Notifica delle modifiche",
+        "description": "Confermo che informerò immediatamente DFX tramite app.dfx.swiss/support/issue di qualsiasi cambiamento rilevante da parte mia."
+      },
+      "retired_description": { "title": "Datore di lavoro", "description": "Qual è stato il suo ultimo lavoro?" },
+      "unemployed_description": { "title": "Datore di lavoro", "description": "Qual è stato il suo ultimo lavoro?" },
+      "apprentice_description": {
+        "title": "Datore di lavoro",
+        "description": "Qual è il nome della sua università/scuola?"
+      },
+      "self_employed_description": {
+        "title": "Datore di lavoro",
+        "description": "Cosa fa esattamente per vivere?"
+      },
+      "privatier_description": { "title": "Datore di lavoro", "description": "Come siete arrivati a?" },
+      "sector_description": { "title": "Settore", "description": "Com'è il nome del vostro settore?" },
+      "risky_business_description": {
+        "title": "Attività commerciali a rischio",
+        "description": "Come esattamente?"
+      }
     },
     "option": {
       "yes": "Sì",
