@@ -28,7 +28,9 @@ export abstract class FrankencoinBasedService {
   }
 
   abstract getEquityContract(): Contract;
+  abstract getWrapperContract(): Contract;
   abstract getEquityPrice(): Promise<number>;
+  abstract getWalletAddress(): string;
 
   async getPrice(from: Fiat, to: Fiat): Promise<Price> {
     return this.pricingService.getPrice(from, to, true);

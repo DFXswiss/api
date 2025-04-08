@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -13,6 +14,7 @@ import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
 export enum FrankencoinBasedAdapterCommands {
   MINT = 'mint',
+  WRAP = 'wrap',
 }
 
 export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
@@ -28,6 +30,7 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     super(system);
 
     this.commands.set(FrankencoinBasedAdapterCommands.MINT, this.mint.bind(this));
+    this.commands.set(FrankencoinBasedAdapterCommands.WRAP, this.wrap.bind(this));
   }
 
   validateParams(_command: string, _params: Record<string, unknown>): boolean {
@@ -89,5 +92,27 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
       this.logger.error(`Buy order ${order.id} failed:`, e);
       throw new OrderFailedException(`Buy order ${order.id} failed: ${e.message}`);
     }
+  }
+
+  private async wrap(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const walletAddress = this.frankencoinBasedService.getWalletAddress();
+    const equityContract = this.frankencoinBasedService.getEquityContract();
+    const depsWrapperContract = this.frankencoinBasedService.getWrapperContract();
+
+    const decimals = await depsWrapperContract.decimals();
+    const wrapWeiAmount = EvmUtil.toWeiAmount(order.amount, decimals);
+
+    const gasPrice = await this.frankencoinBasedService.getEvmClient().getRecommendedGasPrice();
+    const allowance = await equityContract.allowance(walletAddress, depsWrapperContract.address);
+
+    if (wrapWeiAmount.gt(allowance))
+      await equityContract.approve(depsWrapperContract.address, ethers.constants.MaxInt256);
+
+    const result = await depsWrapperContract.depositFor(walletAddress, wrapWeiAmount, {
+      gasPrice: gasPrice,
+      gasLimit: ethers.BigNumber.from(300000),
+    });
+
+    return result.hash;
   }
 }

@@ -198,12 +198,20 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     return EvmUtil.fromWeiAmount(zchfTotalSupply);
   }
 
+  getWalletAddress(): string {
+    return this.frankencoinClient.getWalletAddress();
+  }
+
   getEquityContract(): Contract {
     return this.frankencoinClient.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
   }
 
   async getEquityPrice(): Promise<number> {
     return this.getFPSPrice();
+  }
+
+  getWrapperContract(): Contract {
+    return this.frankencoinClient.getFPSWrapperContract(Config.blockchain.frankencoin.contractAddress.fpsWrapper);
   }
 
   async getFPSPrice(): Promise<number> {
