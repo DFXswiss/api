@@ -1,55 +1,71 @@
 {
   "financial": {
     "question": {
-      "tnc": { "title": "General Terms and Conditions", "description": "I accept the terms and conditions" },
+      "tnc": { "title": "Termini e condizioni generali", "description": "Accetto i termini e le condizioni" },
       "own_funds": {
-        "title": "Source of the assets to be invested",
-        "description": "I confirm that all assets that I contribute to DFX belong exclusively to me."
+        "title": "Fonte del patrimonio da investire",
+        "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente a me."
       },
       "own_funds_organization": {
-        "title": "Source of the assets to be invested",
-        "description": "I confirm that all assets that I contribute to DFX belong exclusively to my registered organization."
+        "title": "Fonte del patrimonio da investire",
+        "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente alla mia organizzazione registrata."
       },
       "source_of_funds": {
-        "title": "Source of the assets to be invested",
-        "description": "Where does most of the money come from?"
+        "title": "Fonte del patrimonio da investire Fonte del patrimonio da investire",
+        "description": "Da dove proviene la maggior parte del denaro?"
       },
       "area": {
-        "title": "Area self-employed",
-        "description": "In which area are you self-employed? Please describe your activity and customers in 2-3 sentences."
+        "title": "Area lavoratori autonomi",
+        "description": "In quale settore svolge un'attività autonoma? Descrivete la vostra attività e i vostri clienti in 2-3 frasi."
       },
       "operative": {
-        "title": "Organisation",
-        "description": "Is the company operational?"
+        "title": "Organizzazione",
+        "description": "L'azienda è operativa?"
       },
-      "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
+      "occupation": { "title": "Attività professionale", "description": "Come descriverebbe il suo lavoro?" },
       "employer": {
-        "title": "Employer",
-        "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer."
+        "title": "Datore di lavoro",
+        "description": "Qual è il nome del vostro datore di lavoro? Per le persone che non hanno un rapporto di lavoro, qual è il nome dell'università, della scuola o, per i pensionati, i disoccupati e i cassaintegrati, il nome dell'ultimo datore di lavoro."
       },
-      "sector": { "title": "Branche", "description": "What industry do you work in or did you last work in?" },
+      "sector": { "title": "Filiale", "description": "In quale settore lavora o ha lavorato l'ultima volta?" },
       "sector_organization": {
-        "title": "Branche",
-        "description": "What industry do your organization work in?"
+        "title": "Filiale",
+        "description": "In quale settore opera la vostra organizzazione?"
       },
       "risky_business": {
-        "title": "Risky business activities",
-        "description": "Are you involved in potentially risky business activities such as arms dealing, casinos, diamonds, exotic animals, pornography or prostitution?"
+        "title": "Attività commerciali a rischio",
+        "description": "Siete coinvolti in attività commerciali potenzialmente rischiose come traffico d'armi, casinò, diamanti, animali esotici, pornografia o prostituzione?"
       },
       "risky_business_organization": {
-        "title": "Risky business activities",
-        "description": "Is your organization involved in potentially risky business activities such as arms dealing, casinos, diamonds, exotic animals, pornography or prostitution?"
+        "title": "Attività commerciali a rischio",
+        "description": "La vostra organizzazione è coinvolta in attività commerciali potenzialmente rischiose come il traffico di armi, i casinò, i diamanti, gli animali esotici, la pornografia o la prostituzione?"
       },
-      "income": { "title": "Annual income", "description": "What is your annual income?" },
+      "income": { "title": "Reddito annuo", "description": "Qual è il suo reddito annuale?" },
       "income_organization": {
-        "title": "Annual turnover",
-        "description": "What is the annual turnover of your organization?"
+        "title": "Fatturato annuo",
+        "description": "Qual è il fatturato annuo della vostra organizzazione?"
       },
-      "assets": { "title": "Assets", "description": "What is your total wealth?" },
-      "assets_organization": { "title": "Assets", "description": "What is the organization's balance sheet?" },
+      "assets": { "title": "Attività", "description": "Qual è il vostro patrimonio complessivo?" },
+      "assets_organization": { "title": "Attività", "description": "Qual è il bilancio dell'organizzazione?" },
       "notification_of_changes": {
-        "title": "Notification of changes",
-        "description": "I confirm that I will immediately inform DFX via app.dfx.swiss/support/issue of any relevant changes on my part."
+        "title": "Notifica delle modifiche",
+        "description": "Confermo che informerò immediatamente DFX tramite app.dfx.swiss/support/issue di qualsiasi cambiamento rilevante da parte mia."
+      },
+      "retired_description": { "title": "Datore di lavoro", "description": "Qual è stato il suo ultimo lavoro?" },
+      "unemployed_description": { "title": "Datore di lavoro", "description": "Qual è stato il suo ultimo lavoro?" },
+      "apprentice_description": {
+        "title": "Datore di lavoro",
+        "description": "Qual è il nome della sua università/scuola?"
+      },
+      "self_employed_description": {
+        "title": "Datore di lavoro",
+        "description": "Cosa fa esattamente per vivere?"
+      },
+      "privatier_description": { "title": "Datore di lavoro", "description": "Come siete arrivati a?" },
+      "sector_description": { "title": "Settore", "description": "Com'è il nome del vostro settore?" },
+      "risky_business_description": {
+        "title": "Attività commerciali a rischio",
+        "description": "Come esattamente?"
       }
     },
     "option": {

@@ -491,7 +491,7 @@ export class KycService {
 
     await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
-    const complete = this.financialService.isComplete(data.responses);
+    const complete = this.financialService.isComplete(data.responses, user.accountType);
     if (complete) {
       await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);
