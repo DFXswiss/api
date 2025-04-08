@@ -10,7 +10,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -35,8 +35,9 @@ export class FiatOutputJobService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
   async fillFiatOutput() {
-    await this.fillIsReadyDate();
     await this.fillPreValutaDate();
+    await this.fillIsReadyDate();
+    await this.setBatchId();
     await this.bankTxSearch();
   }
 
@@ -146,7 +147,7 @@ export class FiatOutputJobService {
             0,
           );
           const availableBalance =
-            liqBalance.amount - pendingBalance - updatedFiatOutputs - Config.fiatOutputBankPuffer;
+            liqBalance.amount - pendingBalance - updatedFiatOutputs - Config.processing.fiatOutput.bankPuffer;
 
           if (availableBalance > entity.amount) {
             updatedFiatOutputs += entity.amount;
@@ -163,6 +164,33 @@ export class FiatOutputJobService {
         } catch (e) {
           this.logger.error(`Error in fiatOutput fillUp job: ${entity.id}`, e);
         }
+      }
+    }
+  }
+
+  private async setBatchId(): Promise<void> {
+    const entities = await this.fiatOutputRepo.find({
+      where: { isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
+      order: { accountIban: 'ASC', id: 'ASC' },
+    });
+
+    let currentBatch: FiatOutput[] = [];
+    for (const entity of entities) {
+      if (!currentBatch.length) currentBatch.push(entity);
+
+      const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
+
+      if (
+        currentBatch[0].accountIban !== entity.accountIban ||
+        currentBatchAmount + entity.amount > Config.processing.fiatOutput.batchAmountLimit
+      ) {
+        await this.fiatOutputRepo.update(
+          { id: In(currentBatch.map((f) => f.id)) },
+          { batchId: (await this.getLastBatchId()) + 1, batchAmount: currentBatchAmount * 100 },
+        );
+        currentBatch = [entity];
+      } else {
+        currentBatch.push(entity);
       }
     }
   }
@@ -189,5 +217,9 @@ export class FiatOutputJobService {
         this.logger.error(`Error in fiatOutput bankTx search job: ${entity.id}`, e);
       }
     }
+  }
+
+  private async getLastBatchId(): Promise<number> {
+    return this.fiatOutputRepo.findOne({ order: { batchId: 'DESC' } }).then((u) => u.batchId);
   }
 }

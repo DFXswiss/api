@@ -46,7 +46,6 @@ export class Configuration {
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
-  fiatOutputBankPuffer = 100;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
 
   defaults = {
@@ -73,6 +72,13 @@ export class Configuration {
 
   loginCountries = {
     '1': ['CH'],
+  };
+
+  processing = {
+    fiatOutput: {
+      bankPuffer: 100,
+      batchAmountLimit: 9500,
+    },
   };
 
   defaultVolumeDecimal = 2;
