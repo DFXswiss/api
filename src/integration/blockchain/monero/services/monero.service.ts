@@ -35,6 +35,7 @@ export class MoneroService extends BlockchainService {
   }
 
   getPaymentRequest(address: string, amount: number): string {
+    //return `monero:${address}?tx_amount=${Util.numberToFixedString(amount)}`;
     return `monero:${address}?tx_amount=${amount}`;
   }
 }

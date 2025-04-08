@@ -207,7 +207,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: { users: true } },
         chargebackOutput: true,
         bankData: true,
       },
@@ -307,12 +307,13 @@ export class BuyCryptoService {
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
+          entity,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          entity.userData.users,
+          undefined,
+          undefined,
+          inputReferenceCurrency,
+          false,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
@@ -448,7 +449,12 @@ export class BuyCryptoService {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
+    if (
+      !(await this.transactionUtilService.validateChargebackIban(
+        chargebackIban,
+        chargebackIban !== buyCrypto.bankTx.iban,
+      ))
+    )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount)
@@ -539,6 +545,7 @@ export class BuyCryptoService {
     userIds: number[],
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
+    excludedId?: number,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
     const request = this.buyCryptoRepo
@@ -558,6 +565,9 @@ export class BuyCryptoService {
       )
       .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
 
+    if (excludedId) {
+      request.andWhere('buyCrypto.id != :excludedId', { excludedId });
+    }
     if (!type) {
       request.andWhere(
         new Brackets((query) =>

@@ -46,6 +46,7 @@ export class Configuration {
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
+  exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
 
   defaults = {
     currency: 'EUR',
@@ -616,10 +617,12 @@ export class Configuration {
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
+        fpsWrapper: process.env.ZCHF_FPS_WRAPPER_CONTRACT_ADDRESS,
       },
     },
     deuro: {
-      deuroGraphUrl: process.env.DEURO_GRAPH_URL,
+      graphUrl: process.env.DEURO_GRAPH_URL,
+      apiUrl: process.env.DEURO_API_URL,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

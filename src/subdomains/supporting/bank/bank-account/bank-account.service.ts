@@ -2,7 +2,6 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { IEntity } from 'src/shared/models/entity';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -54,15 +53,17 @@ export class BankAccountService {
 
   // --- HELPER METHODS --- //
 
-  async getOrCreateBankAccountInternal(iban: string): Promise<BankAccount> {
-    return (await this.bankAccountRepo.findOneBy({ iban })) ?? this.createBankAccountInternal(iban);
+  async getOrCreateBankAccountInternal(iban: string, validateIbanCountry = true): Promise<BankAccount> {
+    return (
+      (await this.bankAccountRepo.findOneBy({ iban })) ?? this.createBankAccountInternal(iban, validateIbanCountry)
+    );
   }
 
-  private async createBankAccountInternal(iban: string, copyFrom?: BankAccount): Promise<BankAccount> {
-    if (!(await this.isValidIbanCountry(iban)))
+  private async createBankAccountInternal(iban: string, validateIbanCountry: boolean): Promise<BankAccount> {
+    if (validateIbanCountry && !(await this.isValidIbanCountry(iban)))
       throw new BadRequestException('Iban country is currently not supported');
 
-    const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
+    const bankAccount = await this.initBankAccount(iban);
 
     return this.bankAccountRepo.save(bankAccount);
   }

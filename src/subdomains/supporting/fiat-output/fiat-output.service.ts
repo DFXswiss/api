@@ -40,7 +40,7 @@ export class FiatOutputService {
         amount: Not(IsNull()),
         isComplete: false,
         bankTx: { id: IsNull() },
-        isApprovedDate: Not(IsNull()),
+        isReadyDate: Not(IsNull()),
         isTransmittedDate: Not(IsNull()),
       },
       relations: { bankTx: true },
@@ -49,7 +49,7 @@ export class FiatOutputService {
     for (const entity of entities) {
       try {
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || entity.isApprovedDate > bankTx.created) continue;
+        if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
         await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
       } catch (e) {

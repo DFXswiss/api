@@ -74,7 +74,8 @@ export class NodeService {
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
-  getBtcPaymentRequest(address: string, amount: number, label = 'DFX Off-Ramp'): string {
+  getPaymentRequest(address: string, amount: number, label = 'DFX Off-Ramp'): string {
+    //return `bitcoin:${address}?amount=${Util.numberToFixedString(amount)}&label=${label}`;
     return `bitcoin:${address}?amount=${amount}&label=${label}`;
   }
 

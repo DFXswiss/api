@@ -143,7 +143,7 @@ export class TradingOrderService implements OnModuleInit {
       order.assetOut,
       order.amountIn,
       order.tradingRule.poolFee,
-      0.0001,
+      0.0000001,
     );
     await this.orderRepo.save(order);
   }

@@ -49,7 +49,7 @@ export enum Direction {
 }
 
 export abstract class EvmClient extends BlockchainClient {
-  protected http: HttpService;
+  readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
   readonly chainId: ChainId;
 
@@ -587,7 +587,7 @@ export abstract class EvmClient extends BlockchainClient {
   swapConfig(maxSlippage: number): SwapOptions {
     const config: SwapOptions = {
       recipient: this.dfxAddress,
-      slippageTolerance: new Percent(maxSlippage * 100000, 100000),
+      slippageTolerance: new Percent(maxSlippage * 10000000, 10000000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
       type: SwapType.SWAP_ROUTER_02,
     };

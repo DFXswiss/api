@@ -310,21 +310,23 @@ export class PaymentQuoteService {
   async executeHexPayment(transferInfo: TransferInfo): Promise<PaymentQuote> {
     const quote = await this.getAndCheckQuote(transferInfo);
 
-    // Used for checking purposes
-    const verifiedSignMessage = Util.verifySign(
-      Config.payment.checkbotSignTx,
-      Config.payment.checkbotPubKey,
-      transferInfo.hex,
-      'sha256',
-      'hex',
-    );
+    if (transferInfo.hex) {
+      // Used for checking purposes
+      const verifiedSignMessage = Util.verifySign(
+        Config.payment.checkbotSignTx,
+        Config.payment.checkbotPubKey,
+        transferInfo.hex,
+        'sha256',
+        'hex',
+      );
 
-    if (verifiedSignMessage) {
-      quote.txCheckbot(Config.payment.checkbotSignTx);
-      return this.paymentQuoteRepo.save(quote);
+      if (verifiedSignMessage) {
+        quote.txCheckbot(Config.payment.checkbotSignTx);
+        return this.paymentQuoteRepo.save(quote);
+      }
     }
 
-    quote.txReceived(transferInfo.method, transferInfo.hex);
+    quote.txReceived(transferInfo.method, transferInfo.hex ?? transferInfo.tx);
 
     try {
       switch (transferInfo.method) {
@@ -354,21 +356,26 @@ export class PaymentQuoteService {
   }
 
   private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    const client = this.blockchainRegistryService.getClient(transferInfo.method);
-    const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+    try {
+      if (transferInfo.tx) {
+        quote.txMempool(transferInfo.tx);
+        return;
+      }
 
-    transactionResponse.error
-      ? quote.txFailed(transactionResponse.error.message)
-      : quote.txMempool(transactionResponse.response.hash);
+      const client = this.blockchainRegistryService.getClient(transferInfo.method);
+      const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+
+      transactionResponse.error
+        ? quote.txFailed(transactionResponse.error.message)
+        : quote.txMempool(transactionResponse.response.hash);
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
   }
 
   private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const transactionResponse = await this.payoutMoneroService.relayTransaction(transferInfo.hex);
-
-      transactionResponse.error
-        ? quote.txFailed(transactionResponse.error.message)
-        : quote.txMempool(transactionResponse.result.tx_hash);
+      transferInfo.tx ? quote.txMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
     } catch (e) {
       quote.txFailed(e.message);
     }
@@ -416,7 +423,7 @@ export class PaymentQuoteService {
 
     if (!quoteUniqueId) throw new BadRequestException('Quote parameter missing');
     if (!transferInfo.method) throw new BadRequestException('Method parameter missing');
-    if (!transferInfo.hex) throw new BadRequestException('Hex parameter missing');
+    if (!transferInfo.hex && !transferInfo.tx) throw new BadRequestException('Hex or Tx parameter missing');
 
     const actualQuote = await this.getActualQuoteByUniqueId(quoteUniqueId);
     if (!actualQuote) throw new NotFoundException(`No actual quote with ID ${quoteUniqueId} found`);

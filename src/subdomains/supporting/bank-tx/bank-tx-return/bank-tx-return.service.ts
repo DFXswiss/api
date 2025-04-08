@@ -175,7 +175,12 @@ export class BankTxReturnService implements OnModuleInit {
       chargebackAmount,
     });
 
-    if (!(await this.transactionUtilService.validateChargebackIban(chargebackIban)))
+    if (
+      !(await this.transactionUtilService.validateChargebackIban(
+        chargebackIban,
+        chargebackIban !== bankTxReturn.bankTx.iban,
+      ))
+    )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {

@@ -56,6 +56,8 @@
       "yes": "Yes",
       "no": "No",
       "accept": "Accept",
+      "yes_risky_business": "Yes (risky)",
+      "no_risky_business": "No (not risky)",
 
       "employment_income": "Income from employment",
       "real_estate_sale": "Sale of property",
@@ -64,7 +66,7 @@
       "company_sale": "Sale of companies",
       "company_profits": "Corporate profits / dividends",
       "inheritance": "Heritage",
-      "gift": "Donation / Donation",
+      "gift": "Gift / Donation",
       "pension": "Pension fund / pension",
       "gambling": "Gambling winnings",
 
