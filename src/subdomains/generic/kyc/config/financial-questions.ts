@@ -204,6 +204,14 @@ export const FinancialQuestions: FinancialQuestion[] = [
   //     response: 'yes',
   //   },
   // },
+  // {
+  //   key: 'risky_business_description',
+  //   type: QuestionType.TEXT,
+  //   condition: {
+  //     question: 'risky_business',
+  //     response: 'yes',
+  //   },
+  // },
   {
     key: 'income',
     type: QuestionType.SINGLE_CHOICE,
