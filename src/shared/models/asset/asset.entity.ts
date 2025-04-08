@@ -101,7 +101,7 @@ export class Asset extends IEntity {
   @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
   liquidityManagementRule: LiquidityManagementRule;
 
-  @OneToOne(() => Asset, (asset) => asset.bank, { eager: true })
+  @OneToOne(() => Asset, (asset) => asset.bank)
   bank?: Bank;
 
   @ManyToOne(() => PriceRule)

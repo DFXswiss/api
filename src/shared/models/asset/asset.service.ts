@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Util } from 'src/shared/utils/util';
-import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 
@@ -25,8 +25,8 @@ export class AssetService {
     return this.assetRepo.save(entity);
   }
 
-  async getAllAssets() {
-    return this.assetRepo.findCached('all');
+  async getAllAssets(relations?: FindOptionsRelations<Asset>) {
+    return this.assetRepo.findCached('all', { relations });
   }
 
   async getAllBlockchainAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
