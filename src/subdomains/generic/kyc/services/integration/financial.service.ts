@@ -21,6 +21,7 @@ export class FinancialService {
       title: this.i18n.translate(`kyc.financial.question.${q.key}.title`, { lang }),
       description: this.i18n.translate(`kyc.financial.question.${q.key}.description`, { lang }),
       options: q.options?.map((key) => ({ key, text: this.i18n.translate(`kyc.financial.option.${key}`, { lang }) })),
+      conditions: q.conditions,
     }));
   }
 
