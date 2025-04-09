@@ -23,7 +23,7 @@
         "description": "L'azienda è operativa?"
       },
       "occupation": { "title": "Attività professionale", "description": "Come descriverebbe il suo lavoro?" },
-      "employer": {
+      "employed_description": {
         "title": "Datore di lavoro",
         "description": "Qual è il nome del vostro datore di lavoro? Per le persone che non hanno un rapporto di lavoro, qual è il nome dell'università, della scuola o, per i pensionati, i disoccupati e i cassaintegrati, il nome dell'ultimo datore di lavoro."
       },

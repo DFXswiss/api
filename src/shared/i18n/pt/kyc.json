@@ -8,7 +8,7 @@
       "area": { "title": "", "description": "" },
       "operative": { "title": "", "description": "" },
       "occupation": { "title": "", "description": "" },
-      "employer": { "title": "", "description": "" },
+      "employed_description": { "title": "", "description": "" },
       "sector": { "title": "", "description": "" },
       "sector_organization": { "title": "", "description": "" },
       "risky_business": { "title": "", "description": "" },

@@ -123,9 +123,15 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
   },
   {
-    key: 'employer',
+    key: 'employed_description',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'employed',
+      },
+    ],
   },
   {
     key: 'sector',

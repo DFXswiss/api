@@ -23,7 +23,7 @@
         "description": "Is the company operational?"
       },
       "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
-      "employer": {
+      "employed_description": {
         "title": "Employer",
         "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer."
       },
