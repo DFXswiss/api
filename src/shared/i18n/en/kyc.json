@@ -25,7 +25,7 @@
       "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
       "employer": {
         "title": "Employer",
-        "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer."
+        "description": "What is the name of your employer?"
       },
       "sector": { "title": "Branche", "description": "What industry do you work in or did you last work in?" },
       "sector_organization": {

@@ -28,7 +28,7 @@
       },
       "employer": {
         "title": "Arbeitgeber",
-        "description": "Wie lautet der Name Deines Arbeitgebers? Bei Personen ohne Arbeitsverhältnis der Name der Uni, Schule oder bei Pensionären, Arbeitslosen und Rentnern der Name des letzten Arbeitgebers."
+        "description": "Wie lautet der Name Deines Arbeitgebers?"
       },
       "sector": {
         "title": "Branche",

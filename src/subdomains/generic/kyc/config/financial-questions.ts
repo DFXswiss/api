@@ -79,17 +79,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
   },
   {
-    key: 'unemployed_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'unemployed',
-      },
-    ],
-  },
-  {
     key: 'apprentice_description',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],

@@ -25,7 +25,7 @@
       "occupation": { "title": "Actividad profesional", "description": "¿Cómo describiría su trabajo?" },
       "employer": {
         "title": "Empresario",
-        "description": "¿Cuál es el nombre de su empleador? Para las personas sin relación laboral, cuál es el nombre de su universidad, escuela o, para los jubilados, parados y pensionistas, el nombre de su último empleador."
+        "description": "¿Cuál es el nombre de su empleador?"
       },
       "sector": { "title": "Industria", "description": "¿En qué sector trabaja o trabajó por última vez?" },
       "sector_organization": {

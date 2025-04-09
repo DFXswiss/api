@@ -25,7 +25,7 @@
       "occupation": { "title": "Activité professionnelle", "description": "Comment décririez-vous votre travail ?" },
       "employer": {
         "title": "Employeur",
-        "description": "Quel est le nom de votre employeur ? Pour les personnes sans relation de travail, quel est le nom de votre université, de votre école ou, pour les retraités, les chômeurs et les pensionnés, le nom de votre dernier employeur."
+        "description": "Quel est le nom de votre employeur ?"
       },
       "sector": {
         "title": "L'industrie",
