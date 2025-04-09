@@ -40,8 +40,6 @@ export class NameCheckService implements OnModuleInit {
     const idsWithBankData = await this.nameCheckLogRepo
       .createQueryBuilder('nameCheckLog')
       .select('MIN(nameCheckLog.id)', 'minId')
-      .addSelect('nameCheckLog.bankDataId', 'bankDataId')
-      .addSelect('file.id', 'fileId')
       .leftJoin('nameCheckLog.file', 'file')
       .where('nameCheckLog.bankDataId IS NOT NULL')
       .groupBy('nameCheckLog.bankDataId')
@@ -49,10 +47,8 @@ export class NameCheckService implements OnModuleInit {
       .orderBy('file.id', 'DESC')
       .getRawMany();
 
-    const ids = idsWithBankData.map((i) => i.minId);
-
     const entities = await this.nameCheckLogRepo.find({
-      where: { id: In(ids), file: { id: IsNull() } },
+      where: { id: In(idsWithBankData.map((i) => i.minId)), file: { id: IsNull() } },
       relations: { bankData: true, file: true },
       take: 15000,
     });
