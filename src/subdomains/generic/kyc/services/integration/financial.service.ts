@@ -21,6 +21,7 @@ export class FinancialService {
       title: this.i18n.translate(`kyc.financial.question.${q.key}.title`, { lang }),
       description: this.i18n.translate(`kyc.financial.question.${q.key}.description`, { lang }),
       options: q.options?.map((key) => ({ key, text: this.i18n.translate(`kyc.financial.option.${key}`, { lang }) })),
+      conditions: q.conditions,
     }));
   }
 
@@ -29,6 +30,12 @@ export class FinancialService {
     if (hasDuplicates) throw new BadRequestException('Duplicate response keys found');
 
     return getFinancialQuestions(accountType).every((q) => {
+      if (
+        q.conditions?.length &&
+        !q.conditions?.some((c) => responses.some((r) => r.key === c.question && r.value === c.response))
+      )
+        return true;
+
       const response = responses.find((r) => r.key === q.key);
       if (!response?.value) return false;
 
