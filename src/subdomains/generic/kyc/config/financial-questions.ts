@@ -123,6 +123,61 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
   },
   {
+    key: 'retired_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'retired',
+      },
+    ],
+  },
+  {
+    key: 'unemployed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'unemployed',
+      },
+    ],
+  },
+  {
+    key: 'apprentice_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'apprentice',
+      },
+    ],
+  },
+  {
+    key: 'self_employed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'self_employed',
+      },
+    ],
+  },
+  {
+    key: 'privatier_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'privatier',
+      },
+    ],
+  },
+  {
     key: 'employed_description',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],
