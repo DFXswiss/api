@@ -311,7 +311,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
       case CheckStatus.FAIL:
         if (
           entity.chargebackDate &&
-          (entity.chargebackCryptoTxId || entity.checkoutTx || entity.chargebackOutput.isTransmittedDate)
+          (entity.chargebackCryptoTxId || entity.checkoutTx || entity.chargebackOutput?.isTransmittedDate)
         )
           return { state: TransactionState.RETURNED, reason };
         if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate)
