@@ -37,38 +37,27 @@ export class NameCheckService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.NAME_CHECK_PDF_SYNC, timeout: 1800 })
   async syncNameCheckPdf(): Promise<void> {
-    try {
-      const idsWithBankData = await this.nameCheckLogRepo
-        .createQueryBuilder('nameCheckLog')
-        .select('MIN(nameCheckLog.id)', 'minId')
-        .addSelect('nameCheckLog.bankDataId', 'bankDataId')
-        .addSelect('file.id', 'fileId')
-        .leftJoin('nameCheckLog.file', 'file')
-        .where('nameCheckLog.bankDataId IS NOT NULL')
-        .groupBy('nameCheckLog.bankDataId')
-        .addGroupBy('file.id')
-        .orderBy('file.id', 'DESC')
-        .getRawMany();
+    const idsWithBankData = await this.nameCheckLogRepo
+      .createQueryBuilder('nameCheckLog')
+      .select('MIN(nameCheckLog.id)', 'minId')
+      .addSelect('nameCheckLog.bankDataId', 'bankDataId')
+      .addSelect('file.id', 'fileId')
+      .leftJoin('nameCheckLog.file', 'file')
+      .where('nameCheckLog.bankDataId IS NOT NULL')
+      .groupBy('nameCheckLog.bankDataId')
+      .addGroupBy('file.id')
+      .orderBy('file.id', 'DESC')
+      .getRawMany();
 
-      const ids = idsWithBankData.map((i) => i.minId);
-
-      const fullLogs = await this.nameCheckLogRepo.find({
-        where: { id: In(ids) },
-        relations: { bankData: true, file: true },
-      });
-    } catch (e) {
-      console.log(e);
-    }
+    const ids = idsWithBankData.map((i) => i.minId);
 
     const entities = await this.nameCheckLogRepo.find({
-      order: { file: { id: 'ASC' } },
-      take: 5000,
-      relations: { bankData: true },
+      where: { id: In(ids), file: { id: IsNull() } },
+      relations: { bankData: true, file: true },
+      take: 15000,
     });
 
     for (const entity of entities) {
-      if (entity.file) continue;
-
       await this.refreshRiskStatus(entity.bankData);
     }
   }
