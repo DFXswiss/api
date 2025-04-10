@@ -23,7 +23,7 @@
         "description": "¿Está operativa la empresa?"
       },
       "occupation": { "title": "Actividad profesional", "description": "¿Cómo describiría su trabajo?" },
-      "employer": {
+      "employed_description": {
         "title": "Empresario",
         "description": "¿Cuál es el nombre de su empleador?"
       },
