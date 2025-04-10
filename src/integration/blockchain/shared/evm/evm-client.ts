@@ -347,11 +347,13 @@ export abstract class EvmClient extends BlockchainClient {
     const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
 
     const gasPrice = await this.getRecommendedGasPrice();
+    const nonce = await this.getNonce(this.dfxAddress);
 
     const tx = await this.wallet.sendTransaction({
       ...transaction,
       from: this.dfxAddress,
       gasPrice,
+      nonce,
     });
 
     return tx.hash;
@@ -555,6 +557,7 @@ export abstract class EvmClient extends BlockchainClient {
 
   private async doSwap(parameters: MethodParameters) {
     const gasPrice = await this.getRecommendedGasPrice();
+    const nonce = await this.getNonce(this.dfxAddress);
 
     const tx = await this.wallet.sendTransaction({
       data: parameters.calldata,
@@ -562,6 +565,7 @@ export abstract class EvmClient extends BlockchainClient {
       value: parameters.value,
       from: this.dfxAddress,
       gasPrice,
+      nonce,
     });
 
     return tx.hash;
