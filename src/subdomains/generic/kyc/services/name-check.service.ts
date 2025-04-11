@@ -49,7 +49,7 @@ export class NameCheckService implements OnModuleInit {
       .getRawMany();
 
     const entities = await this.nameCheckLogRepo.find({
-      where: { id: In(idsWithBankData.map((i) => i.minId)), file: { id: IsNull() } },
+      where: { id: In(idsWithBankData.map((i) => i.minId)), file: { id: IsNull() }, synced: IsNull() },
       relations: { bankData: { userData: true }, file: true },
       take: 15000,
     });
@@ -57,8 +57,10 @@ export class NameCheckService implements OnModuleInit {
     for (const entity of entities) {
       try {
         await this.refreshRiskStatus(entity.bankData);
+        await this.nameCheckLogRepo.update(entity.id, { synced: true });
       } catch (e) {
         this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
+        await this.nameCheckLogRepo.update(entity.id, { synced: true });
       }
     }
   }
