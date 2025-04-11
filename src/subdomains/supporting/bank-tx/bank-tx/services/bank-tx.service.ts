@@ -173,6 +173,7 @@ export class BankTxService {
           });
           continue;
         }
+        if (!entity.buyCrypto && !entity.buyFiats?.length) continue;
 
         const update: Partial<BankTx> = {};
 
