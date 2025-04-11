@@ -104,14 +104,14 @@ export class PaymentQuote extends IEntity {
   }
 
   getTransferAmount(method: TransferMethod): TransferAmount | undefined {
-    return this.transferAmountsAsObj.find((i) => i.method === method);
+    return this.transferAmountsAsObj.find((i) => i.method.toLowerCase() === method.toLowerCase());
   }
 
   getTransferAmountFor(method: TransferMethod, asset: string): TransferAmountAsset | undefined {
     const transferAmount = this.getTransferAmount(method);
     if (!transferAmount) return;
 
-    return transferAmount.assets.find((a) => a.asset === asset);
+    return transferAmount.assets.find((a) => a.asset.toLowerCase() === asset.toLowerCase());
   }
 
   isTransferAmountAsset(method: TransferMethod, asset: string, amount: number): boolean {
