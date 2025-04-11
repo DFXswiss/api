@@ -51,17 +51,17 @@ export class Price {
   }
 
   static join(...prices: Price[]): Price {
+    const priceSteps = prices.map((p) => p.steps).flat();
+    const filteredPriceSteps = priceSteps.filter(
+      (p1) => !priceSteps.some((p2) => p1 && p2 && p1.source === p2.source && p1.to === p2.from && p1.from === p2.to),
+    );
+
     const price = Price.create(
       prices[0].source,
       prices[prices.length - 1].target,
       prices.reduce((prev, curr) => prev * curr.price, 1),
       prices.reduce((prev, curr) => prev && curr.isValid, true),
-      new Date(Math.min(...prices.map((p) => p.timestamp.getTime()))),
-    );
-
-    const priceSteps = prices.map((p) => p.steps).flat();
-    const filteredPriceSteps = priceSteps.filter(
-      (p1) => !priceSteps.some((p2) => p1 && p2 && p1.source === p2.source && p1.to === p2.from && p1.from === p2.to),
+      new Date(Math.min(...filteredPriceSteps.map((p) => p.timestamp.getTime()))),
     );
 
     price.addPriceSteps(filteredPriceSteps);

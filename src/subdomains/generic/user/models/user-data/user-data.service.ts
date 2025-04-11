@@ -226,7 +226,28 @@ export class UserDataService {
 
     await this.userDataRepo.save(userData);
 
-    if (userData.organization) await this.organizationService.updateOrganizationInternal(userData.organization, dto);
+    if (
+      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) &&
+      !userData.organization
+    ) {
+      userData.organization = await this.organizationService.createOrganization({
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        organizationCountryId: dto.organizationCountryId,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
+    } else if (userData.organization) {
+      await this.organizationService.updateOrganizationInternal(userData.organization, dto);
+    }
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -694,23 +715,6 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
-
-    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
-      userData.organization = await this.organizationService.createOrganization({
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-        organizationCountryId: dto.organizationCountryId,
-        allBeneficialOwnersName: dto.allBeneficialOwnersName,
-        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
-        accountOpenerAuthorization: dto.accountOpenerAuthorization,
-        complexOrgStructure: dto.complexOrgStructure,
-        accountOpener: dto.accountOpener,
-        legalEntity: dto.legalEntity,
-        signatoryPower: dto.signatoryPower,
-      });
 
     return userData;
   }

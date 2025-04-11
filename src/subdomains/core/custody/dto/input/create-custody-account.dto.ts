@@ -4,7 +4,7 @@ import { GetConfig } from 'src/config/config';
 import { CustodyAddressType } from '../../enums/custody';
 
 export class CreateCustodyAccountDto {
-  @ApiProperty()
+  @ApiProperty({ enum: CustodyAddressType })
   @IsEnum(CustodyAddressType)
   addressType: CustodyAddressType;
 

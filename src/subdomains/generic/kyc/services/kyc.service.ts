@@ -473,7 +473,7 @@ export class KycService {
 
     const language = (lang && (await this.languageService.getLanguageBySymbol(lang.toUpperCase()))) ?? user.language;
 
-    const questions = this.financialService.getQuestions(language.symbol.toLowerCase());
+    const questions = this.financialService.getQuestions(language.symbol.toLowerCase(), user.accountType);
     const responses = kycStep.getResult<KycFinancialResponse[]>() ?? [];
     return { questions, responses };
   }
@@ -491,7 +491,7 @@ export class KycService {
 
     await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
-    const complete = this.financialService.isComplete(data.responses);
+    const complete = this.financialService.isComplete(data.responses, user.accountType);
     if (complete) {
       await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);
@@ -934,8 +934,17 @@ export class KycService {
   }
 
   async completeCommercialRegister(userData: UserData): Promise<UserData> {
-    if (!userData.verifiedName && userData.organizationName)
-      return this.userDataService.updateUserDataInternal(userData, { verifiedName: userData.organizationName });
+    if (
+      (!userData.verifiedName && userData.organizationName) ||
+      (userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate)
+    )
+      return this.userDataService.updateUserDataInternal(userData, {
+        verifiedName: !userData.verifiedName && userData.organizationName ? userData.organizationName : undefined,
+        pep:
+          userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate
+            ? false
+            : undefined,
+      });
   }
 
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {

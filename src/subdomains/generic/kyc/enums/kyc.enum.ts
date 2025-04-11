@@ -23,10 +23,11 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
       ? KycStepName.COMMERCIAL_REGISTER
       : null,
-    userData.accountType === AccountType.ORGANIZATION
-      ? [KycStepName.SIGNATORY_POWER, KycStepName.BENEFICIAL_OWNER, KycStepName.OPERATIONAL_ACTIVITY]
-      : null,
+    userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
+    userData.accountType === AccountType.ORGANIZATION
+      ? [KycStepName.BENEFICIAL_OWNER, KycStepName.OPERATIONAL_ACTIVITY]
+      : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
     Config.kyc.residencePermitCountries.includes(userData.nationality?.symbol) ? KycStepName.RESIDENCE_PERMIT : null,

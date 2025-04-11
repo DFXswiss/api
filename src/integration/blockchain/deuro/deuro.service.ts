@@ -4,9 +4,9 @@ import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
@@ -18,17 +18,18 @@ import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import { DEuroClient } from './deuro-client';
 import {
+  DEuroBridgeLogDto,
   DEuroInfoDto,
   DEuroLogDto,
   DEuroPoolSharesDto,
   DEuroPositionDto,
   DEuroPositionGraphDto,
+  DEuroSavingsInfoDto,
+  DEuroSavingsLogDto,
 } from './dto/deuro.dto';
 
 @Injectable()
 export class DEuroService extends FrankencoinBasedService implements OnModuleInit {
-  private readonly logger = new DfxLogger(DEuroService);
-
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
 
@@ -65,11 +66,21 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.DEURO_LOG_INFO })
   async processLogInfo(): Promise<void> {
+    const collateralTvl = await this.getCollateralTvl();
+    const bridgeTvl = await this.getBridgeTvl();
+    const totalValueLocked = collateralTvl + bridgeTvl;
+
+    const positionV2s = await this.getPositionV2s();
+    const totalBorrowed = Util.sum(positionV2s.map((p) => p.details.totalBorrowed));
+
     const logMessage: DEuroLogDto = {
-      positionV2s: await this.getPositionV2s(),
+      positionV2s,
       poolShares: await this.getDEPS(),
+      savings: await this.getSavingsLogInfo(),
+      bridges: await this.getBridgeLogInfo(),
       totalSupply: await this.getTotalSupply(),
-      totalValueLocked: await this.getTvl(),
+      totalValueLocked,
+      totalBorrowed,
     };
 
     const log: CreateLogDto = {
@@ -95,11 +106,13 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     for (const position of positions) {
       try {
         const deuroContract = this.deuroClient.getDEuroContract();
-
         const calculateAssignedReserve = await deuroContract.calculateAssignedReserve(
           position.principal,
           position.reserveContribution,
         );
+
+        const positionContract = this.deuroClient.getPositionContract(position.id);
+        const virtualPrice = await positionContract.virtualPrice();
 
         positionsResult.push({
           address: {
@@ -116,6 +129,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
             availableAmount: EvmUtil.fromWeiAmount(position.availableForClones),
             totalBorrowed: EvmUtil.fromWeiAmount(position.principal),
             liquidationPrice: EvmUtil.fromWeiAmount(position.price, 36 - position.collateralDecimals),
+            virtualPrice: EvmUtil.fromWeiAmount(virtualPrice, 36 - position.collateralDecimals),
             retainedReserve: EvmUtil.fromWeiAmount(calculateAssignedReserve),
             limit: EvmUtil.fromWeiAmount(position.limitForClones),
             expirationDate: new Date(Number(position.expiration) * 1000),
@@ -166,12 +180,20 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return EvmUtil.fromWeiAmount(deuroTotalSupply);
   }
 
+  getWalletAddress(): string {
+    return this.deuroClient.getWalletAddress();
+  }
+
   getEquityContract(): Contract {
     return this.deuroClient.getEquityContract();
   }
 
   async getEquityPrice(): Promise<number> {
     return this.getDEPSPrice();
+  }
+
+  getWrapperContract(): Contract {
+    return this.deuroClient.getDEPSWrapperContract();
   }
 
   async getDEPSPrice(): Promise<number> {
@@ -181,7 +203,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return EvmUtil.fromWeiAmount(price);
   }
 
-  async getTvl(): Promise<number> {
+  async getCollateralTvl(): Promise<number> {
     const positionV2s = await this.deuroClient.getPositionV2s();
 
     const collaterals = positionV2s.map((p) => {
@@ -194,6 +216,64 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     });
 
     return this.getTvlByCollaterals(collaterals);
+  }
+
+  async getBridgeTvl(): Promise<number> {
+    const bridgeContracts = this.deuroClient.getBridgeContracts();
+
+    let tvl = 0;
+
+    for (const bridgeContract of bridgeContracts) {
+      const eurTokenAddress = await bridgeContract.eur();
+
+      const eurTokenContract = this.deuroClient.getErc20Contract(eurTokenAddress);
+      const eurTokenPrice =
+        (await this.getCoinGeckoPrice(eurTokenContract.address)) ?? (await this.getBridgePriceFallback());
+
+      const minted = await bridgeContract.minted();
+      const mintedValue = EvmUtil.fromWeiAmount(minted);
+
+      tvl += mintedValue / eurTokenPrice;
+    }
+
+    return tvl;
+  }
+
+  private async getBridgePriceFallback(): Promise<number> {
+    const eurcContract = this.deuroClient.getBridgeEURCContract();
+    const eurcTokenAddress = await eurcContract.eur();
+    const eurcTokenContract = this.deuroClient.getErc20Contract(eurcTokenAddress);
+
+    return this.getCoinGeckoPrice(eurcTokenContract.address) ?? 0;
+  }
+
+  async getSavingsLogInfo(): Promise<DEuroSavingsLogDto> {
+    return this.deuroClient.getSavingsInfo().then((s) => this.mapSavingsInfo(s));
+  }
+
+  private mapSavingsInfo(savingsInfo: DEuroSavingsInfoDto): DEuroSavingsLogDto {
+    return {
+      totalSaved: savingsInfo.totalSaved,
+      totalBalance: savingsInfo.totalBalance,
+    };
+  }
+
+  async getBridgeLogInfo(): Promise<DEuroBridgeLogDto[]> {
+    const bridgeLogInfo: DEuroBridgeLogDto[] = [];
+
+    const bridgeContracts = this.deuroClient.getBridgeContracts();
+
+    for (const bridgeContract of bridgeContracts) {
+      const minted = await bridgeContract.minted();
+      const eurTokenAddress = await bridgeContract.eur();
+
+      const eurTokenContract = this.deuroClient.getErc20Contract(eurTokenAddress);
+      const symbol = await eurTokenContract.symbol();
+
+      bridgeLogInfo.push({ symbol, minted: EvmUtil.fromWeiAmount(minted) });
+    }
+
+    return bridgeLogInfo;
   }
 
   async getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {

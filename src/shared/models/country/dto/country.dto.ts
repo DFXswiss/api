@@ -16,6 +16,9 @@ export class CountryDto {
   @ApiProperty({ description: 'Allowed to access DFX API (current IP location)' })
   locationAllowed: boolean;
 
+  @ApiProperty({ description: 'Allowed for IBANs' })
+  ibanAllowed: boolean;
+
   @ApiProperty({ description: 'Allowed for KYC' })
   kycAllowed: boolean;
 

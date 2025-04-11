@@ -88,6 +88,7 @@ export class TradingRule extends IEntity {
       to: this.rightAsset2,
     };
   }
+
   get config3(): PriceConfig | undefined {
     return (
       this.source3 && {
