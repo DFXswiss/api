@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -20,7 +21,7 @@ import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class NameCheckService implements OnModuleInit {
-  // private readonly logger = new DfxLogger(NameCheckService);
+  private readonly logger = new DfxLogger(NameCheckService);
 
   // private sanctionData: DilisenseJsonData[] = [];
 
@@ -49,12 +50,16 @@ export class NameCheckService implements OnModuleInit {
 
     const entities = await this.nameCheckLogRepo.find({
       where: { id: In(idsWithBankData.map((i) => i.minId)), file: { id: IsNull() } },
-      relations: { bankData: true, file: true },
+      relations: { bankData: { userData: true }, file: true },
       take: 15000,
     });
 
     for (const entity of entities) {
-      await this.refreshRiskStatus(entity.bankData);
+      try {
+        await this.refreshRiskStatus(entity.bankData);
+      } catch (e) {
+        this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
+      }
     }
   }
 
@@ -158,10 +163,9 @@ export class NameCheckService implements OnModuleInit {
     const { file } = await this.documentService.uploadFile(
       userData,
       FileType.NAME_CHECK,
-      `${Util.isoDate(new Date()).replace(/-/g, '')}-NameCheck-${userData.id}-${Util.isoTime(new Date()).replace(
-        /-/g,
-        '',
-      )}.pdf`,
+      `${Util.isoDate(new Date()).replace(/-/g, '')}-NameCheck-${userData.id}-${name.replace(/ /g, '-')}-${Util.isoTime(
+        new Date(),
+      ).replace(/-/g, '')}.pdf`,
       buffer,
       contentType as ContentType,
       true,
