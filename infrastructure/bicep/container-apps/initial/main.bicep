@@ -18,6 +18,8 @@ var subnetName = 'snet-${compName}-ca-${env}'
 var environmentName = 'cae-${compName}-${apiName}-${env}'
 var logAnalyticsWorkspaceName = 'log-${compName}-${apiName}-${env}'
 
+var wafRateLimitName = 'afd${compName}wafratelimit${env}'
+
 // --- MODULES --- //
 module network './modules/network.bicep' = {
   name: 'network'
@@ -39,5 +41,14 @@ module containerAppsEnv './modules/containerAppsEnv.bicep' = {
     mcResourceGroupName: mcResourceGroupName
     tags: tags
     infrastructureSubnetId: network.outputs.containerAppsSubnetid
+  }
+}
+
+module frontdoorWafPolicies './modules/frontdoorWafPolicies.bicep' = {
+  name: 'frontdoorWafPolicies'
+  params: {
+    env: env
+    wafRateLimitName: wafRateLimitName
+    tags: tags
   }
 }
