@@ -314,18 +314,20 @@ export class KycStep extends IEntity {
     if (this.isSumsub) {
       const identResultData = this.getResult<SumsubResult>();
 
+      const idDocIndex = Math.max(0, identResultData.data.info?.idDocs?.findIndex((doc) => doc.firstName != null) ?? 0);
+
       return {
         type: IdentType.SUM_SUB,
-        firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
-        lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
+        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstName,
+        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastName,
         birthname: null,
-        birthday: identResultData.data.info?.idDocs?.[0]?.dob
-          ? new Date(identResultData.data.info.idDocs[0].dob)
+        birthday: identResultData.data.info?.idDocs?.[idDocIndex]?.dob
+          ? new Date(identResultData.data.info.idDocs[idDocIndex].dob)
           : undefined,
-        nationality: identResultData.data.info?.idDocs?.[0]?.country,
-        documentNumber: identResultData.data.info?.idDocs?.[0]?.number,
-        documentType: identResultData.data.info?.idDocs?.[0]?.idDocType
-          ? identResultData.data.info.idDocs[0].idDocType === IdDocType.ID_CARD
+        nationality: identResultData.data.info?.idDocs?.[idDocIndex]?.country,
+        documentNumber: identResultData.data.info?.idDocs?.[idDocIndex]?.number,
+        documentType: identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType
+          ? identResultData.data.info.idDocs[idDocIndex].idDocType === IdDocType.ID_CARD
             ? 'IDCARD'
             : 'PASSPORT'
           : undefined,
