@@ -2,15 +2,15 @@
 @description('Deployment environment')
 param env string
 
-@description('Name of the front doors rate limit policy')
-param wafRateLimitName string
+@description('Name of the front doors WAF policy')
+param wafName string
 
 @description('Tags to be applied to all resources')
 param tags object = {}
 
 // --- RESOURCES --- //
 resource firewallPolicies 'Microsoft.Network/frontdoorwebapplicationfirewallpolicies@2024-02-01' = if (env != 'loc') {
-  name: wafRateLimitName
+  name: wafName
   location: 'Global'
   tags: tags
   sku: {

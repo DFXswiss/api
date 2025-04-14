@@ -18,7 +18,7 @@ var subnetName = 'snet-${compName}-ca-${env}'
 var environmentName = 'cae-${compName}-${apiName}-${env}'
 var logAnalyticsWorkspaceName = 'log-${compName}-${apiName}-${env}'
 
-var wafRateLimitName = 'afd${compName}wafratelimit${env}'
+var wafName = 'waf${compName}${apiName}${env}'
 
 // --- MODULES --- //
 module network './modules/network.bicep' = {
@@ -48,7 +48,7 @@ module frontdoorWafPolicies './modules/frontdoorWafPolicies.bicep' = {
   name: 'frontdoorWafPolicies'
   params: {
     env: env
-    wafRateLimitName: wafRateLimitName
+    wafName: wafName
     tags: tags
   }
 }
