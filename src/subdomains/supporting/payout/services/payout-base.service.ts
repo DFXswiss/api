@@ -6,18 +6,18 @@ import { PayoutEvmService } from './payout-evm.service';
 
 @Injectable()
 export class PayoutBaseService extends PayoutEvmService {
-  protected client: BaseClient;
+  private readonly baseClient: BaseClient;
 
   constructor(baseService: BaseService) {
     super(baseService);
-    this.client = baseService.getDefaultClient<BaseClient>();
+    this.baseClient = baseService.getDefaultClient<BaseClient>();
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction();
+    return this.baseClient.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
+    return this.baseClient.getCurrentGasCostForTokenTransaction(token);
   }
 }
