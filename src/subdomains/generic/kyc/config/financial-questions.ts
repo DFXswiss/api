@@ -175,6 +175,10 @@ export const FinancialQuestions: FinancialQuestion[] = [
         question: 'occupation',
         response: 'employed',
       },
+      {
+        question: 'occupation',
+        response: 'employed_management',
+      },
     ],
   },
   {
