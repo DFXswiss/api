@@ -16,6 +16,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -23,7 +24,7 @@ import { TransactionRequestType } from 'src/subdomains/supporting/payment/entiti
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
@@ -171,7 +172,11 @@ export class BuyService {
 
   async getUserDataBuys(userDataId: number): Promise<Buy[]> {
     return this.buyRepo.find({
-      where: { active: true, user: { userData: { id: userDataId } }, asset: { buyable: true } },
+      where: {
+        active: true,
+        user: { userData: { id: userDataId }, status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])) },
+        asset: { buyable: true },
+      },
       relations: { user: true },
     });
   }
