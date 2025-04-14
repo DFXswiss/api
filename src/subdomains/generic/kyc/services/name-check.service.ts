@@ -60,7 +60,7 @@ export class NameCheckService implements OnModuleInit {
         await this.nameCheckLogRepo.update(entity.id, { synced: true });
       } catch (e) {
         this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
-        await this.nameCheckLogRepo.update(entity.id, { synced: true });
+        await this.nameCheckLogRepo.update(entity.id, { synced: false });
       }
     }
   }
