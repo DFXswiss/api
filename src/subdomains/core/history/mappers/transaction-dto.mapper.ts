@@ -299,7 +299,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
       case null:
-        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
+        if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -345,7 +345,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyFiat) {
     switch (entity.amlCheck) {
       case null:
-        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
+        if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
