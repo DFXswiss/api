@@ -315,13 +315,16 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   }
 
   async chargebackFillUp(): Promise<void> {
-    const entities = await this.buyCryptoRepo.findBy({
-      chargebackBankTx: IsNull(),
-      amlCheck: CheckStatus.FAIL,
-      bankTx: { id: Not(IsNull()) },
-      isComplete: false,
-      chargebackRemittanceInfo: Not(IsNull()),
-      chargebackOutput: { id: Not(IsNull()) },
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        chargebackBankTx: IsNull(),
+        amlCheck: CheckStatus.FAIL,
+        bankTx: { id: Not(IsNull()) },
+        isComplete: false,
+        chargebackRemittanceInfo: Not(IsNull()),
+        chargebackOutput: { id: Not(IsNull()) },
+      },
+      relations: { transaction: { user: { userData: true } } },
     });
 
     for (const entity of entities) {
@@ -329,7 +332,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
         if (!bankTx) continue;
 
-        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN }, entity.user);
         await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
