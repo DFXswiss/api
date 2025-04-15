@@ -231,22 +231,22 @@ export class UserDataService {
       !userData.organization
     ) {
       userData.organization = await this.organizationService.createOrganization({
+        ...dto,
         name: dto.organizationName,
         street: dto.organizationStreet,
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
-        organizationCountryId: dto.organizationCountryId,
-        allBeneficialOwnersName: dto.allBeneficialOwnersName,
-        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
-        accountOpenerAuthorization: dto.accountOpenerAuthorization,
-        complexOrgStructure: dto.complexOrgStructure,
-        accountOpener: dto.accountOpener,
-        legalEntity: dto.legalEntity,
-        signatoryPower: dto.signatoryPower,
       });
     } else if (userData.organization) {
-      await this.organizationService.updateOrganizationInternal(userData.organization, dto);
+      await this.organizationService.updateOrganizationInternal(userData.organization, {
+        ...dto,
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+      });
     }
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
