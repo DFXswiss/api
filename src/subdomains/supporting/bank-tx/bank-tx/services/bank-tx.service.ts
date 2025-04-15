@@ -88,7 +88,7 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
