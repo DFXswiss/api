@@ -92,7 +92,7 @@ export class NameCheckService implements OnModuleInit {
         bankData.userData.birthday,
       );
 
-      return this.classifyRiskData(data, file, bankData, '');
+      return this.classifyRiskData(data, file, bankData);
     }
 
     // Business name check
