@@ -31,6 +31,7 @@ export interface EvmClientParams {
   chainId: ChainId;
   swapContractAddress?: string;
   quoteContractAddress?: string;
+  swapFactoryAddress?: string;
 }
 
 interface UniswapPosition {
@@ -60,6 +61,7 @@ export abstract class EvmClient extends BlockchainClient {
   private readonly tokens = new AsyncCache<Token>();
   private readonly router: AlphaRouter;
   private readonly swapContractAddress: string;
+  private readonly swapFactoryAddress: string;
   private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
@@ -79,6 +81,7 @@ export abstract class EvmClient extends BlockchainClient {
     });
     this.swapContractAddress = params.swapContractAddress;
     this.quoteContractAddress = params.quoteContractAddress;
+    this.swapFactoryAddress = params.swapFactoryAddress;
   }
 
   // --- PUBLIC API - GETTERS --- //
@@ -369,7 +372,9 @@ export abstract class EvmClient extends BlockchainClient {
       this.getTokenByAddress(position.token0),
       this.getTokenByAddress(position.token1),
     ]);
-    const pool = this.getPoolContract(Pool.getAddress(token0, token1, position.fee));
+    const pool = this.getPoolContract(
+      Pool.getAddress(token1, token0, position.fee, undefined, this.swapFactoryAddress),
+    );
     const slot0 = await pool.slot0();
     const sqrtPriceX96 = slot0.sqrtPriceX96;
 
