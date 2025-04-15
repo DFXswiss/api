@@ -156,17 +156,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
   },
   {
-    key: 'privatier_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'privatier',
-      },
-    ],
-  },
-  {
     key: 'employed_description',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],
