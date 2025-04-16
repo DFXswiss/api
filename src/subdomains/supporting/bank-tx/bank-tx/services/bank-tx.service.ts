@@ -226,7 +226,6 @@ export class BankTxService {
         transaction: true,
         buyFiats: { transaction: { user: { userData: true } } },
         buyCryptoChargeback: { transaction: { user: { userData: true } } },
-        buyCrypto: { transaction: { user: { userData: true } } },
       },
     });
     if (!bankTx) throw new NotFoundException('BankTx not found');
