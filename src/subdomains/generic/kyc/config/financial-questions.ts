@@ -68,17 +68,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.PERSONAL],
   },
   {
-    key: 'retired_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'retired',
-      },
-    ],
-  },
-  {
     key: 'apprentice_description',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],
@@ -86,72 +75,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
       {
         question: 'occupation',
         response: 'apprentice',
-      },
-    ],
-  },
-  {
-    key: 'self_employed_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'self_employed',
-      },
-    ],
-  },
-  {
-    key: 'privatier_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'privatier',
-      },
-    ],
-  },
-  {
-    key: 'retired_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'retired',
-      },
-    ],
-  },
-  {
-    key: 'unemployed_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'unemployed',
-      },
-    ],
-  },
-  {
-    key: 'apprentice_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'apprentice',
-      },
-    ],
-  },
-  {
-    key: 'self_employed_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL],
-    conditions: [
-      {
-        question: 'occupation',
-        response: 'self_employed',
       },
     ],
   },
@@ -167,6 +90,50 @@ export const FinancialQuestions: FinancialQuestion[] = [
       {
         question: 'occupation',
         response: 'employed_management',
+      },
+    ],
+  },
+  {
+    key: 'self_employed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'self_employed',
+      },
+    ],
+  },
+  {
+    key: 'unemployed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'unemployed',
+      },
+    ],
+  },
+  {
+    key: 'retired_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'retired',
+      },
+    ],
+  },
+  {
+    key: 'privatier_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'privatier',
       },
     ],
   },
@@ -200,17 +167,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   },
   {
-    key: 'sector_description',
-    type: QuestionType.TEXT,
-    accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
-    conditions: [
-      {
-        question: 'sector',
-        response: 'other',
-      },
-    ],
-  },
-  {
     key: 'sector_organization',
     type: QuestionType.SINGLE_CHOICE,
     options: [
@@ -238,6 +194,20 @@ export const FinancialQuestions: FinancialQuestion[] = [
       'other',
     ],
     accountTypes: [AccountType.ORGANIZATION],
+  },
+  {
+    key: 'sector_description',
+    type: QuestionType.TEXT,
+    conditions: [
+      {
+        question: 'sector',
+        response: 'other',
+      },
+      {
+        question: 'sector_organization',
+        response: 'other',
+      },
+    ],
   },
   {
     key: 'risky_business',
