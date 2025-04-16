@@ -132,6 +132,18 @@ resource firewallPolicies 'Microsoft.Network/frontdoorwebapplicationfirewallpoli
               ]
               exclusions: []
             }
+            {
+              ruleGroupName: 'RFI'
+              rules: [
+                {
+                  ruleId: '931130'
+                  enabledState: 'Disabled'
+                  action: 'AnomalyScoring'
+                  exclusions: []
+                }
+              ]
+              exclusions: []
+            }
           ]
           exclusions: []
         }
