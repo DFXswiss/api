@@ -63,7 +63,7 @@
       },
       "self_employed_description": { "title": "Empresario", "description": "¿A qué se dedica exactamente?" },
       "privatier_description": { "title": "Empresario", "description": "¿Cómo surgió?" },
-      "sector_description": { "title": "Sector", "description": "¿Cómo se llama su sector?" },
+      "sector_description": { "title": "Sector", "description": "¿Cómo se llama el sector?" },
       "risky_business_description": {
         "title": "Actividades empresariales de riesgo",
         "description": "¿Cómo exactamente?"

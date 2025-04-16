@@ -66,7 +66,7 @@
         "description": "Cosa fa esattamente per vivere?"
       },
       "privatier_description": { "title": "Datore di lavoro", "description": "Come siete arrivati a?" },
-      "sector_description": { "title": "Settore", "description": "Com'è il nome del vostro settore?" },
+      "sector_description": { "title": "Settore", "description": "Com'è il nome del settore?" },
       "risky_business_description": {
         "title": "Attività commerciali a rischio",
         "description": "Come esattamente?"
