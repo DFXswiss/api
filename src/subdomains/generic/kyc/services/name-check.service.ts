@@ -4,7 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { In, IsNull } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -38,25 +38,21 @@ export class NameCheckService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.NAME_CHECK_PDF_SYNC, timeout: 1800 })
   async syncNameCheckPdf(): Promise<void> {
-    const idsWithBankData = await this.nameCheckLogRepo
-      .createQueryBuilder('nameCheckLog')
-      .select('MIN(nameCheckLog.id)', 'minId')
-      .leftJoin('nameCheckLog.file', 'file')
-      .where('nameCheckLog.bankDataId IS NOT NULL')
-      .groupBy('nameCheckLog.bankDataId')
-      .addGroupBy('file.id')
-      .orderBy('file.id', 'DESC')
-      .getRawMany();
-
     const entities = await this.nameCheckLogRepo.find({
-      where: { id: In(idsWithBankData.map((i) => i.minId)), file: { id: IsNull() }, synced: IsNull() },
+      where: { file: { id: IsNull() }, synced: IsNull() },
       relations: { bankData: { userData: true }, file: true },
       take: 15000,
     });
 
     for (const entity of entities) {
       try {
-        await this.refreshRiskStatus(entity.bankData);
+        if (
+          !(await this.nameCheckLogRepo.exists({
+            where: { bankData: { id: entity.bankData.id }, file: { id: Not(IsNull()) } },
+            relations: { bankData: true, file: true },
+          }))
+        )
+          await this.refreshRiskStatus(entity.bankData);
         await this.nameCheckLogRepo.update(entity.id, { synced: true });
       } catch (e) {
         this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
