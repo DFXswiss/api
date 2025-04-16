@@ -42,7 +42,7 @@ export class SwissQRService {
 
   async createInvoice(
     amount: number,
-    currency: 'CHF',
+    currency: 'CHF' | 'EUR',
     reference: string,
     bankInfo: BankInfoDto,
     request: TransactionRequest,
@@ -291,7 +291,7 @@ export class SwissQRService {
 
   private generateQrData(
     amount: number,
-    currency: 'CHF',
+    currency: 'CHF' | 'EUR',
     reference: string,
     bankInfo: BankInfoDto,
     request?: TransactionRequest,

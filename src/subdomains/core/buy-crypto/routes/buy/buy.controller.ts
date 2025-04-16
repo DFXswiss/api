@@ -170,7 +170,9 @@ export class BuyController {
       userData: request.user.userData,
     });
 
-    if (currency.name !== 'CHF') throw new Error('PDF invoice is only available for CHF payments');
+    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
+      throw new Error('PDF invoice is only available for CHF payments');
+    }
 
     return {
       invoicePdf: await this.swissQrService.createInvoice(
