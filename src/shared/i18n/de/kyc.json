@@ -72,8 +72,10 @@
       "yes": "Ja",
       "no": "Nein",
       "accept": "Akzeptieren",
+
       "yes_risky_business": "Ja (risikobehaftet)",
       "no_risky_business": "Nein (nicht risikobehaftet)",
+
       "employment_income": "Einkünfte aus unselbständiger Tätigkeit",
       "real_estate_sale": "Verkauf von Immobilien",
       "share_sale": "Verkauf von Aktien oder anderen Kapitalanlagen",
@@ -84,6 +86,10 @@
       "gift": "Schenkung / Spende",
       "pension": "Pensionsfonds / Rente",
       "gambling": "Glücksspiel-Gewinne",
+      "operations": "Operativer Betrieb",
+      "company_share_sale": "Verkauf von Unternehmensanteilen",
+      "company_asset_sale": "Verkauf von Unternehmensvermögen",
+      "capital_increase": "Kapitalerhöhung",
 
       "apprentice": "In Ausbildung",
       "employed": "Angestellt",

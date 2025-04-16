@@ -49,6 +49,13 @@ export const FinancialQuestions: FinancialQuestion[] = [
       'pension',
       'gambling',
     ],
+    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL],
+  },
+  {
+    key: 'source_of_funds_organization',
+    type: QuestionType.MULTIPLE_CHOICE,
+    options: ['operations', 'loan', 'company_share_sale', 'company_asset_sale', 'capital_increase'],
+    accountTypes: [AccountType.ORGANIZATION],
   },
   {
     key: 'operative',

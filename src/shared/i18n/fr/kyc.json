@@ -69,6 +69,7 @@
       "yes": "Oui",
       "no": "Non",
       "accept": "Accepter",
+
       "yes_risky_business": "Oui (risqué)",
       "no_risky_business": "Non (pas de risque)",
 
@@ -82,6 +83,10 @@
       "gift": "Cadeau / Donation",
       "pension": "Fonds de pension / pension",
       "gambling": "Gains de jeu",
+      "operations": "Exploitation opérationnelle",
+      "company_share_sale": "Vente de parts de l'entreprise",
+      "company_asset_sale": "Vente d'actifs de l'entreprise",
+      "capital_increase": "Augmentation de capital",
 
       "apprentice": "En formation",
       "employed": "Employé",

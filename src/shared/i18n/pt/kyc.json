@@ -30,6 +30,7 @@
       "yes": "Yes",
       "no": "No",
       "accept": "Accept",
+
       "yes_risky_business": "Yes (risky)",
       "no_risky_business": "No (not risky)",
 
@@ -43,6 +44,10 @@
       "gift": "Donation / Donation",
       "pension": "Pension fund / pension",
       "gambling": "Gambling winnings",
+      "operations": "Operational business",
+      "company_share_sale": "Sale of company shares",
+      "company_asset_sale": "Sale of company assets",
+      "capital_increase": "Capital increase",
 
       "apprentice": "In training",
       "employed": "Employed",
