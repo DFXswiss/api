@@ -74,6 +74,13 @@ export class Configuration {
     '1': ['CH'],
   };
 
+  processing = {
+    fiatOutput: {
+      bankPuffer: 100,
+      batchAmountLimit: 9500,
+    },
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 

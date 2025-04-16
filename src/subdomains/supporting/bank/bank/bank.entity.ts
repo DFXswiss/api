@@ -1,4 +1,5 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Column, Entity, Index, JoinColumn, OneToOne } from 'typeorm';
 import { IEntity } from '../../../../shared/models/entity';
 import { IbanBankName } from './dto/bank.dto';
 
@@ -28,4 +29,8 @@ export class Bank extends IEntity {
 
   @Column({ default: true })
   amlEnabled: boolean;
+
+  @OneToOne(() => Bank, { nullable: true })
+  @JoinColumn()
+  asset: Asset;
 }
