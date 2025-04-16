@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
-import { SwissQRBill, Table } from 'swissqrbill/pdf';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
 import { TransactionRequest } from '../entities/transaction-request.entity';
+import { Transaction } from '../entities/transaction.entity';
 
 const dfxLogoBall1 =
   'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
@@ -36,18 +39,18 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): string {
-    const data = this.generateQrData(amount, currency, reference, bankInfo, request);
+    const data = this.generateQrData(amount, currency, reference, bankInfo, request.user.userData);
     return new SwissQRCode(data).toString();
   }
 
-  async createInvoice(
+  async createInvoiceFromRequest(
     amount: number,
     currency: 'CHF' | 'EUR',
     reference: string,
     bankInfo: BankInfoDto,
     request: TransactionRequest,
   ): Promise<string> {
-    const data = this.generateQrData(amount, currency, reference, bankInfo, request);
+    const data = this.generateQrData(amount, currency, reference, bankInfo, request.user.userData);
 
     if (!data.debtor) {
       throw new Error('Debtor is required');
@@ -59,6 +62,42 @@ export class SwissQRService {
     const asset = await this.assetService.getAssetById(request.targetId);
     const assetAmount = request.estimatedAmount;
 
+    return this.generatePdfInvoice(data, language, asset, assetAmount, amount, currency, request.id);
+  }
+
+  async createInvoiceFromTx(
+    amount: number,
+    currency: 'CHF' | 'EUR',
+    reference: string,
+    bankInfo: BankInfoDto,
+    transaction: Transaction,
+  ): Promise<string> {
+    const data = this.generateQrData(amount, currency, reference, bankInfo, transaction.user.userData);
+
+    if (!data.debtor) {
+      throw new Error('Debtor is required');
+    }
+
+    const userLanguage = transaction.user.userData.language.symbol.toUpperCase();
+    const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
+
+    const asset = transaction.buyCrypto.outputAsset;
+    const assetAmount = transaction.buyCrypto.outputAmount;
+
+    if (!transaction.buyCrypto.outputAsset) throw new Error('Transaction is not a buy transaction');
+    return this.generatePdfInvoice(data, language, asset, assetAmount, amount, currency, transaction.uid, false);
+  }
+
+  private generatePdfInvoice(
+    data: QrBillData,
+    language: string,
+    asset: Asset,
+    assetAmount: number,
+    amount: number,
+    currency: 'CHF' | 'EUR',
+    invoiceId: number | string,
+    includeQrBill = true,
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4' });
@@ -124,7 +163,7 @@ export class SwissQRService {
         // Title
         pdf.fontSize(14);
         pdf.font('Helvetica-Bold');
-        pdf.text(this.translate('invoice.title', language, { invoiceId: request.id }), mm2pt(20), mm2pt(100), {
+        pdf.text(this.translate('invoice.title', language, { invoiceId }), mm2pt(20), mm2pt(100), {
           align: 'left',
           width: mm2pt(170),
         });
@@ -139,139 +178,139 @@ export class SwissQRService {
         });
 
         // Table
-        const table = new Table({
-          rows: [
-            {
-              backgroundColor: '#4A4D51',
-              columns: [
-                {
-                  text: this.translate('invoice.table.headers.quantity', language),
-                  width: mm2pt(40),
-                },
-                {
-                  text: this.translate('invoice.table.headers.description', language),
-                },
-                {
-                  text: this.translate('invoice.table.headers.total', language),
-                  width: mm2pt(30),
-                },
-              ],
-              fontName: 'Helvetica-Bold',
-              height: 20,
-              padding: 5,
-              textColor: '#fff',
-              verticalAlign: 'center',
-            },
-            {
-              columns: [
-                {
-                  text: `${assetAmount}`,
-                  width: mm2pt(40),
-                },
-                {
-                  text: this.translate('invoice.table.position_row.description', language, {
-                    assetDescription: asset.description,
-                    assetName: asset.name,
-                    assetBlockchain: asset.blockchain,
-                  }),
-                },
-                {
-                  text: `${currency} ${amount.toFixed(2)}`,
-                  width: mm2pt(30),
-                },
-              ],
-              padding: 5,
-            },
-            {
-              columns: [
-                {
-                  text: '',
-                  width: mm2pt(40),
-                },
-                {
-                  fontName: 'Helvetica-Bold',
-                  text: this.translate('invoice.table.total_row.total_label', language),
-                },
-                {
-                  fontName: 'Helvetica-Bold',
-                  text: `${currency} ${amount.toFixed(2)}`,
-                  width: mm2pt(30),
-                },
-              ],
-              height: 40,
-              padding: 5,
-            },
-            {
-              columns: [
-                {
-                  text: '',
-                  width: mm2pt(40),
-                },
-                {
-                  text: this.translate('invoice.table.vat_row.vat_label', language),
-                },
-                {
-                  text: '0%',
-                  width: mm2pt(30),
-                },
-              ],
-              padding: 5,
-            },
-            {
-              columns: [
-                {
-                  text: '',
-                  width: mm2pt(40),
-                },
-                {
-                  text: this.translate('invoice.table.vat_row.vat_amount_label', language),
-                },
-                {
-                  text: `${currency} 0.00`,
-                  width: mm2pt(30),
-                },
-              ],
-              padding: 5,
-            },
-            {
-              columns: [
-                {
-                  text: '',
-                  width: mm2pt(40),
-                },
-                {
-                  fontName: 'Helvetica-Bold',
-                  text: this.translate('invoice.table.invoice_total_row.invoice_total_label', language),
-                },
-                {
-                  fontName: 'Helvetica-Bold',
-                  text: `${currency} ${amount.toFixed(2)}`,
-                  width: mm2pt(30),
-                },
-              ],
-              height: 40,
-              padding: 5,
-            },
-            {
-              columns: [
-                {
-                  text: this.translate('invoice.info', language),
-                  textOptions: { oblique: true, lineGap: 2 },
-                  fontSize: 10,
-                  width: mm2pt(170),
-                },
-              ],
-            },
-          ],
-          width: mm2pt(170),
-        });
+        const rows: PDFRow[] = [
+          {
+            backgroundColor: '#4A4D51',
+            columns: [
+              {
+                text: this.translate('invoice.table.headers.quantity', language),
+                width: mm2pt(40),
+              },
+              {
+                text: this.translate('invoice.table.headers.description', language),
+              },
+              {
+                text: this.translate('invoice.table.headers.total', language),
+                width: mm2pt(30),
+              },
+            ],
+            fontName: 'Helvetica-Bold',
+            height: 20,
+            padding: 5,
+            textColor: '#fff',
+            verticalAlign: 'center',
+          },
+          {
+            columns: [
+              {
+                text: `${assetAmount}`,
+                width: mm2pt(40),
+              },
+              {
+                text: this.translate('invoice.table.position_row.description', language, {
+                  assetDescription: asset.description ?? asset.name,
+                  assetName: asset.name,
+                  assetBlockchain: asset.blockchain,
+                }),
+              },
+              {
+                text: `${currency} ${amount.toFixed(2)}`,
+                width: mm2pt(30),
+              },
+            ],
+            padding: 5,
+          },
+          {
+            columns: [
+              {
+                text: '',
+                width: mm2pt(40),
+              },
+              {
+                fontName: 'Helvetica-Bold',
+                text: this.translate('invoice.table.total_row.total_label', language),
+              },
+              {
+                fontName: 'Helvetica-Bold',
+                text: `${currency} ${amount.toFixed(2)}`,
+                width: mm2pt(30),
+              },
+            ],
+            height: 40,
+            padding: 5,
+          },
+          {
+            columns: [
+              {
+                text: '',
+                width: mm2pt(40),
+              },
+              {
+                text: this.translate('invoice.table.vat_row.vat_label', language),
+              },
+              {
+                text: '0%',
+                width: mm2pt(30),
+              },
+            ],
+            padding: 5,
+          },
+          {
+            columns: [
+              {
+                text: '',
+                width: mm2pt(40),
+              },
+              {
+                text: this.translate('invoice.table.vat_row.vat_amount_label', language),
+              },
+              {
+                text: `${currency} 0.00`,
+                width: mm2pt(30),
+              },
+            ],
+            padding: 5,
+          },
+          {
+            columns: [
+              {
+                text: '',
+                width: mm2pt(40),
+              },
+              {
+                fontName: 'Helvetica-Bold',
+                text: this.translate('invoice.table.invoice_total_row.invoice_total_label', language),
+              },
+              {
+                fontName: 'Helvetica-Bold',
+                text: `${currency} ${amount.toFixed(2)}`,
+                width: mm2pt(30),
+              },
+            ],
+            height: 40,
+            padding: 5,
+          },
+        ];
 
         // QR-Bill
-        const qrBill = new SwissQRBill(data, { language });
+        let qrBill: SwissQRBill = null;
+        if (includeQrBill) {
+          rows.push({
+            columns: [
+              {
+                text: this.translate('invoice.info', language),
+                textOptions: { oblique: true, lineGap: 2 },
+                fontSize: 10,
+                width: mm2pt(170),
+              },
+            ],
+          });
+          qrBill = new SwissQRBill(data, { language: language as SupportedInvoiceLanguage });
+        }
 
-        // Attach to PDF
+        const table = new Table({ rows, width: mm2pt(170) });
         table.attachTo(pdf);
-        qrBill.attachTo(pdf);
+        qrBill?.attachTo(pdf);
 
         pdf.end();
       } catch (error) {
@@ -294,14 +333,14 @@ export class SwissQRService {
     currency: 'CHF' | 'EUR',
     reference: string,
     bankInfo: BankInfoDto,
-    request?: TransactionRequest,
+    userData?: UserData,
   ): QrBillData {
     return {
       amount,
       currency,
       message: reference,
       creditor: this.getCreditor(bankInfo),
-      debtor: this.getDebtor(request),
+      debtor: this.getDebtor(userData),
     };
   }
 
@@ -317,11 +356,11 @@ export class SwissQRService {
     };
   }
 
-  private getDebtor(request: TransactionRequest): Debtor | undefined {
-    if (!request?.user.userData.isDataComplete) return undefined;
+  private getDebtor(userData?: UserData): Debtor | undefined {
+    if (!userData?.isDataComplete) return undefined;
 
-    const name = request.user.userData.completeName;
-    const address = request.user.userData.address;
+    const name = userData.completeName;
+    const address = userData.address;
 
     const debtor: Debtor = {
       name,

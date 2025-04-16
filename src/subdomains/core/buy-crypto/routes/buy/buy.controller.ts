@@ -29,6 +29,7 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -54,6 +55,7 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly transactionService: TransactionService,
     private readonly fiatService: FiatService,
     private readonly swissQrService: SwissQRService,
   ) {}
@@ -171,16 +173,55 @@ export class BuyController {
     });
 
     if (currency.name !== 'CHF' && currency.name !== 'EUR') {
-      throw new Error('PDF invoice is only available for CHF payments');
+      throw new Error('PDF invoice is only available for CHF and EUR payments');
     }
 
     return {
-      invoicePdf: await this.swissQrService.createInvoice(
+      invoicePdf: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
         buy.bankUsage,
         bankInfo,
         request,
+      ),
+    };
+  }
+
+  @Put('/transaction/:id/invoice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @ApiOkResponse({ type: InvoiceDto })
+  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
+    const transaction = await this.transactionService.getTransactionById(+id, {
+      user: { userData: true },
+      buyCrypto: { outputAsset: true, buy: true },
+    });
+
+    if (!transaction) throw new BadRequestException('Transaction not found');
+    if (!transaction.buyCrypto) throw new BadRequestException('Transaction is not a buy transaction');
+    if (!transaction.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+
+    const buy = transaction.buyCrypto.buy;
+    const currency = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+    const bankInfo = await this.buyService.getBankInfo({
+      amount: transaction.buyCrypto.inputAmount,
+      currency: currency.name,
+      paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+      userData: transaction.user.userData,
+    });
+
+    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
+      throw new Error('PDF invoice is only available for CHF and EUR payments');
+    }
+    if (!buy) throw new BadRequestException('Buy route not found');
+
+    return {
+      invoicePdf: await this.swissQrService.createInvoiceFromTx(
+        transaction.buyCrypto.inputAmount,
+        currency.name,
+        buy.bankUsage,
+        bankInfo,
+        transaction,
       ),
     };
   }
