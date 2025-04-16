@@ -14,6 +14,10 @@
         "title": "Origen de los activos que se van a invertir",
         "description": "¿De dónde procede la mayor parte del dinero?"
       },
+      "source_of_funds_organization": {
+        "title": "Origen de los activos que se van a invertir",
+        "description": "¿De dónde procede la mayor parte del dinero?"
+      },
       "area": {
         "title": "Área autónomos",
         "description": "¿En qué sector trabaja por cuenta propia? Describa su actividad y sus clientes en 2-3 frases."

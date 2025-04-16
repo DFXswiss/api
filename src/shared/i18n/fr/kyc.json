@@ -14,6 +14,10 @@
         "title": "Origine des actifs à investir",
         "description": "D'où vient l'essentiel de l'argent ?"
       },
+      "source_of_funds_organization": {
+        "title": "Origine des actifs à investir",
+        "description": "D'où vient l'essentiel de l'argent ?"
+      },
       "area": {
         "title": "Zone d'activité des travailleurs indépendants",
         "description": "Dans quel domaine exercez-vous une activité indépendante ? Veuillez décrire votre activité et vos clients en 2 ou 3 phrases."

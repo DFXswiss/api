@@ -14,6 +14,10 @@
         "title": "Source of the assets to be invested",
         "description": "Where does most of the money come from?"
       },
+      "source_of_funds_organization": {
+        "title": "Source of the assets to be invested",
+        "description": "Where does most of the money come from?"
+      },
       "area": {
         "title": "Area self-employed",
         "description": "In which area are you self-employed? Please describe your activity and customers in 2-3 sentences."

@@ -14,6 +14,10 @@
         "title": "Quelle der zu investierenden Vermögenswerte",
         "description": "Woher stammt der Grossteil des Geldes?"
       },
+      "source_of_funds_organization": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Woher stammt der Grossteil des Geldes?"
+      },
       "occupation": {
         "title": "Berufliche Tätigkeit",
         "description": "Wie beschreibst Du Deine berufliche Tätigkeit?"
