@@ -412,7 +412,7 @@ export abstract class EvmClient extends BlockchainClient {
   async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
     const [token1, token2] = await this.getTokenPair(asset1, asset2);
 
-    return Pool.getAddress(token1, token2, poolFee);
+    return Pool.getAddress(token1, token2, poolFee, undefined, this.swapFactoryAddress);
   }
 
   async testSwap(
@@ -441,7 +441,9 @@ export abstract class EvmClient extends BlockchainClient {
 
     const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
-    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const poolContract = this.getPoolContract(
+      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
+    );
 
     const token0IsInToken = sourceToken.address === (await poolContract.token0());
     const slot0 = await poolContract.slot0();
@@ -503,7 +505,9 @@ export abstract class EvmClient extends BlockchainClient {
     gasEstimate: EthersNumber;
     route: Route<Token, Token>;
   }> {
-    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const poolContract = this.getPoolContract(
+      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
+    );
     const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
 
     // create route
@@ -579,7 +583,9 @@ export abstract class EvmClient extends BlockchainClient {
   async sqrtX96Price(price: number, source: Asset, target: Asset, poolFee: FeeAmount): Promise<number> {
     const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
-    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const poolContract = this.getPoolContract(
+      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
+    );
     const token0IsInToken = sourceToken.address === (await poolContract.token0());
     const [token0, token1] = token0IsInToken ? [sourceToken, targetToken] : [targetToken, sourceToken];
 
