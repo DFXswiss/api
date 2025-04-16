@@ -268,8 +268,8 @@ export class KycService {
 
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
-    if (kycFile.protected && role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Requires admin role');
+    if (kycFile.protected && [UserRole.ADMIN, UserRole.COMPLIANCE].includes(role)) {
+      throw new ForbiddenException('Requires admin or compliance role');
     }
 
     const blob = await this.documentService.downloadFile(

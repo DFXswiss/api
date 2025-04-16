@@ -45,4 +45,5 @@ export interface LogCleanupSetting {
   system: string;
   subsystem: string;
   saveDays: number;
+  keepOnePerDay: boolean;
 }
