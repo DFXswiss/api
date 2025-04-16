@@ -572,6 +572,7 @@ export class Configuration {
       baseApiKey: process.env.ALCHEMY_API_KEY,
       baseChainId: +process.env.BASE_CHAIN_ID,
       swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
+      swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {

@@ -40,3 +40,5 @@ Container Apps are:
 ### Note:
 
 After the first setup, a private endpoint is created. This endpoint can be found in the network part of the container apps environment and `must be approved manually`.
+
+The firewall policies are initial in `detection` mode. After manually checking that the rules are all working, the mode must be manually set to `prevention`.

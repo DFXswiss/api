@@ -14,6 +14,10 @@
         "title": "Fonte del patrimonio da investire Fonte del patrimonio da investire",
         "description": "Da dove proviene la maggior parte del denaro?"
       },
+      "source_of_funds_organization": {
+        "title": "Fonte del patrimonio da investire Fonte del patrimonio da investire",
+        "description": "Da dove proviene la maggior parte del denaro?"
+      },
       "area": {
         "title": "Area lavoratori autonomi",
         "description": "In quale settore svolge un'attività autonoma? Descrivete la vostra attività e i vostri clienti in 2-3 frasi."
@@ -23,9 +27,9 @@
         "description": "L'azienda è operativa?"
       },
       "occupation": { "title": "Attività professionale", "description": "Come descriverebbe il suo lavoro?" },
-      "employer": {
+      "employed_description": {
         "title": "Datore di lavoro",
-        "description": "Qual è il nome del vostro datore di lavoro? Per le persone che non hanno un rapporto di lavoro, qual è il nome dell'università, della scuola o, per i pensionati, i disoccupati e i cassaintegrati, il nome dell'ultimo datore di lavoro."
+        "description": "Qual è il nome del vostro datore di lavoro?"
       },
       "sector": { "title": "Filiale", "description": "In quale settore lavora o ha lavorato l'ultima volta?" },
       "sector_organization": {
@@ -62,7 +66,7 @@
         "description": "Cosa fa esattamente per vivere?"
       },
       "privatier_description": { "title": "Datore di lavoro", "description": "Come siete arrivati a?" },
-      "sector_description": { "title": "Settore", "description": "Com'è il nome del vostro settore?" },
+      "sector_description": { "title": "Settore", "description": "Com'è il nome del settore?" },
       "risky_business_description": {
         "title": "Attività commerciali a rischio",
         "description": "Come esattamente?"
@@ -72,6 +76,7 @@
       "yes": "Sì",
       "no": "No",
       "accept": "Accettare",
+
       "yes_risky_business": "Sì (rischioso)",
       "no_risky_business": "No (non è rischioso)",
 
@@ -85,6 +90,10 @@
       "gift": "Dono / Donazione",
       "pension": "Fondo pensione / pensione",
       "gambling": "Vincite al gioco d'azzardo",
+      "operations": "Attività operativa",
+      "company_share_sale": "Vendita di quote societarie",
+      "company_asset_sale": "Vendita di beni aziendali",
+      "capital_increase": "Aumento di capitale",
 
       "apprentice": "In formazione",
       "employed": "Impiegato",

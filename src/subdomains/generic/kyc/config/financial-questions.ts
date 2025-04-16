@@ -6,10 +6,10 @@ export interface FinancialQuestion {
   type: QuestionType;
   options?: string[];
   accountTypes?: AccountType[];
-  condition?: {
+  conditions?: {
     question: string;
     response: string;
-  };
+  }[];
 }
 
 export function getFinancialQuestions(accountType: AccountType): FinancialQuestion[] {
@@ -49,6 +49,13 @@ export const FinancialQuestions: FinancialQuestion[] = [
       'pension',
       'gambling',
     ],
+    accountTypes: [AccountType.SOLE_PROPRIETORSHIP, AccountType.PERSONAL],
+  },
+  {
+    key: 'source_of_funds_organization',
+    type: QuestionType.MULTIPLE_CHOICE,
+    options: ['operations', 'loan', 'company_share_sale', 'company_asset_sale', 'capital_increase'],
+    accountTypes: [AccountType.ORGANIZATION],
   },
   {
     key: 'operative',
@@ -67,55 +74,75 @@ export const FinancialQuestions: FinancialQuestion[] = [
     options: ['apprentice', 'employed', 'employed_management', 'self_employed', 'unemployed', 'retired', 'privatier'],
     accountTypes: [AccountType.PERSONAL],
   },
-  // {
-  //   key: 'retired_description',
-  //   type: QuestionType.TEXT,
-  //   accountTypes: [AccountType.PERSONAL],
-  //   condition: {
-  //     question: 'occupation',
-  //     response: 'retired',
-  //   },
-  // },
-  // {
-  //   key: 'unemployed_description',
-  //   type: QuestionType.TEXT,
-  //   accountTypes: [AccountType.PERSONAL],
-  //   condition: {
-  //     question: 'occupation',
-  //     response: 'unemployed',
-  //   },
-  // },
-  // {
-  //   key: 'apprentice_description',
-  //   type: QuestionType.TEXT,
-  //   accountTypes: [AccountType.PERSONAL],
-  //   condition: {
-  //     question: 'occupation',
-  //     response: 'apprentice',
-  //   },
-  // },
-  // {
-  //   key: 'self_employed_description',
-  //   type: QuestionType.TEXT,
-  //   accountTypes: [AccountType.PERSONAL],
-  //   condition: {
-  //     question: 'occupation',
-  //     response: 'self_employed',
-  //   },
-  // },
-  // {
-  //   key: 'privatier_description',
-  //   type: QuestionType.TEXT,
-  //   accountTypes: [AccountType.PERSONAL],
-  //   condition: {
-  //     question: 'occupation',
-  //     response: 'privatier',
-  //   },
-  // },
   {
-    key: 'employer',
+    key: 'apprentice_description',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'apprentice',
+      },
+    ],
+  },
+  {
+    key: 'employed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'employed',
+      },
+      {
+        question: 'occupation',
+        response: 'employed_management',
+      },
+    ],
+  },
+  {
+    key: 'self_employed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'self_employed',
+      },
+    ],
+  },
+  {
+    key: 'unemployed_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'unemployed',
+      },
+    ],
+  },
+  {
+    key: 'retired_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'retired',
+      },
+    ],
+  },
+  {
+    key: 'privatier_description',
+    type: QuestionType.TEXT,
+    accountTypes: [AccountType.PERSONAL],
+    conditions: [
+      {
+        question: 'occupation',
+        response: 'privatier',
+      },
+    ],
   },
   {
     key: 'sector',
@@ -146,15 +173,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     ],
     accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
   },
-  // {
-  //   key: 'sector_description',
-  //   type: QuestionType.TEXT,
-  //   accountTypes: [AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP],
-  //   condition: {
-  //     question: 'sector',
-  //     response: 'other',
-  //   },
-  // },
   {
     key: 'sector_organization',
     type: QuestionType.SINGLE_CHOICE,
@@ -185,6 +203,20 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.ORGANIZATION],
   },
   {
+    key: 'sector_description',
+    type: QuestionType.TEXT,
+    conditions: [
+      {
+        question: 'sector',
+        response: 'other',
+      },
+      {
+        question: 'sector_organization',
+        response: 'other',
+      },
+    ],
+  },
+  {
     key: 'risky_business',
     type: QuestionType.SINGLE_CHOICE,
     options: ['yes_risky_business', 'no_risky_business'],
@@ -196,22 +228,20 @@ export const FinancialQuestions: FinancialQuestion[] = [
     options: ['yes_risky_business', 'no_risky_business'],
     accountTypes: [AccountType.ORGANIZATION],
   },
-  // {
-  //   key: 'risky_business_description',
-  //   type: QuestionType.TEXT,
-  //   condition: {
-  //     question: 'risky_business',
-  //     response: 'yes',
-  //   },
-  // },
-  // {
-  //   key: 'risky_business_description',
-  //   type: QuestionType.TEXT,
-  //   condition: {
-  //     question: 'risky_business',
-  //     response: 'yes',
-  //   },
-  // },
+  {
+    key: 'risky_business_description',
+    type: QuestionType.TEXT,
+    conditions: [
+      {
+        question: 'risky_business',
+        response: 'yes_risky_business',
+      },
+      {
+        question: 'risky_business_organization',
+        response: 'yes_risky_business',
+      },
+    ],
+  },
   {
     key: 'income',
     type: QuestionType.SINGLE_CHOICE,

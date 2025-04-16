@@ -21,6 +21,7 @@ export class BuyCryptoWebhookService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
+        chargebackOutput: true,
       },
     });
     if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');

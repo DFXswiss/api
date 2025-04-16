@@ -513,7 +513,7 @@ export class TransactionController {
     accountId?: number,
   ): Promise<Transaction | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true },
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true, chargebackOutput: true },
       buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },

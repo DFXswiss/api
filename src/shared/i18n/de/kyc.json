@@ -14,6 +14,10 @@
         "title": "Quelle der zu investierenden Vermögenswerte",
         "description": "Woher stammt der Grossteil des Geldes?"
       },
+      "source_of_funds_organization": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Woher stammt der Grossteil des Geldes?"
+      },
       "occupation": {
         "title": "Berufliche Tätigkeit",
         "description": "Wie beschreibst Du Deine berufliche Tätigkeit?"
@@ -24,11 +28,11 @@
       },
       "operative": {
         "title": "Organisation",
-        "description": "Ist die Firma Operativ tätig?"
+        "description": "Ist die Firma operativ tätig?"
       },
-      "employer": {
+      "employed_description": {
         "title": "Arbeitgeber",
-        "description": "Wie lautet der Name Deines Arbeitgebers? Bei Personen ohne Arbeitsverhältnis der Name der Uni, Schule oder bei Pensionären, Arbeitslosen und Rentnern der Name des letzten Arbeitgebers."
+        "description": "Wie lautet der Name Deines Arbeitgebers?"
       },
       "sector": {
         "title": "Branche",
@@ -62,7 +66,7 @@
       "apprentice_description": { "title": "Berufliche Tätigkeit", "description": "Wie heißt deine Uni/Schule?" },
       "self_employed_description": { "title": "Berufliche Tätigkeit", "description": "Was arbeitest du denn genau?" },
       "privatier_description": { "title": "Berufliche Tätigkeit", "description": "Wie bist du dazu gekommen?" },
-      "sector_description": { "title": "Branche", "description": "Wie heißt deine Branche?" },
+      "sector_description": { "title": "Branche", "description": "Wie heißt die Branche?" },
       "risky_business_description": {
         "title": "Risikobehaftete Geschäftstätigkeiten",
         "description": "Wie denn genau?"
@@ -72,8 +76,10 @@
       "yes": "Ja",
       "no": "Nein",
       "accept": "Akzeptieren",
+
       "yes_risky_business": "Ja (risikobehaftet)",
       "no_risky_business": "Nein (nicht risikobehaftet)",
+
       "employment_income": "Einkünfte aus unselbständiger Tätigkeit",
       "real_estate_sale": "Verkauf von Immobilien",
       "share_sale": "Verkauf von Aktien oder anderen Kapitalanlagen",
@@ -84,6 +90,10 @@
       "gift": "Schenkung / Spende",
       "pension": "Pensionsfonds / Rente",
       "gambling": "Glücksspiel-Gewinne",
+      "operations": "Operativer Betrieb",
+      "company_share_sale": "Verkauf von Unternehmensanteilen",
+      "company_asset_sale": "Verkauf von Unternehmensvermögen",
+      "capital_increase": "Kapitalerhöhung",
 
       "apprentice": "In Ausbildung",
       "employed": "Angestellt",

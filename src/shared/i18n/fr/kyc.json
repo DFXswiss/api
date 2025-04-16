@@ -14,6 +14,10 @@
         "title": "Origine des actifs à investir",
         "description": "D'où vient l'essentiel de l'argent ?"
       },
+      "source_of_funds_organization": {
+        "title": "Origine des actifs à investir",
+        "description": "D'où vient l'essentiel de l'argent ?"
+      },
       "area": {
         "title": "Zone d'activité des travailleurs indépendants",
         "description": "Dans quel domaine exercez-vous une activité indépendante ? Veuillez décrire votre activité et vos clients en 2 ou 3 phrases."
@@ -23,9 +27,9 @@
         "description": "L'entreprise est-elle opérationnelle ?"
       },
       "occupation": { "title": "Activité professionnelle", "description": "Comment décririez-vous votre travail ?" },
-      "employer": {
+      "employed_description": {
         "title": "Employeur",
-        "description": "Quel est le nom de votre employeur ? Pour les personnes sans relation de travail, quel est le nom de votre université, de votre école ou, pour les retraités, les chômeurs et les pensionnés, le nom de votre dernier employeur."
+        "description": "Quel est le nom de votre employeur ?"
       },
       "sector": {
         "title": "L'industrie",
@@ -59,7 +63,7 @@
       "apprentice_description": { "title": "Employer", "description": "Quel est le nom de votre université?" },
       "self_employed_description": { "title": "Employer", "description": "Que faites-vous exactement dans la vie?" },
       "privatier_description": { "title": "Employer", "description": "Comment en êtes-vous arrivé là ?" },
-      "sector_description": { "title": "Sector", "description": "Quel est le nom de votre secteur ?" },
+      "sector_description": { "title": "Sector", "description": "Quel est le nom du secteur ?" },
       "risky_business_description": {
         "title": "Activités commerciales à risque",
         "description": "Comment cela se fait-il ?"
@@ -69,6 +73,7 @@
       "yes": "Oui",
       "no": "Non",
       "accept": "Accepter",
+
       "yes_risky_business": "Oui (risqué)",
       "no_risky_business": "Non (pas de risque)",
 
@@ -82,6 +87,10 @@
       "gift": "Cadeau / Donation",
       "pension": "Fonds de pension / pension",
       "gambling": "Gains de jeu",
+      "operations": "Exploitation opérationnelle",
+      "company_share_sale": "Vente de parts de l'entreprise",
+      "company_asset_sale": "Vente d'actifs de l'entreprise",
+      "capital_increase": "Augmentation de capital",
 
       "apprentice": "En formation",
       "employed": "Employé",

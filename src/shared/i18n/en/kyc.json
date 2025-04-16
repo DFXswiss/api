@@ -14,6 +14,10 @@
         "title": "Source of the assets to be invested",
         "description": "Where does most of the money come from?"
       },
+      "source_of_funds_organization": {
+        "title": "Source of the assets to be invested",
+        "description": "Where does most of the money come from?"
+      },
       "area": {
         "title": "Area self-employed",
         "description": "In which area are you self-employed? Please describe your activity and customers in 2-3 sentences."
@@ -23,9 +27,9 @@
         "description": "Is the company operational?"
       },
       "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
-      "employer": {
+      "employed_description": {
         "title": "Employer",
-        "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer."
+        "description": "What is the name of your employer?"
       },
       "sector": { "title": "Branche", "description": "What industry do you work in or did you last work in?" },
       "sector_organization": {
@@ -56,7 +60,7 @@
       "apprentice_description": { "title": "Employer", "description": "What is the name of your university/school?" },
       "self_employed_description": { "title": "Employer", "description": "What exactly do you do for a living?" },
       "privatier_description": { "title": "Employer", "description": "How did you come about?" },
-      "sector_description": { "title": "Sector", "description": "How is the name of your sector?" },
+      "sector_description": { "title": "Sector", "description": "How is the name of the sector?" },
       "risky_business_description": {
         "title": "Risky business activities",
         "description": "How exactly?"
@@ -66,6 +70,7 @@
       "yes": "Yes",
       "no": "No",
       "accept": "Accept",
+
       "yes_risky_business": "Yes (risky)",
       "no_risky_business": "No (not risky)",
 
@@ -79,6 +84,10 @@
       "gift": "Gift / Donation",
       "pension": "Pension fund / pension",
       "gambling": "Gambling winnings",
+      "operations": "Operational business",
+      "company_share_sale": "Sale of company shares",
+      "company_asset_sale": "Sale of company assets",
+      "capital_increase": "Capital increase",
 
       "apprentice": "In training",
       "employed": "Employed",

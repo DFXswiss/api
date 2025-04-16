@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { IsNull } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -8,6 +12,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
 import { FileType } from '../dto/kyc-file.dto';
+import { KycFile } from '../entities/kyc-file.entity';
 import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
@@ -16,7 +21,7 @@ import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class NameCheckService implements OnModuleInit {
-  // private readonly logger = new DfxLogger(NameCheckService);
+  private readonly logger = new DfxLogger(NameCheckService);
 
   // private sanctionData: DilisenseJsonData[] = [];
 
@@ -29,6 +34,35 @@ export class NameCheckService implements OnModuleInit {
 
   onModuleInit() {
     // void this.reloadSanctionList();
+  }
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.NAME_CHECK_PDF_SYNC, timeout: 1800 })
+  async syncNameCheckPdf(): Promise<void> {
+    const idsWithBankData = await this.nameCheckLogRepo
+      .createQueryBuilder('nameCheckLog')
+      .select('MIN(nameCheckLog.id)', 'minId')
+      .leftJoin('nameCheckLog.file', 'file')
+      .where('nameCheckLog.bankDataId IS NOT NULL')
+      .groupBy('nameCheckLog.bankDataId')
+      .addGroupBy('file.id')
+      .orderBy('file.id', 'DESC')
+      .getRawMany();
+
+    const entities = await this.nameCheckLogRepo.find({
+      where: { id: In(idsWithBankData.map((i) => i.minId)), file: { id: IsNull() }, synced: IsNull() },
+      relations: { bankData: { userData: true }, file: true },
+      take: 15000,
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.refreshRiskStatus(entity.bankData);
+        await this.nameCheckLogRepo.update(entity.id, { synced: true });
+      } catch (e) {
+        this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
+        await this.nameCheckLogRepo.update(entity.id, { synced: false });
+      }
+    }
   }
 
   async updateLog(id: number, dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
@@ -50,7 +84,7 @@ export class NameCheckService implements OnModuleInit {
 
     // Personal name check
     if (bankData.userData.accountType !== AccountType.ORGANIZATION) {
-      const sanctionData = await this.getRiskDataAndUploadPdf(
+      const { data, file } = await this.getRiskDataAndUploadPdf(
         bankData.userData,
         bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
           ? bankData.userData.verifiedName
@@ -58,24 +92,24 @@ export class NameCheckService implements OnModuleInit {
         bankData.userData.birthday,
       );
 
-      return this.classifyRiskData(sanctionData, bankData);
+      return this.classifyRiskData(data, file, bankData);
     }
 
     // Business name check
-    const personalSanctionData = await this.getRiskDataAndUploadPdf(
+    const { data: personalSanctionData, file: personalSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
       `${bankData.userData.firstname} ${bankData.userData.surname}`,
       bankData.userData.birthday,
     );
 
-    const businessSanctionData = await this.getRiskDataAndUploadPdf(
+    const { data: businessSanctionData, file: businessSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
       bankData.userData.organizationName,
     );
 
     const riskStatus = [
-      await this.classifyRiskData(personalSanctionData, bankData),
-      await this.classifyRiskData(businessSanctionData, bankData, 'Business'),
+      await this.classifyRiskData(personalSanctionData, personalSanctionFile, bankData),
+      await this.classifyRiskData(businessSanctionData, businessSanctionFile, bankData, 'Business'),
     ];
 
     if (riskStatus.some((r) => r === RiskStatus.SANCTIONED) || riskStatus[1] === RiskStatus.MATCH_WITHOUT_BIRTHDAY)
@@ -86,16 +120,23 @@ export class NameCheckService implements OnModuleInit {
 
   private async classifyRiskData(
     sanctionData: DilisenseApiData,
+    file: KycFile,
     bankData: BankData,
     comment = '',
   ): Promise<RiskStatus> {
     if (sanctionData.total_hits == 0) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED, comment);
+      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED, file, comment);
       return RiskStatus.NOT_SANCTIONED;
     }
 
     if (sanctionData.found_records.every((s) => !s.date_of_birth?.length)) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.MATCH_WITHOUT_BIRTHDAY, comment);
+      await this.createNameCheckLog(
+        bankData,
+        JSON.stringify(sanctionData),
+        RiskStatus.MATCH_WITHOUT_BIRTHDAY,
+        file,
+        comment,
+      );
       return RiskStatus.MATCH_WITHOUT_BIRTHDAY;
     }
 
@@ -104,6 +145,7 @@ export class NameCheckService implements OnModuleInit {
         bankData,
         JSON.stringify(sanction),
         !sanction.date_of_birth?.length ? RiskStatus.MATCH_WITHOUT_BIRTHDAY : RiskStatus.SANCTIONED,
+        file,
         comment,
       );
     }
@@ -111,24 +153,27 @@ export class NameCheckService implements OnModuleInit {
     return RiskStatus.SANCTIONED;
   }
 
-  async getRiskDataAndUploadPdf(userData: UserData, name: string, dob?: Date): Promise<DilisenseApiData> {
+  async getRiskDataAndUploadPdf(
+    userData: UserData,
+    name: string,
+    dob?: Date,
+  ): Promise<{ data: DilisenseApiData; file: KycFile }> {
     const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, dob);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(`application/pdf;base64,${pdfData}`);
-    await this.documentService.uploadFile(
+    const { file } = await this.documentService.uploadFile(
       userData,
       FileType.NAME_CHECK,
-      `${Util.isoDate(new Date()).replace(/-/g, '')}-NameCheck-${userData.id}-${Util.isoTime(new Date()).replace(
-        /-/g,
-        '',
-      )}.pdf`,
+      `${Util.isoDate(new Date()).replace(/-/g, '')}-NameCheck-${userData.id}-${name.replace(/ /g, '-')}-${Util.isoTime(
+        new Date(),
+      ).replace(/-/g, '')}.pdf`,
       buffer,
       contentType as ContentType,
       true,
     );
 
-    return riskData;
+    return { data: riskData, file };
   }
 
   async closeAndRefreshRiskStatus(bankData: BankData): Promise<void> {
@@ -161,6 +206,7 @@ export class NameCheckService implements OnModuleInit {
     bankData: BankData,
     result: string,
     riskRate: RiskStatus,
+    file: KycFile,
     comment?: string,
   ): Promise<void> {
     const existing = await this.nameCheckLogRepo.findOne({
@@ -176,6 +222,7 @@ export class NameCheckService implements OnModuleInit {
       riskEvaluationDate: existing?.riskEvaluationDate,
       riskEvaluation: existing?.riskEvaluation,
       comment: existing?.comment ? [existing.comment, comment].join(';') : comment,
+      file,
     });
 
     await this.nameCheckLogRepo.save(entity);
