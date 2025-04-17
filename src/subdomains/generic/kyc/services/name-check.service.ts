@@ -48,7 +48,7 @@ export class NameCheckService implements OnModuleInit {
       try {
         if (
           !(await this.nameCheckLogRepo.exists({
-            where: { bankData: { id: entity.bankData.id }, file: { id: Not(IsNull()) } },
+            where: { bankData: { id: entity.bankData.id }, file: { id: Not(IsNull()) }, synced: Not(IsNull()) },
             relations: { bankData: true, file: true },
           }))
         )
@@ -223,6 +223,7 @@ export class NameCheckService implements OnModuleInit {
       riskEvaluation: existing?.riskEvaluation,
       comment: existing?.comment ? [existing.comment, comment].join(';') : comment,
       file,
+      synced: true,
     });
 
     await this.nameCheckLogRepo.save(entity);
