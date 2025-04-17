@@ -26,6 +26,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionType } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -173,7 +174,7 @@ export class BuyController {
     });
 
     if (currency.name !== 'CHF' && currency.name !== 'EUR') {
-      throw new Error('PDF invoice is only available for CHF and EUR payments');
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 
     return {
@@ -198,7 +199,8 @@ export class BuyController {
     });
 
     if (!transaction) throw new BadRequestException('Transaction not found');
-    if (!transaction.buyCrypto) throw new BadRequestException('Transaction is not a buy transaction');
+    if (!transaction.buyCrypto || transaction.buyCrypto.isCryptoCryptoTransaction)
+      throw new BadRequestException('Transaction is not a buy transaction');
     if (!transaction.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
 
     const buy = transaction.buyCrypto.buy;
@@ -211,7 +213,7 @@ export class BuyController {
     });
 
     if (currency.name !== 'CHF' && currency.name !== 'EUR') {
-      throw new Error('PDF invoice is only available for CHF and EUR payments');
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
     if (!buy) throw new BadRequestException('Buy route not found');
 
@@ -219,9 +221,10 @@ export class BuyController {
       invoicePdf: await this.swissQrService.createInvoiceFromTx(
         transaction.buyCrypto.inputAmount,
         currency.name,
-        buy.bankUsage,
         bankInfo,
         transaction,
+        TransactionType.BUY,
+        buy.bankUsage,
       ),
     };
   }

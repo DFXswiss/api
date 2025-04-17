@@ -7,7 +7,9 @@
       "total": "Gesamt"
     },
     "position_row": {
-      "description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}"
+      "buy_description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}",
+      "sell_description": "{assetDescription} ({assetName}) verkauft von {assetBlockchain}",
+      "swap_description": "{assetDescription} ({assetName}) getauscht auf {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Gesamt"

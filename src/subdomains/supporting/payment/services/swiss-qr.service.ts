@@ -9,6 +9,7 @@ import { PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
+import { TransactionType } from '../dto/transaction.dto';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 import { Transaction } from '../entities/transaction.entity';
 
@@ -39,7 +40,7 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request?: TransactionRequest,
   ): string {
-    const data = this.generateQrData(amount, currency, reference, bankInfo, request.user.userData);
+    const data = this.generateQrData(amount, currency, bankInfo, reference, request.user.userData);
     return new SwissQRCode(data).toString();
   }
 
@@ -50,7 +51,7 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request: TransactionRequest,
   ): Promise<string> {
-    const data = this.generateQrData(amount, currency, reference, bankInfo, request.user.userData);
+    const data = this.generateQrData(amount, currency, bankInfo, reference, request.user.userData);
 
     if (!data.debtor) {
       throw new Error('Debtor is required');
@@ -62,17 +63,28 @@ export class SwissQRService {
     const asset = await this.assetService.getAssetById(request.targetId);
     const assetAmount = request.estimatedAmount;
 
-    return this.generatePdfInvoice(data, language, asset, assetAmount, amount, currency, request.id);
+    return this.generatePdfInvoice(
+      data,
+      language,
+      asset,
+      assetAmount,
+      amount,
+      currency,
+      request.id,
+      true,
+      TransactionType.BUY,
+    );
   }
 
   async createInvoiceFromTx(
     amount: number,
-    currency: 'CHF' | 'EUR',
-    reference: string,
+    currency: string, // Allow CHF, EUR and crypto
     bankInfo: BankInfoDto,
     transaction: Transaction,
+    txType: TransactionType,
+    reference?: string,
   ): Promise<string> {
-    const data = this.generateQrData(amount, currency, reference, bankInfo, transaction.user.userData);
+    const data = this.generateQrData(amount, currency, bankInfo, reference, transaction.user.userData);
 
     if (!data.debtor) {
       throw new Error('Debtor is required');
@@ -81,11 +93,40 @@ export class SwissQRService {
     const userLanguage = transaction.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
 
-    const asset = transaction.buyCrypto.outputAsset;
-    const assetAmount = transaction.buyCrypto.outputAmount;
+    let asset: Asset;
+    let assetAmount: number;
 
-    if (!transaction.buyCrypto.outputAsset) throw new Error('Transaction is not a buy transaction');
-    return this.generatePdfInvoice(data, language, asset, assetAmount, amount, currency, transaction.uid, false);
+    // First try to identify by the transaction type
+    switch (txType) {
+      case TransactionType.SWAP:
+        asset = transaction.buyCrypto?.cryptoInput?.asset;
+        assetAmount = transaction.buyCrypto?.inputAmount;
+        break;
+      case TransactionType.BUY:
+        asset = transaction.buyCrypto?.outputAsset;
+        assetAmount = transaction.buyCrypto?.outputAmount;
+        break;
+      case TransactionType.SELL:
+        asset = transaction.buyFiat?.cryptoInput?.asset;
+        assetAmount = transaction.buyFiat?.inputAmount;
+        break;
+      default:
+        throw new Error('Unsupported transaction type');
+    }
+
+    if (!asset) throw new Error('Asset information missing in transaction');
+
+    return this.generatePdfInvoice(
+      data,
+      language,
+      asset,
+      assetAmount,
+      amount,
+      currency,
+      transaction.uid,
+      false,
+      txType,
+    );
   }
 
   private generatePdfInvoice(
@@ -94,9 +135,10 @@ export class SwissQRService {
     asset: Asset,
     assetAmount: number,
     amount: number,
-    currency: 'CHF' | 'EUR',
+    currency: string,
     invoiceId: number | string,
-    includeQrBill = true,
+    includeQrBill: boolean,
+    transactionType: TransactionType,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -203,18 +245,26 @@ export class SwissQRService {
           {
             columns: [
               {
-                text: `${assetAmount}`,
+                text:
+                  transactionType === TransactionType.SWAP ? this.formatCryptoAmount(assetAmount) : `${assetAmount}`,
                 width: mm2pt(40),
               },
               {
-                text: this.translate('invoice.table.position_row.description', language, {
-                  assetDescription: asset.description ?? asset.name,
-                  assetName: asset.name,
-                  assetBlockchain: asset.blockchain,
-                }),
+                text: this.translate(
+                  `invoice.table.position_row.${transactionType.toLowerCase()}_description`,
+                  language,
+                  {
+                    assetDescription: asset.description ?? asset.name,
+                    assetName: asset.name,
+                    assetBlockchain: asset.blockchain,
+                  },
+                ),
               },
               {
-                text: `${currency} ${amount.toFixed(2)}`,
+                text:
+                  transactionType === TransactionType.SWAP
+                    ? `${currency} ${this.formatCryptoAmount(amount)}` // Format crypto nicely
+                    : `${currency} ${amount.toFixed(2)}`, // Standard 2 decimals for fiat
                 width: mm2pt(30),
               },
             ],
@@ -232,7 +282,10 @@ export class SwissQRService {
               },
               {
                 fontName: 'Helvetica-Bold',
-                text: `${currency} ${amount.toFixed(2)}`,
+                text:
+                  transactionType === TransactionType.SWAP
+                    ? `${currency} ${this.formatCryptoAmount(amount)}`
+                    : `${currency} ${amount.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -265,7 +318,7 @@ export class SwissQRService {
                 text: this.translate('invoice.table.vat_row.vat_amount_label', language),
               },
               {
-                text: `${currency} 0.00`,
+                text: transactionType === TransactionType.SWAP ? `${currency} 0.00000000` : `${currency} 0.00`,
                 width: mm2pt(30),
               },
             ],
@@ -283,7 +336,10 @@ export class SwissQRService {
               },
               {
                 fontName: 'Helvetica-Bold',
-                text: `${currency} ${amount.toFixed(2)}`,
+                text:
+                  transactionType === TransactionType.SWAP
+                    ? `${currency} ${this.formatCryptoAmount(amount)}`
+                    : `${currency} ${amount.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -328,16 +384,26 @@ export class SwissQRService {
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
   }
 
+  // TODO: How many decimals should be shown for crypto?
+  private formatCryptoAmount(amount: number): string {
+    if (amount < 0.001) return amount.toFixed(8);
+    if (amount < 0.01) return amount.toFixed(6);
+    if (amount < 1) return amount.toFixed(4);
+    return amount.toFixed(2);
+  }
+
   private generateQrData(
     amount: number,
-    currency: 'CHF' | 'EUR',
-    reference: string,
+    currency: string,
     bankInfo: BankInfoDto,
+    reference?: string,
     userData?: UserData,
   ): QrBillData {
+    // TODO: Is there a cleaner solution to handle the currency?
+    const qrCurrency = ['CHF', 'EUR'].includes(currency) ? (currency as 'CHF' | 'EUR') : 'CHF';
     return {
       amount,
-      currency,
+      currency: qrCurrency,
       message: reference,
       creditor: this.getCreditor(bankInfo),
       debtor: this.getDebtor(userData),

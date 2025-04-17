@@ -22,6 +22,7 @@ import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -63,6 +64,7 @@ export class SellService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
+    private readonly bankService: BankService,
     private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
@@ -238,6 +240,15 @@ export class SellService {
       .select('SUM(volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
+  }
+
+  // --- BANK INFO --- //
+  async getBankInfo(selector: BankSelectorInput): Promise<any> {
+    const bank = await this.bankService.getBank(selector);
+
+    if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
+
+    return { ...Config.bank.dfxBankInfo, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
   }
 
   // --- CONFIRMATION --- //
