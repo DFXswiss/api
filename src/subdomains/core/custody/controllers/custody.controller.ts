@@ -26,7 +26,7 @@ export class CustodyController {
     @Body() dto: CreateCustodyAccountDto,
     @RealIP() ip: string,
   ): Promise<CustodyAuthResponseDto> {
-    return this.service.createCustodyAccount(jwt.user, dto, ip);
+    return this.service.createCustodyAccount(jwt.account, dto, ip);
   }
 
   @Post('order')

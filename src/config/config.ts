@@ -46,6 +46,7 @@ export class Configuration {
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
+  exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
 
   defaults = {
     currency: 'EUR',
@@ -212,6 +213,7 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    maxIdentTries: 7,
 
     downloadTargets: [
       {
@@ -446,6 +448,7 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
     minVolume: 0.01, // CHF
 
@@ -458,6 +461,9 @@ export class Configuration {
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
+    checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
     fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
@@ -566,6 +572,7 @@ export class Configuration {
       baseApiKey: process.env.ALCHEMY_API_KEY,
       baseChainId: +process.env.BASE_CHAIN_ID,
       swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
+      swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
@@ -611,10 +618,12 @@ export class Configuration {
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
+        fpsWrapper: process.env.ZCHF_FPS_WRAPPER_CONTRACT_ADDRESS,
       },
     },
     deuro: {
-      deuroGraphUrl: process.env.DEURO_GRAPH_URL,
+      graphUrl: process.env.DEURO_GRAPH_URL,
+      apiUrl: process.env.DEURO_API_URL,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

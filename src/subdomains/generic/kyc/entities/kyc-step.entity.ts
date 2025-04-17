@@ -5,6 +5,7 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
+import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
@@ -56,7 +57,7 @@ export class KycStep extends IEntity {
   reminderSentDate?: Date;
 
   // --- GETTERS --- //
-  get sessionInfo(): { url: string; type: UrlType } {
+  get sessionInfo(): KycSessionInfoDto {
     const apiUrl = `${Config.url(Config.kycVersion)}/kyc`;
 
     switch (this.name) {
@@ -72,14 +73,24 @@ export class KycStep extends IEntity {
       case KycStepName.LEGAL_ENTITY:
         return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
 
-      case KycStepName.STOCK_REGISTER:
-        return { url: `${apiUrl}/data/stock/${this.id}`, type: UrlType.API };
+      case KycStepName.OWNER_DIRECTORY:
+        return { url: `${apiUrl}/data/owner/${this.id}`, type: UrlType.API };
 
       case KycStepName.COMMERCIAL_REGISTER:
         return { url: `${apiUrl}/data/commercial/${this.id}`, type: UrlType.API };
 
       case KycStepName.SIGNATORY_POWER:
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
+
+      case KycStepName.BENEFICIAL_OWNER:
+        return {
+          url: `${apiUrl}/data/beneficial/${this.id}`,
+          type: UrlType.API,
+          additionalInfo: { accountHolder: this.userData.naturalPersonName },
+        };
+
+      case KycStepName.OPERATIONAL_ACTIVITY:
+        return { url: `${apiUrl}/data/operational/${this.id}`, type: UrlType.API };
 
       case KycStepName.AUTHORITY:
         return { url: `${apiUrl}/data/authority/${this.id}`, type: UrlType.API };
@@ -303,18 +314,20 @@ export class KycStep extends IEntity {
     if (this.isSumsub) {
       const identResultData = this.getResult<SumsubResult>();
 
+      const idDocIndex = Math.max(0, identResultData.data.info?.idDocs?.findIndex((doc) => doc.firstName != null) ?? 0);
+
       return {
         type: IdentType.SUM_SUB,
-        firstname: identResultData.data.info?.idDocs?.[0]?.firstName,
-        lastname: identResultData.data.info?.idDocs?.[0]?.lastName,
+        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstName,
+        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastName,
         birthname: null,
-        birthday: identResultData.data.info?.idDocs?.[0]?.dob
-          ? new Date(identResultData.data.info.idDocs[0].dob)
+        birthday: identResultData.data.info?.idDocs?.[idDocIndex]?.dob
+          ? new Date(identResultData.data.info.idDocs[idDocIndex].dob)
           : undefined,
-        nationality: identResultData.data.info?.idDocs?.[0]?.country,
-        documentNumber: identResultData.data.info?.idDocs?.[0]?.number,
-        documentType: identResultData.data.info?.idDocs?.[0]?.idDocType
-          ? identResultData.data.info.idDocs[0].idDocType === IdDocType.ID_CARD
+        nationality: identResultData.data.info?.idDocs?.[idDocIndex]?.country,
+        documentNumber: identResultData.data.info?.idDocs?.[idDocIndex]?.number,
+        documentType: identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType
+          ? identResultData.data.info.idDocs[idDocIndex].idDocType === IdDocType.ID_CARD
             ? 'IDCARD'
             : 'PASSPORT'
           : undefined,

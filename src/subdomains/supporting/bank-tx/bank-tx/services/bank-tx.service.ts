@@ -12,14 +12,14 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -88,10 +88,11 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
+    await this.fillBankTx();
   }
 
   async checkTransactions(): Promise<void> {
@@ -129,7 +130,7 @@ export class BankTxService {
     if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
-  async assignTransactions() {
+  async assignTransactions(): Promise<void> {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
     if (!unassignedBankTx.length) return;
 
@@ -154,6 +155,58 @@ export class BankTxService {
     }
   }
 
+  async fillBankTx(): Promise<void> {
+    const entities = await this.bankTxRepo.find({
+      where: {
+        accountingAmountBeforeFee: IsNull(),
+        amount: Not(IsNull()),
+        chargeAmount: Not(IsNull()),
+        type: Not(In(BankTxUnassignedTypes)),
+      },
+      relations: { buyCrypto: true, buyFiats: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (![BankTxType.BUY_CRYPTO, BankTxType.BUY_FIAT].includes(entity.type)) {
+          await this.bankTxRepo.update(entity.id, {
+            accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          });
+          continue;
+        }
+        if (!entity.buyCrypto && !entity.buyFiats?.length) continue;
+
+        const update: Partial<BankTx> = {};
+
+        if (entity.type === BankTxType.BUY_CRYPTO) {
+          update.accountingFeePercent = entity.buyCrypto.percentFee;
+          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
+          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
+          update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
+          update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
+        } else {
+          update.accountingFeePercent = entity.buyFiats[0].percentFee;
+          update.accountingFeeAmount =
+            update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
+          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
+          update.accountingAmountBeforeFeeChf = entity.buyFiats[0].amountInChf / (1 - update.accountingFeePercent);
+          update.accountingAmountAfterFeeChf = entity.buyFiats[0].amountInChf;
+        }
+
+        await this.bankTxRepo.update(entity.id, {
+          accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          accountingFeePercent: Util.roundReadable(update.accountingFeePercent, AmountType.FIAT),
+          accountingFeeAmount: Util.roundReadable(update.accountingFeeAmount, AmountType.FIAT),
+          accountingAmountAfterFee: Util.roundReadable(update.accountingAmountAfterFee, AmountType.FIAT),
+          accountingAmountBeforeFeeChf: Util.roundReadable(update.accountingAmountBeforeFeeChf, AmountType.FIAT),
+          accountingAmountAfterFeeChf: Util.roundReadable(update.accountingAmountAfterFeeChf, AmountType.FIAT),
+        });
+      } catch (e) {
+        this.logger.error(`Error during bankTx ${entity.id} fill:`, e);
+      }
+    }
+  }
+
   async create(bankTx: Partial<BankTx>, multiAccountIbans: string[]): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOneBy({ accountServiceRef: bankTx.accountServiceRef });
     if (entity)
@@ -171,15 +224,15 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiats: { sell: { user: { userData: true } } },
-        buyCryptoChargeback: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
+        buyFiats: { transaction: { user: { userData: true } } },
+        buyCryptoChargeback: { transaction: { user: { userData: true } } },
       },
     });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     return this.updateInternal(bankTx, dto);
   }
 
-  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, userData?: UserData): Promise<BankTx> {
+  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, user?: User): Promise<BankTx> {
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -190,7 +243,7 @@ export class BankTxService {
           await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
-          bankTx.bankTxReturn = await this.bankTxReturnService.create(bankTx, userData);
+          bankTx.bankTxReturn = await this.bankTxReturnService.create(bankTx);
           break;
         case BankTxType.BANK_TX_REPEAT:
           await this.bankTxRepeatService.create(bankTx);
@@ -199,8 +252,8 @@ export class BankTxService {
           if (dto.type)
             await this.transactionService.updateInternal(bankTx.transaction, {
               type: TransactionBankTxTypeMapper[dto.type],
-              user: bankTx.user,
-              userData: bankTx.user?.userData ?? userData,
+              user: user ?? bankTx.user,
+              userData: user?.userData ?? bankTx.user?.userData,
             });
           break;
       }
@@ -250,10 +303,11 @@ export class BankTxService {
     return this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx', 'bankTx')
-      .where(`REPLACE(remittanceInfo, ' ', '') = :remittanceInfo`, {
+      .leftJoinAndSelect('bankTx.transaction', 'transaction')
+      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
         remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
-      .orderBy('id', 'DESC')
+      .orderBy('bankTx.id', 'DESC')
       .getOne();
   }
 

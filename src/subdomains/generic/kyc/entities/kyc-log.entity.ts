@@ -1,6 +1,6 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne, TableInheritance } from 'typeorm';
+import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
 import { KycLogType } from '../enums/kyc.enum';
 import { KycFile } from './kyc-file.entity';
 
@@ -16,8 +16,7 @@ export class KycLog extends IEntity {
   @Column({ length: 256, nullable: true })
   pdfUrl?: string;
 
-  @OneToOne(() => KycFile, (f) => f.log, { nullable: true })
-  @JoinColumn()
+  @ManyToOne(() => KycFile, (f) => f.logs, { nullable: true })
   file?: KycFile;
 
   @Column({ length: 'MAX', nullable: true })
@@ -25,6 +24,9 @@ export class KycLog extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   eventDate?: Date;
+
+  @Column({ nullable: true })
+  synced?: boolean;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;

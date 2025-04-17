@@ -19,8 +19,9 @@ import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/b
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
-import { Organization } from '../organization/organization.entity';
+import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
+import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
@@ -78,12 +79,6 @@ export enum SignatoryPower {
   SINGLE = 'Single',
   DOUBLE = 'Double',
   NONE = 'None',
-}
-
-export enum RiskState {
-  A = 'a',
-  B = 'b',
-  C = 'c',
 }
 
 export enum BlankType {
@@ -199,7 +194,7 @@ export class UserData extends IEntity {
 
   // TODO remove
   @Column({ length: 256, nullable: true })
-  accountOpenerAuthorization?: string;
+  accountOpenerAuthorization?: AccountOpenerAuthorization;
 
   @Column({ length: 256, nullable: true })
   phone?: string;
@@ -219,9 +214,6 @@ export class UserData extends IEntity {
   // TODO remove
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
-
-  @Column({ length: 256, nullable: true })
-  riskState?: RiskState;
 
   @Column({ nullable: true })
   highRisk?: boolean;
@@ -404,6 +396,19 @@ export class UserData extends IEntity {
     ];
   }
 
+  setAccountOpenerAuthorization(signatoryPower: SignatoryPower): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      accountOpenerAuthorization:
+        signatoryPower === SignatoryPower.SINGLE
+          ? AccountOpenerAuthorization.SINGLE_SIGNATURE
+          : AccountOpenerAuthorization.AUTHORIZATION,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   deactivateUserData(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       status: UserDataStatus.DEACTIVATED,
@@ -486,6 +491,18 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      phone: dto.phone ?? this.phone,
+      language: dto.language ?? this.language,
+      currency: dto.currency ?? this.currency,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get hasValidNameCheckDate(): boolean {
     return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
   }
@@ -551,7 +568,11 @@ export class UserData extends IEntity {
   }
 
   get completeName(): string {
-    return this.organizationName ?? [this.firstname, this.surname].filter((n) => n).join(' ');
+    return this.organizationName ?? this.naturalPersonName;
+  }
+
+  get naturalPersonName(): string {
+    return [this.firstname, this.surname].filter((n) => n).join(' ');
   }
 
   get isBlocked(): boolean {
@@ -630,7 +651,21 @@ export class UserData extends IEntity {
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
-    return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
+    const existingSteps = [
+      this.getStepsWith(stepName, stepType),
+      this.getStepsWith(stepName, this.getDeprecatedStepTypes(stepType)),
+    ].flat();
+    return Math.max(...existingSteps.map((s) => s.sequenceNumber + 1), 0);
+  }
+
+  getDeprecatedStepTypes(type?: KycStepType): KycStepType {
+    switch (type) {
+      case KycStepType.SUMSUB_AUTO:
+        return KycStepType.AUTO;
+
+      case KycStepType.SUMSUB_VIDEO:
+        return KycStepType.VIDEO;
+    }
   }
 
   hasCompletedStep(stepName: KycStepName): boolean {

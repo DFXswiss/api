@@ -66,6 +66,9 @@ param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
 param paymentMoneroAddress string
+param paymentBitcoinAddress string
+param paymentCheckbotSignTx string
+param paymentCheckbotPubKey string
 
 @secure()
 param evmDepositSeed string
@@ -139,6 +142,7 @@ param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
 
 param deuroGraphUrl string
+param deuroApiUrl string
 
 param ebel2XContractAddress string
 
@@ -694,6 +698,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentMoneroAddress
         }
         {
+          name: 'PAYMENT_BITCOIN_ADDRESS'
+          value: paymentBitcoinAddress
+        }
+        {
+          name: 'PAYMENT_CHECKBOT_SIGN_TX'
+          value: paymentCheckbotSignTx
+        }
+        {
+          name: 'PAYMENT_CHECKBOT_PUB_KEY'
+          value: paymentCheckbotPubKey
+        }
+        {
           name: 'EVM_DEPOSIT_SEED'
           value: evmDepositSeed
         }
@@ -916,6 +932,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DEURO_GRAPH_URL'
           value: deuroGraphUrl
+        }
+        {
+          name: 'DEURO_API_URL'
+          value: deuroApiUrl
         }
         {
           name: 'EBEL2X_CONTRACT_ADDRESS'

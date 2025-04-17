@@ -16,6 +16,7 @@ export enum PaymentQuoteStatus {
   EXPIRED = 'Expired',
 
   TX_RECEIVED = 'TxReceived',
+  TX_CHECKBOT = 'TxCheckbot',
   TX_MEMPOOL = 'TxMempool',
   TX_BLOCKCHAIN = 'TxBlockchain',
   TX_COMPLETED = 'TxCompleted',
@@ -24,6 +25,7 @@ export enum PaymentQuoteStatus {
 
 export const PaymentQuoteTxStates = [
   PaymentQuoteStatus.TX_RECEIVED,
+  PaymentQuoteStatus.TX_CHECKBOT,
   PaymentQuoteStatus.TX_MEMPOOL,
   PaymentQuoteStatus.TX_BLOCKCHAIN,
   PaymentQuoteStatus.TX_COMPLETED,
@@ -32,6 +34,7 @@ export const PaymentQuoteTxStates = [
 export const PaymentQuoteFinalStates = [
   PaymentQuoteStatus.CANCELLED,
   PaymentQuoteStatus.EXPIRED,
+  PaymentQuoteStatus.TX_CHECKBOT,
   PaymentQuoteStatus.TX_MEMPOOL,
   PaymentQuoteStatus.TX_BLOCKCHAIN,
   PaymentQuoteStatus.TX_COMPLETED,

@@ -21,9 +21,10 @@ export class AzureStorageService {
   private readonly client: ContainerClient;
 
   constructor(private readonly container: string) {
-    this.client = BlobServiceClient.fromConnectionString(GetConfig().azure.storage.connectionString).getContainerClient(
-      container,
-    );
+    const connectionString = GetConfig().azure.storage.connectionString;
+
+    if (connectionString)
+      this.client = BlobServiceClient.fromConnectionString(connectionString).getContainerClient(container);
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {

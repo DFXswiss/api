@@ -122,6 +122,15 @@
     "paymentMoneroAddress": {
       "value": "xxx"
     },
+    "paymentBitcoinAddress": {
+      "value": "xxx"
+    },
+    "paymentCheckbotSignTx": {
+      "value": "xxx"
+    },
+    "paymentCheckbotPubKey": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },
@@ -271,6 +280,9 @@
     },
     "deuroGraphUrl": {
       "value": "https://dev.ponder.deuro.com"
+    },
+    "deuroApiUrl": {
+      "value": "https://dev.api.deuro.com"
     },
     "ebel2XContractAddress": {
       "value": ""

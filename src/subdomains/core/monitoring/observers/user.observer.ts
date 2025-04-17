@@ -6,7 +6,6 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IsNull } from 'typeorm';
 
 interface UserData {
@@ -15,7 +14,6 @@ interface UserData {
 
 interface UserWithout {
   ipCountry: number;
-  riskState: number;
 }
 
 @Injectable()
@@ -44,14 +42,6 @@ export class UserObserver extends MetricObserver<UserData> {
   }
 
   private async getUserWithout(): Promise<UserWithout> {
-    return {
-      ipCountry: await this.repos.user.countBy({ ipCountry: IsNull() }),
-      riskState: await this.repos.userData
-        .createQueryBuilder('userData')
-        .leftJoin(User, 'user', 'userData.id = user.userDataId')
-        .where('user.status != :status', { status: UserStatus.NA })
-        .andWhere('userData.riskState is NULL')
-        .getCount(),
-    };
+    return { ipCountry: await this.repos.user.countBy({ ipCountry: IsNull() }) };
   }
 }

@@ -55,11 +55,26 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
-  TRANSACTION_USER_SYNC = 'TransactionUserSync',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
   CUSTODY = 'Custody',
+  EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',
+  EXCHANGE_TRADE = 'ExchangeTrade',
+  FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
+  CRYPTO_PAYOUT = 'CryptoPayout',
+  USER_DATA = 'UserData',
+  USER = 'User',
+  LOG_CLEANUP = 'LogCleanup',
+  SAFETY_MODULE = 'SafetyModule',
+  NAME_CHECK_PDF_SYNC = 'NameCheckPdfSync',
 }
+
+const safetyProcesses: Process[] = [
+  Process.EXCHANGE_WITHDRAWAL,
+  Process.EXCHANGE_TRADE,
+  Process.FIAT_OUTPUT_BATCH_ID_UPDATE,
+  Process.CRYPTO_PAYOUT,
+];
 
 type ProcessMap = { [p in Process]?: boolean };
 
@@ -71,6 +86,8 @@ export function DisabledProcess(process: Process): boolean {
 
 @Injectable()
 export class ProcessService implements OnModuleInit {
+  private safetyModeInactive = true;
+
   constructor(private readonly settingService: SettingService) {}
 
   onModuleInit() {
@@ -81,8 +98,17 @@ export class ProcessService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
   async resyncDisabledProcesses(): Promise<void> {
-    const allDisabledProcesses = [...(await this.settingService.getDisabledProcesses()), ...Config.disabledProcesses()];
+    const allDisabledProcesses = [
+      ...(await this.settingService.getDisabledProcesses()),
+      ...Config.disabledProcesses(),
+      ...(this.safetyModeInactive ? [] : safetyProcesses),
+    ];
     DisabledProcesses = this.listToMap(allDisabledProcesses);
+  }
+
+  public async setSafetyModeActive(active: boolean) {
+    this.safetyModeInactive = !active;
+    await this.resyncDisabledProcesses();
   }
 
   private listToMap(processes: Process[]): ProcessMap {

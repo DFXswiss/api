@@ -45,7 +45,8 @@ export class TransactionNotificationService {
         bankTx: true,
         buyCrypto: true,
         buyFiat: true,
-        user: { userData: true, wallet: true },
+        userData: { wallet: true },
+        user: { wallet: true },
       },
     });
     if (entities.length === 0) return;
@@ -117,6 +118,7 @@ export class TransactionNotificationService {
           entity.bankTx.senderAccount,
           undefined,
           { userData: { wallet: true } },
+          false,
         );
         if (!bankData) continue;
 
@@ -144,7 +146,7 @@ export class TransactionNotificationService {
             },
           });
 
-          await this.repo.update(...entity.mailSent(bankData.userData.mail));
+          await this.repo.update(...entity.mailSent(bankData.userData));
         }
       } catch (e) {
         this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);

@@ -345,7 +345,8 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
   switch (dto.type) {
     case SumSubWebhookType.APPLICANT_PENDING:
-    case SumSubWebhookType.APPLICANT_REVIEWED: {
+    case SumSubWebhookType.APPLICANT_REVIEWED:
+    case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
       switch (dto.reviewStatus) {
         case ReviewStatus.INIT:
           return IdentShortResult.PENDING;
@@ -360,8 +361,9 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
         case ReviewStatus.COMPLETED:
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
-            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
-            ? IdentShortResult.PENDING
+            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY &&
+              dto.levelName === SumSubLevelName.CH_STANDARD_VIDEO
+            ? IdentShortResult.RETRY
             : IdentShortResult.FAIL;
       }
       break;

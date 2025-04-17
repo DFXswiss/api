@@ -11,6 +11,7 @@ export enum BankDataType {
   BANK_OUT = 'BankOut',
   CARD_IN = 'CardIn',
   USER = 'User',
+  NAME_CHECK = 'NameCheck',
 }
 
 export enum BankDataVerificationError {

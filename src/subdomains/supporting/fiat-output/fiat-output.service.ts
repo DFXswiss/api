@@ -36,14 +36,20 @@ export class FiatOutputService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
   async fillFiatOutput() {
     const entities = await this.fiatOutputRepo.find({
-      where: { amount: Not(IsNull()), isComplete: false, bankTx: { id: IsNull() } },
+      where: {
+        amount: Not(IsNull()),
+        isComplete: false,
+        bankTx: { id: IsNull() },
+        isReadyDate: Not(IsNull()),
+        isTransmittedDate: Not(IsNull()),
+      },
       relations: { bankTx: true },
     });
 
     for (const entity of entities) {
       try {
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || entity.isApprovedDate > bankTx.created) continue;
+        if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
         await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
       } catch (e) {
@@ -57,7 +63,7 @@ export class FiatOutputService {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },
       relations: {
-        buyFiats: { transaction: { user: { userData: true } }, cryptoInput: { paymentLinkPayment: { link: true } } },
+        buyFiats: { transaction: { userData: true }, cryptoInput: { paymentLinkPayment: { link: true } } },
       },
     });
 

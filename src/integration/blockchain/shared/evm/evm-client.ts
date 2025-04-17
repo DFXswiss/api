@@ -31,6 +31,7 @@ export interface EvmClientParams {
   chainId: ChainId;
   swapContractAddress?: string;
   quoteContractAddress?: string;
+  swapFactoryAddress?: string;
 }
 
 interface UniswapPosition {
@@ -49,7 +50,7 @@ export enum Direction {
 }
 
 export abstract class EvmClient extends BlockchainClient {
-  protected http: HttpService;
+  readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
   readonly chainId: ChainId;
 
@@ -60,6 +61,7 @@ export abstract class EvmClient extends BlockchainClient {
   private readonly tokens = new AsyncCache<Token>();
   private readonly router: AlphaRouter;
   private readonly swapContractAddress: string;
+  private readonly swapFactoryAddress: string;
   private readonly quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
@@ -79,6 +81,7 @@ export abstract class EvmClient extends BlockchainClient {
     });
     this.swapContractAddress = params.swapContractAddress;
     this.quoteContractAddress = params.quoteContractAddress;
+    this.swapFactoryAddress = params.swapFactoryAddress;
   }
 
   // --- PUBLIC API - GETTERS --- //
@@ -185,18 +188,24 @@ export abstract class EvmClient extends BlockchainClient {
     wallet: ethers.Wallet,
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
-    let { nonce, gasPrice, value } = request;
+    let { gasPrice, value } = request;
 
-    nonce = nonce ?? (await this.getNonce(request.from));
+    const currentNonce = await this.getNonce(request.from);
+    const txNonce = request.nonce ? +request.nonce.toString() : currentNonce;
+
     gasPrice = gasPrice ?? +(await this.getRecommendedGasPrice());
     value = EvmUtil.toWeiAmount(value as number);
 
-    return wallet.sendTransaction({
+    const result = await wallet.sendTransaction({
       ...request,
-      nonce,
+      nonce: txNonce,
       gasPrice,
       value,
     });
+
+    if (txNonce >= currentNonce) this.nonce.set(request.from, txNonce + 1);
+
+    return result;
   }
 
   async sendNativeCoinFromAccount(
@@ -278,6 +287,9 @@ export abstract class EvmClient extends BlockchainClient {
       gasPrice,
       nonce: currentNonce,
     });
+
+    this.nonce.set(this.dfxAddress, currentNonce + 1);
+
     return result.hash;
   }
 
@@ -347,12 +359,16 @@ export abstract class EvmClient extends BlockchainClient {
     const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
 
     const gasPrice = await this.getRecommendedGasPrice();
+    const nonce = await this.getNonce(this.dfxAddress);
 
     const tx = await this.wallet.sendTransaction({
       ...transaction,
       from: this.dfxAddress,
       gasPrice,
+      nonce,
     });
+
+    this.nonce.set(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -367,7 +383,9 @@ export abstract class EvmClient extends BlockchainClient {
       this.getTokenByAddress(position.token0),
       this.getTokenByAddress(position.token1),
     ]);
-    const pool = this.getPoolContract(Pool.getAddress(token0, token1, position.fee));
+    const pool = this.getPoolContract(
+      Pool.getAddress(token1, token0, position.fee, undefined, this.swapFactoryAddress),
+    );
     const slot0 = await pool.slot0();
     const sqrtPriceX96 = slot0.sqrtPriceX96;
 
@@ -405,7 +423,7 @@ export abstract class EvmClient extends BlockchainClient {
   async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
     const [token1, token2] = await this.getTokenPair(asset1, asset2);
 
-    return Pool.getAddress(token1, token2, poolFee);
+    return Pool.getAddress(token1, token2, poolFee, undefined, this.swapFactoryAddress);
   }
 
   async testSwap(
@@ -434,7 +452,9 @@ export abstract class EvmClient extends BlockchainClient {
 
     const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
-    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const poolContract = this.getPoolContract(
+      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
+    );
 
     const token0IsInToken = sourceToken.address === (await poolContract.token0());
     const slot0 = await poolContract.slot0();
@@ -496,7 +516,9 @@ export abstract class EvmClient extends BlockchainClient {
     gasEstimate: EthersNumber;
     route: Route<Token, Token>;
   }> {
-    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const poolContract = this.getPoolContract(
+      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
+    );
     const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
 
     // create route
@@ -555,6 +577,7 @@ export abstract class EvmClient extends BlockchainClient {
 
   private async doSwap(parameters: MethodParameters) {
     const gasPrice = await this.getRecommendedGasPrice();
+    const nonce = await this.getNonce(this.dfxAddress);
 
     const tx = await this.wallet.sendTransaction({
       data: parameters.calldata,
@@ -562,7 +585,10 @@ export abstract class EvmClient extends BlockchainClient {
       value: parameters.value,
       from: this.dfxAddress,
       gasPrice,
+      nonce,
     });
+
+    this.nonce.set(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -570,7 +596,9 @@ export abstract class EvmClient extends BlockchainClient {
   async sqrtX96Price(price: number, source: Asset, target: Asset, poolFee: FeeAmount): Promise<number> {
     const [sourceToken, targetToken] = await this.getTokenPair(source, target);
 
-    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const poolContract = this.getPoolContract(
+      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
+    );
     const token0IsInToken = sourceToken.address === (await poolContract.token0());
     const [token0, token1] = token0IsInToken ? [sourceToken, targetToken] : [targetToken, sourceToken];
 
@@ -587,7 +615,7 @@ export abstract class EvmClient extends BlockchainClient {
   swapConfig(maxSlippage: number): SwapOptions {
     const config: SwapOptions = {
       recipient: this.dfxAddress,
-      slippageTolerance: new Percent(maxSlippage * 100000, 100000),
+      slippageTolerance: new Percent(maxSlippage * 10000000, 10000000),
       deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
       type: SwapType.SWAP_ROUTER_02,
     };

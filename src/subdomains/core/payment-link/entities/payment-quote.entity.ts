@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferMethod } from '../dto/payment-link.dto';
@@ -67,6 +68,13 @@ export class PaymentQuote extends IEntity {
     return this;
   }
 
+  txCheckbot(txId: string): this {
+    this.status = PaymentQuoteStatus.TX_CHECKBOT;
+    this.txId = txId;
+
+    return this;
+  }
+
   txMempool(txId: string): this {
     this.status = PaymentQuoteStatus.TX_MEMPOOL;
     this.txId = txId;
@@ -85,11 +93,25 @@ export class PaymentQuote extends IEntity {
     return JSON.parse(this.transferAmounts);
   }
 
+  get transferAmountsForPayRequest(): TransferAmount[] {
+    return JSON.parse(this.transferAmounts, this.amountReplacer);
+  }
+
+  private amountReplacer(key: any, value: any): any {
+    if (key === 'amount' && typeof value === 'number') return Util.numberToFixedString(value);
+
+    return value;
+  }
+
+  getTransferAmount(method: TransferMethod): TransferAmount | undefined {
+    return this.transferAmountsAsObj.find((i) => i.method.toLowerCase() === method.toLowerCase());
+  }
+
   getTransferAmountFor(method: TransferMethod, asset: string): TransferAmountAsset | undefined {
-    const transferAmount = this.transferAmountsAsObj.find((i) => i.method === method);
+    const transferAmount = this.getTransferAmount(method);
     if (!transferAmount) return;
 
-    return transferAmount.assets.find((a) => a.asset === asset);
+    return transferAmount.assets.find((a) => a.asset.toLowerCase() === asset.toLowerCase());
   }
 
   isTransferAmountAsset(method: TransferMethod, asset: string, amount: number): boolean {

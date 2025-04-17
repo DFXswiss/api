@@ -8,7 +8,7 @@ export interface DEuroPositionGraphDto extends FrankencoinBasedCollateralDto {
   price: string;
   limitForClones: string;
   availableForClones: string;
-  minted: string;
+  principal: string;
   reserveContribution: number;
   expiration: string;
   closed: boolean;
@@ -25,8 +25,11 @@ export interface DEuroDepsGraphDto {
 export interface DEuroLogDto {
   positionV2s: DEuroPositionDto[];
   poolShares: DEuroPoolSharesDto;
+  savings: DEuroSavingsLogDto;
+  bridges: DEuroBridgeLogDto[];
   totalSupply: number;
   totalValueLocked: number;
+  totalBorrowed: number;
 }
 
 export interface DEuroInfoDto {
@@ -50,6 +53,7 @@ export interface DEuroPositionDto {
     availableAmount: number;
     totalBorrowed: number;
     liquidationPrice: number;
+    virtualPrice: number;
     retainedReserve: number;
     limit: number;
     expirationDate: Date;
@@ -65,4 +69,23 @@ export interface DEuroPoolSharesDto {
   minterReserve: number;
   totalIncome: number;
   totalLosses: number;
+}
+
+export interface DEuroSavingsInfoDto {
+  totalSaved: number;
+  totalWithdrawn: number;
+  totalBalance: number;
+  totalInterest: number;
+  rate: number;
+  ratioOfSupply: number;
+}
+
+export interface DEuroSavingsLogDto {
+  totalSaved: number;
+  totalBalance: number;
+}
+
+export interface DEuroBridgeLogDto {
+  symbol: string;
+  minted: number;
 }

@@ -1,3 +1,4 @@
+import { FPSWrapperABI } from '@frankencoin/zchf';
 import { Contract } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
@@ -220,6 +221,10 @@ export class FrankencoinClient {
     ).then((r) => r.trades.items);
   }
 
+  getWalletAddress(): string {
+    return this.evmClient.wallet.address;
+  }
+
   getErc20Contract(collateralAddress: string): Contract {
     return new Contract(collateralAddress, ERC20_ABI, this.evmClient.wallet);
   }
@@ -234,6 +239,10 @@ export class FrankencoinClient {
 
   getEquityContract(collateralAddress: string): Contract {
     return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.evmClient.wallet);
+  }
+
+  getFPSWrapperContract(wrapperAddress: string): Contract {
+    return new Contract(wrapperAddress, FPSWrapperABI, this.evmClient.wallet);
   }
 
   getStablecoinBridgeContract(collateralAddress: string): Contract {
