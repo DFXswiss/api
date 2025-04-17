@@ -82,6 +82,7 @@ export class NameCheckService implements OnModuleInit {
     if (bankData.userData.accountType !== AccountType.ORGANIZATION) {
       const { data, file } = await this.getRiskDataAndUploadPdf(
         bankData.userData,
+        false,
         bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
           ? bankData.userData.verifiedName
           : bankData.name,
@@ -94,12 +95,14 @@ export class NameCheckService implements OnModuleInit {
     // Business name check
     const { data: personalSanctionData, file: personalSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
+      false,
       `${bankData.userData.firstname} ${bankData.userData.surname}`,
       bankData.userData.birthday,
     );
 
     const { data: businessSanctionData, file: businessSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
+      true,
       bankData.userData.organizationName,
     );
 
@@ -151,10 +154,11 @@ export class NameCheckService implements OnModuleInit {
 
   async getRiskDataAndUploadPdf(
     userData: UserData,
+    isBusiness: boolean,
     name: string,
     dob?: Date,
   ): Promise<{ data: DilisenseApiData; file: KycFile }> {
-    const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, dob);
+    const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, isBusiness, dob);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(`application/pdf;base64,${pdfData}`);

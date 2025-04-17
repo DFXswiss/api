@@ -11,7 +11,7 @@ export class DilisenseService {
 
   async getRiskData(
     name: string,
-    isBusiness = false,
+    isBusiness: boolean,
     dob?: Date,
   ): Promise<{ data: DilisenseApiData; pdfData: string }> {
     const params = new URLSearchParams({ names: name });
