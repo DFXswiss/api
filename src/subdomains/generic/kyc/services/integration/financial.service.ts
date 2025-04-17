@@ -18,8 +18,8 @@ export class FinancialService {
     return getFinancialQuestions(accountType).map((q) => ({
       key: q.key,
       type: q.type,
-      title: this.i18n.translate(`kyc.financial.question.${q.key}.title`, { lang }),
-      description: this.i18n.translate(`kyc.financial.question.${q.key}.description`, { lang }),
+      title: this.i18n.translate(`kyc.financial.question.${q.i18nKey}.title`, { lang }),
+      description: this.i18n.translate(`kyc.financial.question.${q.i18nKey}.description`, { lang }),
       options: q.options?.map((key) => ({ key, text: this.i18n.translate(`kyc.financial.option.${key}`, { lang }) })),
       conditions: q.conditions,
     }));
