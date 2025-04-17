@@ -405,7 +405,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           chargebackAllowedBy: 'API',
         });
       } catch (e) {
-        this.logger.error(`Failed buyCrypto chargeback job ${entity.id}:`, e);
+        this.logger.error(`Failed to chargeback buy-fiat ${entity.id}:`, e);
       }
     }
   }

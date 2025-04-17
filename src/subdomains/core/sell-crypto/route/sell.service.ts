@@ -68,7 +68,10 @@ export class SellService {
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
-    const sell = await this.sellRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+    const sell = await this.sellRepo.findOne({
+      where: { id, user: { id: userId } },
+      relations: { user: { userData: true } },
+    });
     if (!sell) throw new NotFoundException('Sell not found');
     return sell;
   }
@@ -80,13 +83,16 @@ export class SellService {
   async getLatest(userId: number): Promise<Sell | null> {
     return this.sellRepo.findOne({
       where: { user: { id: userId } },
-      relations: { user: true },
+      relations: { user: { userData: true } },
       order: { created: 'DESC' },
     });
   }
 
   async getByLabel(userId: number, label: string): Promise<Sell> {
-    return this.sellRepo.findOne({ where: { route: { label }, user: { id: userId } }, relations: { user: true } });
+    return this.sellRepo.findOne({
+      where: { route: { label }, user: { id: userId } },
+      relations: { user: { userData: true } },
+    });
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {

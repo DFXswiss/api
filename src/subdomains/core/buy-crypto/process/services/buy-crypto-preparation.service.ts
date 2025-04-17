@@ -309,7 +309,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           await this.buyCryptoService.refundCheckoutTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
         }
       } catch (e) {
-        this.logger.error(`Failed buyCrypto chargeback job ${entity.id}:`, e);
+        this.logger.error(`Failed to chargeback buy-crypto ${entity.id}:`, e);
       }
     }
   }
