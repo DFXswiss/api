@@ -9,12 +9,19 @@ export class DilisenseService {
 
   constructor(private readonly http: HttpService) {}
 
-  async getRiskData(name: string, dob?: Date): Promise<{ data: DilisenseApiData; pdfData: string }> {
+  async getRiskData(
+    name: string,
+    isBusiness: boolean,
+    dob?: Date,
+  ): Promise<{ data: DilisenseApiData; pdfData: string }> {
     const params = new URLSearchParams({ names: name });
     dob && params.set('dob', dob.toLocaleDateString('en-GB'));
 
-    const url = `${this.baseUrl}/checkIndividual?${params.toString()}`;
-    const pdfUrl = `${this.baseUrl}/generateIndividualReport?${params.toString()}`;
+    const urlEndpoint = isBusiness ? 'checkEntity' : 'checkIndividual';
+    const pdfEndpoint = isBusiness ? 'generateEntityReport' : 'generateIndividualReport';
+
+    const url = `${this.baseUrl}/${urlEndpoint}?${params.toString()}`;
+    const pdfUrl = `${this.baseUrl}/${pdfEndpoint}?${params.toString()}`;
 
     try {
       return {
