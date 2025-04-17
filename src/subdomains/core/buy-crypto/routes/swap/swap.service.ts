@@ -154,6 +154,10 @@ export class SwapService {
     return this.toPaymentInfoDto(userId, swap, dto);
   }
 
+  async getById(id: number): Promise<Swap> {
+    return this.swapRepo.findOne({ where: { id } });
+  }
+
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
