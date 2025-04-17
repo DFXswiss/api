@@ -22,10 +22,6 @@
         "title": "Area lavoratori autonomi",
         "description": "In quale settore svolge un'attività autonoma? Descrivete la vostra attività e i vostri clienti in 2-3 frasi."
       },
-      "operative": {
-        "title": "Organizzazione",
-        "description": "L'azienda è operativa?"
-      },
       "occupation": { "title": "Attività professionale", "description": "Come descriverebbe il suo lavoro?" },
       "employed_description": {
         "title": "Datore di lavoro",

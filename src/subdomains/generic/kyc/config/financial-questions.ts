@@ -58,12 +58,6 @@ export const FinancialQuestions: FinancialQuestion[] = [
     accountTypes: [AccountType.ORGANIZATION],
   },
   {
-    key: 'operative',
-    type: QuestionType.SINGLE_CHOICE,
-    options: ['yes', 'no'],
-    accountTypes: [AccountType.ORGANIZATION],
-  },
-  {
     key: 'area',
     type: QuestionType.TEXT,
     accountTypes: [AccountType.SOLE_PROPRIETORSHIP],

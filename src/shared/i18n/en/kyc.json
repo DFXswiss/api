@@ -22,10 +22,6 @@
         "title": "Area self-employed",
         "description": "In which area are you self-employed? Please describe your activity and customers in 2-3 sentences."
       },
-      "operative": {
-        "title": "Organisation",
-        "description": "Is the company operational?"
-      },
       "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
       "employed_description": {
         "title": "Employer",
