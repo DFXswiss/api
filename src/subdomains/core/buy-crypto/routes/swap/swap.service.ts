@@ -114,6 +114,19 @@ export class SwapService {
       .then((r) => r.volume);
   }
 
+  // --- BANK INFO --- //
+  async getBankInfo(): Promise<any> {
+    return {
+      name: 'DFX AG',
+      street: 'Bahnhofstrasse',
+      number: '7',
+      zip: '6300',
+      city: 'Zug',
+      country: 'CH',
+      iban: 'CH00 0000 0000 0000 0000 0',
+    };
+  }
+
   async getSwapWithoutRoute(): Promise<Swap[]> {
     return this.swapRepo.findBy({ route: { id: IsNull() } });
   }

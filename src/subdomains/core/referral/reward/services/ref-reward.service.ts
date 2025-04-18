@@ -135,6 +135,19 @@ export class RefRewardService {
     return volume ?? 0;
   }
 
+  // --- BANK INFO --- //
+  async getBankInfo(): Promise<any> {
+    return {
+      name: 'DFX AG',
+      street: 'Bahnhofstrasse',
+      number: '7',
+      zip: '6300',
+      city: 'Zug',
+      country: 'CH',
+      iban: 'CH00 0000 0000 0000 0000 0',
+    };
+  }
+
   // --- HELPER METHODS --- //
   async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null

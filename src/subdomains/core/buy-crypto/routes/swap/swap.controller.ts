@@ -21,6 +21,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -30,12 +31,15 @@ import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dt
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
+import { TransactionDto, TransactionType } from 'src/subdomains/supporting/payment/dto/transaction.dto';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { CreateSwapDto } from './dto/create-swap.dto';
 import { GetSwapPaymentInfoDto } from './dto/get-swap-payment-info.dto';
 import { GetSwapQuoteDto } from './dto/get-swap-quote.dto';
+import { InvoiceDto } from './dto/invoice.dto';
 import { SwapPaymentInfoDto } from './dto/swap-payment-info.dto';
 import { SwapQuoteDto } from './dto/swap-quote.dto';
 import { SwapDto } from './dto/swap.dto';
@@ -54,6 +58,9 @@ export class SwapController {
     private readonly transactionHelper: TransactionHelper,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly assetService: AssetService,
+    private readonly transactionService: TransactionService,
+    private readonly fiatService: FiatService,
+    private readonly swissQrService: SwissQRService,
   ) {}
 
   @Get()
@@ -183,6 +190,39 @@ export class SwapController {
   @ApiExcludeEndpoint()
   async getSwapRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDtoDeprecated[]> {
     return this.buyCryptoService.getCryptoHistory(jwt.user, +id);
+  }
+
+  @Put('/transaction/:id/invoice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @ApiOkResponse({ type: InvoiceDto })
+  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
+    const transaction = await this.transactionService.getTransactionById(+id, {
+      user: { userData: true },
+      buyCrypto: { outputAsset: true, cryptoRoute: true, cryptoInput: { asset: true } },
+    });
+
+    if (!transaction) throw new BadRequestException('Transaction not found');
+    // TODO: Fix this check
+    // if (!transaction.buyCrypto.isCryptoCryptoTransaction)
+    //   throw new BadRequestException('Transaction is not a swap transaction');
+    if (!transaction.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+
+    const swap = transaction.buyCrypto.cryptoRoute;
+    const bankInfo = await this.swapService.getBankInfo();
+
+    if (!swap) throw new BadRequestException('Swap route not found');
+
+    return {
+      invoicePdf: await this.swissQrService.createInvoiceFromTx(
+        transaction.buyCrypto.outputAmount,
+        transaction.buyCrypto.outputAsset.name,
+        bankInfo,
+        transaction,
+        TransactionType.SWAP,
+        swap.id.toString(),
+      ),
+    };
   }
 
   // --- DTO --- //

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
 import { IbanBankName } from './dto/bank.dto';
@@ -9,7 +9,7 @@ import { IbanBankName } from './dto/bank.dto';
 export interface BankSelectorInput {
   amount: number;
   currency: string;
-  paymentMethod: FiatPaymentMethod;
+  paymentMethod: PaymentMethod;
   userData: UserData;
 }
 
