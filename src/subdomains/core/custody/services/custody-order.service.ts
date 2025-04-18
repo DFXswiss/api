@@ -11,7 +11,7 @@ import { SellService } from '../../sell-crypto/route/sell.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CreateCustodyOrderDto, CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { UpdateCustodyOrderInternalDto } from '../dto/input/update-custody-order.dto';
-import { CustodyOrderResponseDto } from '../dto/output/create-custody-order-output.dto';
+import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderType } from '../enums/custody';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
@@ -28,7 +28,7 @@ export class CustodyOrderService {
 
   //*** PUBLIC API ***//
 
-  async createOrder(jwt: JwtPayload, dto: CreateCustodyOrderDto): Promise<CustodyOrderResponseDto> {
+  async createOrder(jwt: JwtPayload, dto: CreateCustodyOrderDto): Promise<CustodyOrderDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 

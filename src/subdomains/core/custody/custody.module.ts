@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
@@ -27,6 +28,7 @@ import { CustodyService } from './services/custody.service';
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
     BlockchainModule,
+    PricingModule,
   ],
   controllers: [CustodyController, CustodyAdminController],
   providers: [

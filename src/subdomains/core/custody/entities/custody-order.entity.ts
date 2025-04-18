@@ -13,21 +13,30 @@ export class CustodyOrder extends IEntity {
   @Column({ nullable: false })
   type: CustodyOrderType;
 
+  @Column({ nullable: false, default: CustodyOrderStatus.CREATED })
+  status: CustodyOrderStatus;
+
   // TODO fill
   @Column({ type: 'float', nullable: true })
-  inputAmount: number;
+  inputAmount?: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  inputAsset: Asset;
+  inputAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  outputAmount: number;
+  outputAmount?: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  outputAsset: Asset;
+  outputAsset?: Asset;
+
+  @Column({ type: 'float', nullable: true })
+  amountInChf?: number;
 
   @ManyToOne(() => User, (user) => user.custodyOrders, { nullable: false })
   user: User;
+
+  @OneToMany(() => CustodyOrderStep, (step) => step.order, { nullable: false })
+  steps: CustodyOrderStep[];
 
   @OneToOne(() => TransactionRequest, (transactionRequest) => transactionRequest.custodyOrder, {
     nullable: true,
@@ -39,12 +48,6 @@ export class CustodyOrder extends IEntity {
   @OneToOne(() => Transaction, (transaction) => transaction.custodyOrder, { nullable: true })
   @JoinColumn()
   transaction?: Transaction;
-
-  @Column({ nullable: false, default: CustodyOrderStatus.CREATED })
-  status: CustodyOrderStatus;
-
-  @OneToMany(() => CustodyOrderStep, (step) => step.order, { nullable: false })
-  steps: CustodyOrderStep[];
 
   confirm(): UpdateResult<CustodyOrder> {
     return Util.updateEntity<CustodyOrder>(this, {

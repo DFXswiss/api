@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiTags } from '@nestjs/swagger';
 import { RealIP } from 'nestjs-real-ip';
@@ -9,8 +9,9 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
-import { CustodyAuthResponseDto } from '../dto/output/create-custody-account-output.dto';
-import { CustodyOrderResponseDto } from '../dto/output/create-custody-order-output.dto';
+import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
+import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
+import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyService } from '../services/custody.service';
 
@@ -19,6 +20,13 @@ import { CustodyService } from '../services/custody.service';
 export class CustodyController {
   constructor(private readonly service: CustodyService, private readonly custodyOrderService: CustodyOrderService) {}
 
+  @Get('balance')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
+    return this.service.getUserCustodyBalance(jwt.account);
+  }
+
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
@@ -26,14 +34,14 @@ export class CustodyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: CreateCustodyAccountDto,
     @RealIP() ip: string,
-  ): Promise<CustodyAuthResponseDto> {
+  ): Promise<CustodyAuthDto> {
     return this.service.createCustodyAccount(jwt.account, dto, ip);
   }
 
   @Post('order')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.CUSTODY), UserActiveGuard)
-  async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCustodyOrderDto): Promise<CustodyOrderResponseDto> {
+  async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCustodyOrderDto): Promise<CustodyOrderDto> {
     return this.custodyOrderService.createOrder(jwt, dto);
   }
 

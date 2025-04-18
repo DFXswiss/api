@@ -20,7 +20,6 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -45,8 +44,6 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 @ApiTags('Buy')
 @Controller('buy')
 export class BuyController {
-  private readonly logger = new DfxLogger(BuyController);
-
   constructor(
     private readonly buyService: BuyService,
     private readonly userService: UserService,
