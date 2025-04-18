@@ -13,6 +13,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
@@ -146,7 +147,10 @@ export class CustodyService implements OnModuleInit {
 
     return {
       assetBalances: CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances),
-      totalBalance: custodyBalances.reduce((prev, curr) => prev + price.convert(curr.balanceInChf), 0),
+      totalBalance: Util.roundReadable(
+        custodyBalances.reduce((prev, curr) => prev + price.convert(curr.balanceInChf), 0),
+        AmountType.FIAT,
+      ),
       currency: FiatDtoMapper.toDto(account.currency),
     };
   }
