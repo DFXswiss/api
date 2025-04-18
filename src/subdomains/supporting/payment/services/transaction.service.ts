@@ -41,9 +41,7 @@ export class TransactionService {
         entity.supportIssues = [...(entity.supportIssues ?? []), ...(entity.request.supportIssues ?? [])];
     }
 
-    entity = await this.repo.save(entity);
-
-    return entity;
+    return this.repo.save(entity);
   }
 
   async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
