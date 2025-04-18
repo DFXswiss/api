@@ -95,8 +95,6 @@ export class SwissQRService {
 
     let asset: Asset;
     let assetAmount: number;
-
-    // First try to identify by the transaction type
     switch (txType) {
       case TransactionType.SWAP:
         asset = transaction.buyCrypto?.cryptoInput?.asset;
@@ -109,6 +107,11 @@ export class SwissQRService {
       case TransactionType.SELL:
         asset = transaction.buyFiat?.cryptoInput?.asset;
         assetAmount = transaction.buyFiat?.inputAmount;
+        break;
+      case TransactionType.REFERRAL:
+        const targetBlockchain = transaction.refReward?.targetBlockchain;
+        asset = await this.assetService.getNativeAsset(targetBlockchain);
+        assetAmount = transaction.refReward?.outputAmount;
         break;
       default:
         throw new Error('Unsupported transaction type');
