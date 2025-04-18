@@ -8,6 +8,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -67,6 +68,7 @@ describe('BuyCryptoService', () => {
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let amlService: AmlService;
   let transactionHelper: TransactionHelper;
+  let custodyOrderService: CustodyOrderService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -92,6 +94,7 @@ describe('BuyCryptoService', () => {
     buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
     amlService = createMock<AmlService>();
     transactionHelper = createMock<TransactionHelper>();
+    custodyOrderService = createMock<CustodyOrderService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -120,6 +123,7 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: AmlService, useValue: amlService },
         { provide: TransactionHelper, useValue: transactionHelper },
+        { provide: CustodyOrderService, useValue: custodyOrderService },
       ],
     }).compile();
 

@@ -88,6 +88,9 @@ export class Asset extends IEntity {
   @Column({ type: 'float', nullable: true })
   approxPriceChf?: number;
 
+  @Column({ type: 'float', nullable: true })
+  approxPriceEur?: number;
+
   @Column({ length: 256, nullable: true })
   financialType?: string;
 

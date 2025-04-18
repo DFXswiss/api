@@ -22,6 +22,7 @@ export class AssetPricesService {
   async updatePrices() {
     const usd = await this.fiatService.getFiatByName('USD');
     const chf = await this.fiatService.getFiatByName('CHF');
+    const eur = await this.fiatService.getFiatByName('EUR');
 
     const assetsToUpdate = await this.assetService.getPricedAssets();
 
@@ -29,8 +30,9 @@ export class AssetPricesService {
       try {
         const usdPrice = await this.pricingService.getPrice(asset, usd, false);
         const chfPrice = await this.pricingService.getPrice(asset, chf, false);
+        const eurPrice = await this.pricingService.getPrice(asset, eur, false);
 
-        await this.assetService.updatePrice(asset.id, usdPrice.convert(1), chfPrice.convert(1));
+        await this.assetService.updatePrice(asset.id, usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1));
       } catch (e) {
         this.logger.error(`Failed to update price of asset ${asset.uniqueName}:`, e);
       }
