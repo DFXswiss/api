@@ -146,7 +146,7 @@ export class CustodyService implements OnModuleInit {
 
     return {
       assetBalances: CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances),
-      totalBalance: custodyBalances.reduce((prev, curr) => prev + price.convert(curr.amountInChf), 0),
+      totalBalance: custodyBalances.reduce((prev, curr) => prev + price.convert(curr.balanceInChf), 0),
       currency: FiatDtoMapper.toDto(account.currency),
     };
   }

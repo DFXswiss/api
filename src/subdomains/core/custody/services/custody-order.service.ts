@@ -90,8 +90,4 @@ export class CustodyOrderService {
 
     await this.custodyOrderRepo.update(...order.approve());
   }
-
-  async getCustodyOrder(transactionRequest: TransactionRequest): Promise<CustodyOrder> {
-    return;
-  }
 }
