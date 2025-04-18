@@ -49,8 +49,10 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
 import {
@@ -99,6 +101,7 @@ export class TransactionController {
     private readonly transactionUtilService: TransactionUtilService,
     private readonly userDataService: UserDataService,
     private readonly bankTxReturnService: BankTxReturnService,
+    private readonly transactionRequestService: TransactionRequestService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
   ) {}
@@ -132,9 +135,10 @@ export class TransactionController {
     @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, orderUid, ckoId });
+    const tx = await this.getTransaction({ uid, orderUid, ckoId });
 
-    const dto = await this.txToTransactionDto(transaction);
+    const dto =
+      tx instanceof Transaction ? await this.txToTransactionDto(tx) : await this.waitingTxRequestToTransactionDto(tx);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
@@ -213,11 +217,14 @@ export class TransactionController {
     @Query('order-uid') orderUid?: string,
     @Query('external-id') externalId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, orderId, orderUid, externalId }, jwt.account);
+    const tx = await this.getTransaction({ id, uid, orderId, orderUid, externalId });
 
-    if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
+    if (tx && tx.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
-    const dto = await this.txToTransactionDto(transaction, true);
+    const dto =
+      tx instanceof Transaction
+        ? await this.txToTransactionDto(tx, true)
+        : await this.waitingTxRequestToTransactionDto(tx, true);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
@@ -486,12 +493,22 @@ export class TransactionController {
     query: TransactionFilter,
   ): Promise<TransactionDetailDto[] | UnassignedTransactionDto[]> {
     const txList = await this.transactionService.getTransactionsForAccount(userDataId, query.from, query.to);
+    const waitingTxRequestList = await this.transactionRequestService.getWaitingTransactionRequest(
+      userDataId,
+      query.from,
+      query.to,
+    );
 
     // map to DTO
-    return Util.asyncMap(txList, async (tx) => {
-      if (!tx.targetEntity) return undefined;
-      return this.txToTransactionDto(tx, true);
-    }).then((list) => list.filter((dto) => dto));
+    return [
+      ...(await Util.asyncMap(txList, async (tx) => {
+        if (!tx.targetEntity) return undefined;
+        return this.txToTransactionDto(tx, true);
+      }).then((list) => list.filter((dto) => dto))),
+      ...(await Util.asyncMap(waitingTxRequestList, async (txRequest) => {
+        return this.waitingTxRequestToTransactionDto(txRequest, true);
+      }).then((list) => list.filter((dto) => dto))),
+    ];
   }
 
   private async getTransaction(
@@ -511,7 +528,7 @@ export class TransactionController {
       ckoId?: string;
     },
     accountId?: number,
-  ): Promise<Transaction | undefined> {
+  ): Promise<Transaction | TransactionRequest | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
       buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true, chargebackOutput: true },
       buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
@@ -524,16 +541,32 @@ export class TransactionController {
       request: true,
     };
 
-    let transaction: Transaction;
-    if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
-    if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (orderId) transaction = await this.transactionService.getTransactionByRequestId(+orderId, relations);
-    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    let tx: Transaction | TransactionRequest;
+    if (id) tx = await this.transactionService.getTransactionById(+id, relations);
+    if (uid)
+      tx =
+        (await this.transactionService.getTransactionByUid(uid, relations)) ??
+        (await this.transactionRequestService.getTransactionRequestByUid(uid, { user: { userData: true } }));
+    if (orderUid) tx = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if (orderId)
+      tx =
+        (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??
+        (await this.transactionRequestService.getTransactionRequest(+orderId, { user: { userData: true } }));
     if (externalId && accountId)
-      transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
-    if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
+      tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
+    if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
-    return transaction;
+    return tx;
+  }
+
+  private async waitingTxRequestToTransactionDto(
+    txRequest?: TransactionRequest,
+    detailed = false,
+  ): Promise<TransactionDto | TransactionDetailDto | undefined> {
+    const txRequestExtended = await this.transactionRequestService.extendTransactionRequest(txRequest);
+    return detailed
+      ? TransactionDtoMapper.mapTxRequestTransactionDetail(txRequestExtended)
+      : TransactionDtoMapper.mapTxRequestTransaction(txRequestExtended);
   }
 
   private async txToTransactionDto(

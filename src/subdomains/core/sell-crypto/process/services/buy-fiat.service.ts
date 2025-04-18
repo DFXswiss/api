@@ -49,6 +49,7 @@ export class BuyFiatService {
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
     private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
     private readonly transactionService: TransactionService,
