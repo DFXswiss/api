@@ -22,7 +22,7 @@ import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStepContext } from '../enums/custody';
+import { CustodyOrderStatus, CustodyOrderStepContext } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
@@ -112,7 +112,7 @@ export class CustodyService implements OnModuleInit {
       const amount = order.inputAmount ?? -order.outputAmount;
 
       await this.custodyOrderRepo.update(...order.complete());
-      // TODO calculate balance
+
       const custodyBalance = await this.custodyBalanceRepo.findOneBy({
         asset: { id: asset.id },
         user: { id: order.user.id },
@@ -125,7 +125,8 @@ export class CustodyService implements OnModuleInit {
           .createQueryBuilder('custodyOrder')
           .select('SUM(custodyOrder.inputAmount)', 'deposit')
           .addSelect('SUM(custodyOrder.outputAmount)', 'withdrawal')
-          .where('userId = :id', { id: order.user.id })
+          .where('custodyOrder.userId = :id', { id: order.user.id })
+          .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
           .andWhere('(custodyOrder.inputAssetId = :asset OR custodyOrder.outputAssetId = :asset)', {
             asset: asset.id,
           })

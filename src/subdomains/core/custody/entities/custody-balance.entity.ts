@@ -10,7 +10,7 @@ export class CustodyBalance extends IEntity {
   balance: number;
 
   @Column({ type: 'float', default: 0 })
-  amountInChf: number;
+  balanceInChf: number;
 
   @ManyToOne(() => User, (user) => user.custodyBalances, { nullable: false, eager: true })
   user: User;
