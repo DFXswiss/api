@@ -90,7 +90,7 @@ export class SwapService {
     // update user volume
     const { user } = await this.swapRepo.findOne({
       where: { id: swapId },
-      relations: ['user'],
+      relations: { user: true },
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);

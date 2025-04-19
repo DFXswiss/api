@@ -126,7 +126,7 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
   private async getPayInAddresses(): Promise<string[]> {
     const routes = await this.repos.depositRoute.find({
       where: { deposit: { blockchains: Like(`%${this.blockchain}%`) } },
-      relations: ['deposit'],
+      relations: { deposit: true },
     });
 
     const addresses = routes.map((dr) => dr.deposit.address);

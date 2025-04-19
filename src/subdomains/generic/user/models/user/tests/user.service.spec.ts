@@ -7,6 +7,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -32,6 +33,7 @@ describe('UserService', () => {
   let fiatService: FiatService;
   let tfaService: TfaService;
   let siftService: SiftService;
+  let kycAdminService: KycAdminService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -47,6 +49,7 @@ describe('UserService', () => {
     fiatService = createMock<FiatService>();
     tfaService = createMock<TfaService>();
     siftService = createMock<SiftService>();
+    kycAdminService = createMock<KycAdminService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -64,6 +67,7 @@ describe('UserService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: TfaService, useValue: tfaService },
         { provide: SiftService, useValue: siftService },
+        { provide: KycAdminService, useValue: kycAdminService },
         TestUtil.provideConfig(),
       ],
     }).compile();

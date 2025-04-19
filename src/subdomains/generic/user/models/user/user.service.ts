@@ -22,6 +22,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -58,6 +59,7 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -66,6 +68,10 @@ export class UserService {
 
   async getUser(userId: number, relations: FindOptionsRelations<User> = {}): Promise<User> {
     return this.userRepo.findOne({ where: { id: userId }, relations });
+  }
+
+  async getAllUserDataUsers(userDataId: number, relations: FindOptionsRelations<User> = {}): Promise<User[]> {
+    return this.userRepo.find({ where: { userData: { id: userDataId } }, relations });
   }
 
   async getUserByAddress(address: string, relations: FindOptionsRelations<User> = {}): Promise<User> {
@@ -133,7 +139,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: true } });
   }
 
   async getNexCustodyIndex(): Promise<number> {
@@ -309,7 +315,7 @@ export class UserService {
   async deactivateUser(userDataId: number, address?: string): Promise<void> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
+      relations: { users: true, kycSteps: true },
     });
     if (!userData) throw new NotFoundException('User account not found');
     if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
@@ -363,7 +369,7 @@ export class UserService {
   private async updateUserDataVolume(userId: number): Promise<void> {
     const { userData } = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ['userData'],
+      relations: { userData: true },
       select: ['id', 'userData'],
     });
     await this.userDataService.updateVolumes(userData.id);
@@ -529,7 +535,7 @@ export class UserService {
   }
 
   async updateApiFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true } });
     if (!user) throw new BadRequestException('User not found');
 
     user.apiFilterCT = ApiKeyService.getFilterCode(filter);

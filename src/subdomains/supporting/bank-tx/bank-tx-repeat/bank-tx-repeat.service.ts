@@ -35,7 +35,7 @@ export class BankTxRepeatService {
   async update(id: number, dto: UpdateBankTxRepeatDto): Promise<BankTxRepeat> {
     const entity = await this.bankTxRepeatRepo.findOne({
       where: { id },
-      relations: ['chargebackBankTx', 'sourceBankTx'],
+      relations: { chargebackBankTx: true, sourceBankTx: true },
     });
     if (!entity) throw new NotFoundException('BankTxRepeat not found');
 
@@ -84,7 +84,7 @@ export class BankTxRepeatService {
   async getAllUserRepeats(userIds: number[]): Promise<BankTxRepeat[]> {
     return this.bankTxRepeatRepo.find({
       where: { userId: In(userIds) },
-      relations: ['bankTx', 'sourceBankTx', 'chargebackBankTx'],
+      relations: { bankTx: true, sourceBankTx: true, chargebackBankTx: true },
       order: { id: 'DESC' },
     });
   }

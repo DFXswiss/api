@@ -370,7 +370,7 @@ export class BuyFiatService {
     return this.buyFiatRepo
       .find({
         where: { sell: where },
-        relations: ['sell', 'sell.user', 'cryptoInput', 'fiatOutput'],
+        relations: { sell: { user: true }, cryptoInput: true, fiatOutput: true },
       })
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
@@ -416,7 +416,7 @@ export class BuyFiatService {
 
   private async getSell(sellId: number): Promise<Sell> {
     // sell
-    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user', 'user.wallet'] });
+    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: { user: { wallet: true } } });
     if (!sell) throw new BadRequestException('Sell route not found');
 
     return sell;
@@ -475,7 +475,7 @@ export class BuyFiatService {
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
-      relations: ['cryptoInput', 'cryptoInput.asset'],
+      relations: { cryptoInput: true },
       loadEagerRelations: false,
     });
 

@@ -644,7 +644,6 @@ export class UserDataService {
   async checkApiKey(key: string, sign: string, timestamp: string): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { apiKeyCT: key }, relations: { users: true } });
     if (!userData) throw new NotFoundException('API key not found');
-
     if (!ApiKeyService.isValidSign(userData, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
 
     return userData;
@@ -795,7 +794,6 @@ export class UserDataService {
       relations: {
         accountRelations: true,
         relatedAccountRelations: true,
-        kycSteps: true,
         supportIssues: true,
         wallet: true,
         language: true,
@@ -808,13 +806,13 @@ export class UserDataService {
       relations: { userData: true, wallet: true },
     });
     master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
+    master.kycSteps = await this.kycAdminService.getKycSteps(masterId);
 
     const slave = await this.userDataRepo.findOne({
       where: { id: slaveId },
       relations: {
         accountRelations: true,
         relatedAccountRelations: true,
-        kycSteps: true,
         supportIssues: true,
         wallet: true,
         language: true,
@@ -827,6 +825,7 @@ export class UserDataService {
       relations: { userData: true, wallet: true },
     });
     slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
+    slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
 
     this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
 

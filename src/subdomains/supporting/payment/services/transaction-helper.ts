@@ -338,6 +338,7 @@ export class TransactionHelper implements OnModuleInit {
 
   async getVolumeChfSince(
     tx: BuyCrypto | BuyFiat,
+    users: User[],
     dateFrom: Date,
     dateTo: Date,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
@@ -345,7 +346,7 @@ export class TransactionHelper implements OnModuleInit {
     from?: Active,
     allowExpiredPrice?: boolean,
   ): Promise<number> {
-    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, tx.userData.users, tx, type);
+    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, tx, type);
 
     price ??= await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
