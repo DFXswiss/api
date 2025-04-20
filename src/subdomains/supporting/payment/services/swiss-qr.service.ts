@@ -70,7 +70,7 @@ export class SwissQRService {
       assetAmount,
       amount,
       currency,
-      request.id,
+      `R${request.id}`,
       true,
       TransactionType.BUY,
     );
@@ -119,17 +119,7 @@ export class SwissQRService {
 
     if (!asset) throw new Error('Asset information missing in transaction');
 
-    return this.generatePdfInvoice(
-      data,
-      language,
-      asset,
-      assetAmount,
-      amount,
-      currency,
-      transaction.uid,
-      false,
-      txType,
-    );
+    return this.generatePdfInvoice(data, language, asset, assetAmount, amount, currency, transaction.id, false, txType);
   }
 
   private generatePdfInvoice(
@@ -266,8 +256,8 @@ export class SwissQRService {
               {
                 text:
                   transactionType === TransactionType.SWAP
-                    ? `${currency} ${this.formatCryptoAmount(amount)}` // Format crypto nicely
-                    : `${currency} ${amount.toFixed(2)}`, // Standard 2 decimals for fiat
+                    ? `${currency} ${this.formatCryptoAmount(amount)}`
+                    : `${currency} ${amount.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
