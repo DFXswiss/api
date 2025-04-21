@@ -4,4 +4,6 @@ import { Transaction } from 'src/subdomains/supporting/payment/entities/transact
 export class UpdateCustodyOrderInternalDto {
   transactionRequest?: TransactionRequest;
   transaction?: Transaction;
+  inputAmount?: number;
+  outputAmount?: number;
 }

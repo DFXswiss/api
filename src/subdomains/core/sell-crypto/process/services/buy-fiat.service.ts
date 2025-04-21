@@ -106,9 +106,13 @@ export class BuyFiatService {
           transaction: entity.transaction,
         });
       } else {
+        // TODO remove? Case not possible => buyFiat without order and custody user
         await this.custodyOrderService.createOrderInternal({
           user: sell.user,
-          type: CustodyOrderType.WITHDRAWAL, // TODO
+          type: CustodyOrderType.WITHDRAWAL,
+          sell,
+          outputAsset: cryptoInput.asset,
+          outputAmount: entity.inputAmount,
           transaction: entity.transaction,
           transactionRequest: request,
         });

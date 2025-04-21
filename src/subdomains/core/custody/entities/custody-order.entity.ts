@@ -5,6 +5,9 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Buy } from '../../buy-crypto/routes/buy/buy.entity';
+import { Swap } from '../../buy-crypto/routes/swap/swap.entity';
+import { Sell } from '../../sell-crypto/route/sell.entity';
 import { CustodyOrderStatus, CustodyOrderType } from '../enums/custody';
 import { CustodyOrderStep } from './custody-order-step.entity';
 
@@ -34,6 +37,15 @@ export class CustodyOrder extends IEntity {
 
   @ManyToOne(() => User, (user) => user.custodyOrders, { nullable: false })
   user: User;
+
+  @ManyToOne(() => Sell, { nullable: true })
+  sell: Sell;
+
+  @ManyToOne(() => Swap, { nullable: true })
+  swap: Swap;
+
+  @ManyToOne(() => Buy, { nullable: true })
+  buy: Buy;
 
   @OneToMany(() => CustodyOrderStep, (step) => step.order, { nullable: false })
   steps: CustodyOrderStep[];

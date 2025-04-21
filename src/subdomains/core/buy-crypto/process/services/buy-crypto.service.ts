@@ -19,7 +19,6 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
-import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
@@ -654,7 +653,7 @@ export class BuyCryptoService {
       } else {
         await this.custodyOrderService.createOrderInternal({
           user: dto.user,
-          type: dto.type === TransactionTypeInternal.CRYPTO_CRYPTO ? CustodyOrderType.SWAP : CustodyOrderType.DEPOSIT,
+          ...entity.custodyInput,
           transaction: entity.transaction,
           transactionRequest: request,
         });

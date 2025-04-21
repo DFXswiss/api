@@ -6,6 +6,8 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
+import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -582,6 +584,29 @@ export class BuyCrypto extends IEntity {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
+  get custodyOrder(): CustodyOrder {
+    return this.transaction.custodyOrder ?? this.transaction.request?.custodyOrder;
+  }
+
+  get custodyInput(): {
+    type: CustodyOrderType;
+    buy?: Buy;
+    swap?: Swap;
+    inputAsset?: Asset;
+    inputAmount?: number;
+    outputAsset?: Asset;
+    outputAmount?: number;
+  } {
+    return this.isCryptoCryptoTransaction
+      ? {
+          type: CustodyOrderType.SWAP,
+          swap: this.cryptoRoute,
+          outputAsset: this.cryptoInput.asset,
+          outputAmount: this.inputAmount,
+        }
+      : { type: CustodyOrderType.DEPOSIT, buy: this.buy, inputAsset: this.outputAsset, inputAmount: this.outputAmount };
+  }
+
   get chargebackBankRemittanceInfo(): string {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
@@ -627,7 +652,7 @@ export class BuyCrypto extends IEntity {
   get chargebackBankFee(): number {
     return this.bankTx ? this.bankTx.chargeAmount : 0;
   }
-  
+
   get wallet(): Wallet {
     return this.user.wallet;
   }
