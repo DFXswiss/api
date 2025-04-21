@@ -101,7 +101,7 @@ export class SwissQRService {
       { creditor, debtor, currency },
       false,
       txType,
-      details.date,
+      transaction.created,
     );
   }
 
@@ -412,11 +412,10 @@ export class SwissQRService {
     txType: TransactionType,
     transaction: Transaction,
     currency: string,
-  ): Promise<{ quantity: number | string; description: any; fiatAmount: number; date?: Date }> {
+  ): Promise<{ quantity: number | string; description: any; fiatAmount: number }> {
     let quantity: number | string;
     let description: any;
     let fiatAmount: number;
-    let date: Date;
 
     switch (txType) {
       case TransactionType.BUY:
@@ -428,7 +427,6 @@ export class SwissQRService {
           assetBlockchain: outputAsset.blockchain,
         };
         fiatAmount = transaction.buyCrypto?.inputAmount;
-        date = transaction.buyCrypto?.created; // TODO: Check if this is the correct date (same below)
         break;
 
       case TransactionType.SELL:
@@ -442,7 +440,6 @@ export class SwissQRService {
           assetBlockchain: inputAsset.blockchain,
         };
         fiatAmount = transaction.buyFiat?.outputAmount;
-        date = transaction.buyFiat?.created;
         break;
 
       case TransactionType.SWAP:
@@ -459,7 +456,6 @@ export class SwissQRService {
           targetBlockchain: targetAsset.blockchain,
         };
         fiatAmount = currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur;
-        date = transaction.buyCrypto?.created;
         break;
 
       case TransactionType.REFERRAL:
@@ -474,13 +470,12 @@ export class SwissQRService {
           assetBlockchain: targetBlockchain,
         };
         fiatAmount = currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur;
-        date = transaction.refReward?.created;
         break;
 
       default:
         throw new Error('Unsupported transaction type');
     }
 
-    return { quantity, description, fiatAmount, date };
+    return { quantity, description, fiatAmount };
   }
 }
