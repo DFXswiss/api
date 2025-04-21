@@ -32,14 +32,8 @@ enum SupportedInvoiceLanguage {
 export class SwissQRService {
   constructor(private readonly assetService: AssetService, private readonly i18n: I18nService) {}
 
-  createQrCode(
-    amount: number,
-    currency: 'CHF',
-    reference: string,
-    bankInfo: BankInfoDto,
-    request?: TransactionRequest,
-  ): string {
-    const data = this.generateQrData(amount, currency, bankInfo, reference, request.user.userData);
+  createQrCode(amount: number, currency: 'CHF', reference: string, bankInfo: BankInfoDto, userData?: UserData): string {
+    const data = this.generateQrData(amount, currency, bankInfo, reference, userData);
     return new SwissQRCode(data).toString();
   }
 
@@ -58,7 +52,16 @@ export class SwissQRService {
 
     const userLanguage = request.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const details = await this.getInvoiceDetails(TransactionType.BUY, request.transaction, currency);
+    const asset = await this.assetService.getAssetById(request.targetId);
+    const details = {
+      quantity: request.estimatedAmount,
+      description: {
+        assetDescription: asset.description ?? asset.name,
+        assetName: asset.name,
+        assetBlockchain: asset.blockchain,
+      },
+      fiatAmount: amount,
+    };
 
     return this.generatePdfInvoice(
       request.id,
@@ -98,6 +101,7 @@ export class SwissQRService {
       { creditor, debtor, currency },
       false,
       txType,
+      details.date,
     );
   }
 
@@ -110,6 +114,7 @@ export class SwissQRService {
     billData: QrBillData,
     includeQrBill: boolean,
     transactionType: TransactionType,
+    invoiceDate?: Date,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -191,7 +196,7 @@ export class SwissQRService {
         );
 
         // Date
-        const date = new Date();
+        const date = invoiceDate ?? new Date();
         pdf.fontSize(11);
         pdf.font('Helvetica');
         pdf.text(`Zug ${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`, {
@@ -205,7 +210,7 @@ export class SwissQRService {
             backgroundColor: '#4A4D51',
             columns: [
               {
-                text: this.translate('invoice.table.headers.quantity', language),
+                text: this.translate('invoice.table.headers.quantity', language) + (includeQrBill ? ' *' : ''),
                 width: mm2pt(40),
               },
               {
@@ -407,10 +412,11 @@ export class SwissQRService {
     txType: TransactionType,
     transaction: Transaction,
     currency: string,
-  ): Promise<{ quantity: number | string; description: any; fiatAmount: number }> {
+  ): Promise<{ quantity: number | string; description: any; fiatAmount: number; date?: Date }> {
     let quantity: number | string;
     let description: any;
     let fiatAmount: number;
+    let date: Date;
 
     switch (txType) {
       case TransactionType.BUY:
@@ -422,6 +428,7 @@ export class SwissQRService {
           assetBlockchain: outputAsset.blockchain,
         };
         fiatAmount = transaction.buyCrypto?.inputAmount;
+        date = transaction.buyCrypto?.created; // TODO: Check if this is the correct date (same below)
         break;
 
       case TransactionType.SELL:
@@ -435,6 +442,7 @@ export class SwissQRService {
           assetBlockchain: inputAsset.blockchain,
         };
         fiatAmount = transaction.buyFiat?.outputAmount;
+        date = transaction.buyFiat?.created;
         break;
 
       case TransactionType.SWAP:
@@ -451,6 +459,7 @@ export class SwissQRService {
           targetBlockchain: targetAsset.blockchain,
         };
         fiatAmount = currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur;
+        date = transaction.buyCrypto?.created;
         break;
 
       case TransactionType.REFERRAL:
@@ -465,12 +474,13 @@ export class SwissQRService {
           assetBlockchain: targetBlockchain,
         };
         fiatAmount = currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur;
+        date = transaction.refReward?.created;
         break;
 
       default:
         throw new Error('Unsupported transaction type');
     }
 
-    return { quantity, description, fiatAmount };
+    return { quantity, description, fiatAmount, date };
   }
 }

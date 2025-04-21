@@ -3,7 +3,7 @@
   "credit_title": "Gutschrift Nr. {invoiceId}",
   "table": {
     "headers": {
-      "quantity": "Menge *",
+      "quantity": "Menge",
       "description": "Beschreibung",
       "total": "Gesamt"
     },

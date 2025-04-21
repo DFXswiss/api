@@ -3,7 +3,7 @@
   "credit_title": "Credit No. {invoiceId}",
   "table": {
     "headers": {
-      "quantity": "Quantity *",
+      "quantity": "Quantity",
       "description": "Description",
       "total": "Total"
     },
