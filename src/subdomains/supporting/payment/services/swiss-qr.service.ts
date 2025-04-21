@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -59,77 +58,56 @@ export class SwissQRService {
 
     const userLanguage = request.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-
-    const asset = await this.assetService.getAssetById(request.targetId);
-    const assetAmount = request.estimatedAmount;
+    const details = await this.getInvoiceDetails(TransactionType.BUY, request.transaction, currency);
 
     return this.generatePdfInvoice(
-      data,
+      request.id,
+      details.quantity,
+      details.description,
+      details.fiatAmount,
       language,
-      asset,
-      assetAmount,
-      amount,
-      currency,
-      `R${request.id}`,
+      data,
       true,
       TransactionType.BUY,
     );
   }
 
   async createInvoiceFromTx(
-    amount: number,
-    currency: string, // Allow CHF, EUR and crypto
-    bankInfo: BankInfoDto,
     transaction: Transaction,
+    bankInfo: BankInfoDto,
+    currency: 'CHF' | 'EUR',
     txType: TransactionType,
-    reference?: string,
   ): Promise<string> {
-    const data = this.generateQrData(amount, currency, bankInfo, reference, transaction.user.userData);
+    const creditor = this.getCreditor(bankInfo);
+    const debtor = this.getDebtor(transaction.user.userData);
 
-    if (!data.debtor) {
+    if (!debtor) {
       throw new Error('Debtor is required');
     }
 
     const userLanguage = transaction.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
+    const details = await this.getInvoiceDetails(txType, transaction, currency);
 
-    let asset: Asset;
-    let assetAmount: number;
-    switch (txType) {
-      case TransactionType.SWAP:
-        asset = transaction.buyCrypto?.cryptoInput?.asset;
-        assetAmount = transaction.buyCrypto?.inputAmount;
-        break;
-      case TransactionType.BUY:
-        asset = transaction.buyCrypto?.outputAsset;
-        assetAmount = transaction.buyCrypto?.outputAmount;
-        break;
-      case TransactionType.SELL:
-        asset = transaction.buyFiat?.cryptoInput?.asset;
-        assetAmount = transaction.buyFiat?.inputAmount;
-        break;
-      case TransactionType.REFERRAL:
-        const targetBlockchain = transaction.refReward?.targetBlockchain;
-        asset = await this.assetService.getNativeAsset(targetBlockchain);
-        assetAmount = transaction.refReward?.outputAmount;
-        break;
-      default:
-        throw new Error('Unsupported transaction type');
-    }
-
-    if (!asset) throw new Error('Asset information missing in transaction');
-
-    return this.generatePdfInvoice(data, language, asset, assetAmount, amount, currency, transaction.id, false, txType);
+    return this.generatePdfInvoice(
+      transaction.id,
+      details.quantity,
+      details.description,
+      details.fiatAmount,
+      language,
+      { creditor, debtor, currency },
+      false,
+      txType,
+    );
   }
 
   private generatePdfInvoice(
-    data: QrBillData,
-    language: string,
-    asset: Asset,
-    assetAmount: number,
-    amount: number,
-    currency: string,
     invoiceId: number | string,
+    quantity: number | string,
+    description: any,
+    total: number,
+    language: string,
+    billData: QrBillData,
     includeQrBill: boolean,
     transactionType: TransactionType,
   ): Promise<string> {
@@ -171,7 +149,7 @@ export class SwissQRService {
         pdf.fillColor('black');
         pdf.font('Helvetica');
         pdf.text(
-          `${data.creditor.name}\n${data.creditor.address} ${data.creditor.buildingNumber}\n${data.creditor.zip} ${data.creditor.city}`,
+          `${billData.creditor.name}\n${billData.creditor.address} ${billData.creditor.buildingNumber}\n${billData.creditor.zip} ${billData.creditor.city}`,
           mm2pt(20),
           mm2pt(35),
           {
@@ -185,7 +163,7 @@ export class SwissQRService {
         pdf.fontSize(12);
         pdf.font('Helvetica');
         pdf.text(
-          `${data.debtor.name}\n${data.debtor.address} ${data.debtor.buildingNumber}\n${data.debtor.zip} ${data.debtor.city}`,
+          `${billData.debtor.name}\n${billData.debtor.address} ${billData.debtor.buildingNumber}\n${billData.debtor.zip} ${billData.debtor.city}`,
           mm2pt(130),
           mm2pt(60),
           {
@@ -198,10 +176,19 @@ export class SwissQRService {
         // Title
         pdf.fontSize(14);
         pdf.font('Helvetica-Bold');
-        pdf.text(this.translate('invoice.title', language, { invoiceId }), mm2pt(20), mm2pt(100), {
-          align: 'left',
-          width: mm2pt(170),
-        });
+        pdf.text(
+          this.translate(
+            transactionType === TransactionType.REFERRAL ? 'invoice.credit_title' : 'invoice.title',
+            language,
+            { invoiceId },
+          ),
+          mm2pt(20),
+          mm2pt(100),
+          {
+            align: 'left',
+            width: mm2pt(170),
+          },
+        );
 
         // Date
         const date = new Date();
@@ -238,26 +225,18 @@ export class SwissQRService {
           {
             columns: [
               {
-                text:
-                  transactionType === TransactionType.SWAP ? this.formatCryptoAmount(assetAmount) : `${assetAmount}`,
+                text: `${quantity}`,
                 width: mm2pt(40),
               },
               {
                 text: this.translate(
                   `invoice.table.position_row.${transactionType.toLowerCase()}_description`,
                   language,
-                  {
-                    assetDescription: asset.description ?? asset.name,
-                    assetName: asset.name,
-                    assetBlockchain: asset.blockchain,
-                  },
+                  description,
                 ),
               },
               {
-                text:
-                  transactionType === TransactionType.SWAP
-                    ? `${currency} ${this.formatCryptoAmount(amount)}`
-                    : `${currency} ${amount.toFixed(2)}`,
+                text: `${billData.currency} ${total.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -275,10 +254,7 @@ export class SwissQRService {
               },
               {
                 fontName: 'Helvetica-Bold',
-                text:
-                  transactionType === TransactionType.SWAP
-                    ? `${currency} ${this.formatCryptoAmount(amount)}`
-                    : `${currency} ${amount.toFixed(2)}`,
+                text: `${billData.currency} ${total.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -311,7 +287,7 @@ export class SwissQRService {
                 text: this.translate('invoice.table.vat_row.vat_amount_label', language),
               },
               {
-                text: transactionType === TransactionType.SWAP ? `${currency} 0.00000000` : `${currency} 0.00`,
+                text: `${billData.currency} 0.00`,
                 width: mm2pt(30),
               },
             ],
@@ -325,14 +301,16 @@ export class SwissQRService {
               },
               {
                 fontName: 'Helvetica-Bold',
-                text: this.translate('invoice.table.invoice_total_row.invoice_total_label', language),
+                text: this.translate(
+                  transactionType === TransactionType.REFERRAL
+                    ? 'invoice.table.credit_total_row.credit_total_label'
+                    : 'invoice.table.invoice_total_row.invoice_total_label',
+                  language,
+                ),
               },
               {
                 fontName: 'Helvetica-Bold',
-                text:
-                  transactionType === TransactionType.SWAP
-                    ? `${currency} ${this.formatCryptoAmount(amount)}`
-                    : `${currency} ${amount.toFixed(2)}`,
+                text: `${billData.currency} ${total.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -354,7 +332,7 @@ export class SwissQRService {
               },
             ],
           });
-          qrBill = new SwissQRBill(data, { language: language as SupportedInvoiceLanguage });
+          qrBill = new SwissQRBill(billData, { language: language as SupportedInvoiceLanguage });
         }
 
         const table = new Table({ rows, width: mm2pt(170) });
@@ -375,14 +353,6 @@ export class SwissQRService {
 
   private translate(key: string, lang: string, args?: any): string {
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
-  }
-
-  // TODO: How many decimals should be shown for crypto?
-  private formatCryptoAmount(amount: number): string {
-    if (amount < 0.001) return amount.toFixed(8);
-    if (amount < 0.01) return amount.toFixed(6);
-    if (amount < 1) return amount.toFixed(4);
-    return amount.toFixed(2);
   }
 
   private generateQrData(
@@ -431,5 +401,76 @@ export class SwissQRService {
     if (address.houseNumber != null) debtor.buildingNumber = address.houseNumber;
 
     return debtor;
+  }
+
+  private async getInvoiceDetails(
+    txType: TransactionType,
+    transaction: Transaction,
+    currency: string,
+  ): Promise<{ quantity: number | string; description: any; fiatAmount: number }> {
+    let quantity: number | string;
+    let description: any;
+    let fiatAmount: number;
+
+    switch (txType) {
+      case TransactionType.BUY:
+        const outputAsset = transaction.buyCrypto?.outputAsset;
+        quantity = transaction.buyCrypto?.outputAmount;
+        description = {
+          assetDescription: outputAsset.description ?? outputAsset.name,
+          assetName: outputAsset.name,
+          assetBlockchain: outputAsset.blockchain,
+        };
+        fiatAmount = transaction.buyCrypto?.inputAmount;
+        break;
+
+      case TransactionType.SELL:
+        const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
+        quantity = transaction.buyFiat?.outputAmount;
+        description = {
+          fiatCurrency: transaction.buyFiat?.outputAsset.name,
+          assetAmount: transaction.buyFiat?.inputAmount,
+          assetDescription: inputAsset.description ?? inputAsset.name,
+          assetName: inputAsset.name,
+          assetBlockchain: inputAsset.blockchain,
+        };
+        fiatAmount = transaction.buyFiat?.outputAmount;
+        break;
+
+      case TransactionType.SWAP:
+        const sourceAsset = transaction.buyCrypto?.cryptoInput?.asset;
+        const targetAsset = transaction.buyCrypto?.outputAsset;
+        quantity = transaction.buyCrypto?.inputAmount;
+        description = {
+          sourceDescription: sourceAsset.description ?? sourceAsset.name,
+          sourceName: sourceAsset.name,
+          sourceBlockchain: sourceAsset.blockchain,
+          targetAmount: transaction.buyCrypto?.outputAmount,
+          targetDescription: targetAsset.description ?? targetAsset.name,
+          targetName: targetAsset.name,
+          targetBlockchain: targetAsset.blockchain,
+        };
+        fiatAmount = currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur;
+        break;
+
+      case TransactionType.REFERRAL:
+        const targetBlockchain = transaction.refReward?.targetBlockchain;
+        if (!targetBlockchain) throw new Error('Missing blockchain information for referral');
+        const asset = await this.assetService.getNativeAsset(targetBlockchain);
+        if (!asset) throw new Error(`Native asset not found for blockchain ${targetBlockchain}`);
+
+        quantity = transaction.refReward?.outputAmount;
+        description = {
+          assetName: asset.name,
+          assetBlockchain: targetBlockchain,
+        };
+        fiatAmount = currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur;
+        break;
+
+      default:
+        throw new Error('Unsupported transaction type');
+    }
+
+    return { quantity, description, fiatAmount };
   }
 }

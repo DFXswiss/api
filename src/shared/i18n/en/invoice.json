@@ -1,5 +1,6 @@
 {
   "title": "Invoice No. {invoiceId}",
+  "credit_title": "Credit No. {invoiceId}",
   "table": {
     "headers": {
       "quantity": "Quantity *",
@@ -8,9 +9,9 @@
     },
     "position_row": {
       "buy_description": "{assetDescription} ({assetName}) delivered on {assetBlockchain}",
-      "sell_description": "{assetDescription} ({assetName}) sold from {assetBlockchain}",
-      "swap_description": "{assetDescription} ({assetName}) swapped on {assetBlockchain}",
-      "referral_description": "Referral bonus reward in {assetName} on {assetBlockchain}"
+      "sell_description": "{fiatCurrency} bought for {assetAmount} {assetDescription} ({assetName}) on {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) on {sourceBlockchain} swapped for {targetAmount} {targetDescription} ({targetName}) on {targetBlockchain}",
+      "referral_description": "{assetName} referral bonus reward on {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Total"
@@ -21,6 +22,9 @@
     },
     "invoice_total_row": {
       "invoice_total_label": "Invoice Total"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Credit Total"
     }
   },
   "info": "* Info: The effective exchange rate and thus the effectively delivered quantity is determined when the money is received and processed by DFX."

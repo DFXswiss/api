@@ -8,6 +8,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TransactionType } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -24,6 +25,7 @@ export class RefRewardController {
     private readonly transactionService: TransactionService,
     private readonly swissQrService: SwissQRService,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
   ) {}
 
   @Put('volumes')
@@ -66,18 +68,17 @@ export class RefRewardController {
 
     const bankInfo = await this.refRewardService.getBankInfo();
     const targetBlockchain = transaction.refReward.targetBlockchain;
+    const currency = await this.fiatService.getFiat(transaction.user.userData.currency.id);
     if (!targetBlockchain) throw new BadRequestException('Missing blockchain information');
 
     const asset = await this.assetService.getNativeAsset(targetBlockchain);
 
     return {
       invoicePdf: await this.swissQrService.createInvoiceFromTx(
-        transaction.refReward.outputAmount,
-        asset.name,
-        bankInfo,
         transaction,
+        bankInfo,
+        ['CHF', 'EUR'].includes(currency.name) ? (currency.name as 'CHF' | 'EUR') : 'CHF',
         TransactionType.REFERRAL,
-        transaction.refReward.id.toString(),
       ),
     };
   }

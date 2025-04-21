@@ -1,5 +1,6 @@
 {
   "title": "Facture No. {invoiceId}",
+  "credit_title": "Crédit No. {invoiceId}",
   "table": {
     "headers": {
       "quantity": "Quantité *",
@@ -21,6 +22,9 @@
     },
     "invoice_total_row": {
       "invoice_total_label": "Total de la Facture"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Total du Crédit"
     }
   },
   "info": "* Info: Le taux de change effectif et donc la quantité effectivement livrée sont déterminés lorsque l’argent est reçu et traité par DFX."

@@ -210,17 +210,16 @@ export class SwapController {
 
     const swap = transaction.buyCrypto.cryptoRoute;
     const bankInfo = await this.swapService.getBankInfo();
+    const currency = await this.fiatService.getFiat(transaction.user.userData.currency.id);
 
     if (!swap) throw new BadRequestException('Swap route not found');
 
     return {
       invoicePdf: await this.swissQrService.createInvoiceFromTx(
-        transaction.buyCrypto.outputAmount,
-        transaction.buyCrypto.outputAsset.name,
-        bankInfo,
         transaction,
+        bankInfo,
+        ['CHF', 'EUR'].includes(currency.name) ? (currency.name as 'CHF' | 'EUR') : 'CHF',
         TransactionType.SWAP,
-        swap.id.toString(),
       ),
     };
   }

@@ -1,5 +1,6 @@
 {
   "title": "Rechnung Nr. {invoiceId}",
+  "credit_title": "Gutschrift Nr. {invoiceId}",
   "table": {
     "headers": {
       "quantity": "Menge *",
@@ -21,6 +22,9 @@
     },
     "invoice_total_row": {
       "invoice_total_label": "Rechnung Gesamt"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Gutschrift Gesamt"
     }
   },
   "info": "* Info: Der effektive Wechselkurs und damit die effektiv gelieferte Menge wird bestimmt, wenn das Geld bei DFX eingeht und verarbeitet wird."

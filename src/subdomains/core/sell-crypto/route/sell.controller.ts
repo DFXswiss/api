@@ -222,12 +222,10 @@ export class SellController {
 
     return {
       invoicePdf: await this.swissQrService.createInvoiceFromTx(
-        transaction.buyFiat.outputAmount,
-        currency.name,
-        bankInfo,
         transaction,
+        bankInfo,
+        currency.name,
         TransactionType.SELL,
-        sell.id.toString(),
       ),
     };
   }

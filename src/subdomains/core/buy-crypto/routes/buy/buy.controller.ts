@@ -219,12 +219,10 @@ export class BuyController {
 
     return {
       invoicePdf: await this.swissQrService.createInvoiceFromTx(
-        transaction.buyCrypto.inputAmount,
-        currency.name,
-        bankInfo,
         transaction,
+        bankInfo,
+        currency.name,
         TransactionType.BUY,
-        buy.bankUsage,
       ),
     };
   }
