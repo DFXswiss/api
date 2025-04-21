@@ -8,10 +8,10 @@
       "total": "Totale"
     },
     "position_row": {
-      "buy_description": "{assetDescription} ({assetName}) consegnato su {assetBlockchain}",
-      "sell_description": "{fiatCurrency} acquistato per {assetAmount} {assetDescription} ({assetName}) su {assetBlockchain}",
-      "swap_description": "{sourceDescription} ({sourceName}) su {sourceBlockchain} scambiato per {targetAmount} {targetDescription} ({targetName}) su {targetBlockchain}",
-      "referral_description": "Bonus di referral {assetName} su {assetBlockchain}"
+      "buy_description": "{assetDescription} ({assetName}) ricevuto su {assetBlockchain}",
+      "sell_description": "{fiatCurrency} ricevuto per {assetAmount} {assetDescription} ({assetName}) su {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) su {sourceBlockchain} scambiato con {targetAmount} {targetDescription} ({targetName}) su {targetBlockchain}",
+      "referral_description": "Bonus referral {assetName} su {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Totale"
