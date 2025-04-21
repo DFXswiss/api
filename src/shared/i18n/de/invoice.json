@@ -9,9 +9,9 @@
     },
     "position_row": {
       "buy_description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}",
-      "sell_description": "{assetDescription} ({assetName}) verkauft von {assetBlockchain}",
-      "swap_description": "{assetDescription} ({assetName}) getauscht auf {assetBlockchain}",
-      "referral_description": "Empfehlungsbonus in {assetName} auf {assetBlockchain}"
+      "sell_description": "{fiatCurrency} gekauft für {assetAmount} {assetDescription} ({assetName}) auf {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) auf {sourceBlockchain} getauscht für {targetAmount} {targetDescription} ({targetName}) auf {targetBlockchain}",
+      "referral_description": "{assetName} Referral auf {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Gesamt"
