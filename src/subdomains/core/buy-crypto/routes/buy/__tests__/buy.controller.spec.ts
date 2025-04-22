@@ -10,7 +10,6 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { BuyController } from '../buy.controller';
 import { BuyService } from '../buy.service';
@@ -26,7 +25,6 @@ describe('BuyController', () => {
   let transactionHelper: TransactionHelper;
   let checkoutService: CheckoutService;
   let transactionRequestService: TransactionRequestService;
-  let transactionService: TransactionService;
   let fiatService: FiatService;
   let swissQrService: SwissQRService;
 
@@ -39,7 +37,6 @@ describe('BuyController', () => {
     transactionHelper = createMock<TransactionHelper>();
     checkoutService = createMock<CheckoutService>();
     transactionRequestService = createMock<TransactionRequestService>();
-    transactionService = createMock<TransactionService>();
     fiatService = createMock<FiatService>();
     swissQrService = createMock<SwissQRService>();
 
@@ -55,7 +52,6 @@ describe('BuyController', () => {
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CheckoutService, useValue: checkoutService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
-        { provide: TransactionService, useValue: transactionService },
         { provide: FiatService, useValue: fiatService },
         { provide: SwissQRService, useValue: swissQrService },
 
