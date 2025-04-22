@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -28,6 +29,17 @@ enum SupportedInvoiceLanguage {
   IT = 'IT',
 }
 
+enum SupportedInvoiceCurrency {
+  CHF = 'CHF',
+  EUR = 'EUR',
+}
+
+interface SwissQRBillTableData {
+  quantity: number | string;
+  description: any;
+  fiatAmount: number;
+}
+
 @Injectable()
 export class SwissQRService {
   constructor(private readonly assetService: AssetService, private readonly i18n: I18nService) {}
@@ -39,12 +51,19 @@ export class SwissQRService {
 
   async createInvoiceFromRequest(
     amount: number,
-    currency: 'CHF' | 'EUR',
+    currency: string,
     reference: string,
     bankInfo: BankInfoDto,
     request: TransactionRequest,
   ): Promise<string> {
-    const data = this.generateQrData(amount, currency, bankInfo, reference, request.user.userData);
+    currency = this.isSupportedInvoiceCurrency(currency) ? currency : 'CHF';
+    const data = this.generateQrData(
+      amount,
+      currency as SupportedInvoiceCurrency,
+      bankInfo,
+      reference,
+      request.user.userData,
+    );
 
     if (!data.debtor) {
       throw new Error('Debtor is required');
@@ -53,7 +72,7 @@ export class SwissQRService {
     const userLanguage = request.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const asset = await this.assetService.getAssetById(request.targetId);
-    const details = {
+    const tableData: SwissQRBillTableData = {
       quantity: request.estimatedAmount,
       description: {
         assetDescription: asset.description ?? asset.name,
@@ -63,42 +82,32 @@ export class SwissQRService {
       fiatAmount: amount,
     };
 
-    return this.generatePdfInvoice(
-      request.id,
-      details.quantity,
-      details.description,
-      details.fiatAmount,
-      language,
-      data,
-      true,
-      TransactionType.BUY,
-    );
+    return this.generatePdfInvoice(request.id, tableData, language, data, true, TransactionType.BUY);
   }
 
   async createInvoiceFromTx(
-    transaction: Transaction,
-    bankInfo: BankInfoDto,
-    currency: 'CHF' | 'EUR',
     txType: TransactionType,
+    transaction: Transaction,
+    currency: string,
+    bankInfo?: BankInfoDto,
   ): Promise<string> {
-    const creditor = this.getCreditor(bankInfo);
-    const debtor = this.getDebtor(transaction.user.userData);
+    const creditor = bankInfo ? this.getCreditor(bankInfo) : this.dfxCreditor();
+    const debtor = this.getDebtor(transaction.userData);
 
     if (!debtor) {
       throw new Error('Debtor is required');
     }
 
-    const userLanguage = transaction.user.userData.language.symbol.toUpperCase();
+    currency = this.isSupportedInvoiceCurrency(currency) ? currency : 'CHF';
+    const userLanguage = transaction.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const details = await this.getInvoiceDetails(txType, transaction, currency);
+    const tableData = await this.getTableData(txType, transaction, currency);
 
     return this.generatePdfInvoice(
       transaction.id,
-      details.quantity,
-      details.description,
-      details.fiatAmount,
+      tableData,
       language,
-      { creditor, debtor, currency },
+      { creditor, debtor, currency: currency as SupportedInvoiceCurrency },
       false,
       txType,
       transaction.created,
@@ -107,9 +116,7 @@ export class SwissQRService {
 
   private generatePdfInvoice(
     invoiceId: number | string,
-    quantity: number | string,
-    description: any,
-    total: number,
+    tableData: SwissQRBillTableData,
     language: string,
     billData: QrBillData,
     includeQrBill: boolean,
@@ -230,18 +237,18 @@ export class SwissQRService {
           {
             columns: [
               {
-                text: `${quantity}`,
+                text: `${tableData.quantity}`,
                 width: mm2pt(40),
               },
               {
                 text: this.translate(
                   `invoice.table.position_row.${transactionType.toLowerCase()}_description`,
                   language,
-                  description,
+                  tableData.description,
                 ),
               },
               {
-                text: `${billData.currency} ${total.toFixed(2)}`,
+                text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -259,7 +266,7 @@ export class SwissQRService {
               },
               {
                 fontName: 'Helvetica-Bold',
-                text: `${billData.currency} ${total.toFixed(2)}`,
+                text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -315,7 +322,7 @@ export class SwissQRService {
               },
               {
                 fontName: 'Helvetica-Bold',
-                text: `${billData.currency} ${total.toFixed(2)}`,
+                text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
                 width: mm2pt(30),
               },
             ],
@@ -352,8 +359,24 @@ export class SwissQRService {
   }
 
   // --- HELPER METHODS --- //
+  private dfxCreditor(): Creditor {
+    const dfxBankInfo = Config.bank.dfxBankInfo;
+    return {
+      address: dfxBankInfo.street,
+      buildingNumber: dfxBankInfo.number,
+      city: dfxBankInfo.city,
+      country: 'CH',
+      name: dfxBankInfo.name,
+      zip: dfxBankInfo.zip,
+    } as Creditor;
+  }
+
   private isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguage {
     return Object.keys(SupportedInvoiceLanguage).includes(lang);
+  }
+
+  private isSupportedInvoiceCurrency(currency: string): currency is SupportedInvoiceCurrency {
+    return Object.keys(SupportedInvoiceCurrency).includes(currency);
   }
 
   private translate(key: string, lang: string, args?: any): string {
@@ -362,16 +385,14 @@ export class SwissQRService {
 
   private generateQrData(
     amount: number,
-    currency: string,
+    currency: 'CHF' | 'EUR',
     bankInfo: BankInfoDto,
     reference?: string,
     userData?: UserData,
   ): QrBillData {
-    // TODO: Is there a cleaner solution to handle the currency?
-    const qrCurrency = ['CHF', 'EUR'].includes(currency) ? (currency as 'CHF' | 'EUR') : 'CHF';
     return {
       amount,
-      currency: qrCurrency,
+      currency,
       message: reference,
       creditor: this.getCreditor(bankInfo),
       debtor: this.getDebtor(userData),
@@ -408,11 +429,11 @@ export class SwissQRService {
     return debtor;
   }
 
-  private async getInvoiceDetails(
+  private async getTableData(
     txType: TransactionType,
     transaction: Transaction,
     currency: string,
-  ): Promise<{ quantity: number | string; description: any; fiatAmount: number }> {
+  ): Promise<SwissQRBillTableData> {
     let quantity: number | string;
     let description: any;
     let fiatAmount: number;

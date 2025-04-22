@@ -27,11 +27,13 @@ import {
 import { Response } from 'express';
 import * as IbanTools from 'ibantools';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -50,6 +52,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
@@ -57,6 +60,7 @@ import {
   TransactionDetailDto,
   TransactionDto,
   TransactionTarget,
+  TransactionType,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
@@ -64,10 +68,13 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
+import { BankInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
+import { InvoiceDto } from '../../buy-crypto/routes/buy/dto/invoice.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
+import { SellService } from '../../sell-crypto/route/sell.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
@@ -101,6 +108,8 @@ export class TransactionController {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly swissQrService: SwissQRService,
+    private readonly sellService: SellService,
   ) {}
 
   // --- JOBS --- //
@@ -420,6 +429,102 @@ export class TransactionController {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       ...refundDto,
     });
+  }
+
+  @Put(':id/invoice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @ApiOkResponse({ type: InvoiceDto })
+  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
+    const transaction = await this.transactionService.getTransactionById(+id, {
+      userData: true,
+      user: { userData: true }, // TODO: remove, use userData instead
+      buyCrypto: { outputAsset: true, buy: true, cryptoRoute: true, cryptoInput: { asset: true } },
+      buyFiat: { outputAsset: true, sell: true, cryptoInput: { asset: true } },
+      refReward: { user: { userData: true } },
+    });
+
+    // TODO: remove, only for local testing
+    transaction.userData = transaction.user.userData;
+
+    if (!transaction) throw new BadRequestException('Transaction not found');
+    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (transaction.amlCheck && transaction.amlCheck !== CheckStatus.PASS)
+      throw new BadRequestException('AML check not passed');
+    if (transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
+
+    const { transactionType, currency, bankInfo } = await this.getInvoiceDetails(transaction);
+
+    return {
+      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency, bankInfo),
+    };
+  }
+
+  private async getInvoiceDetails(
+    transaction: Transaction,
+  ): Promise<{ transactionType: TransactionType; currency: 'CHF' | 'EUR'; bankInfo?: BankInfoDto }> {
+    let transactionType: TransactionType;
+    let currency: Fiat;
+    let bankInfo: BankInfoDto | undefined;
+
+    if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
+      const buy = transaction.buyCrypto.buy;
+      if (!buy) throw new BadRequestException('Buy route not found');
+
+      transactionType = TransactionType.BUY;
+      currency = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+      bankInfo = await this.buyService.getBankInfo({
+        amount: transaction.buyCrypto.inputAmount,
+        currency: currency.name,
+        paymentMethod: transaction.buyCrypto.paymentMethodIn,
+        userData: transaction.userData,
+      });
+    } else if (transaction.buyFiat) {
+      const sell = transaction.buyFiat.sell;
+      if (!sell) throw new BadRequestException('Sell route not found');
+
+      transactionType = TransactionType.SELL;
+      currency = transaction.buyFiat.outputAsset;
+      bankInfo = await this.sellService.getBankInfo({
+        amount: transaction.buyFiat.outputAmount,
+        currency: currency.name,
+        paymentMethod: transaction.buyFiat.paymentMethodOut,
+        userData: transaction.userData,
+      });
+    } else if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
+      const swap = transaction.buyCrypto.cryptoRoute;
+      if (!swap) throw new BadRequestException('Swap route not found');
+
+      transactionType = TransactionType.SWAP;
+      currency = await this.getPreferredInvoiceCurrency(transaction.userData);
+    } else if (transaction.refReward) {
+      const targetBlockchain = transaction.refReward.targetBlockchain;
+      if (!targetBlockchain) throw new BadRequestException('Missing blockchain information');
+
+      transactionType = TransactionType.REFERRAL;
+      currency = await this.getPreferredInvoiceCurrency(transaction.userData);
+    } else {
+      throw new BadRequestException('Transaction type not supported for invoice generation');
+    }
+
+    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
+      throw new BadRequestException('Only CHF and EUR are supported for invoice generation');
+    }
+
+    return {
+      transactionType,
+      currency: currency.name,
+      bankInfo,
+    };
+  }
+
+  private async getPreferredInvoiceCurrency(userData: UserData): Promise<Fiat> {
+    const preferredCurrency = userData.currency.name;
+    const allowedCurrency = ['CHF', 'EUR'].includes(preferredCurrency) ? preferredCurrency : 'CHF';
+    const currency = await this.fiatService.getFiatByName(allowedCurrency);
+    if (!currency) throw new BadRequestException('Preferred currency not found');
+
+    return currency;
   }
 
   // --- HELPER METHODS --- //

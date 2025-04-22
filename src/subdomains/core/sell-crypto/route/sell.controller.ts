@@ -21,25 +21,21 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionDto, TransactionType } from 'src/subdomains/supporting/payment/dto/transaction.dto';
-import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
-import { InvoiceDto } from './dto/invoice.dto';
 import { SellHistoryDto } from './dto/sell-history.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { SellQuoteDto } from './dto/sell-quote.dto';
@@ -59,9 +55,6 @@ export class SellController {
     private readonly transactionHelper: TransactionHelper,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly assetService: AssetService,
-    private readonly transactionService: TransactionService,
-    private readonly fiatService: FiatService,
-    private readonly swissQrService: SwissQRService,
   ) {}
 
   @Get()
@@ -189,45 +182,6 @@ export class SellController {
   @ApiExcludeEndpoint()
   async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellHistoryDto[]> {
     return this.buyFiatService.getSellHistory(jwt.user, +id);
-  }
-
-  @Put('/transaction/:id/invoice')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
-  @ApiOkResponse({ type: InvoiceDto })
-  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
-    const transaction = await this.transactionService.getTransactionById(+id, {
-      user: { userData: true },
-      buyFiat: { outputAsset: true, sell: true, cryptoInput: { asset: true } },
-    });
-
-    if (!transaction) throw new BadRequestException('Transaction not found');
-    if (!transaction.buyFiat || (transaction.type && transaction.type !== 'BuyFiat'))
-      throw new BadRequestException('Transaction is not a sell transaction');
-    if (!transaction.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-
-    const sell = transaction.buyFiat.sell;
-    const currency = transaction.buyFiat.outputAsset;
-    const bankInfo = await this.sellService.getBankInfo({
-      amount: transaction.buyFiat.outputAmount,
-      currency: currency.name,
-      paymentMethod: transaction.buyFiat.paymentMethodOut as CryptoPaymentMethod,
-      userData: transaction.user.userData,
-    });
-
-    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
-      throw new Error('PDF invoice is only available for CHF and EUR transactions');
-    }
-    if (!sell) throw new BadRequestException('Sell route not found');
-
-    return {
-      invoicePdf: await this.swissQrService.createInvoiceFromTx(
-        transaction,
-        bankInfo,
-        currency.name,
-        TransactionType.SELL,
-      ),
-    };
   }
 
   // --- DTO --- //

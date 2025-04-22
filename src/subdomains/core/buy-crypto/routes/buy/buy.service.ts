@@ -309,9 +309,9 @@ export class BuyService {
     return { ...Config.bank.dfxBankInfo, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
   }
 
-  private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, usderData: UserData): string {
+  private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, userData: UserData): string {
     if (dto.currency.name === 'CHF') {
-      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo, usderData);
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo, userData);
     } else {
       return this.generateGiroCode(buy, bankInfo, dto);
     }

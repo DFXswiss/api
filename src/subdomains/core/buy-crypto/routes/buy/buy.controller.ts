@@ -20,17 +20,14 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionType } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -47,8 +44,6 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 @ApiTags('Buy')
 @Controller('buy')
 export class BuyController {
-  private readonly logger = new DfxLogger(BuyController);
-
   constructor(
     private readonly buyService: BuyService,
     private readonly userService: UserService,
@@ -56,7 +51,6 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
     private readonly transactionRequestService: TransactionRequestService,
-    private readonly transactionService: TransactionService,
     private readonly fiatService: FiatService,
     private readonly swissQrService: SwissQRService,
   ) {}
@@ -184,45 +178,6 @@ export class BuyController {
         buy.bankUsage,
         bankInfo,
         request,
-      ),
-    };
-  }
-
-  @Put('/transaction/:id/invoice')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
-  @ApiOkResponse({ type: InvoiceDto })
-  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
-    const transaction = await this.transactionService.getTransactionById(+id, {
-      user: { userData: true },
-      buyCrypto: { outputAsset: true, buy: true },
-    });
-
-    if (!transaction) throw new BadRequestException('Transaction not found');
-    if (!transaction.buyCrypto || transaction.buyCrypto.isCryptoCryptoTransaction)
-      throw new BadRequestException('Transaction is not a buy transaction');
-    if (!transaction.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-
-    const buy = transaction.buyCrypto.buy;
-    const currency = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
-    const bankInfo = await this.buyService.getBankInfo({
-      amount: transaction.buyCrypto.inputAmount,
-      currency: currency.name,
-      paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-      userData: transaction.user.userData,
-    });
-
-    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
-      throw new Error('PDF invoice is only available for CHF and EUR transactions');
-    }
-    if (!buy) throw new BadRequestException('Buy route not found');
-
-    return {
-      invoicePdf: await this.swissQrService.createInvoiceFromTx(
-        transaction,
-        bankInfo,
-        currency.name,
-        TransactionType.BUY,
       ),
     };
   }

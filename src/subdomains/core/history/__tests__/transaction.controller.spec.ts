@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -15,14 +16,17 @@ import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
+import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
+import { SellService } from '../../sell-crypto/route/sell.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { TransactionController } from '../controllers/transaction.controller';
 import { HistoryService } from '../services/history.service';
@@ -46,6 +50,10 @@ describe('TransactionController', () => {
   let specialExternalAccountService: SpecialExternalAccountService;
   let bankService: BankService;
   let transactionHelper: TransactionHelper;
+  let swissQrService: SwissQRService;
+  let assetService: AssetService;
+  let sellService: SellService;
+  let swapService: SwapService;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -64,6 +72,10 @@ describe('TransactionController', () => {
     specialExternalAccountService = createMock<SpecialExternalAccountService>();
     bankService = createMock<BankService>();
     transactionHelper = createMock<TransactionHelper>();
+    swissQrService = createMock<SwissQRService>();
+    assetService = createMock<AssetService>();
+    sellService = createMock<SellService>();
+    swapService = createMock<SwapService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -85,6 +97,10 @@ describe('TransactionController', () => {
         { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
         { provide: BankService, useValue: bankService },
         { provide: TransactionHelper, useValue: transactionHelper },
+        { provide: SwissQRService, useValue: swissQrService },
+        { provide: AssetService, useValue: assetService },
+        { provide: SellService, useValue: sellService },
+        { provide: SwapService, useValue: swapService },
         TestUtil.provideConfig(),
       ],
     }).compile();
