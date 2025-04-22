@@ -672,6 +672,14 @@ export class Configuration {
   };
 
   bank = {
+    dfxAddress: {
+      name: 'DFX AG',
+      address: 'Bahnhofstrasse',
+      buildingNumber: '7',
+      zip: '6300',
+      city: 'Zug',
+      country: 'CH',
+    },
     dfxBankInfo: {
       name: 'DFX AG',
       street: 'Bahnhofstrasse',

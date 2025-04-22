@@ -65,9 +65,7 @@ export class SwissQRService {
       request.user.userData,
     );
 
-    if (!data.debtor) {
-      throw new Error('Debtor is required');
-    }
+    if (!data.debtor) throw new Error('Debtor is required');
 
     const userLanguage = request.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
@@ -85,18 +83,10 @@ export class SwissQRService {
     return this.generatePdfInvoice(request.id, tableData, language, data, true, TransactionType.BUY);
   }
 
-  async createInvoiceFromTx(
-    txType: TransactionType,
-    transaction: Transaction,
-    currency: string,
-    bankInfo?: BankInfoDto,
-  ): Promise<string> {
-    const creditor = bankInfo ? this.getCreditor(bankInfo) : this.dfxCreditor();
+  async createInvoiceFromTx(txType: TransactionType, transaction: Transaction, currency: string): Promise<string> {
+    const creditor = Config.bank.dfxAddress as unknown as Creditor;
     const debtor = this.getDebtor(transaction.userData);
-
-    if (!debtor) {
-      throw new Error('Debtor is required');
-    }
+    if (!debtor) throw new Error('Debtor is required');
 
     currency = this.isSupportedInvoiceCurrency(currency) ? currency : 'CHF';
     const userLanguage = transaction.userData.language.symbol.toUpperCase();
@@ -107,7 +97,11 @@ export class SwissQRService {
       transaction.id,
       tableData,
       language,
-      { creditor, debtor, currency: currency as SupportedInvoiceCurrency },
+      {
+        creditor,
+        debtor,
+        currency: currency as SupportedInvoiceCurrency,
+      },
       false,
       txType,
       transaction.created,
@@ -359,18 +353,6 @@ export class SwissQRService {
   }
 
   // --- HELPER METHODS --- //
-  private dfxCreditor(): Creditor {
-    const dfxBankInfo = Config.bank.dfxBankInfo;
-    return {
-      address: dfxBankInfo.street,
-      buildingNumber: dfxBankInfo.number,
-      city: dfxBankInfo.city,
-      country: 'CH',
-      name: dfxBankInfo.name,
-      zip: dfxBankInfo.zip,
-    } as Creditor;
-  }
-
   private isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguage {
     return Object.keys(SupportedInvoiceLanguage).includes(lang);
   }

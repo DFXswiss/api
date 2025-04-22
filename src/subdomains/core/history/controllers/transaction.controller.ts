@@ -68,7 +68,6 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { BankInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { InvoiceDto } from '../../buy-crypto/routes/buy/dto/invoice.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
@@ -453,54 +452,37 @@ export class TransactionController {
       throw new BadRequestException('AML check not passed');
     if (transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
-    const { transactionType, currency, bankInfo } = await this.getInvoiceDetails(transaction);
+    const { transactionType, currency } = await this.getInvoiceDetails(transaction);
 
     return {
-      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency, bankInfo),
+      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency),
     };
   }
 
   private async getInvoiceDetails(
     transaction: Transaction,
-  ): Promise<{ transactionType: TransactionType; currency: 'CHF' | 'EUR'; bankInfo?: BankInfoDto }> {
+  ): Promise<{ transactionType: TransactionType; currency: 'CHF' | 'EUR' }> {
     let transactionType: TransactionType;
     let currency: Fiat;
-    let bankInfo: BankInfoDto | undefined;
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const buy = transaction.buyCrypto.buy;
       if (!buy) throw new BadRequestException('Buy route not found');
-
       transactionType = TransactionType.BUY;
       currency = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
-      bankInfo = await this.buyService.getBankInfo({
-        amount: transaction.buyCrypto.inputAmount,
-        currency: currency.name,
-        paymentMethod: transaction.buyCrypto.paymentMethodIn,
-        userData: transaction.userData,
-      });
     } else if (transaction.buyFiat) {
       const sell = transaction.buyFiat.sell;
       if (!sell) throw new BadRequestException('Sell route not found');
-
       transactionType = TransactionType.SELL;
       currency = transaction.buyFiat.outputAsset;
-      bankInfo = await this.sellService.getBankInfo({
-        amount: transaction.buyFiat.outputAmount,
-        currency: currency.name,
-        paymentMethod: transaction.buyFiat.paymentMethodOut,
-        userData: transaction.userData,
-      });
     } else if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
       const swap = transaction.buyCrypto.cryptoRoute;
       if (!swap) throw new BadRequestException('Swap route not found');
-
       transactionType = TransactionType.SWAP;
       currency = await this.getPreferredInvoiceCurrency(transaction.userData);
     } else if (transaction.refReward) {
       const targetBlockchain = transaction.refReward.targetBlockchain;
       if (!targetBlockchain) throw new BadRequestException('Missing blockchain information');
-
       transactionType = TransactionType.REFERRAL;
       currency = await this.getPreferredInvoiceCurrency(transaction.userData);
     } else {
@@ -514,7 +496,6 @@ export class TransactionController {
     return {
       transactionType,
       currency: currency.name,
-      bankInfo,
     };
   }
 
