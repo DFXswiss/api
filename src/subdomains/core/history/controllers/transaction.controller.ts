@@ -73,7 +73,6 @@ import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
-import { SellService } from '../../sell-crypto/route/sell.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
@@ -108,7 +107,6 @@ export class TransactionController {
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
-    private readonly sellService: SellService,
   ) {}
 
   // --- JOBS --- //
@@ -479,12 +477,12 @@ export class TransactionController {
       const swap = transaction.buyCrypto.cryptoRoute;
       if (!swap) throw new BadRequestException('Swap route not found');
       transactionType = TransactionType.SWAP;
-      currency = await this.getPreferredInvoiceCurrency(transaction.userData);
+      currency = await this.getInvoiceCurrency(transaction.userData);
     } else if (transaction.refReward) {
       const targetBlockchain = transaction.refReward.targetBlockchain;
       if (!targetBlockchain) throw new BadRequestException('Missing blockchain information');
       transactionType = TransactionType.REFERRAL;
-      currency = await this.getPreferredInvoiceCurrency(transaction.userData);
+      currency = await this.getInvoiceCurrency(transaction.userData);
     } else {
       throw new BadRequestException('Transaction type not supported for invoice generation');
     }
@@ -499,7 +497,7 @@ export class TransactionController {
     };
   }
 
-  private async getPreferredInvoiceCurrency(userData: UserData): Promise<Fiat> {
+  private async getInvoiceCurrency(userData: UserData): Promise<Fiat> {
     const preferredCurrency = userData.currency.name;
     const allowedCurrency = ['CHF', 'EUR'].includes(preferredCurrency) ? preferredCurrency : 'CHF';
     const currency = await this.fiatService.getFiatByName(allowedCurrency);

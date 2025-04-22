@@ -26,7 +26,6 @@ import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
-import { SellService } from '../../sell-crypto/route/sell.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { TransactionController } from '../controllers/transaction.controller';
 import { HistoryService } from '../services/history.service';
@@ -52,7 +51,6 @@ describe('TransactionController', () => {
   let transactionHelper: TransactionHelper;
   let swissQrService: SwissQRService;
   let assetService: AssetService;
-  let sellService: SellService;
   let swapService: SwapService;
 
   beforeEach(async () => {
@@ -74,7 +72,6 @@ describe('TransactionController', () => {
     transactionHelper = createMock<TransactionHelper>();
     swissQrService = createMock<SwissQRService>();
     assetService = createMock<AssetService>();
-    sellService = createMock<SellService>();
     swapService = createMock<SwapService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -99,7 +96,6 @@ describe('TransactionController', () => {
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: SwissQRService, useValue: swissQrService },
         { provide: AssetService, useValue: assetService },
-        { provide: SellService, useValue: sellService },
         { provide: SwapService, useValue: swapService },
         TestUtil.provideConfig(),
       ],
