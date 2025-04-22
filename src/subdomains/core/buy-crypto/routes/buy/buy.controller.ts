@@ -154,7 +154,7 @@ export class BuyController {
   @ApiOkResponse({ type: InvoiceDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
-    if (!request.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!request.userData.isDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
@@ -164,7 +164,7 @@ export class BuyController {
       amount: request.amount,
       currency: currency.name,
       paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
-      userData: request.user.userData,
+      userData: request.userData,
     });
 
     if (currency.name !== 'CHF' && currency.name !== 'EUR') {

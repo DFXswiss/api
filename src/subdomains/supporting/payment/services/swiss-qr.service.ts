@@ -62,12 +62,12 @@ export class SwissQRService {
       currency as SupportedInvoiceCurrency,
       bankInfo,
       reference,
-      request.user.userData,
+      request.userData,
     );
 
     if (!data.debtor) throw new Error('Debtor is required');
 
-    const userLanguage = request.user.userData.language.symbol.toUpperCase();
+    const userLanguage = request.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const asset = await this.assetService.getAssetById(request.targetId);
     const tableData: SwissQRBillTableData = {

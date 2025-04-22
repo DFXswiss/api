@@ -435,14 +435,10 @@ export class TransactionController {
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       userData: true,
-      user: { userData: true }, // TODO: remove, use userData instead
       buyCrypto: { outputAsset: true, buy: true, cryptoRoute: true, cryptoInput: { asset: true } },
       buyFiat: { outputAsset: true, sell: true, cryptoInput: { asset: true } },
       refReward: { user: { userData: true } },
     });
-
-    // TODO: remove, only for local testing
-    transaction.userData = transaction.user.userData;
 
     if (!transaction) throw new BadRequestException('Transaction not found');
     if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
