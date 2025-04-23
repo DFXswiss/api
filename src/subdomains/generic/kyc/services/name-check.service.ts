@@ -39,9 +39,13 @@ export class NameCheckService implements OnModuleInit {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.NAME_CHECK_PDF_SYNC, timeout: 1800 })
   async syncNameCheckPdf(): Promise<void> {
     const entities = await this.nameCheckLogRepo.find({
-      where: { file: { id: IsNull() }, synced: IsNull(), bankData: { id: Not(IsNull()) } },
+      where: {
+        file: { id: IsNull() },
+        synced: IsNull(),
+        bankData: { id: Not(IsNull()), type: Not(BankDataType.USER) },
+      },
       relations: { bankData: { userData: true }, file: true },
-      take: 15000,
+      take: 1000,
     });
 
     for (const entity of entities) {
