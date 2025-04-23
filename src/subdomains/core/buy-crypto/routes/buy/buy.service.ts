@@ -306,7 +306,7 @@ export class BuyService {
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxBankInfo, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+    return { ...Config.bank.dfxAddress, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
   }
 
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, userData: UserData): string {

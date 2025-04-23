@@ -29,7 +29,7 @@ enum SupportedInvoiceLanguage {
   IT = 'IT',
 }
 
-enum SupportedInvoiceCurrency {
+enum SupportedSwissQRBillCurrency {
   CHF = 'CHF',
   EUR = 'EUR',
 }
@@ -56,15 +56,12 @@ export class SwissQRService {
     bankInfo: BankInfoDto,
     request: TransactionRequest,
   ): Promise<string> {
-    currency = this.isSupportedInvoiceCurrency(currency) ? currency : 'CHF';
-    const data = this.generateQrData(
-      amount,
-      currency as SupportedInvoiceCurrency,
-      bankInfo,
-      reference,
-      request.userData,
-    );
+    currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
+    if (!this.isSupportedInvoiceCurrency(currency)) {
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
 
+    const data = this.generateQrData(amount, currency, bankInfo, reference, request.userData);
     if (!data.debtor) throw new Error('Debtor is required');
 
     const userLanguage = request.userData.language.symbol.toUpperCase();
@@ -84,11 +81,15 @@ export class SwissQRService {
   }
 
   async createInvoiceFromTx(txType: TransactionType, transaction: Transaction, currency: string): Promise<string> {
-    const creditor = Config.bank.dfxAddress as unknown as Creditor;
+    const creditor = this.dfxCreditor() as unknown as Creditor;
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
-    currency = this.isSupportedInvoiceCurrency(currency) ? currency : 'CHF';
+    currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
+    if (!this.isSupportedInvoiceCurrency(currency)) {
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
+
     const userLanguage = transaction.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const tableData = await this.getTableData(txType, transaction, currency);
@@ -100,7 +101,7 @@ export class SwissQRService {
       {
         creditor,
         debtor,
-        currency: currency as SupportedInvoiceCurrency,
+        currency,
       },
       false,
       txType,
@@ -353,12 +354,24 @@ export class SwissQRService {
   }
 
   // --- HELPER METHODS --- //
+  private dfxCreditor(): Creditor {
+    const dfxAddress = Config.bank.dfxAddress;
+    return {
+      name: dfxAddress.name,
+      address: dfxAddress.street,
+      buildingNumber: dfxAddress.number,
+      zip: dfxAddress.zip,
+      city: dfxAddress.city,
+      country: 'CH',
+    } as Creditor;
+  }
+
   private isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguage {
     return Object.keys(SupportedInvoiceLanguage).includes(lang);
   }
 
-  private isSupportedInvoiceCurrency(currency: string): currency is SupportedInvoiceCurrency {
-    return Object.keys(SupportedInvoiceCurrency).includes(currency);
+  private isSupportedInvoiceCurrency(currency: string): currency is SupportedSwissQRBillCurrency {
+    return Object.keys(SupportedSwissQRBillCurrency).includes(currency);
   }
 
   private translate(key: string, lang: string, args?: any): string {
@@ -416,50 +429,52 @@ export class SwissQRService {
     transaction: Transaction,
     currency: string,
   ): Promise<SwissQRBillTableData> {
-    let quantity: number | string;
-    let description: any;
-    let fiatAmount: number;
-
     switch (txType) {
       case TransactionType.BUY:
         const outputAsset = transaction.buyCrypto?.outputAsset;
-        quantity = transaction.buyCrypto?.outputAmount;
-        description = {
-          assetDescription: outputAsset.description ?? outputAsset.name,
-          assetName: outputAsset.name,
-          assetBlockchain: outputAsset.blockchain,
+
+        return {
+          quantity: transaction.buyCrypto?.outputAmount,
+          description: {
+            assetDescription: outputAsset.description ?? outputAsset.name,
+            assetName: outputAsset.name,
+            assetBlockchain: outputAsset.blockchain,
+          },
+          fiatAmount: transaction.buyCrypto?.inputAmount,
         };
-        fiatAmount = transaction.buyCrypto?.inputAmount;
-        break;
 
       case TransactionType.SELL:
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
-        quantity = transaction.buyFiat?.outputAmount;
-        description = {
-          fiatCurrency: transaction.buyFiat?.outputAsset.name,
-          assetAmount: transaction.buyFiat?.inputAmount,
-          assetDescription: inputAsset.description ?? inputAsset.name,
-          assetName: inputAsset.name,
-          assetBlockchain: inputAsset.blockchain,
+
+        return {
+          quantity: transaction.buyFiat?.outputAmount,
+          description: {
+            fiatCurrency: transaction.buyFiat?.outputAsset.name,
+            assetAmount: transaction.buyFiat?.inputAmount,
+            assetDescription: inputAsset.description ?? inputAsset.name,
+            assetName: inputAsset.name,
+            assetBlockchain: inputAsset.blockchain,
+          },
+          fiatAmount: transaction.buyFiat?.outputAmount,
         };
-        fiatAmount = transaction.buyFiat?.outputAmount;
-        break;
 
       case TransactionType.SWAP:
         const sourceAsset = transaction.buyCrypto?.cryptoInput?.asset;
         const targetAsset = transaction.buyCrypto?.outputAsset;
-        quantity = transaction.buyCrypto?.inputAmount;
-        description = {
-          sourceDescription: sourceAsset.description ?? sourceAsset.name,
-          sourceName: sourceAsset.name,
-          sourceBlockchain: sourceAsset.blockchain,
-          targetAmount: transaction.buyCrypto?.outputAmount,
-          targetDescription: targetAsset.description ?? targetAsset.name,
-          targetName: targetAsset.name,
-          targetBlockchain: targetAsset.blockchain,
+
+        return {
+          quantity: transaction.buyCrypto?.inputAmount,
+          description: {
+            sourceDescription: sourceAsset.description ?? sourceAsset.name,
+            sourceName: sourceAsset.name,
+            sourceBlockchain: sourceAsset.blockchain,
+            targetAmount: transaction.buyCrypto?.outputAmount,
+            targetDescription: targetAsset.description ?? targetAsset.name,
+            targetName: targetAsset.name,
+            targetBlockchain: targetAsset.blockchain,
+          },
+          fiatAmount: currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur,
         };
-        fiatAmount = currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur;
-        break;
 
       case TransactionType.REFERRAL:
         const targetBlockchain = transaction.refReward?.targetBlockchain;
@@ -467,18 +482,17 @@ export class SwissQRService {
         const asset = await this.assetService.getNativeAsset(targetBlockchain);
         if (!asset) throw new Error(`Native asset not found for blockchain ${targetBlockchain}`);
 
-        quantity = transaction.refReward?.outputAmount;
-        description = {
-          assetName: asset.name,
-          assetBlockchain: targetBlockchain,
+        return {
+          quantity: transaction.refReward?.outputAmount,
+          description: {
+            assetName: asset.name,
+            assetBlockchain: targetBlockchain,
+          },
+          fiatAmount: currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur,
         };
-        fiatAmount = currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur;
-        break;
 
       default:
         throw new Error('Unsupported transaction type');
     }
-
-    return { quantity, description, fiatAmount };
   }
 }

@@ -2,7 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -23,7 +22,6 @@ import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -50,8 +48,6 @@ describe('TransactionController', () => {
   let bankService: BankService;
   let transactionHelper: TransactionHelper;
   let swissQrService: SwissQRService;
-  let assetService: AssetService;
-  let swapService: SwapService;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -71,8 +67,6 @@ describe('TransactionController', () => {
     bankService = createMock<BankService>();
     transactionHelper = createMock<TransactionHelper>();
     swissQrService = createMock<SwissQRService>();
-    assetService = createMock<AssetService>();
-    swapService = createMock<SwapService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -95,8 +89,6 @@ describe('TransactionController', () => {
         { provide: BankService, useValue: bankService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: SwissQRService, useValue: swissQrService },
-        { provide: AssetService, useValue: assetService },
-        { provide: SwapService, useValue: swapService },
         TestUtil.provideConfig(),
       ],
     }).compile();

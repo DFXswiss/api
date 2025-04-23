@@ -167,7 +167,7 @@ export class BuyController {
       userData: request.userData,
     });
 
-    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
+    if (!Config.invoice.currencies.includes(currency.name)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 

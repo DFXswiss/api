@@ -26,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as IbanTools from 'ibantools';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -435,18 +436,20 @@ export class TransactionController {
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       userData: true,
-      buyCrypto: { outputAsset: true, buy: true, cryptoRoute: true, cryptoInput: { asset: true } },
-      buyFiat: { outputAsset: true, sell: true, cryptoInput: { asset: true } },
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
+      buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
     });
 
-    if (!transaction) throw new BadRequestException('Transaction not found');
+    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
+      throw new BadRequestException('Transaction not found');
     if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-    if (transaction.amlCheck && transaction.amlCheck !== CheckStatus.PASS)
-      throw new BadRequestException('AML check not passed');
+    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
     if (transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
     const { transactionType, currency } = await this.getInvoiceDetails(transaction);
+    if (!Config.invoice.currencies.includes(currency))
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
 
     return {
       invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency),
@@ -455,47 +458,40 @@ export class TransactionController {
 
   private async getInvoiceDetails(
     transaction: Transaction,
-  ): Promise<{ transactionType: TransactionType; currency: 'CHF' | 'EUR' }> {
-    let transactionType: TransactionType;
-    let currency: Fiat;
-
+  ): Promise<{ transactionType: TransactionType; currency: string }> {
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
-      const buy = transaction.buyCrypto.buy;
-      if (!buy) throw new BadRequestException('Buy route not found');
-      transactionType = TransactionType.BUY;
-      currency = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
-    } else if (transaction.buyFiat) {
-      const sell = transaction.buyFiat.sell;
-      if (!sell) throw new BadRequestException('Sell route not found');
-      transactionType = TransactionType.SELL;
-      currency = transaction.buyFiat.outputAsset;
-    } else if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
-      const swap = transaction.buyCrypto.cryptoRoute;
-      if (!swap) throw new BadRequestException('Swap route not found');
-      transactionType = TransactionType.SWAP;
-      currency = await this.getInvoiceCurrency(transaction.userData);
-    } else if (transaction.refReward) {
-      const targetBlockchain = transaction.refReward.targetBlockchain;
-      if (!targetBlockchain) throw new BadRequestException('Missing blockchain information');
-      transactionType = TransactionType.REFERRAL;
-      currency = await this.getInvoiceCurrency(transaction.userData);
-    } else {
-      throw new BadRequestException('Transaction type not supported for invoice generation');
+      return {
+        transactionType: TransactionType.BUY,
+        currency: (await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset)).name,
+      };
     }
 
-    if (currency.name !== 'CHF' && currency.name !== 'EUR') {
-      throw new BadRequestException('Only CHF and EUR are supported for invoice generation');
+    if (transaction.buyFiat) {
+      return { transactionType: TransactionType.SELL, currency: transaction.buyFiat.outputAsset.name };
     }
 
-    return {
-      transactionType,
-      currency: currency.name,
-    };
+    if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
+      return {
+        transactionType: TransactionType.SWAP,
+        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
+      };
+    }
+
+    if (transaction.refReward) {
+      return {
+        transactionType: TransactionType.REFERRAL,
+        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
+      };
+    }
+
+    throw new BadRequestException('Transaction type not supported for invoice generation');
   }
 
   private async getInvoiceCurrency(userData: UserData): Promise<Fiat> {
     const preferredCurrency = userData.currency.name;
-    const allowedCurrency = ['CHF', 'EUR'].includes(preferredCurrency) ? preferredCurrency : 'CHF';
+    const allowedCurrency = Config.invoice.currencies.includes(preferredCurrency)
+      ? preferredCurrency
+      : Config.invoice.defaultCurrency;
     const currency = await this.fiatService.getFiatByName(allowedCurrency);
     if (!currency) throw new BadRequestException('Preferred currency not found');
 

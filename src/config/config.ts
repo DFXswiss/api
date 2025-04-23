@@ -671,16 +671,13 @@ export class Configuration {
     Authorization: process.env.IKNA_KEY,
   };
 
+  invoice = {
+    currencies: ['EUR', 'CHF'],
+    defaultCurrency: 'CHF',
+  };
+
   bank = {
     dfxAddress: {
-      name: 'DFX AG',
-      address: 'Bahnhofstrasse',
-      buildingNumber: '7',
-      zip: '6300',
-      city: 'Zug',
-      country: 'CH',
-    },
-    dfxBankInfo: {
       name: 'DFX AG',
       street: 'Bahnhofstrasse',
       number: '7',
