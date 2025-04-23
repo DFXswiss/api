@@ -1,39 +1,33 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { RefService } from '../../referral/process/ref.service';
-import { OrderConfig } from '../config/order-config';
-
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In } from 'typeorm';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Brackets, In } from 'typeorm';
+import { RefService } from '../../referral/process/ref.service';
+import { OrderConfig } from '../config/order-config';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStatus, CustodyOrderStepContext } from '../enums/custody';
+import { CustodyOrderStatus, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 
 @Injectable()
-export class CustodyService implements OnModuleInit {
-  private chf: Fiat;
-  private eur: Fiat;
-
+export class CustodyService {
   constructor(
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
@@ -43,14 +37,7 @@ export class CustodyService implements OnModuleInit {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
-    private readonly pricingService: PricingService,
-    private readonly fiatService: FiatService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-  }
 
   //*** PUBLIC API ***//
   async createCustodyAccount(accountId: number, dto: CreateCustodyAccountDto, userIp: string): Promise<CustodyAuthDto> {
@@ -127,13 +114,24 @@ export class CustodyService implements OnModuleInit {
           .select('SUM(custodyOrder.inputAmount)', 'deposit')
           .addSelect('SUM(custodyOrder.outputAmount)', 'withdrawal')
           .where('custodyOrder.userId = :id', { id: order.user.id })
-          .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
+          .andWhere(
+            new Brackets((query) =>
+              query
+                .where('custodyOrder.status = :status AND custodyOrder.type IN (:...types)', {
+                  status: CustodyOrderStatus.COMPLETED,
+                  types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
+                })
+                .orWhere('custodyOrder.type NOT IN (:...types)', {
+                  types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
+                }),
+            ),
+          )
           .andWhere('(custodyOrder.inputAssetId = :asset OR custodyOrder.outputAssetId = :asset)', {
             asset: asset.id,
           })
           .getRawOne<{ deposit: number; withdrawal: number }>();
 
-        await this.updateCustodyBalance(custodyBalance, deposit - withdrawal + amount);
+        await this.updateCustodyBalance(custodyBalance, deposit - withdrawal);
       }
     }
   }
@@ -143,14 +141,18 @@ export class CustodyService implements OnModuleInit {
     if (!account) throw new NotFoundException('User not found');
 
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(account.users.map((u) => u.id)) } });
-    const price = await this.pricingService.getPrice(this.chf, account.currency, false);
+    const totalBalance = custodyBalances.reduce(
+      (prev, curr) =>
+        prev +
+        Price.create(curr.asset.name, account.currency.name, curr.asset.getFiatPrice(account.currency)).convert(
+          curr.balance,
+        ),
+      0,
+    );
 
     return {
-      assetBalances: CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances),
-      totalBalance: Util.roundReadable(
-        custodyBalances.reduce((prev, curr) => prev + price.convert(curr.balanceInChf), 0),
-        AmountType.FIAT,
-      ),
+      assetBalances: CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, account.currency),
+      totalBalance: Util.roundReadable(totalBalance, AmountType.FIAT),
       currency: FiatDtoMapper.toDto(account.currency),
     };
   }

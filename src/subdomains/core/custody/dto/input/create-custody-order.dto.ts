@@ -21,7 +21,7 @@ export class CreateCustodyOrderDto {
   paymentInfo: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto;
 }
 
-export class CreateCustodyOrderInternalDto extends UpdateCustodyOrderInternalDto {
+export interface CreateCustodyOrderInternalDto extends UpdateCustodyOrderInternalDto {
   user: User;
   type: CustodyOrderType;
   sell?: Sell;

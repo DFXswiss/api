@@ -5,7 +5,6 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
-import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -101,22 +100,10 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save(entity);
 
     if (sell.user.role === UserRole.CUSTODY) {
-      if (request?.custodyOrder) {
+      if (request?.custodyOrder)
         await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
           transaction: entity.transaction,
         });
-      } else {
-        // TODO remove? Case not possible => buyFiat without order and custody user
-        await this.custodyOrderService.createOrderInternal({
-          user: sell.user,
-          type: CustodyOrderType.WITHDRAWAL,
-          sell,
-          outputAsset: cryptoInput.asset,
-          outputAmount: entity.inputAmount,
-          transaction: entity.transaction,
-          transactionRequest: request,
-        });
-      }
     }
 
     await this.triggerWebhook(entity);

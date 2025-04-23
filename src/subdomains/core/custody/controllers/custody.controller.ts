@@ -20,7 +20,7 @@ import { CustodyService } from '../services/custody.service';
 export class CustodyController {
   constructor(private readonly service: CustodyService, private readonly custodyOrderService: CustodyOrderService) {}
 
-  @Get('balance')
+  @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
