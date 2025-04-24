@@ -16,6 +16,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -281,7 +282,7 @@ export class BuyService {
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant,
       remittanceInfo: buy.active ? buy.bankUsage : undefined,
-      paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto) : undefined,
+      paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto, user.userData) : undefined,
       // card info
       paymentLink:
         isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
@@ -305,12 +306,12 @@ export class BuyService {
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxBankInfo, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+    return { ...Config.bank.dfxAddress, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
   }
 
-  private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
+  private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, userData: UserData): string {
     if (dto.currency.name === 'CHF') {
-      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo, userData);
     } else {
       return this.generateGiroCode(buy, bankInfo, dto);
     }

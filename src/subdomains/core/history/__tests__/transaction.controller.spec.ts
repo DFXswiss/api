@@ -15,6 +15,7 @@ import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
@@ -46,6 +47,7 @@ describe('TransactionController', () => {
   let specialExternalAccountService: SpecialExternalAccountService;
   let bankService: BankService;
   let transactionHelper: TransactionHelper;
+  let swissQrService: SwissQRService;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -64,6 +66,7 @@ describe('TransactionController', () => {
     specialExternalAccountService = createMock<SpecialExternalAccountService>();
     bankService = createMock<BankService>();
     transactionHelper = createMock<TransactionHelper>();
+    swissQrService = createMock<SwissQRService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -85,6 +88,7 @@ describe('TransactionController', () => {
         { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
         { provide: BankService, useValue: bankService },
         { provide: TransactionHelper, useValue: transactionHelper },
+        { provide: SwissQRService, useValue: swissQrService },
         TestUtil.provideConfig(),
       ],
     }).compile();

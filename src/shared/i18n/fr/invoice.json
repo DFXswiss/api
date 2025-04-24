@@ -1,13 +1,17 @@
 {
   "title": "Facture No. {invoiceId}",
+  "credit_title": "Crédit No. {invoiceId}",
   "table": {
     "headers": {
-      "quantity": "Quantité *",
+      "quantity": "Quantité",
       "description": "Description",
       "total": "Total"
     },
     "position_row": {
-      "description": "{assetDescription} ({assetName}) livré sur {assetBlockchain}"
+      "buy_description": "{assetDescription} ({assetName}) reçu sur {assetBlockchain}",
+      "sell_description": "{fiatCurrency} reçu pour {assetAmount} {assetDescription} ({assetName}) sur {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) sur {sourceBlockchain} échangé contre {targetAmount} {targetDescription} ({targetName}) sur {targetBlockchain}",
+      "referral_description": "Bonus de parrainage {assetName} sur {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Total"
@@ -18,6 +22,9 @@
     },
     "invoice_total_row": {
       "invoice_total_label": "Total de la Facture"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Total du Crédit"
     }
   },
   "info": "* Info: Le taux de change effectif et donc la quantité effectivement livrée sont déterminés lorsque l’argent est reçu et traité par DFX."
