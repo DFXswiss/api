@@ -126,10 +126,11 @@ export class KycService {
         status: KycStepStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const identStep of expiredIdentSteps) {
+      identStep.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: identStep.userData.id } });
       const user = identStep.userData;
       const step = user.getPendingStepOrThrow(identStep.id);
 
@@ -155,11 +156,12 @@ export class KycService {
         name: KycStepName.NATIONALITY_DATA,
         status: KycStepStatus.INTERNAL_REVIEW,
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
         const errors = this.getNationalityErrors(entity, nationality);
@@ -189,11 +191,12 @@ export class KycService {
         status: KycStepStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.resultData;
 
         const nationality = result.nationality

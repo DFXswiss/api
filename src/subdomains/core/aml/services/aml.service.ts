@@ -8,7 +8,7 @@ import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -75,8 +75,9 @@ export class AmlService {
 
   async getAmlCheckInput(
     entity: BuyFiat | BuyCrypto,
-  ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
+  ): Promise<{ users: User[]; bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
+    const users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
 
     if (bankData) {
@@ -127,11 +128,11 @@ export class AmlService {
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
     }
 
-    if (entity instanceof BuyFiat) return { bankData, blacklist };
-    if (entity.cryptoInput) return { bankData: undefined, blacklist, banks: undefined };
+    if (entity instanceof BuyFiat) return { users, bankData, blacklist };
+    if (entity.cryptoInput) return { users, bankData: undefined, blacklist, banks: undefined };
 
     const banks = await this.bankService.getAllBanks();
-    return { bankData, blacklist, banks };
+    return { users, bankData, blacklist, banks };
   }
 
   //*** HELPER METHODS ***//

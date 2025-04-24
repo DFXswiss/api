@@ -68,6 +68,10 @@ export class UserService {
     return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
+  async getAllUserDataUsers(userDataId: number, relations: FindOptionsRelations<User> = {}): Promise<User[]> {
+    return this.userRepo.find({ where: { userData: { id: userDataId } }, relations });
+  }
+
   async getUserByAddress(address: string, relations: FindOptionsRelations<User> = {}): Promise<User> {
     return this.userRepo.findOne({ where: { address }, relations });
   }
@@ -133,7 +137,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return this.userRepo.findOne({ where: { ref }, relations: { userData: { users: true } } });
+    return this.userRepo.findOne({ where: { ref }, relations: { userData: true } });
   }
 
   async getNexCustodyIndex(): Promise<number> {
@@ -309,7 +313,7 @@ export class UserService {
   async deactivateUser(userDataId: number, address?: string): Promise<void> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
+      relations: { users: true, kycSteps: true },
     });
     if (!userData) throw new NotFoundException('User account not found');
     if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
@@ -363,7 +367,7 @@ export class UserService {
   private async updateUserDataVolume(userId: number): Promise<void> {
     const { userData } = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ['userData'],
+      relations: { userData: true },
       select: ['id', 'userData'],
     });
     await this.userDataService.updateVolumes(userData.id);
@@ -529,7 +533,7 @@ export class UserService {
   }
 
   async updateApiFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true } });
     if (!user) throw new BadRequestException('User not found');
 
     user.apiFilterCT = ApiKeyService.getFilterCode(filter);
