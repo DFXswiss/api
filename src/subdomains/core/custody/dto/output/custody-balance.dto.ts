@@ -10,23 +10,23 @@ export class CustodyAssetDto {
 }
 
 export class CustodyAssetBalanceDto {
-  @ApiProperty({ type: FiatDto, description: 'Asset' })
+  @ApiProperty({ type: CustodyAssetDto, description: 'Asset' })
   asset: CustodyAssetDto;
 
   @ApiProperty({ description: 'Balance in asset' })
   balance: number;
 
   @ApiProperty({ description: 'Balance in user selected currency' })
-  balanceInCurrency: number;
+  value: number;
 }
 
 export class CustodyBalanceDto {
   @ApiProperty({ description: 'Total balance in user selected currency' })
-  totalBalance: number;
+  totalValue: number;
 
   @ApiProperty({ type: FiatDto, description: 'Currency selected by user' })
   currency: FiatDto;
 
   @ApiProperty({ type: CustodyAssetBalanceDto, description: 'Asset balances', isArray: true })
-  assetBalances: CustodyAssetBalanceDto[];
+  balances: CustodyAssetBalanceDto[];
 }

@@ -10,7 +10,6 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Brackets, In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { OrderConfig } from '../config/order-config';
@@ -141,18 +140,12 @@ export class CustodyService {
     if (!account) throw new NotFoundException('User not found');
 
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(account.users.map((u) => u.id)) } });
-    const totalBalance = custodyBalances.reduce(
-      (prev, curr) =>
-        prev +
-        Price.create(curr.asset.name, account.currency.name, curr.asset.getFiatPrice(account.currency)).convert(
-          curr.balance,
-        ),
-      0,
-    );
+    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, account.currency);
+    const totalValue = balances.reduce((prev, curr) => prev + curr.value, 0);
 
     return {
-      assetBalances: CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, account.currency),
-      totalBalance: Util.roundReadable(totalBalance, AmountType.FIAT),
+      balances,
+      totalValue: Util.roundReadable(totalValue, AmountType.FIAT),
       currency: FiatDtoMapper.toDto(account.currency),
     };
   }

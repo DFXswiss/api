@@ -10,31 +10,27 @@ export class CustodyAssetBalanceDtoMapper {
     const dto: CustodyAssetBalanceDto = {
       asset: { name: custodyBalance.asset.name, description: custodyBalance.asset.description },
       balance: Util.roundReadable(custodyBalance.balance, AmountType.ASSET),
-      balanceInCurrency: Util.roundReadable(price.convert(custodyBalance.balance), AmountType.ASSET),
+      value: Util.roundReadable(price.convert(custodyBalance.balance), AmountType.ASSET),
     };
 
     return Object.assign(new CustodyAssetBalanceDto(), dto);
   }
 
   static mapCustodyBalances(custodyBalances: CustodyBalance[], currency: Fiat): CustodyAssetBalanceDto[] {
-    const groups = new Map<string, CustodyAssetBalanceDto>();
+    const groups = Util.groupByAccessor(custodyBalances, (b) => b.asset.name);
 
-    for (const custodyBalance of custodyBalances) {
-      const group = groups.get(custodyBalance.asset.name);
-      const dto = CustodyAssetBalanceDtoMapper.mapCustodyBalance(custodyBalance, currency);
+    return Array.from(groups.values()).map((g) => {
+      const asset = g[0].asset;
+      const price = Price.create(asset.name, currency.name, asset.getFiatPrice(currency));
+      const balance = Util.sumObjValue(g, 'balance');
 
-      groups.set(
-        custodyBalance.asset.name,
-        group
-          ? {
-              ...group,
-              balance: Util.roundReadable(group.balance + dto.balance, AmountType.ASSET),
-              balanceInCurrency: Util.roundReadable(group.balanceInCurrency + dto.balanceInCurrency, AmountType.ASSET),
-            }
-          : dto,
-      );
-    }
+      const dto: CustodyAssetBalanceDto = {
+        asset: { name: asset.name, description: asset.description },
+        balance: Util.roundReadable(balance, AmountType.ASSET),
+        value: Util.roundReadable(price.convert(balance), AmountType.FIAT),
+      };
 
-    return Array.from(groups.values());
+      return Object.assign(new CustodyAssetBalanceDto(), dto);
+    });
   }
 }
