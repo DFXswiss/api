@@ -911,6 +911,7 @@ export class UserDataService {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
+    if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
 
     // update slave status

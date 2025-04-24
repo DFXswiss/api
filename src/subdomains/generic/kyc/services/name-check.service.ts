@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -162,6 +162,7 @@ export class NameCheckService implements OnModuleInit {
     name: string,
     dob?: Date,
   ): Promise<{ data: DilisenseApiData; file: KycFile }> {
+    if (!name) throw new InternalServerErrorException(`NameCheck name is missing, userData ${userData.id}`);
     const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, isBusiness, dob);
 
     // upload file
