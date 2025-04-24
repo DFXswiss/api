@@ -95,43 +95,10 @@ export class CustodyService {
     if (nextStep) {
       await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
     } else {
-      const asset = order.inputAsset ?? order.outputAsset;
-      const amount = order.inputAmount ?? -order.outputAmount;
+      if (order.inputAmount) await this.updateCustodyBalance(order.inputAmount, order.inputAsset, order.user);
+      if (order.outputAmount) await this.updateCustodyBalance(-order.outputAmount, order.outputAsset, order.user);
 
       await this.custodyOrderRepo.update(...order.complete());
-
-      const custodyBalance = await this.custodyBalanceRepo.findOneBy({
-        asset: { id: asset.id },
-        user: { id: order.user.id },
-      });
-
-      if (!custodyBalance) {
-        await this.createCustodyBalance(amount, order.user, asset);
-      } else {
-        const { deposit, withdrawal } = await this.custodyOrderRepo
-          .createQueryBuilder('custodyOrder')
-          .select('SUM(custodyOrder.inputAmount)', 'deposit')
-          .addSelect('SUM(custodyOrder.outputAmount)', 'withdrawal')
-          .where('custodyOrder.userId = :id', { id: order.user.id })
-          .andWhere(
-            new Brackets((query) =>
-              query
-                .where('custodyOrder.status = :status AND custodyOrder.type IN (:...types)', {
-                  status: CustodyOrderStatus.COMPLETED,
-                  types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
-                })
-                .orWhere('custodyOrder.type NOT IN (:...types)', {
-                  types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
-                }),
-            ),
-          )
-          .andWhere('(custodyOrder.inputAssetId = :asset OR custodyOrder.outputAssetId = :asset)', {
-            asset: asset.id,
-          })
-          .getRawOne<{ deposit: number; withdrawal: number }>();
-
-        await this.updateCustodyBalance(custodyBalance, deposit - withdrawal);
-      }
     }
   }
 
@@ -156,9 +123,38 @@ export class CustodyService {
     return this.custodyBalanceRepo.save(entity);
   }
 
-  async updateCustodyBalance(entity: CustodyBalance, balance: number): Promise<CustodyBalance> {
-    entity.balance = balance;
+  private async updateCustodyBalance(amount: number, asset: Asset, user: User) {
+    const custodyBalance = await this.custodyBalanceRepo.findOneBy({
+      asset: { id: asset.id },
+      user: { id: user.id },
+    });
 
-    return this.custodyBalanceRepo.save(entity);
+    if (!custodyBalance) {
+      await this.createCustodyBalance(amount, user, asset);
+    } else {
+      const { deposit, withdrawal } = await this.custodyOrderRepo
+        .createQueryBuilder('custodyOrder')
+        .select('SUM(custodyOrder.inputAmount)', 'deposit')
+        .addSelect('SUM(custodyOrder.outputAmount)', 'withdrawal')
+        .where('custodyOrder.userId = :id', { id: user.id })
+        .andWhere(
+          new Brackets((query) =>
+            query
+              .where('custodyOrder.status = :status AND custodyOrder.type IN (:...types)', {
+                status: CustodyOrderStatus.COMPLETED,
+                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
+              })
+              .orWhere('custodyOrder.type NOT IN (:...types)', {
+                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
+              }),
+          ),
+        )
+        .andWhere('(custodyOrder.inputAssetId = :asset OR custodyOrder.outputAssetId = :asset)', {
+          asset: asset.id,
+        })
+        .getRawOne<{ deposit: number; withdrawal: number }>();
+
+      this.custodyBalanceRepo.update(custodyBalance.id, { balance: deposit - withdrawal });
+    }
   }
 }
