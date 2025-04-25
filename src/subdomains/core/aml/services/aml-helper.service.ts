@@ -75,6 +75,9 @@ export class AmlHelperService {
     errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
     errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
 
+    if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+    if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
+
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || bankData.approved === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
@@ -94,8 +97,6 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
-      if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
-
       if (
         entity.userData.hasSuspiciousMail &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
@@ -184,7 +185,6 @@ export class AmlHelperService {
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
-      if (!entity.sell.fiat.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (
         blacklist.some((b) =>
           b.matches(

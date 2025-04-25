@@ -94,7 +94,7 @@ export class FeeService implements OnModuleInit {
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BLOCKCHAIN_FEE_UPDATE, timeout: 1800 })
   async updateBlockchainFees() {
-    const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
+    const blockchainFees = await this.blockchainFeeRepo.find({ relations: { asset: true } });
 
     for (const blockchainFee of blockchainFees) {
       try {

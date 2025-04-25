@@ -24,7 +24,7 @@ export class StakingService {
   ): Promise<StakingReward[]> {
     return this.stakingRewardRepo.find({
       where: { staking: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
-      relations: ['staking', 'staking.user'],
+      relations: { staking: { user: true } },
       order: { id: 'ASC' },
     });
   }
@@ -36,7 +36,7 @@ export class StakingService {
   ): Promise<StakingRefReward[]> {
     return this.stakingRefRewardRepo.find({
       where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
-      relations: ['user'],
+      relations: { user: true },
     });
   }
 
@@ -54,7 +54,7 @@ export class StakingService {
           payoutType: Not(PayoutType.REINVEST),
         },
       ],
-      relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
+      relations: { cryptoInput: true, stakingRoute: { user: true } },
       order: { id: 'ASC' },
     });
 

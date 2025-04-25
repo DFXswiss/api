@@ -91,4 +91,8 @@ export class RefReward extends Reward {
   get feeAmountChf(): number {
     return this.amountInChf;
   }
+
+  get isComplete(): boolean {
+    return this.status === RewardStatus.COMPLETE;
+  }
 }

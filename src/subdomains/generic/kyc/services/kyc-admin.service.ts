@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { FindOptionsRelations } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
@@ -23,8 +24,8 @@ export class KycAdminService {
     private readonly kycNotificationService: KycNotificationService,
   ) {}
 
-  async getKycSteps(userDataId: number): Promise<KycStep[]> {
-    return this.kycStepRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+  async getKycSteps(userDataId: number, relations: FindOptionsRelations<KycStep> = {}): Promise<KycStep[]> {
+    return this.kycStepRepo.find({ where: { userData: { id: userDataId } }, relations });
   }
 
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
