@@ -4,6 +4,7 @@ export interface LnurlPayRequestDto {
   minSendable: number;
   maxSendable: number;
   metadata: string;
+  externalId?: string;
 }
 
 export interface LnurlpInvoiceDto {

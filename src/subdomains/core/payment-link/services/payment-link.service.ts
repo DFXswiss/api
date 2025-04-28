@@ -222,6 +222,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: pendingPayment.link.recipient,
+      externalId: pendingPayment.externalId || pendingPayment.link.externalId,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,

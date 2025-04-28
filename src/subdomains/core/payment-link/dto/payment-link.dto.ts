@@ -43,6 +43,7 @@ export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
   minSendable: number;
   maxSendable: number;
   metadata: string;
+  externalId?: string;
   quote: {
     id: string;
     expiration: Date;

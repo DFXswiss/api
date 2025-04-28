@@ -55,6 +55,7 @@ export class LnUrlForwardService {
     const payRequest = await this.client.getLnurlpPaymentRequest(lnurlpId);
 
     payRequest.callback = LightningHelper.createLnurlpCallbackUrl(lnurlpId);
+    payRequest.externalId = (await this.client.getLnurlpLink(lnurlpId))?.id;
 
     return payRequest;
   }

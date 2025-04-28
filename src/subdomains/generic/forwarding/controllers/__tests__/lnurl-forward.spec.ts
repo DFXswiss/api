@@ -63,19 +63,25 @@ describe('LnurlForward', () => {
 
   describe('LNURLp', () => {
     it('lnurlpForward', async () => {
-      jest.spyOn(httpServiceMock, 'get').mockResolvedValue(
-        createCustomLnurlpLRequest({
+      jest.spyOn(httpServiceMock, 'get').mockImplementation(async (url, _config) => {
+        if (url.includes('/links/')) {
+          return { id: 'link-123-external-id' };
+        }
+        return createCustomLnurlpLRequest({
           callback: 'https://this-is-a-testserver.somewhere.com:5000/lnurlp/cb/ABC123',
-        }),
-      );
+        });
+      });
 
       const result = await lnurlpForward.lnUrlPForward('ABC123', undefined);
 
       expect(result).toEqual(
-        createCustomLnurlpLRequest({
+        expect.objectContaining({
           callback: 'https://test.dfx.api:12345/v0.1/lnurlp/cb/ABC123',
         }),
       );
+
+      expect(result.externalId).toBeDefined();
+      expect(result.externalId).toBe('link-123-external-id');
     });
   });
 
