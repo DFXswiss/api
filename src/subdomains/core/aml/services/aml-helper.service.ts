@@ -75,7 +75,6 @@ export class AmlHelperService {
     errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
     errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
 
-    if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
     if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
@@ -90,6 +89,7 @@ export class AmlHelperService {
 
     if (entity.cryptoInput) {
       // crypto input
+      if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);

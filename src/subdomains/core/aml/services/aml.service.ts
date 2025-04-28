@@ -77,7 +77,7 @@ export class AmlService {
     entity: BuyFiat | BuyCrypto,
   ): Promise<{ users: User[]; bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
-    const users = await this.userService.getAllUserDataUsers(entity.userData.id);
+    entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
 
     if (bankData) {
@@ -128,11 +128,11 @@ export class AmlService {
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
     }
 
-    if (entity instanceof BuyFiat) return { users, bankData, blacklist };
-    if (entity.cryptoInput) return { users, bankData: undefined, blacklist, banks: undefined };
+    if (entity instanceof BuyFiat) return { users: entity.userData.users, bankData, blacklist };
+    if (entity.cryptoInput) return { users: entity.userData.users, bankData: undefined, blacklist, banks: undefined };
 
     const banks = await this.bankService.getAllBanks();
-    return { users, bankData, blacklist, banks };
+    return { users: entity.userData.users, bankData, blacklist, banks };
   }
 
   //*** HELPER METHODS ***//
