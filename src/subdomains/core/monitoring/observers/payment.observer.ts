@@ -4,12 +4,14 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull, LessThan, Not } from 'typeorm';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { PaymentQuoteStatus } from '../../payment-link/enums';
 import { RewardStatus } from '../../referral/reward/ref-reward.entity';
 
 interface PaymentData {
@@ -21,6 +23,7 @@ interface PaymentData {
   bankTxWithoutType: number;
   bankTxGsType: number;
   refRewardManualCheck: number;
+  stuckPayments: number;
 }
 
 interface LastOutputDates {
@@ -87,6 +90,17 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         action: In([PayInAction.FORWARD, PayInAction.RETURN]),
       }),
       refRewardManualCheck: await this.repos.refReward.countBy({ status: RewardStatus.MANUAL_CHECK }),
+      stuckPayments: await this.repos.paymentQuote.countBy({
+        status: Not(
+          In([
+            PaymentQuoteStatus.CANCELLED,
+            PaymentQuoteStatus.EXPIRED,
+            PaymentQuoteStatus.TX_COMPLETED,
+            PaymentQuoteStatus.TX_FAILED,
+          ]),
+        ),
+        created: LessThan(Util.hoursBefore(3)),
+      }),
     };
   }
 
