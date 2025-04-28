@@ -132,10 +132,9 @@ export class CustodyService {
     if (!custodyBalance) {
       await this.createCustodyBalance(amount, user, asset);
     } else {
-      const { deposit, withdrawal } = await this.custodyOrderRepo
+      const { deposit } = await this.custodyOrderRepo
         .createQueryBuilder('custodyOrder')
         .select('SUM(custodyOrder.inputAmount)', 'deposit')
-        .addSelect('SUM(custodyOrder.outputAmount)', 'withdrawal')
         .where('custodyOrder.userId = :id', { id: user.id })
         .andWhere(
           new Brackets((query) =>
@@ -149,12 +148,29 @@ export class CustodyService {
               }),
           ),
         )
-        .andWhere('(custodyOrder.inputAssetId = :asset OR custodyOrder.outputAssetId = :asset)', {
-          asset: asset.id,
-        })
-        .getRawOne<{ deposit: number; withdrawal: number }>();
+        .andWhere('custodyOrder.inputAssetId = :asset', { asset: asset.id })
+        .getRawOne<{ deposit: number }>();
 
-      this.custodyBalanceRepo.update(custodyBalance.id, { balance: deposit - withdrawal });
+      const { withdrawal } = await this.custodyOrderRepo
+        .createQueryBuilder('custodyOrder')
+        .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
+        .where('custodyOrder.userId = :id', { id: user.id })
+        .andWhere(
+          new Brackets((query) =>
+            query
+              .where('custodyOrder.status = :status AND custodyOrder.type IN (:...types)', {
+                status: CustodyOrderStatus.COMPLETED,
+                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
+              })
+              .orWhere('custodyOrder.type NOT IN (:...types)', {
+                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
+              }),
+          ),
+        )
+        .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
+        .getRawOne<{ withdrawal: number }>();
+
+      await this.custodyBalanceRepo.update(custodyBalance.id, { balance: deposit - withdrawal });
     }
   }
 }
