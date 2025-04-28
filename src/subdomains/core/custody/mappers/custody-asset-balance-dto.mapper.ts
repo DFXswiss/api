@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -6,14 +7,7 @@ import { CustodyBalance } from '../entities/custody-balance.entity';
 
 export class CustodyAssetBalanceDtoMapper {
   static mapCustodyBalance(custodyBalance: CustodyBalance, currency: Fiat): CustodyAssetBalanceDto {
-    const price = Price.create(custodyBalance.asset.name, currency.name, custodyBalance.asset.getFiatPrice(currency));
-    const dto: CustodyAssetBalanceDto = {
-      asset: { name: custodyBalance.asset.name, description: custodyBalance.asset.description },
-      balance: Util.roundReadable(custodyBalance.balance, AmountType.ASSET),
-      value: Util.roundReadable(price.convert(custodyBalance.balance), AmountType.ASSET),
-    };
-
-    return Object.assign(new CustodyAssetBalanceDto(), dto);
+    return this.map(custodyBalance.asset, currency, custodyBalance.balance);
   }
 
   static mapCustodyBalances(custodyBalances: CustodyBalance[], currency: Fiat): CustodyAssetBalanceDto[] {
@@ -21,16 +15,21 @@ export class CustodyAssetBalanceDtoMapper {
 
     return Array.from(groups.values()).map((g) => {
       const asset = g[0].asset;
-      const price = Price.create(asset.name, currency.name, asset.getFiatPrice(currency));
       const balance = Util.sumObjValue(g, 'balance');
 
-      const dto: CustodyAssetBalanceDto = {
-        asset: { name: asset.name, description: asset.description },
-        balance: Util.roundReadable(balance, AmountType.ASSET),
-        value: Util.roundReadable(price.convert(balance), AmountType.FIAT),
-      };
-
-      return Object.assign(new CustodyAssetBalanceDto(), dto);
+      return this.map(asset, currency, balance);
     });
+  }
+
+  private static map(asset: Asset, currency: Fiat, balance: number) {
+    const price = Price.create(asset.name, currency.name, asset.getFiatPrice(currency));
+
+    const dto: CustodyAssetBalanceDto = {
+      asset: { name: asset.name, description: asset.description },
+      balance: Util.roundReadable(balance, AmountType.ASSET),
+      value: Util.roundReadable(price.convert(balance), AmountType.FIAT),
+    };
+
+    return Object.assign(new CustodyAssetBalanceDto(), dto);
   }
 }
