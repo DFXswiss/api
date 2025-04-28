@@ -37,11 +37,11 @@ export class FiatOutputJobService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
   async fillFiatOutput() {
-    await this.fillPreValutaDate();
-    await this.fillIsReadyDate();
-    await this.setBatchId();
-    await this.setDates();
-    await this.bankTxSearch();
+    await this.assignBankAccount();
+    await this.setReadyDate();
+    await this.createBatches();
+    await this.checkTransmission();
+    await this.searchOutgoingBankTx();
   }
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -76,7 +76,7 @@ export class FiatOutputJobService {
     return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
   }
 
-  private async fillPreValutaDate(): Promise<void> {
+  private async assignBankAccount(): Promise<void> {
     const entities = await this.fiatOutputRepo.find({
       where: { valutaDate: IsNull(), isComplete: false },
       relations: { buyCrypto: true, buyFiats: { sell: true } },
@@ -99,12 +99,12 @@ export class FiatOutputJobService {
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
-        this.logger.error(`Error in fiatOutput fillPreValutaDate job: ${entity.id}`, e);
+        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}`, e);
       }
     }
   }
 
-  private async fillIsReadyDate(): Promise<void> {
+  private async setReadyDate(): Promise<void> {
     const entities = await this.fiatOutputRepo
       .find({
         where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
@@ -118,12 +118,7 @@ export class FiatOutputJobService {
         }),
       );
 
-    const groupedEntities = entities.reduce((map, tx) => {
-      if (!map.has(tx.accountIban)) map.set(tx.accountIban, []);
-      map.get(tx.accountIban)!.push(tx);
-      return map;
-    }, new Map<string, FiatOutput[]>());
-
+    const groupedEntities = Util.groupBy(entities, 'accountIban');
     const sortedEntities = Array.from(groupedEntities.values()).map((group) =>
       group.sort((a, b) => {
         if (a.accountIban !== b.accountIban) return a.accountIban.localeCompare(b.accountIban);
@@ -140,7 +135,7 @@ export class FiatOutputJobService {
     );
 
     for (const accountIbanGroup of sortedEntities) {
-      let updatedFiatOutputs = 0;
+      let updatedFiatOutputAmount = 0;
 
       for (const entity of accountIbanGroup.filter((e) => !e.isReadyDate)) {
         try {
@@ -150,10 +145,10 @@ export class FiatOutputJobService {
             0,
           );
           const availableBalance =
-            liqBalance.amount - pendingBalance - updatedFiatOutputs - Config.processing.fiatOutput.bankPuffer;
+            liqBalance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
           if (availableBalance > entity.amount) {
-            updatedFiatOutputs += entity.amount;
+            updatedFiatOutputAmount += entity.amount;
             const ibanCountry = entity.iban.substring(0, 2);
 
             if (
@@ -165,13 +160,13 @@ export class FiatOutputJobService {
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
           }
         } catch (e) {
-          this.logger.error(`Error in fiatOutput fillUp job: ${entity.id}`, e);
+          this.logger.error(`Failed to fill up fiat-output ${entity.id}:`, e);
         }
       }
     }
   }
 
-  private async setBatchId(): Promise<void> {
+  private async createBatches(): Promise<void> {
     const entities = await this.fiatOutputRepo.find({
       where: { isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
       order: { accountIban: 'ASC', id: 'ASC' },
@@ -185,7 +180,7 @@ export class FiatOutputJobService {
 
       if (
         currentBatch[0].accountIban !== entity.accountIban ||
-        currentBatchAmount + entity.amount > Config.processing.fiatOutput.batchAmountLimit
+        currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit
       ) {
         await this.fiatOutputRepo.update(
           { id: In(currentBatch.map((f) => f.id)) },
@@ -198,7 +193,7 @@ export class FiatOutputJobService {
     }
   }
 
-  private async setDates(): Promise<void> {
+  private async checkTransmission(): Promise<void> {
     const entities = await this.fiatOutputRepo.find({
       where: { batchId: Not(IsNull()), isTransmittedDate: IsNull(), isComplete: false },
     });
@@ -216,7 +211,7 @@ export class FiatOutputJobService {
     }
   }
 
-  private async bankTxSearch(): Promise<void> {
+  private async searchOutgoingBankTx(): Promise<void> {
     const entities = await this.fiatOutputRepo.find({
       where: {
         amount: Not(IsNull()),
@@ -237,7 +232,7 @@ export class FiatOutputJobService {
 
         if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
-        this.logger.error(`Error in fiatOutput bankTx search job: ${entity.id}`, e);
+        this.logger.error(`Error in bankTx search fiatOutput: ${entity.id}`, e);
       }
     }
   }

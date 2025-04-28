@@ -30,7 +30,7 @@ export class Bank extends IEntity {
   @Column({ default: true })
   amlEnabled: boolean;
 
-  @OneToOne(() => Bank, { nullable: true })
+  @OneToOne(() => Asset, (asset) => asset.bank, { nullable: true })
   @JoinColumn()
   asset: Asset;
 }

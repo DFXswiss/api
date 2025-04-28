@@ -74,9 +74,9 @@ export class Configuration {
     '1': ['CH'],
   };
 
-  processing = {
+  liquidityManagement = {
+    bankMinBalance: 100,
     fiatOutput: {
-      bankPuffer: 100,
       batchAmountLimit: 9500,
     },
   };

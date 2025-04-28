@@ -34,7 +34,7 @@ export class BankService {
   }
 
   async getSenderBank(currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(`${currency}`, { currency, send: true });
+    return this.bankRepo.findOneCachedBy(currency, { currency, send: true });
   }
 
   // --- BankSelector --- //
