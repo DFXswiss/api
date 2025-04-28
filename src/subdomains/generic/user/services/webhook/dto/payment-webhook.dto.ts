@@ -25,8 +25,8 @@ export class PaymentWebhookData extends TransactionDetailDto {
 
 export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {
   @ApiProperty({ enum: [WebhookType.PAYMENT] })
-  type: WebhookType.PAYMENT;
+  type = WebhookType.PAYMENT;
 
   @ApiProperty({ type: PaymentWebhookData })
-  data: PaymentWebhookData;
+  declare data: PaymentWebhookData;
 }

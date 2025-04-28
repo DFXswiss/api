@@ -6,18 +6,18 @@ import { PayoutEvmService } from './payout-evm.service';
 
 @Injectable()
 export class PayoutOptimismService extends PayoutEvmService {
-  protected client: OptimismClient;
+  private readonly optimismClient: OptimismClient;
 
   constructor(optimismService: OptimismService) {
     super(optimismService);
-    this.client = optimismService.getDefaultClient<OptimismClient>();
+    this.optimismClient = optimismService.getDefaultClient<OptimismClient>();
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction();
+    return this.optimismClient.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
+    return this.optimismClient.getCurrentGasCostForTokenTransaction(token);
   }
 }

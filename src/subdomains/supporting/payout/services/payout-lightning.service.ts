@@ -7,7 +7,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 export class PayoutLightningService {
   private readonly client: LightningClient;
 
-  constructor(private lightningService: LightningService) {
+  constructor(private readonly lightningService: LightningService) {
     this.client = lightningService.getDefaultClient();
   }
 
