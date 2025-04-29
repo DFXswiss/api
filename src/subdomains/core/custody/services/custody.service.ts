@@ -12,17 +12,13 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { Brackets, In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
-import { OrderConfig } from '../config/order-config';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
-import { CustodyOrderStep } from '../entities/custody-order-step.entity';
-import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStatus, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStatus, CustodyOrderType } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
-import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 
 @Injectable()
@@ -34,7 +30,6 @@ export class CustodyService {
     private readonly refService: RefService,
     private readonly authService: AuthService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
-    private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
   ) {}
 
@@ -72,36 +67,6 @@ export class CustodyService {
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };
   }
 
-  async createStep(
-    order: CustodyOrder,
-    index: number,
-    command: string,
-    context: CustodyOrderStepContext,
-  ): Promise<CustodyOrderStep> {
-    const orderStep = this.custodyOrderStepRepo.create({
-      order,
-      index,
-      command,
-      context,
-    });
-    return this.custodyOrderStepRepo.save(orderStep);
-  }
-
-  async startNextStep(step: CustodyOrderStep): Promise<void> {
-    const nextIndex = step.index + 1;
-    const order = step.order;
-    const nextStep = OrderConfig[order.type][nextIndex];
-
-    if (nextStep) {
-      await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
-    } else {
-      if (order.inputAmount) await this.updateCustodyBalance(order.inputAmount, order.inputAsset, order.user);
-      if (order.outputAmount) await this.updateCustodyBalance(-order.outputAmount, order.outputAsset, order.user);
-
-      await this.custodyOrderRepo.update(...order.complete());
-    }
-  }
-
   async getUserCustodyBalance(accountId: number): Promise<CustodyBalanceDto> {
     const account = await this.userDataService.getUserData(accountId, { users: true });
     if (!account) throw new NotFoundException('User not found');
@@ -123,7 +88,7 @@ export class CustodyService {
     return this.custodyBalanceRepo.save(entity);
   }
 
-  private async updateCustodyBalance(amount: number, asset: Asset, user: User) {
+  async updateCustodyBalance(amount: number, asset: Asset, user: User) {
     const custodyBalance = await this.custodyBalanceRepo.findOneBy({
       asset: { id: asset.id },
       user: { id: user.id },

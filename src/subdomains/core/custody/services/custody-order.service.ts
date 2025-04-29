@@ -13,25 +13,31 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { SwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/swap-payment-info.dto';
 import { SellPaymentInfoDto } from '../../sell-crypto/route/dto/sell-payment-info.dto';
+import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderDto, CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { UpdateCustodyOrderInternalDto } from '../dto/input/update-custody-order.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
+import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
+import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyOrderService {
   constructor(
     private readonly userService: UserService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
+    private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
+    private readonly custodyService: CustodyService,
     private readonly sellService: SellService,
     private readonly buyService: BuyService,
     private readonly swapService: SwapService,
     private readonly assetService: AssetService,
   ) {}
 
-  //*** PUBLIC API ***//
+  // --- ORDERS --- //
 
   async createOrder(jwt: JwtPayload, dto: CreateCustodyOrderDto): Promise<CustodyOrderDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
@@ -104,5 +110,38 @@ export class CustodyOrderService {
     if (!order) throw new NotFoundException('Order not found');
 
     await this.custodyOrderRepo.update(...order.approve());
+  }
+
+  // --- STEPS --- //
+  async createStep(
+    order: CustodyOrder,
+    index: number,
+    command: string,
+    context: CustodyOrderStepContext,
+  ): Promise<CustodyOrderStep> {
+    const orderStep = this.custodyOrderStepRepo.create({
+      order,
+      index,
+      command,
+      context,
+    });
+    return this.custodyOrderStepRepo.save(orderStep);
+  }
+
+  async startNextStep(step: CustodyOrderStep): Promise<void> {
+    const nextIndex = step.index + 1;
+    const order = step.order;
+    const nextStep = OrderConfig[order.type][nextIndex];
+
+    if (nextStep) {
+      await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
+    } else {
+      if (order.inputAmount)
+        await this.custodyService.updateCustodyBalance(order.inputAmount, order.inputAsset, order.user);
+      if (order.outputAmount)
+        await this.custodyService.updateCustodyBalance(-order.outputAmount, order.outputAsset, order.user);
+
+      await this.custodyOrderRepo.update(...order.complete());
+    }
   }
 }

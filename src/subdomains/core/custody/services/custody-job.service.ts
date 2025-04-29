@@ -8,7 +8,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { CustodyOrderStatus, CustodyOrderStepContext, CustodyOrderStepStatus } from '../enums/custody';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
-import { CustodyService } from './custody.service';
+import { CustodyOrderService } from './custody-order.service';
 
 @Injectable()
 export class CustodyJobService {
@@ -16,11 +16,17 @@ export class CustodyJobService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly dfxOrderStepAdapter: DfxOrderStepAdapter,
-    private readonly custodyService: CustodyService,
+    private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.CUSTODY })
-  async executeOrder() {
+  async handleOrders() {
+    await this.executeOrder();
+    await this.executeStep();
+    await this.checkStep();
+  }
+
+  private async executeOrder() {
     const approvedOrders = await this.custodyOrderRepo.find({
       where: { status: CustodyOrderStatus.APPROVED },
     });
@@ -29,14 +35,13 @@ export class CustodyJobService {
       const steps = OrderConfig[order.type];
       if (steps.length) {
         const index = 0;
-        await this.custodyService.createStep(order, index, steps[index].command, steps[index].context);
+        await this.custodyOrderService.createStep(order, index, steps[index].command, steps[index].context);
         await this.custodyOrderRepo.update(...order.progress());
       }
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.CUSTODY })
-  async checkOrder() {
+  private async executeStep() {
     const newSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.CREATED },
     });
@@ -48,7 +53,9 @@ export class CustodyJobService {
           break;
       }
     }
+  }
 
+  private async checkStep() {
     const runningSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.IN_PROGRESS },
     });
@@ -58,7 +65,7 @@ export class CustodyJobService {
         case CustodyOrderStepContext.DFX:
           if (await this.dfxOrderStepAdapter.isComplete(step)) {
             await this.custodyOrderStepRepo.update(...step.complete());
-            await this.custodyService.startNextStep(step);
+            await this.custodyOrderService.startNextStep(step);
           }
           break;
       }
