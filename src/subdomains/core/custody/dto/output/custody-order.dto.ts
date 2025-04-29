@@ -4,24 +4,16 @@ import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/d
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 
-export class CustodyOrderResponseDto {
-  @ApiProperty({
-    description: 'Type of your requested order',
-  })
+export class CustodyOrderDto {
+  @ApiProperty({ description: 'Type of your requested order' })
   type: CustodyOrderType;
 
-  @ApiProperty({
-    description: 'ID of your order',
-  })
+  @ApiProperty({ description: 'ID of your order' })
   orderId: number;
 
-  @ApiProperty({
-    description: 'Type of your requested order',
-  })
+  @ApiProperty({ description: 'Type of your requested order' })
   status: CustodyOrderStatus;
 
-  @ApiProperty({
-    description: 'Payment info of your requested order',
-  })
+  @ApiProperty({ description: 'Payment info of your requested order' })
   paymentInfo: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto;
 }
