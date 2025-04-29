@@ -39,13 +39,13 @@ export class CustodyOrder extends IEntity {
   user: User;
 
   @ManyToOne(() => Sell, { nullable: true })
-  sell: Sell;
+  sell?: Sell;
 
   @ManyToOne(() => Swap, { nullable: true })
-  swap: Swap;
+  swap?: Swap;
 
   @ManyToOne(() => Buy, { nullable: true })
-  buy: Buy;
+  buy?: Buy;
 
   @OneToMany(() => CustodyOrderStep, (step) => step.order, { nullable: false })
   steps: CustodyOrderStep[];
