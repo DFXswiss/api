@@ -17,7 +17,9 @@ module.exports = class AddCustodyBalanceTable1745591390587 {
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ADD "buyId" int`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ADD "transactionId" int`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" DROP CONSTRAINT "FK_553f9007365042c17f4f3925fc6"`);
+        await queryRunner.query(`DROP INDEX "REL_553f9007365042c17f4f3925fc" ON "dbo".custody_order"`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ALTER COLUMN "transactionRequestId" int`);
+        await queryRunner.query(`CREATE UNIQUE INDEX "REL_553f9007365042c17f4f3925fc" ON "dbo"."custody_order" ("transactionRequestId") WHERE "transactionRequestId" IS NOT NULL`);
         await queryRunner.query(`CREATE UNIQUE INDEX "REL_1620f9da4ce2f0170568695bd6" ON "dbo"."custody_order" ("transactionId") WHERE "transactionId" IS NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ADD CONSTRAINT "FK_7d62f2c3c882c96f304248d5040" FOREIGN KEY ("inputAssetId") REFERENCES "asset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ADD CONSTRAINT "FK_1266fd622493e124f900d1fc1b6" FOREIGN KEY ("outputAssetId") REFERENCES "asset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
@@ -41,7 +43,9 @@ module.exports = class AddCustodyBalanceTable1745591390587 {
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" DROP CONSTRAINT "FK_1266fd622493e124f900d1fc1b6"`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" DROP CONSTRAINT "FK_7d62f2c3c882c96f304248d5040"`);
         await queryRunner.query(`DROP INDEX "REL_1620f9da4ce2f0170568695bd6" ON "dbo"."custody_order"`);
+        await queryRunner.query(`DROP INDEX "REL_553f9007365042c17f4f3925fc" ON "dbo".custody_order"`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ALTER COLUMN "transactionRequestId" int NOT NULL`);
+        await queryRunner.query(`CREATE UNIQUE INDEX "REL_553f9007365042c17f4f3925fc" ON "dbo"."custody_order" ("transactionRequestId") WHERE "transactionRequestId" IS NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" ADD CONSTRAINT "FK_553f9007365042c17f4f3925fc6" FOREIGN KEY ("transactionRequestId") REFERENCES "transaction_request"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" DROP COLUMN "transactionId"`);
         await queryRunner.query(`ALTER TABLE "dbo"."custody_order" DROP COLUMN "buyId"`);
