@@ -580,7 +580,7 @@ export class UserDataService {
 
     await this.userDataRepo.update(...userData.setUserDataSettings(dto));
 
-    return Object.assign(userData, dto);
+    return userData;
   }
 
   // --- KYC --- //
