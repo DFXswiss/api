@@ -5,7 +5,12 @@ export enum CustodyAddressType {
 export enum CustodyOrderType {
   DEPOSIT = 'Deposit',
   WITHDRAWAL = 'Withdrawal',
+
+  RECEIVE = 'Receive',
+  SEND = 'Send',
+
   SWAP = 'Swap',
+
   SAVING_DEPOSIT = 'SavingDeposit',
   SAVING_WITHDRAWAL = 'SavingWithdrawal',
 }

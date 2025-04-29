@@ -52,12 +52,14 @@ export class CustodyOrderService {
         orderDto.buy = await this.buyService.getById(paymentInfo.routeId);
         orderDto.inputAsset = await this.assetService.getAssetById(paymentInfo.asset.id);
         break;
+
       case CustodyOrderType.WITHDRAWAL:
         paymentInfo = await this.sellService.createSellPaymentInfo(jwt.user, dto.paymentInfo as GetSellPaymentInfoDto);
         orderDto.sell = await this.sellService.getById(paymentInfo.routeId);
         orderDto.outputAsset = await this.assetService.getAssetById(paymentInfo.asset.id);
         orderDto.outputAmount = paymentInfo.amount;
         break;
+
       case CustodyOrderType.SWAP:
         paymentInfo = await this.swapService.createSwapPaymentInfo(jwt.user, dto.paymentInfo as GetSwapPaymentInfoDto);
         orderDto.swap = await this.swapService.getById(paymentInfo.routeId);
