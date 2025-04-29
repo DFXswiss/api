@@ -110,6 +110,7 @@ export class CustodyService {
         .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
         .where('custodyOrder.userId = :id', { id: user.id })
         .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
+        .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
         .getRawOne<{ withdrawal: number }>();
 
       await this.custodyBalanceRepo.update(custodyBalance.id, { balance: deposit - withdrawal });
