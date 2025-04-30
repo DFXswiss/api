@@ -7,6 +7,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -78,6 +79,7 @@ export class FiatPayInSyncService {
       relations: { buyCrypto: true, transaction: { request: true, user: true } },
     });
     if (entity) {
+      Util.removeNullFields(tx);
       Object.assign(entity, tx);
     } else {
       entity = tx;
