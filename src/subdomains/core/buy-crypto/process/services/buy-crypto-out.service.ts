@@ -102,7 +102,7 @@ export class BuyCryptoOutService {
           cryptoInput: true,
           bankTx: true,
           checkoutTx: true,
-          transaction: { user: { wallet: true }, userData: true, request: { custodyOrder: true }, custodyOrder: true },
+          transaction: { user: { wallet: true }, userData: true },
         },
       },
     });
