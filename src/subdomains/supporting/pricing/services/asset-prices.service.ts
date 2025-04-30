@@ -60,32 +60,32 @@ export class AssetPricesService {
     }
   }
 
-  async saveAssetPrices(asset: Asset, usdPrice: number, chfPrice: number, eurPrice: number): Promise<void> {
+  async saveAssetPrices(asset: Asset, priceUsd: number, priceChf: number, priceEur: number): Promise<void> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const result = await this.assetPriceRepo.findOne({
+    const todayPrice = await this.assetPriceRepo.findOne({
       where: {
         asset: { id: asset.id },
         created: MoreThanOrEqual(today),
       },
     });
 
-    if (result) {
+    if (todayPrice) {
       const count = new Date().getHours() + 1;
 
-      const meanUsdPrice = (result.usdPrice * (count - 1) + usdPrice) / count;
-      const meanChfPrice = (result.chfPrice * (count - 1) + chfPrice) / count;
-      const meanEurPrice = (result.eurPrice * (count - 1) + eurPrice) / count;
+      const meanUsdPrice = (todayPrice.priceUsd * (count - 1) + priceUsd) / count;
+      const meanChfPrice = (todayPrice.priceChf * (count - 1) + priceChf) / count;
+      const meanEurPrice = (todayPrice.priceEur * (count - 1) + priceEur) / count;
 
-      await this.assetPriceRepo.update(result.id, {
+      await this.assetPriceRepo.update(todayPrice.id, {
         asset,
-        usdPrice: meanUsdPrice,
-        chfPrice: meanChfPrice,
-        eurPrice: meanEurPrice,
+        priceUsd: meanUsdPrice,
+        priceChf: meanChfPrice,
+        priceEur: meanEurPrice,
       });
     } else {
-      const assetPrice = this.assetPriceRepo.create({ asset, usdPrice, chfPrice, eurPrice });
+      const assetPrice = this.assetPriceRepo.create({ priceUsd, priceChf, priceEur });
       await this.assetPriceRepo.save(assetPrice);
     }
   }

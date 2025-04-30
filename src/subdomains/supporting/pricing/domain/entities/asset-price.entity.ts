@@ -4,15 +4,15 @@ import { Column, Entity, ManyToOne } from 'typeorm';
 
 @Entity()
 export class AssetPrice extends IEntity {
-  @ManyToOne(() => Asset, (a) => a.assetPrices)
+  @ManyToOne(() => Asset, (a) => a.prices)
   asset: Asset;
 
   @Column({ type: 'float', nullable: false })
-  eurPrice: number;
+  priceEur: number;
 
   @Column({ type: 'float', nullable: false })
-  usdPrice: number;
+  priceUsd: number;
 
   @Column({ type: 'float', nullable: false })
-  chfPrice: number;
+  priceChf: number;
 }

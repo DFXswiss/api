@@ -106,7 +106,7 @@ export class Asset extends IEntity {
   liquidityManagementRule: LiquidityManagementRule;
 
   @OneToMany(() => AssetPrice, (assetPrice) => assetPrice.asset)
-  assetPrices: AssetPrice[];
+  prices: AssetPrice[];
 
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
