@@ -24,8 +24,8 @@ enum OrderStatus {
 
 enum PrecisionMode {
   DECIMAL_PLACES = 0,
-  SIGNIFICANT_DIGITS = 1,
-  TICK_SIZE = 2,
+  SIGNIFICANT_DIGITS = 2,
+  TICK_SIZE = 4,
 }
 
 export abstract class ExchangeService extends PricingProvider implements OnModuleInit {
