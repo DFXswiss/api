@@ -508,7 +508,7 @@ export class UserDataService {
   }
 
   async checkMail(userData: UserData, mail: string): Promise<void> {
-    const mailUsers = await this.getUsersByMail(mail).then((l) => this.mergeService.masterFirst(l));
+    const mailUsers = await this.getUsersByMail(mail).then((l) => AccountMergeService.masterFirst(l));
     const conflictUsers = mailUsers.filter((u) => u.id !== userData.id);
     if (!conflictUsers.length) return;
 

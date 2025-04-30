@@ -167,10 +167,12 @@ export class BuyCryptoOutService {
           tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
 
-          if (tx.custodyOrder) {
-            await this.custodyOrderService.updateCustodyOrderInternal(tx.custodyOrder, {
+          const custodyOrder = await this.custodyOrderService.getCustodyOrderByTx(tx);
+
+          if (custodyOrder) {
+            await this.custodyOrderService.updateCustodyOrderInternal(custodyOrder, {
               status: CustodyOrderStatus.COMPLETED,
-              inputAmount: CustodyOrderInputTypes.includes(tx.custodyOrder.type) ? tx.outputAmount : undefined,
+              inputAmount: CustodyOrderInputTypes.includes(custodyOrder.type) ? tx.outputAmount : undefined,
             });
           }
 
