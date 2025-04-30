@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { MoreThanOrEqual } from 'typeorm';
+import { AssetPriceRepository } from '../repositories/asset-price.repository';
 import { PricingService } from './pricing.service';
 
 @Injectable()
@@ -15,6 +18,7 @@ export class AssetPricesService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
+    private readonly assetPriceRepo: AssetPriceRepository,
   ) {}
 
   // --- JOBS --- //
@@ -33,6 +37,9 @@ export class AssetPricesService {
         const eurPrice = await this.pricingService.getPrice(asset, eur, false);
 
         await this.assetService.updatePrice(asset.id, usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1));
+        if (asset.type === AssetType.COIN || asset.type === AssetType.TOKEN) {
+          await this.saveAssetPrices(asset, usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1));
+        }
       } catch (e) {
         this.logger.error(`Failed to update price of asset ${asset.uniqueName}:`, e);
       }
@@ -50,6 +57,36 @@ export class AssetPricesService {
       } catch (e) {
         this.logger.error(`Failed to update price of payment asset ${asset.uniqueName}:`, e);
       }
+    }
+  }
+
+  async saveAssetPrices(asset: Asset, usdPrice: number, chfPrice: number, eurPrice: number): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const result = await this.assetPriceRepo.findOne({
+      where: {
+        asset: { id: asset.id },
+        created: MoreThanOrEqual(today),
+      },
+    });
+
+    if (result) {
+      const count = new Date().getHours() + 1;
+
+      const meanUsdPrice = (result.usdPrice * (count - 1) + usdPrice) / count;
+      const meanChfPrice = (result.chfPrice * (count - 1) + chfPrice) / count;
+      const meanEurPrice = (result.eurPrice * (count - 1) + eurPrice) / count;
+
+      await this.assetPriceRepo.update(result.id, {
+        asset,
+        usdPrice: meanUsdPrice,
+        chfPrice: meanChfPrice,
+        eurPrice: meanEurPrice,
+      });
+    } else {
+      const assetPrice = this.assetPriceRepo.create({ asset, usdPrice, chfPrice, eurPrice });
+      await this.assetPriceRepo.save(assetPrice);
     }
   }
 }
