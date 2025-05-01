@@ -60,7 +60,7 @@ export class RefRewardService {
     const eurChfPrice = await this.pricingService.getPrice(fiatEur, fiatChf, false);
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
-      CryptoService.getDefaultBlockchainBasedOn(o.address, Blockchain.ETHEREUM),
+      CryptoService.getDefaultBlockchainBasedOn(o.address),
     );
 
     for (const [blockchain, users] of groupedUser.entries()) {

@@ -19,7 +19,7 @@ import { EvmUtil } from '../evm/evm.util';
 
 @Injectable()
 export class CryptoService {
-  private static readonly defaultEthereumChain = Blockchain.ARBITRUM;
+  private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
 
   static readonly EthereumBasedChains = [
     Blockchain.ETHEREUM,
@@ -124,10 +124,10 @@ export class CryptoService {
     return [Blockchain.DEFICHAIN];
   }
 
-  public static getDefaultBlockchainBasedOn(address: string, defaultEvmChain?: Blockchain): Blockchain {
+  public static getDefaultBlockchainBasedOn(address: string): Blockchain {
     const chains = this.getBlockchainsBasedOn(address);
     return chains.includes(this.defaultEthereumChain)
-      ? defaultEvmChain ?? this.defaultEthereumChain
+      ? this.defaultEthereumChain
       : this.getBlockchainsBasedOn(address)[0];
   }
 
