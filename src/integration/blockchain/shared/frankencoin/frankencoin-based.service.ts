@@ -69,7 +69,7 @@ export abstract class FrankencoinBasedService {
       const customPrice = await this.getCustomCollateralPrice(collateral);
       if (customPrice) return customPrice;
 
-      return this.getCoinGeckoPrice(collateral.address);
+      return await this.getCoinGeckoPrice(collateral.address);
     } catch (e) {
       this.logger.error(`Failed to get price for collateral ${collateral.symbol} (${collateral.address}):`, e);
       return undefined;
