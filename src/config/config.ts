@@ -624,6 +624,7 @@ export class Configuration {
     deuro: {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
+      nDepsEthAddress: process.env.DEURO_NDEPS_ETH_ADDRESS,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

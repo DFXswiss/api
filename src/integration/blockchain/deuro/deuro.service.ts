@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
+import { Config } from 'src/config/config';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Process } from 'src/shared/services/process.service';
@@ -282,6 +283,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       const priceChfToUsd = await this.getPrice(this.chf, this.usd);
 
       return 1 / priceChfToUsd.convert(fpsPriceInChf);
+    } else if (collateral.symbol === 'DEPS') {
+      return this.getCoinGeckoPrice(Config.blockchain.deuro.nDepsEthAddress);
     }
   }
 
