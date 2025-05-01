@@ -124,10 +124,10 @@ export class CryptoService {
     return [Blockchain.DEFICHAIN];
   }
 
-  public static getDefaultBlockchainBasedOn(address: string): Blockchain {
+  public static getDefaultBlockchainBasedOn(address: string, defaultEvmChain?: Blockchain): Blockchain {
     const chains = this.getBlockchainsBasedOn(address);
     return chains.includes(this.defaultEthereumChain)
-      ? this.defaultEthereumChain
+      ? defaultEvmChain ?? this.defaultEthereumChain
       : this.getBlockchainsBasedOn(address)[0];
   }
 
