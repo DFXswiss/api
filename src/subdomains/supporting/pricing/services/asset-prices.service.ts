@@ -79,13 +79,12 @@ export class AssetPricesService {
       const meanEurPrice = (todayPrice.priceEur * (count - 1) + priceEur) / count;
 
       await this.assetPriceRepo.update(todayPrice.id, {
-        asset,
         priceUsd: meanUsdPrice,
         priceChf: meanChfPrice,
         priceEur: meanEurPrice,
       });
     } else {
-      const assetPrice = this.assetPriceRepo.create({ priceUsd, priceChf, priceEur });
+      const assetPrice = this.assetPriceRepo.create({ asset, priceUsd, priceChf, priceEur });
       await this.assetPriceRepo.save(assetPrice);
     }
   }
