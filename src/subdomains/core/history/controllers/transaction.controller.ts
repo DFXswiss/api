@@ -52,8 +52,8 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -146,8 +146,7 @@ export class TransactionController {
   ): Promise<TransactionDto | UnassignedTransactionDto> {
     const tx = await this.getTransaction({ uid, orderUid, ckoId });
 
-    const dto =
-      tx instanceof Transaction ? await this.txToTransactionDto(tx) : await this.waitingTxRequestToTransactionDto(tx);
+    const dto = await this.getTransactionDto(tx);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
@@ -515,6 +514,14 @@ export class TransactionController {
   }
 
   // --- HELPER METHODS --- //
+
+  private async getTransactionDto(
+    tx: Transaction | TransactionRequest,
+  ): Promise<UnassignedTransactionDto | TransactionDto> {
+    return tx instanceof Transaction
+      ? await this.txToTransactionDto(tx)
+      : await this.waitingTxRequestToTransactionDto(tx);
+  }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
     if (transaction.refundTargetEntity instanceof BuyFiat) return transaction.refundTargetEntity.chargebackAddress;

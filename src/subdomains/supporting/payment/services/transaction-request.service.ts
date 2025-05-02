@@ -51,16 +51,14 @@ export class TransactionRequestService {
     if (DisabledProcess(Process.TX_REQUEST_STATUS_SYNC)) return;
 
     const entities = await this.transactionRequestRepo.find({
-      where: { isComplete: true, status: IsNull() },
+      where: { status: IsNull() },
       take: 5000,
     });
 
+    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
+
     for (const entity of entities) {
-      try {
-        await this.transactionRequestRepo.update(entity.id, { status: TransactionRequestStatus.COMPLETED });
-      } catch (e) {
-        this.logger.error(`Error in TxRequest status sync for id ${entity.id}`, e);
-      }
+      await this.transactionRequestRepo.update(entity.id, { status: this.currentStatus(entity, expiryDate) });
     }
   }
 
@@ -241,6 +239,14 @@ export class TransactionRequestService {
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
 
+    const pendingTransactionRequests = transactionRequests.filter(
+      (t) => t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT,
+    );
+    if (pendingTransactionRequests) {
+      for (const pendingRequest of pendingTransactionRequests) {
+        await this.complete(pendingRequest.id);
+      }
+    }
     if (transactionRequest) await this.complete(transactionRequest.id);
     return transactionRequest;
   }
@@ -285,4 +291,10 @@ export class TransactionRequestService {
   }
 
   // --- HELPER METHODS --- //
+
+  private currentStatus(entity: TransactionRequest, expiryDate: Date): TransactionRequestStatus {
+    if (entity.isComplete || entity.transaction) return TransactionRequestStatus.COMPLETED;
+    if (entity.created < expiryDate) return TransactionRequestStatus.CREATED;
+    return TransactionRequestStatus.WAITING_FOR_PAYMENT;
+  }
 }
