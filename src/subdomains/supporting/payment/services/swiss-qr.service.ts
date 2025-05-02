@@ -474,10 +474,8 @@ export class SwissQRService {
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
 
         return {
-          quantity: transaction.buyFiat?.outputAmount,
+          quantity: transaction.buyFiat?.inputAmount,
           description: {
-            fiatCurrency: transaction.buyFiat?.outputAsset.name,
-            assetAmount: transaction.buyFiat?.inputAmount,
             assetDescription: inputAsset.description ?? inputAsset.name,
             assetName: inputAsset.name,
             assetBlockchain: inputAsset.blockchain,
