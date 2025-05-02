@@ -6,6 +6,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { MoreThanOrEqual } from 'typeorm';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
 import { PricingService } from './pricing.service';
@@ -72,11 +73,9 @@ export class AssetPricesService {
     });
 
     if (todayPrice) {
-      const count = new Date().getHours() + 1;
-
-      const meanUsdPrice = (todayPrice.priceUsd * (count - 1) + priceUsd) / count;
-      const meanChfPrice = (todayPrice.priceChf * (count - 1) + priceChf) / count;
-      const meanEurPrice = (todayPrice.priceEur * (count - 1) + priceEur) / count;
+      const meanUsdPrice = this.calculateMeanPrice(todayPrice.priceUsd, priceUsd);
+      const meanChfPrice = this.calculateMeanPrice(todayPrice.priceChf, priceChf);
+      const meanEurPrice = this.calculateMeanPrice(todayPrice.priceEur, priceEur);
 
       await this.assetPriceRepo.update(todayPrice.id, {
         priceUsd: meanUsdPrice,
@@ -87,5 +86,10 @@ export class AssetPricesService {
       const assetPrice = this.assetPriceRepo.create({ asset, priceUsd, priceChf, priceEur });
       await this.assetPriceRepo.save(assetPrice);
     }
+  }
+
+  calculateMeanPrice(todayPrice: number, price: number): number {
+    const count = new Date().getHours() + 1;
+    return Util.round((todayPrice * (count - 1) + price) / count, 8);
   }
 }
