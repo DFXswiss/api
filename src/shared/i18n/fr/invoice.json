@@ -1,6 +1,7 @@
 {
   "title": "Facture No. {invoiceId}",
   "credit_title": "Crédit No. {invoiceId}",
+  "receipt_title": "Confirmation de Transaction No. {invoiceId}",
   "table": {
     "headers": {
       "quantity": "Quantité",

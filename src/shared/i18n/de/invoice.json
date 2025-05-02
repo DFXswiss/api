@@ -1,6 +1,7 @@
 {
   "title": "Rechnung Nr. {invoiceId}",
   "credit_title": "Gutschrift Nr. {invoiceId}",
+  "receipt_title": "Transaktionsbestätigung Nr. {invoiceId}",
   "table": {
     "headers": {
       "quantity": "Menge",
