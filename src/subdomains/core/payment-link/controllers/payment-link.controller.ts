@@ -248,7 +248,7 @@ export class PaymentLinkController {
 
   private async checkPaymentLinksAllowed(userDataId: number): Promise<void> {
     const userData = await this.userDataService.getUserData(userDataId);
-    if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
+    if (!userData.paymentLinksAllowed) throw new ForbiddenException('Permission denied');
   }
 }
 

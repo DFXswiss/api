@@ -5,11 +5,12 @@ import { PaymentLinkModule } from 'src/subdomains/core/payment-link/payment-link
 import { LnurldForwardController } from './controllers/lnurld-forward.controller';
 import { LnUrlPForwardController } from './controllers/lnurlp-forward.controller';
 import { LnUrlWForwardController } from './controllers/lnurlw-forward.controller';
+import { PaymentForwardController } from './controllers/payment-forward.controller';
 import { LnUrlForwardService } from './services/lnurl-forward.service';
 
 @Module({
   imports: [LightningModule, PaymentLinkModule, PaymentLinkPaymentModule],
-  controllers: [LnUrlPForwardController, LnUrlWForwardController, LnurldForwardController],
+  controllers: [LnUrlPForwardController, LnUrlWForwardController, LnurldForwardController, PaymentForwardController],
   providers: [LnUrlForwardService],
   exports: [LnUrlForwardService],
 })
