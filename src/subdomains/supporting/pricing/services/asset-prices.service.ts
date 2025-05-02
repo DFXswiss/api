@@ -8,6 +8,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MoreThanOrEqual } from 'typeorm';
+import { AssetPrice } from '../domain/entities/asset-price.entity';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
 import { PricingService } from './pricing.service';
 
@@ -59,6 +60,10 @@ export class AssetPricesService {
         this.logger.error(`Failed to update price of payment asset ${asset.uniqueName}:`, e);
       }
     }
+  }
+
+  async getAssetPrices(asset: Asset): Promise<AssetPrice[]> {
+    return this.assetPriceRepo.find({ where: { asset } });
   }
 
   async saveAssetPrices(asset: Asset, priceUsd: number, priceChf: number, priceEur: number): Promise<void> {

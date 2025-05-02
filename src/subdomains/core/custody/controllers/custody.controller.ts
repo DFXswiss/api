@@ -12,7 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
+import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyService } from '../services/custody.service';
@@ -27,6 +27,13 @@ export class CustodyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
     return this.service.getUserCustodyBalance(jwt.account);
+  }
+
+  @Get('history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  async getUserCustodyHistory(@GetJwt() jwt: JwtPayload): Promise<CustodyHistoryDto> {
+    return this.service.getUserCustodyHistory(jwt.account);
   }
 
   @Post()

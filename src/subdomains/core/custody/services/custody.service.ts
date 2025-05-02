@@ -10,11 +10,12 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
+import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
+import { CustodyBalanceDto, CustodyHistoryDto, CustodyHistoryEntryDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrderStatus } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
@@ -31,6 +32,7 @@ export class CustodyService {
     private readonly authService: AuthService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
+    private readonly assetPricesService: AssetPricesService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -79,6 +81,53 @@ export class CustodyService {
       balances,
       totalValue: Util.roundReadable(totalValue, AmountType.FIAT),
       currency: FiatDtoMapper.toDto(account.currency),
+    };
+  }
+
+  async getUserCustodyHistory(accountId: number): Promise<CustodyHistoryDto> {
+    const account = await this.userDataService.getUserData(accountId, { users: true });
+    if (!account) throw new NotFoundException('User not found');
+
+    const custodyBalances = await this.custodyBalanceRepo.findBy({
+      user: { id: In(account.users.map((u) => u.id)) },
+    });
+
+    const oldestBalancesByDay = custodyBalances.reduce((acc, entry) => {
+      const keyDate = new Date(
+        entry.created.getFullYear(),
+        entry.created.getMonth(),
+        entry.created.getDate(),
+      ).toISOString();
+      const existing = acc.get(keyDate);
+      if (!existing || entry.created < existing.created) {
+        acc.set(keyDate, entry);
+      }
+      return acc;
+    }, new Map<string, CustodyBalance>());
+
+    const dailyOldestBalances = Array.from(oldestBalancesByDay.values());
+
+    const historyNested = await Promise.all(
+      dailyOldestBalances.map(async (balance) => {
+        const assetPrices = await this.assetPricesService.getAssetPrices(balance.asset);
+        return assetPrices.map(
+          (price) =>
+            ({
+              date: price.created,
+              value: {
+                usd: price.priceUsd * balance.balance,
+                chf: price.priceChf * balance.balance,
+                eur: price.priceEur * balance.balance,
+              },
+            } as CustodyHistoryEntryDto),
+        );
+      }),
+    );
+
+    const custodyHistory = historyNested.flat();
+
+    return {
+      totalValue: custodyHistory,
     };
   }
 
