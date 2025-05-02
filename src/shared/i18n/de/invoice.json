@@ -12,7 +12,7 @@
       "buy_description": "{assetDescription} ({assetName}) gekauft auf {assetBlockchain}",
       "sell_description": "{assetDescription} ({assetName}) verkauft auf {assetBlockchain}",
       "swap_description": "{sourceDescription} ({sourceName}) auf {sourceBlockchain} getauscht für {targetAmount} {targetDescription} ({targetName}) auf {targetBlockchain}",
-      "referral_description": "{assetName} Referral auf {assetBlockchain}"
+      "referral_description": "{assetName} Gutschrift auf {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Gesamt"
