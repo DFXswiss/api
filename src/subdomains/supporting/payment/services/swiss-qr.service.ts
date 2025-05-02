@@ -401,6 +401,30 @@ export class SwissQRService {
     };
   }
 
+  private getStatementTitle(
+    statementType: TxStatementType,
+    transactionType: TransactionType,
+    transaction: Transaction,
+  ): string {
+    let titleKey: string;
+
+    if (statementType === TxStatementType.RECEIPT) {
+      titleKey = 'invoice.receipt_title';
+    } else if (transactionType === TransactionType.REFERRAL) {
+      titleKey = 'invoice.credit_title';
+    } else {
+      titleKey = 'invoice.title';
+    }
+
+    return this.translate(titleKey, transaction.userData.language.symbol.toLowerCase(), {
+      invoiceId: transaction.id,
+    });
+  }
+
+  private getStatementDate(statementType: TxStatementType, transaction: Transaction): Date {
+    return statementType === TxStatementType.RECEIPT ? transaction.completionDate : transaction.created;
+  }
+
   private getCreditor(bankInfo: BankInfoDto): Creditor {
     return {
       account: bankInfo.iban,
@@ -437,17 +461,9 @@ export class SwissQRService {
     transaction: Transaction,
     currency: string,
   ): Promise<SwissQRBillTableData> {
-    const titleKey =
-      statementType === TxStatementType.RECEIPT
-        ? 'invoice.receipt_title'
-        : transactionType === TransactionType.REFERRAL
-        ? 'invoice.credit_title'
-        : 'invoice.title';
     const titleAndDate = {
-      title: this.translate(titleKey, transaction.userData.language.symbol.toLowerCase(), {
-        invoiceId: transaction.id,
-      }),
-      date: statementType === TxStatementType.RECEIPT ? transaction.completionDate : transaction.created,
+      title: this.getStatementTitle(statementType, transactionType, transaction),
+      date: this.getStatementDate(statementType, transaction),
     };
 
     switch (transactionType) {
