@@ -9,6 +9,7 @@ import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -66,7 +67,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         cryptoInput: true,
         sell: true,
-        transaction: { user: { wallet: true }, userData: { users: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -93,28 +94,28 @@ export class BuyFiatPreparationService implements OnModuleInit {
           isPayment,
         );
 
-        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { users, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
+          users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
-          entity.amountInChf ? undefined : entity.inputReferenceAmount,
-          inputReferenceCurrency,
-          false,
-          entity.userData.users,
+          entity,
+          users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          undefined,
+          referenceChfPrice,
         );
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
@@ -349,7 +350,12 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
   async addFiatOutputs(): Promise<void> {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true, sell: true, transaction: { userData: true }, cryptoInput: true },
+      relations: {
+        fiatOutput: true,
+        sell: true,
+        transaction: { userData: true },
+        cryptoInput: { paymentLinkPayment: { link: true } },
+      },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
@@ -357,8 +363,14 @@ export class BuyFiatPreparationService implements OnModuleInit {
       },
     });
 
+    const buyFiatsToPayout = buyFiatsWithoutOutput.filter(
+      (bf) =>
+        !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
+        bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
+    );
+
     // immediate payouts
-    const immediateOutputs = buyFiatsWithoutOutput.filter(
+    const immediateOutputs = buyFiatsToPayout.filter(
       (bf) =>
         !bf.userData.paymentLinksConfigObj.payoutFrequency ||
         bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.IMMEDIATE,
@@ -372,10 +384,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const dailyOutputs = buyFiatsWithoutOutput.filter(
+    const dailyOutputs = buyFiatsToPayout.filter(
       (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
     );
-    const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
+    const sellGroups = Util.groupByAccessor(
+      dailyOutputs,
+      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+    );
 
     for (const buyFiats of sellGroups.values()) {
       await this.fiatOutputService.createInternal(
@@ -383,6 +398,31 @@ export class BuyFiatPreparationService implements OnModuleInit {
         { buyFiats },
         buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
       );
+    }
+  }
+
+  async chargebackTx(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAmount: Not(IsNull()),
+        isComplete: false,
+        transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+        chargebackAddress: Not(IsNull()),
+      },
+      relations: { cryptoInput: true, transaction: { userData: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.buyFiatService.refundBuyFiatInternal(entity, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'API',
+        });
+      } catch (e) {
+        this.logger.error(`Failed to chargeback buy-fiat ${entity.id}:`, e);
+      }
     }
   }
 }

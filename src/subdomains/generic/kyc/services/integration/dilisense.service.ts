@@ -5,26 +5,46 @@ import { DilisenseApiData } from '../../dto/input/dilisense-data.dto';
 
 @Injectable()
 export class DilisenseService {
-  private readonly baseUrl = 'https://api.dilisense.com/v1/checkIndividual';
+  private readonly baseUrl = 'https://api.dilisense.com/v1';
 
   constructor(private readonly http: HttpService) {}
 
-  async getRiskData(name: string, dob?: Date): Promise<DilisenseApiData> {
+  async getRiskData(
+    name: string,
+    isBusiness: boolean,
+    dob?: Date,
+    onlyPdf = false,
+  ): Promise<{ data: DilisenseApiData; pdfData: string }> {
     const params = new URLSearchParams({ names: name });
     dob && params.set('dob', dob.toLocaleDateString('en-GB'));
 
-    const url = `${this.baseUrl}?${params.toString()}`;
+    const urlEndpoint = isBusiness ? 'checkEntity' : 'checkIndividual';
+    const pdfEndpoint = isBusiness ? 'generateEntityReport' : 'generateIndividualReport';
+
+    const url = `${this.baseUrl}/${urlEndpoint}?${params.toString()}`;
+    const pdfUrl = `${this.baseUrl}/${pdfEndpoint}?${params.toString()}`;
 
     try {
-      return await this.http.get<DilisenseApiData>(url, {
-        tryCount: 3,
-        headers: {
-          Accept: 'application/json',
-          'x-api-key': Config.dilisense.key,
-        },
-      });
+      return {
+        data: onlyPdf
+          ? undefined
+          : await this.http.get<DilisenseApiData>(url, {
+              tryCount: 3,
+              headers: {
+                Accept: 'application/json',
+                'x-api-key': Config.dilisense.key,
+              },
+            }),
+        pdfData: await this.http.get<string>(pdfUrl, {
+          tryCount: 3,
+          headers: {
+            Accept: 'application/json',
+            'x-api-key': Config.dilisense.key,
+          },
+        }),
+      };
     } catch (e) {
-      throw new ServiceUnavailableException(e);
+      throw new ServiceUnavailableException('Error in dilisense riskData request', e);
     }
   }
 }

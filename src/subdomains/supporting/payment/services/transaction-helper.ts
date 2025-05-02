@@ -337,38 +337,41 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getVolumeChfSince(
-    inputAmount: number | undefined,
-    from: Active,
-    allowExpiredPrice: boolean,
+    tx: BuyCrypto | BuyFiat,
     users: User[],
-    dateFrom?: Date,
-    dateTo?: Date,
+    dateFrom: Date,
+    dateTo: Date,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    price?: Price,
+    from?: Active,
+    allowExpiredPrice?: boolean,
   ): Promise<number> {
-    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, type);
-    if (inputAmount == null) return previousVolume;
+    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, tx, type);
 
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+    price ??= await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
-    return price.convert(inputAmount) + previousVolume;
+    return price.convert(tx.inputReferenceAmount) + previousVolume;
   }
 
   async getVolumeSince(
     dateFrom: Date,
     dateTo: Date,
     users: User[],
+    excluded?: BuyCrypto | BuyFiat,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
       dateFrom,
       dateTo,
+      excluded instanceof BuyCrypto ? excluded.id : undefined,
       type,
     );
     const buyFiatVolume = await this.buyFiatService.getUserVolume(
       users.map((u) => u.id),
       dateFrom,
       dateTo,
+      excluded instanceof BuyFiat ? excluded.id : undefined,
     );
 
     return buyCryptoVolume + buyFiatVolume;

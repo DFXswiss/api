@@ -69,6 +69,9 @@ export class Fee extends IEntity {
   fiats?: string; // semicolon separated id's
 
   @Column({ length: 'MAX', nullable: true })
+  excludedUserDatas?: string; // semicolon separated id's
+
+  @Column({ length: 'MAX', nullable: true })
   financialTypes?: string; // semicolon separated financialTypes
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
@@ -176,6 +179,9 @@ export class Fee extends IEntity {
       (!this.assetList?.length || assets.some((a) => this.assetList.includes(a.id))) &&
       (!this.excludedAssetList?.length || assets.every((a) => !this.excludedAssetList.includes(a.id))) &&
       (!this.fiatList?.length || fiats.some((f) => this.fiatList.includes(f.id))) &&
+      (!this.excludedUserDataList?.length ||
+        !request.userDataId ||
+        !this.excludedUserDataList.includes(request.userDataId)) &&
       (!this.bank || (banks.includes(this.bank.name) && fiats.some((f) => f.name === this.bank.currency))) &&
       (!this.financialTypeList?.length ||
         (fiats.every((f) => this.financialTypeList.includes(f.name)) &&
@@ -219,6 +225,10 @@ export class Fee extends IEntity {
 
   get fiatList(): number[] {
     return this.fiats?.split(';')?.map(Number);
+  }
+
+  get excludedUserDataList(): number[] {
+    return this.excludedUserDatas?.split(';')?.map(Number);
   }
 
   get financialTypeList(): string[] {

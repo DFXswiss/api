@@ -387,7 +387,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
       case null:
-        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
+        if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -397,7 +397,11 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         return { state: TransactionState.AML_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (
+          entity.chargebackDate &&
+          (entity.chargebackCryptoTxId || entity.checkoutTx || entity.chargebackOutput?.isTransmittedDate)
+        )
+          return { state: TransactionState.RETURNED, reason };
         if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate)
           return { state: TransactionState.RETURN_PENDING, reason };
         return {
@@ -429,7 +433,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
   if (entity instanceof BuyFiat) {
     switch (entity.amlCheck) {
       case null:
-        if (entity.comment != null) return { state: TransactionState.AML_PENDING, reason };
+        if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };
         return { state: TransactionState.CREATED, reason };
 
       case CheckStatus.PENDING:
@@ -439,7 +443,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         return { state: TransactionState.AML_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackDate && entity.chargebackTxId) return { state: TransactionState.RETURNED, reason };
         if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
         return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 

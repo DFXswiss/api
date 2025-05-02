@@ -36,5 +36,5 @@ export function IsDfxPhone(validationOptions?: ValidationOptions) {
 }
 
 export function DfxPhoneTransform({ value }: TransformFnParams): string | undefined {
-  return PhoneNumber(value)?.number;
+  return value ? PhoneNumber(value)?.number : value;
 }

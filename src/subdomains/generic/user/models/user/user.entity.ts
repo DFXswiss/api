@@ -15,6 +15,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
+import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -160,6 +161,9 @@ export class User extends IEntity {
 
   @OneToMany(() => CustodyOrder, (custodyOrder) => custodyOrder.user)
   custodyOrders: CustodyOrder[];
+
+  @OneToMany(() => CustodyBalance, (custodyBalance) => custodyBalance.user)
+  custodyBalances: CustodyBalance[];
 
   @Column({ type: 'datetime2', nullable: true })
   travelRulePdfDate: Date;

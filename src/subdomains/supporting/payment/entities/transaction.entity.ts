@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -122,6 +123,9 @@ export class Transaction extends IEntity {
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   request?: TransactionRequest;
+
+  @OneToOne(() => CustodyOrder, (custodyOrder) => custodyOrder.transaction, { nullable: true })
+  custodyOrder?: CustodyOrder;
 
   // --- ENTITY METHODS --- //
 

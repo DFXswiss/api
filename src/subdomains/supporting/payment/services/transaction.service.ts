@@ -41,9 +41,7 @@ export class TransactionService {
         entity.supportIssues = [...(entity.supportIssues ?? []), ...(entity.request.supportIssues ?? [])];
     }
 
-    entity = await this.repo.save(entity);
-
-    return entity;
+    return this.repo.save(entity);
   }
 
   async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -94,6 +92,7 @@ export class TransactionService {
           bankTx: true,
           checkoutTx: true,
           cryptoInput: true,
+          chargebackOutput: true,
         },
         buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
@@ -111,6 +110,7 @@ export class TransactionService {
           bankTx: true,
           checkoutTx: true,
           cryptoInput: true,
+          chargebackOutput: true,
         },
         buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,

@@ -124,7 +124,9 @@ export class ExchangeController {
     if (DisabledProcess(Process.EXCHANGE_WITHDRAWAL)) throw new BadRequestException('Process disabled');
 
     const token = withdrawalDto.token.toUpperCase();
-    const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.call(exchange, (e) => e.getBalance(token));
+    const amount = withdrawalDto.amount
+      ? withdrawalDto.amount
+      : await this.call(exchange, (e) => e.getAvailableBalance(token));
 
     return this.exchangeRegistry
       .get(exchange)

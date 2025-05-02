@@ -3,6 +3,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -32,6 +33,7 @@ export enum SupportTable {
   USER = 'user',
   BUY = 'buy',
   SELL = 'sell',
+  SWAP = 'swap',
   BUY_CRYPTO = 'buyCrypto',
   BUY_FIAT = 'buyFiat',
   BANK_TX = 'bankTx',
@@ -64,6 +66,7 @@ export class GsService {
     private readonly notificationService: NotificationService,
     private readonly limitRequestService: LimitRequestService,
     private readonly supportIssueService: SupportIssueService,
+    private readonly swapService: SwapService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -130,7 +133,7 @@ export class GsService {
       supportIssues,
       supportMessages,
       limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
-      kycSteps: await this.kycAdminService.getKycSteps(userData.id),
+      kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),
@@ -286,6 +289,8 @@ export class GsService {
         return this.buyService.getBuyByKey(query.key, query.value).then((buy) => buy?.user.userData);
       case SupportTable.SELL:
         return this.sellService.getSellByKey(query.key, query.value).then((sell) => sell?.user.userData);
+      case SupportTable.SWAP:
+        return this.swapService.getSwapByKey(query.key, query.value).then((swap) => swap?.user.userData);
       case SupportTable.BUY_CRYPTO:
         return this.buyCryptoService.getBuyCryptoByKey(query.key, query.value).then((buyCrypto) => buyCrypto?.userData);
       case SupportTable.BUY_FIAT:

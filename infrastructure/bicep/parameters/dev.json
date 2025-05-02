@@ -281,6 +281,9 @@
     "deuroGraphUrl": {
       "value": "https://dev.ponder.deuro.com"
     },
+    "deuroApiUrl": {
+      "value": "https://dev.api.deuro.com"
+    },
     "ebel2XContractAddress": {
       "value": ""
     },

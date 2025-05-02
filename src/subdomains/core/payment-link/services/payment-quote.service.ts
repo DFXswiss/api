@@ -310,21 +310,23 @@ export class PaymentQuoteService {
   async executeHexPayment(transferInfo: TransferInfo): Promise<PaymentQuote> {
     const quote = await this.getAndCheckQuote(transferInfo);
 
-    // Used for checking purposes
-    const verifiedSignMessage = Util.verifySign(
-      Config.payment.checkbotSignTx,
-      Config.payment.checkbotPubKey,
-      transferInfo.hex,
-      'sha256',
-      'hex',
-    );
+    if (transferInfo.hex) {
+      // Used for checking purposes
+      const verifiedSignMessage = Util.verifySign(
+        Config.payment.checkbotSignTx,
+        Config.payment.checkbotPubKey,
+        transferInfo.hex,
+        'sha256',
+        'hex',
+      );
 
-    if (verifiedSignMessage) {
-      quote.txCheckbot(Config.payment.checkbotSignTx);
-      return this.paymentQuoteRepo.save(quote);
+      if (verifiedSignMessage) {
+        quote.txCheckbot(Config.payment.checkbotSignTx);
+        return this.paymentQuoteRepo.save(quote);
+      }
     }
 
-    quote.txReceived(transferInfo.method, transferInfo.hex);
+    quote.txReceived(transferInfo.method, transferInfo.hex ?? transferInfo.tx);
 
     try {
       switch (transferInfo.method) {
@@ -421,7 +423,7 @@ export class PaymentQuoteService {
 
     if (!quoteUniqueId) throw new BadRequestException('Quote parameter missing');
     if (!transferInfo.method) throw new BadRequestException('Method parameter missing');
-    if (!transferInfo.hex) throw new BadRequestException('Hex parameter missing');
+    if (!transferInfo.hex && !transferInfo.tx) throw new BadRequestException('Hex or Tx parameter missing');
 
     const actualQuote = await this.getActualQuoteByUniqueId(quoteUniqueId);
     if (!actualQuote) throw new NotFoundException(`No actual quote with ID ${quoteUniqueId} found`);

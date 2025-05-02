@@ -1,42 +1,100 @@
 {
   "financial": {
     "question": {
-      "tnc": { "title": "General Terms and Conditions", "description": "I accept the terms and conditions" },
-      "own_funds": { "title": "Source of the assets to be invested", "description": "I confirm that all assets that I contribute to DFX belong exclusively to me." },
-      "source_of_funds": { "title": "Source of the assets to be invested", "description": "Where does most of the money come from?" },
-      "occupation": { "title": "Professional activity", "description": "How would you describe your job?" },
-      "employer": { "title": "Employer", "description": "What is the name of your employer? For people without an employment relationship, what is the name of your university, school or, for retired, unemployed and pensioners, the name of your last employer." },
-      "sector": { "title": "Branche", "description": "What industry do you work in or did you last work in?" },
-      "risky_business": { "title": "Risky business activities", "description": "Are you involved in potentially risky business activities such as arms dealing, casinos, diamonds, exotic animals, pornography or prostitution?" },
-      "income": { "title": "Annual income", "description": "What is your annual income?" },
-      "assets": { "title": "Assets", "description": "What is your total wealth?" },
-      "notification_of_changes": { "title": "Notification of changes", "description": "I confirm that I will immediately inform DFX via app.dfx.swiss/support/issue of any relevant changes on my part." }
+      "tnc": { "title": "Conditions générales d'utilisation", "description": "J'accepte les termes et conditions" },
+      "own_funds": {
+        "title": "Origine des actifs à investir",
+        "description": "Je confirme que tous les actifs que j'apporte à DFX m'appartiennent exclusivement."
+      },
+      "own_funds_organization": {
+        "title": "Origine des actifs à investir",
+        "description": "Je confirme que tous les actifs que j'apporte à DFX appartiennent exclusivement à mon organisation enregistrée."
+      },
+      "source_of_funds": {
+        "title": "Origine des actifs à investir",
+        "description": "D'où vient l'essentiel de l'argent ?"
+      },
+      "source_of_funds_organization": {
+        "title": "Origine des actifs à investir",
+        "description": "D'où vient l'essentiel de l'argent ?"
+      },
+      "area": {
+        "title": "Zone d'activité des travailleurs indépendants",
+        "description": "Dans quel domaine exercez-vous une activité indépendante ? Veuillez décrire votre activité et vos clients en 2 ou 3 phrases."
+      },
+      "occupation": { "title": "Activité professionnelle", "description": "Comment décririez-vous votre travail ?" },
+      "employed_description": {
+        "title": "Employeur",
+        "description": "Quel est le nom de votre employeur ?"
+      },
+      "sector": {
+        "title": "L'industrie",
+        "description": "Dans quel secteur travaillez-vous ou avez-vous travaillé en dernier lieu ?"
+      },
+      "sector_organization": {
+        "title": "Branche",
+        "description": "Quel est le secteur d'activité de votre organisation?"
+      },
+      "risky_business": {
+        "title": "Activités commerciales à risque",
+        "description": "Êtes-vous impliqué dans des activités commerciales potentiellement risquées telles que le trafic d'armes, les casinos, les diamants, les animaux exotiques, la pornographie ou la prostitution?"
+      },
+      "risky_business_organization": {
+        "title": "Activités commerciales à risque",
+        "description": "Votre organisation est-elle impliquée dans des activités commerciales potentiellement risquées telles que le trafic d'armes, les casinos, les diamants, les animaux exotiques, la pornographie ou la prostitution?"
+      },
+      "income": { "title": "Revenu annuel", "description": "Quel est votre revenu annuel ?" },
+      "income_organization": {
+        "title": "Chiffre d'affaires annuel",
+        "description": "Quel est le chiffre d'affaires annuel de votre organisation?"
+      },
+      "assets": { "title": "Actifs", "description": "Quel est votre patrimoine total ?" },
+      "assets_organization": { "title": "Actifs", "description": "Quel est le bilan de l'organisation?" },
+      "notification_of_changes": {
+        "title": "Notification des changements",
+        "description": "Je confirme que j'informerai immédiatement DFX via app.dfx.swiss/support/issue de tout changement pertinent de ma part."
+      },
+      "retired_description": { "title": "Employer", "description": "Quel était votre dernier emploi ?" },
+      "unemployed_description": { "title": "Employer", "description": "Quel était votre dernier emploi ?" },
+      "apprentice_description": { "title": "Employer", "description": "Quel est le nom de votre université?" },
+      "self_employed_description": { "title": "Employer", "description": "Que faites-vous exactement dans la vie?" },
+      "privatier_description": { "title": "Employer", "description": "Comment en êtes-vous arrivé là ?" },
+      "sector_description": { "title": "Sector", "description": "Quel est le nom du secteur ?" },
+      "risky_business_description": {
+        "title": "Activités commerciales à risque",
+        "description": "Comment cela se fait-il ?"
+      }
     },
     "option": {
-      "yes": "Yes",
-      "no": "No",
-      "accept": "Accept",
+      "yes": "Oui",
+      "no": "Non",
+      "accept": "Accepter",
+
       "yes_risky_business": "Oui (risqué)",
       "no_risky_business": "Non (pas de risque)",
 
-      "employment_income": "Income from employment",
-      "real_estate_sale": "Sale of property",
-      "share_sale": "Sale of shares or other investments",
-      "loan": "Loans",
-      "company_sale": "Sale of companies",
-      "company_profits": "Corporate profits / dividends",
-      "inheritance": "Heritage",
-      "gift": "Donation / Donation",
-      "pension": "Pension fund / pension",
-      "gambling": "Gambling winnings",
+      "employment_income": "Revenus de l'emploi",
+      "real_estate_sale": "Vente de biens",
+      "share_sale": "Vente d'actions ou d'autres investissements",
+      "loan": "Prêts",
+      "company_sale": "Vente d'entreprises",
+      "company_profits": "Bénéfices des entreprises / dividendes",
+      "inheritance": "Patrimoine",
+      "gift": "Cadeau / Donation",
+      "pension": "Fonds de pension / pension",
+      "gambling": "Gains de jeu",
+      "operations": "Exploitation opérationnelle",
+      "company_share_sale": "Vente de parts de l'entreprise",
+      "company_asset_sale": "Vente d'actifs de l'entreprise",
+      "capital_increase": "Augmentation de capital",
 
-      "apprentice": "In training",
-      "employed": "Employed",
-      "employed_management": "Employed with a management contract",
-      "self_employed": "Self-employed",
-      "unemployed": "Unemployed",
-      "retired": "Retired / Pension",
-      "privatier": "Privateer",
+      "apprentice": "En formation",
+      "employed": "Employé",
+      "employed_management": "Employé avec un contrat de gestion",
+      "self_employed": "Indépendants",
+      "unemployed": "Chômeurs",
+      "retired": "Retraité / Pension",
+      "privatier": "Corsaire",
 
       "no_business": "Pas de gestion opérationnelle des activités",
       "automotive": "Automobile",

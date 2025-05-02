@@ -20,7 +20,6 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -46,8 +45,6 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 @ApiTags('Buy')
 @Controller('buy')
 export class BuyController {
-  private readonly logger = new DfxLogger(BuyController);
-
   constructor(
     private readonly buyService: BuyService,
     private readonly userService: UserService,
@@ -158,7 +155,7 @@ export class BuyController {
   @ApiOkResponse({ type: InvoiceDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
-    if (!request.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!request.userData.isDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
@@ -168,13 +165,15 @@ export class BuyController {
       amount: request.amount,
       currency: currency.name,
       paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
-      userData: request.user.userData,
+      userData: request.userData,
     });
 
-    if (currency.name !== 'CHF') throw new Error('PDF invoice is only available for CHF payments');
+    if (!Config.invoice.currencies.includes(currency.name)) {
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
 
     return {
-      invoicePdf: await this.swissQrService.createInvoice(
+      invoicePdf: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
         buy.bankUsage,

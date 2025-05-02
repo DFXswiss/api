@@ -6,7 +6,15 @@
         "title": "Quelle der zu investierenden Vermögenswerte",
         "description": "Ich bestätige, dass alle Vermögenswerte, die ich bei DFX einbringe, ausschliesslich mir gehören."
       },
+      "own_funds_organization": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Ich bestätige, dass alle Vermögenswerte, die ich bei DFX einbringe, ausschliesslich der registrierten Organisation gehören."
+      },
       "source_of_funds": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Woher stammt der Grossteil des Geldes?"
+      },
+      "source_of_funds_organization": {
         "title": "Quelle der zu investierenden Vermögenswerte",
         "description": "Woher stammt der Grossteil des Geldes?"
       },
@@ -14,29 +22,57 @@
         "title": "Berufliche Tätigkeit",
         "description": "Wie beschreibst Du Deine berufliche Tätigkeit?"
       },
-      "employer": {
+      "area": {
+        "title": "Bereich Selbstständigkeit",
+        "description": "In welchem Bereich bist du Selbständig? Bitte beschreibe Deine Tätigkeit und Kunden in 2-3 Sätzen."
+      },
+      "employed_description": {
         "title": "Arbeitgeber",
-        "description": "Wie lautet der Name Deines Arbeitgebers? Bei Personen ohne Arbeitsverhältnis der Name der Uni, Schule oder bei Pensionären, Arbeitslosen und Rentnern der Name des letzten Arbeitgebers."
+        "description": "Wie lautet der Name Deines Arbeitgebers?"
       },
       "sector": {
         "title": "Branche",
         "description": "In welcher Branche bist Du beruflich tätig oder warst Du zuletzt beruflich tätig?"
       },
+      "sector_organization": {
+        "title": "Branche",
+        "description": "In welcher Branche ist die Organisation tätig?"
+      },
       "risky_business": {
         "title": "Risikobehaftete Geschäftstätigkeiten",
         "description": "Bist Du in potentiell risikobehafteten Geschäftstätigkeiten wie zum Beispiel Waffenhandel, Kasinos, Diamanten, exotische Tiere, Pornografie oder Prostitution involviert?"
       },
+      "risky_business_organization": {
+        "title": "Risikobehaftete Geschäftstätigkeiten",
+        "description": "Ist deine Organisation in potentiell risikobehafteten Geschäftstätigkeiten wie zum Beispiel Waffenhandel, Kasinos, Diamanten, exotische Tiere, Pornografie oder Prostitution involviert?"
+      },
       "income": { "title": "Jahreseinkommen", "description": "Wie hoch ist Dein jährliches Einkommen?" },
+      "income_organization": {
+        "title": "Jahresumsatz",
+        "description": "Wie hoch ist der jährliche Umsatz der Organisation?"
+      },
       "assets": { "title": "Vermögen", "description": "Wie gross ist Dein totales Vermögen?" },
+      "assets_organization": { "title": "Vermögen", "description": "Wie hoch ist die Bilanz der Organisation?" },
       "notification_of_changes": {
         "title": "Mitteilung von Änderungen",
         "description": "Ich bestätige, dass ich bei relevanten Änderungen meinerseits diese unverzüglich an DFX via app.dfx.swiss/support/issue mitteile."
+      },
+      "retired_description": { "title": "Berufliche Tätigkeit", "description": "Was war dein letzter Job?" },
+      "unemployed_description": { "title": "Berufliche Tätigkeit", "description": "Was war dein letzter Job?" },
+      "apprentice_description": { "title": "Berufliche Tätigkeit", "description": "Wie heißt deine Uni/Schule?" },
+      "self_employed_description": { "title": "Berufliche Tätigkeit", "description": "Was arbeitest du denn genau?" },
+      "privatier_description": { "title": "Berufliche Tätigkeit", "description": "Wie bist du dazu gekommen?" },
+      "sector_description": { "title": "Branche", "description": "Wie heißt die Branche?" },
+      "risky_business_description": {
+        "title": "Risikobehaftete Geschäftstätigkeiten",
+        "description": "Wie denn genau?"
       }
     },
     "option": {
       "yes": "Ja",
       "no": "Nein",
       "accept": "Akzeptieren",
+
       "yes_risky_business": "Ja (risikobehaftet)",
       "no_risky_business": "Nein (nicht risikobehaftet)",
 
@@ -50,6 +86,10 @@
       "gift": "Schenkung / Spende",
       "pension": "Pensionsfonds / Rente",
       "gambling": "Glücksspiel-Gewinne",
+      "operations": "Operativer Betrieb",
+      "company_share_sale": "Verkauf von Unternehmensanteilen",
+      "company_asset_sale": "Verkauf von Unternehmensvermögen",
+      "capital_increase": "Kapitalerhöhung",
 
       "apprentice": "In Ausbildung",
       "employed": "Angestellt",

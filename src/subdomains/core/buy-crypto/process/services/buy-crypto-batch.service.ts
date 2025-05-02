@@ -364,10 +364,11 @@ export class BuyCryptoBatchService {
         const pipeline = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
 
-        await this.buyCryptoRepo.update(
-          { id: In(batch.transactions.map((b) => b.id)) },
-          { liquidityPipeline: pipeline },
-        );
+        if (Config.exchangeRateFromLiquidityOrder.includes(asset.name))
+          await this.buyCryptoRepo.update(
+            { id: In(batch.transactions.map((b) => b.id)) },
+            { liquidityPipeline: pipeline },
+          );
       } catch (e) {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
 

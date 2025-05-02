@@ -5,6 +5,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -53,6 +54,7 @@ describe('BuyFiatService', () => {
   let buyFiatNotificationService: BuyFiatNotificationService;
   let amlService: AmlService;
   let transactionHelper: TransactionHelper;
+  let custodyOrderService: CustodyOrderService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -72,6 +74,7 @@ describe('BuyFiatService', () => {
     buyFiatNotificationService = createMock<BuyFiatNotificationService>();
     amlService = createMock<AmlService>();
     transactionHelper = createMock<TransactionHelper>();
+    custodyOrderService = createMock<CustodyOrderService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -94,6 +97,7 @@ describe('BuyFiatService', () => {
         { provide: BuyFiatNotificationService, useValue: buyFiatNotificationService },
         { provide: AmlService, useValue: amlService },
         { provide: TransactionHelper, useValue: transactionHelper },
+        { provide: CustodyOrderService, useValue: custodyOrderService },
       ],
     }).compile();
 

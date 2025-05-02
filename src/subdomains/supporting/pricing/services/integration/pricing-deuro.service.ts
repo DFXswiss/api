@@ -12,13 +12,17 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
   private static readonly NDEPS = 'nDEPS';
   private static readonly DEPS = 'DEPS';
   private static readonly USDT = 'USDT';
+  private static readonly USDC = 'USDC';
 
   private static readonly ALLOWED_ASSETS = [
     PricingDeuroService.DEURO,
     PricingDeuroService.NDEPS,
     PricingDeuroService.DEPS,
     PricingDeuroService.USDT,
+    PricingDeuroService.USDC,
   ];
+
+  private static readonly USD_ASSETS = [PricingDeuroService.USDT, PricingDeuroService.USDC];
 
   private static readonly CONTRACT_FEE = 0.02;
 
@@ -42,9 +46,13 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
     const contractPrice = (await this.deuroService.getDEPSPrice()) * (1 + PricingDeuroService.CONTRACT_FEE);
 
     let totalPrice = contractPrice;
-    if ([from, to].includes(PricingDeuroService.USDT)) {
-      const eurPrice = await this.krakenService.getPrice('EUR', PricingDeuroService.USDT);
-      totalPrice = eurPrice.convert(contractPrice);
+
+    for (const usd of PricingDeuroService.USD_ASSETS) {
+      if ([from, to].includes(usd)) {
+        const eurPrice = await this.krakenService.getPrice('EUR', usd);
+        totalPrice = eurPrice.convert(contractPrice);
+        break;
+      }
     }
 
     const assetPrice = [PricingDeuroService.DEPS, PricingDeuroService.NDEPS].includes(from)

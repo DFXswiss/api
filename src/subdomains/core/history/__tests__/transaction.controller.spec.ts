@@ -14,6 +14,8 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -46,6 +48,7 @@ describe('TransactionController', () => {
   let transactionRequestService: TransactionRequestService;
   let bankService: BankService;
   let transactionHelper: TransactionHelper;
+  let swissQrService: SwissQRService;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -64,6 +67,7 @@ describe('TransactionController', () => {
     transactionRequestService = createMock<TransactionRequestService>();
     bankService = createMock<BankService>();
     transactionHelper = createMock<TransactionHelper>();
+    swissQrService = createMock<SwissQRService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -85,6 +89,7 @@ describe('TransactionController', () => {
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: BankService, useValue: bankService },
         { provide: TransactionHelper, useValue: transactionHelper },
+        { provide: SwissQRService, useValue: swissQrService },
         TestUtil.provideConfig(),
       ],
     }).compile();
