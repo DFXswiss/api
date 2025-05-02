@@ -52,6 +52,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -69,6 +70,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
+import { BankInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { InvoiceDto } from '../../buy-crypto/routes/buy/dto/invoice.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
@@ -447,22 +449,29 @@ export class TransactionController {
     if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
     if (transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
-    const { transactionType, currency } = await this.getInvoiceDetails(transaction);
+    const { transactionType, currency, bankInfo } = await this.getInvoiceDetails(transaction);
     if (!Config.invoice.currencies.includes(currency))
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
 
     return {
-      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency),
+      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency, bankInfo),
     };
   }
 
   private async getInvoiceDetails(
     transaction: Transaction,
-  ): Promise<{ transactionType: TransactionType; currency: string }> {
+  ): Promise<{ transactionType: TransactionType; currency: string; bankInfo?: BankInfoDto }> {
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
+      const currency = (await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset)).name;
       return {
         transactionType: TransactionType.BUY,
-        currency: (await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset)).name,
+        currency,
+        bankInfo: await this.buyService.getBankInfo({
+          amount: transaction.buyCrypto.outputAmount,
+          currency: currency,
+          paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+          userData: transaction.userData,
+        }),
       };
     }
 
