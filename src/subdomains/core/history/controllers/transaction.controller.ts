@@ -229,10 +229,7 @@ export class TransactionController {
 
     if (tx && tx.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
-    const dto =
-      tx instanceof Transaction
-        ? await this.txToTransactionDto(tx, true)
-        : await this.waitingTxRequestToTransactionDto(tx, true);
+    const dto = await this.getTransactionDto(tx, true);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
@@ -517,10 +514,11 @@ export class TransactionController {
 
   private async getTransactionDto(
     tx: Transaction | TransactionRequest,
+    detailed = false,
   ): Promise<UnassignedTransactionDto | TransactionDto> {
     return tx instanceof Transaction
-      ? await this.txToTransactionDto(tx)
-      : await this.waitingTxRequestToTransactionDto(tx);
+      ? await this.txToTransactionDto(tx, detailed)
+      : await this.waitingTxRequestToTransactionDto(tx, detailed);
   }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
@@ -595,10 +593,10 @@ export class TransactionController {
     return [
       ...(await Util.asyncMap(txList, async (tx) => {
         if (!tx.targetEntity) return undefined;
-        return this.txToTransactionDto(tx, true);
+        return this.getTransactionDto(tx, true);
       }).then((list) => list.filter((dto) => dto))),
       ...(await Util.asyncMap(waitingTxRequestList, async (txRequest) => {
-        return this.waitingTxRequestToTransactionDto(txRequest, true);
+        return this.getTransactionDto(txRequest, true);
       }).then((list) => list.filter((dto) => dto))),
     ];
   }
