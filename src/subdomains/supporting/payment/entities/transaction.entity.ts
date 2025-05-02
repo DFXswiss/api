@@ -172,4 +172,8 @@ export class Transaction extends IEntity {
   get refundTargetEntity(): BuyCrypto | BuyFiat | BankTx | undefined {
     return this.buyCrypto ?? this.buyFiat ?? (!this.type && this.bankTx) ?? undefined;
   }
+
+  get completionDate(): Date | undefined {
+    return this.buyCrypto?.outputDate ?? this.buyFiat?.outputDate ?? this.updated;
+  }
 }

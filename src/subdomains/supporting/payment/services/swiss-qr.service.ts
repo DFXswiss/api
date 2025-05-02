@@ -105,7 +105,7 @@ export class SwissQRService {
     const tableData = await this.getTableData(statementType, transactionType, transaction, currency);
 
     const billData: QrBillData = {
-      creditor: (bankInfo && this.getCreditor(bankInfo)) ?? (this.dfxCreditor() as unknown as Creditor),
+      creditor: (bankInfo && this.getCreditor(bankInfo)) || (this.dfxCreditor() as unknown as Creditor),
       debtor,
       currency,
       amount: bankInfo && transaction.buyCrypto?.inputAmount,
@@ -447,8 +447,7 @@ export class SwissQRService {
       title: this.translate(titleKey, transaction.userData.language.symbol.toLowerCase(), {
         invoiceId: transaction.id,
       }),
-      // TODO: Which date to pick for the receipt (execution date of the transaction)?
-      date: statementType === TxStatementType.RECEIPT ? transaction.updated : transaction.created,
+      date: statementType === TxStatementType.RECEIPT ? transaction.completionDate : transaction.created,
     };
 
     switch (transactionType) {
