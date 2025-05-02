@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
+import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
@@ -80,8 +80,12 @@ export class SwissQRService {
     return this.generatePdfInvoice(request.id, tableData, language, data, true, TransactionType.BUY);
   }
 
-  async createInvoiceFromTx(txType: TransactionType, transaction: Transaction, currency: string): Promise<string> {
-    const creditor = this.dfxCreditor() as unknown as Creditor;
+  async createInvoiceFromTx(
+    txType: TransactionType,
+    transaction: Transaction,
+    currency: string,
+    bankInfo?: BankInfoDto,
+  ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
@@ -94,16 +98,20 @@ export class SwissQRService {
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const tableData = await this.getTableData(txType, transaction, currency);
 
+    const billData: QrBillData = {
+      creditor: (bankInfo && this.getCreditor(bankInfo)) ?? (this.dfxCreditor() as unknown as Creditor),
+      debtor,
+      currency,
+      amount: bankInfo && transaction.buyCrypto?.inputAmount,
+      message: bankInfo && transaction.buyCrypto?.buy.bankUsage,
+    };
+
     return this.generatePdfInvoice(
       transaction.id,
       tableData,
       language,
-      {
-        creditor,
-        debtor,
-        currency,
-      },
-      false,
+      billData,
+      !!bankInfo,
       txType,
       transaction.created,
     );
@@ -326,6 +334,15 @@ export class SwissQRService {
           },
         ];
 
+        // T&Cs
+        const termsAndConditions: PDFColumn = {
+          text: this.translate('invoice.terms', language),
+          textOptions: { lineGap: 2 },
+          fontSize: 10,
+          width: mm2pt(170),
+          padding: [5, 0, 5, 0],
+        };
+
         // QR-Bill
         let qrBill: SwissQRBill = null;
         if (includeQrBill) {
@@ -339,7 +356,11 @@ export class SwissQRService {
               },
             ],
           });
+
+          rows.push({ columns: [termsAndConditions] });
           qrBill = new SwissQRBill(billData, { language: language as SupportedInvoiceLanguage });
+        } else {
+          rows.push({ columns: [termsAndConditions] });
         }
 
         const table = new Table({ rows, width: mm2pt(170) });

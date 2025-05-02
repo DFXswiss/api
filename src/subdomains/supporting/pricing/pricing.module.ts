@@ -5,8 +5,10 @@ import { SharedModule } from 'src/shared/shared.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { ExchangeModule } from '../../../integration/exchange/exchange.module';
 import { DexModule } from '../../../subdomains/supporting/dex/dex.module';
+import { AssetPrice } from './domain/entities/asset-price.entity';
 import { PriceRule } from './domain/entities/price-rule.entity';
 import { PricingController } from './pricing.controller';
+import { AssetPriceRepository } from './repositories/asset-price.repository';
 import { PriceRuleRepository } from './repositories/price-rule.repository';
 import { AssetPricesService } from './services/asset-prices.service';
 import { FiatPricesService } from './services/fiat-prices.service';
@@ -22,7 +24,7 @@ import { PricingService } from './services/pricing.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PriceRule]),
+    TypeOrmModule.forFeature([PriceRule, AssetPrice]),
     SharedModule,
     forwardRef(() => ExchangeModule),
     DexModule,
@@ -32,6 +34,7 @@ import { PricingService } from './services/pricing.service';
   controllers: [PricingController],
   providers: [
     PriceRuleRepository,
+    AssetPriceRepository,
     AssetPricesService,
     FiatPricesService,
     CoinGeckoService,
