@@ -350,7 +350,12 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
   async addFiatOutputs(): Promise<void> {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: { fiatOutput: true, sell: true, transaction: { userData: true }, cryptoInput: true },
+      relations: {
+        fiatOutput: true,
+        sell: true,
+        transaction: { userData: true },
+        cryptoInput: { paymentLinkPayment: { link: true } },
+      },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
@@ -358,8 +363,14 @@ export class BuyFiatPreparationService implements OnModuleInit {
       },
     });
 
+    const buyFiatsToPayout = buyFiatsWithoutOutput.filter(
+      (bf) =>
+        !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
+        bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
+    );
+
     // immediate payouts
-    const immediateOutputs = buyFiatsWithoutOutput.filter(
+    const immediateOutputs = buyFiatsToPayout.filter(
       (bf) =>
         !bf.userData.paymentLinksConfigObj.payoutFrequency ||
         bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.IMMEDIATE,
@@ -373,10 +384,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const dailyOutputs = buyFiatsWithoutOutput.filter(
+    const dailyOutputs = buyFiatsToPayout.filter(
       (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
     );
-    const sellGroups = Util.groupByAccessor(dailyOutputs, (bf) => bf.sell.id);
+    const sellGroups = Util.groupByAccessor(
+      dailyOutputs,
+      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+    );
 
     for (const buyFiats of sellGroups.values()) {
       await this.fiatOutputService.createInternal(
