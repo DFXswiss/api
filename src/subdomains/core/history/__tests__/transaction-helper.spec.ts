@@ -7,6 +7,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
@@ -21,6 +22,7 @@ import { createCustomTransaction } from 'src/subdomains/supporting/payment/__moc
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
@@ -38,6 +40,8 @@ describe('TransactionHelper', () => {
   let buyFiatService: BuyFiatService;
   let blockchainRegistryService: BlockchainRegistryService;
   let walletService: WalletService;
+  let transactionService: TransactionService;
+  let buyService: BuyService;
 
   beforeEach(async () => {
     specRepo = createMock<TransactionSpecificationRepository>();
@@ -48,6 +52,8 @@ describe('TransactionHelper', () => {
     fiatService = createMock<FiatService>();
     buyCryptoService = createMock<BuyCryptoService>();
     feeService = createMock<FeeService>();
+    transactionService = createMock<TransactionService>();
+    buyService = createMock<BuyService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -61,6 +67,8 @@ describe('TransactionHelper', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: FeeService, useValue: feeService },
+        { provide: TransactionService, useValue: transactionService },
+        { provide: BuyService, useValue: buyService },
         TestUtil.provideConfig(),
       ],
     }).compile();

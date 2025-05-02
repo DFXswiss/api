@@ -9,6 +9,7 @@ import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
+import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 import { Transaction } from '../entities/transaction.entity';
@@ -40,11 +41,6 @@ interface SwissQRBillTableData {
   description: any;
   fiatAmount: number;
   date: Date;
-}
-
-export enum TransactionStatementType {
-  INVOICE = 'INVOICE',
-  RECEIPT = 'RECEIPT',
 }
 
 @Injectable()
@@ -89,13 +85,13 @@ export class SwissQRService {
     return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
   }
 
-  async createTxStatement(
-    statementType: TransactionStatementType,
-    txType: TransactionType,
-    transaction: Transaction,
-    currency: string,
-    bankInfo?: BankInfoDto,
-  ): Promise<string> {
+  async createTxStatement({
+    statementType,
+    transactionType,
+    transaction,
+    currency,
+    bankInfo,
+  }: TxStatementDetails): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
@@ -106,7 +102,7 @@ export class SwissQRService {
 
     const userLanguage = transaction.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const tableData = await this.getTableData(statementType, txType, transaction, currency);
+    const tableData = await this.getTableData(statementType, transactionType, transaction, currency);
 
     const billData: QrBillData = {
       creditor: (bankInfo && this.getCreditor(bankInfo)) ?? (this.dfxCreditor() as unknown as Creditor),
@@ -116,7 +112,7 @@ export class SwissQRService {
       message: bankInfo && transaction.buyCrypto?.buy.bankUsage,
     };
 
-    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, txType);
+    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);
   }
 
   private generatePdfInvoice(
@@ -436,15 +432,15 @@ export class SwissQRService {
   }
 
   private async getTableData(
-    statementType: TransactionStatementType,
-    txType: TransactionType,
+    statementType: TxStatementType,
+    transactionType: TransactionType,
     transaction: Transaction,
     currency: string,
   ): Promise<SwissQRBillTableData> {
     const titleKey =
-      statementType === TransactionStatementType.RECEIPT
+      statementType === TxStatementType.RECEIPT
         ? 'invoice.receipt_title'
-        : txType === TransactionType.REFERRAL
+        : transactionType === TransactionType.REFERRAL
         ? 'invoice.credit_title'
         : 'invoice.title';
     const titleAndDate = {
@@ -452,10 +448,10 @@ export class SwissQRService {
         invoiceId: transaction.id,
       }),
       // TODO: Which date to pick for the receipt (execution date of the transaction)?
-      date: statementType === TransactionStatementType.RECEIPT ? transaction.updated : transaction.created,
+      date: statementType === TxStatementType.RECEIPT ? transaction.updated : transaction.created,
     };
 
-    switch (txType) {
+    switch (transactionType) {
       case TransactionType.BUY:
         const outputAsset = transaction.buyCrypto?.outputAsset;
 

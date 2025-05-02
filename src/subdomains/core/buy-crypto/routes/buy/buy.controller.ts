@@ -38,7 +38,7 @@ import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
-import { InvoiceDto } from './dto/invoice.dto';
+import { PdfDto } from './dto/pdf.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @ApiTags('Buy')
@@ -151,8 +151,8 @@ export class BuyController {
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
-  @ApiOkResponse({ type: InvoiceDto })
-  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
+  @ApiOkResponse({ type: PdfDto })
+  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
     if (!request.userData.isDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
@@ -172,7 +172,7 @@ export class BuyController {
     }
 
     return {
-      invoicePdf: await this.swissQrService.createInvoiceFromRequest(
+      pdfBase64: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
         buy.bankUsage,
