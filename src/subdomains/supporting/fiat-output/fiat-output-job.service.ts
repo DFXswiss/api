@@ -10,7 +10,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
-import { In, IsNull, Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -121,7 +121,6 @@ export class FiatOutputJobService {
     const groupedEntities = Util.groupBy(entities, 'accountIban');
     const sortedEntities = Array.from(groupedEntities.values()).map((group) =>
       group.sort((a, b) => {
-        if (a.accountIban !== b.accountIban) return a.accountIban.localeCompare(b.accountIban);
         if (a.type !== b.type) return a.type.localeCompare(b.type);
         return a.amount - b.amount;
       }),
@@ -173,6 +172,9 @@ export class FiatOutputJobService {
     });
 
     let currentBatch: FiatOutput[] = [];
+    let currentBatchId = await this.getLastBatchId();
+    const batches: FiatOutput[] = [];
+
     for (const entity of entities) {
       if (!currentBatch.length) currentBatch.push(entity);
 
@@ -180,17 +182,19 @@ export class FiatOutputJobService {
 
       if (
         currentBatch[0].accountIban !== entity.accountIban ||
-        currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit
+        currentBatchAmount + entity.amount < Config.liquidityManagement.fiatOutput.batchAmountLimit
       ) {
-        await this.fiatOutputRepo.update(
-          { id: In(currentBatch.map((f) => f.id)) },
-          { batchId: (await this.getLastBatchId()) + 1, batchAmount: currentBatchAmount * 100 },
-        );
+        batches.push(...currentBatch);
+        currentBatchId += 1;
+        Object.assign(entity, { batchId: currentBatchId, batchAmount: currentBatchAmount * 100 });
+
         currentBatch = [entity];
       } else {
         currentBatch.push(entity);
       }
     }
+
+    await this.fiatOutputRepo.save(batches);
   }
 
   private async checkTransmission(): Promise<void> {
