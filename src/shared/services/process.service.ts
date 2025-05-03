@@ -57,6 +57,7 @@ export enum Process {
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
+  CUSTODY = 'Custody',
   EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',
   EXCHANGE_TRADE = 'ExchangeTrade',
   FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
@@ -65,6 +66,7 @@ export enum Process {
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
+  NAME_CHECK_PDF_SYNC = 'NameCheckPdfSync',
 }
 
 const safetyProcesses: Process[] = [

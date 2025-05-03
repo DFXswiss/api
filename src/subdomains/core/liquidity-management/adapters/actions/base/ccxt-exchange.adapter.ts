@@ -90,7 +90,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
-    const balance = await this.exchangeService.getBalance(token);
+    const balance = await this.exchangeService.getAvailableBalance(token);
     if (order.amount > balance)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, requested: ${order.amount})`,
@@ -114,7 +114,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const balance = fullTrade ? 0 : await this.exchangeService.getBalance(asset);
+    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(asset);
     const amount = Util.round(order.amount * 1.01 - balance, 6); // small cap for price changes
     if (amount <= 0) {
       // trade not necessary
@@ -129,7 +129,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       try {
         // try to sell min amount
         if (e.message?.includes('not enough balance') && minTradeAmount != null) {
-          const availableBalance = await this.exchangeService.getBalance(tradeAsset);
+          const availableBalance = await this.exchangeService.getAvailableBalance(tradeAsset);
           if (availableBalance >= minTradeAmount) {
             const reserve = Math.min(availableBalance * 0.01, minTradeAmount * 0.9);
             return await this.exchangeService.sell(tradeAsset, asset, availableBalance - reserve);
@@ -186,14 +186,14 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       const price = await targetExchange.getPrice(token, targetAsset);
       requiredAmount = price.invert().convert(requiredAmount) * 1.01; // small cap for price changes;
 
-      const balance = await targetExchange.getBalance(token);
+      const balance = await targetExchange.getAvailableBalance(token);
       requiredAmount -= balance;
     }
 
     const minAmount = Util.round(requiredAmount, 6);
     const maxAmount = Util.round(requiredAmount + (optimum ?? 0), 6);
 
-    const sourceBalance = await this.exchangeService.getBalance(token);
+    const sourceBalance = await this.exchangeService.getAvailableBalance(token);
     if (minAmount > sourceBalance)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${token} (balance: ${sourceBalance}, requested: ${minAmount})`,

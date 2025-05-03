@@ -90,7 +90,7 @@ export class SwapService {
     // update user volume
     const { user } = await this.swapRepo.findOne({
       where: { id: swapId },
-      relations: ['user'],
+      relations: { user: true },
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
@@ -125,6 +125,24 @@ export class SwapService {
     return swap;
   }
 
+  async getSwapByKey(key: string, value: any): Promise<Swap> {
+    return this.swapRepo
+      .createQueryBuilder('swap')
+      .select('swap')
+      .leftJoinAndSelect('swap.deposit', 'deposit')
+      .leftJoinAndSelect('swap.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .leftJoinAndSelect('users.wallet', 'wallet')
+      .where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value })
+      .getOne();
+  }
+
   async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
     const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
@@ -134,6 +152,10 @@ export class SwapService {
       (e) => e.message?.includes('duplicate key'),
     );
     return this.toPaymentInfoDto(userId, swap, dto);
+  }
+
+  async getById(id: number): Promise<Swap> {
+    return this.swapRepo.findOne({ where: { id } });
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {

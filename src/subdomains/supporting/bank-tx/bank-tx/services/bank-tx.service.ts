@@ -15,6 +15,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -87,7 +88,7 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
     await this.assignTransactions();
@@ -136,9 +137,9 @@ export class BankTxService {
     const buys = await this.buyService.getAllBankUsages();
 
     for (const tx of unassignedBankTx) {
-      const remittanceInfo = (
-        !tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo
-      )?.replace(/[ -]/g, '');
+      const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
+        ?.replace(/[ -]/g, '')
+        .replace(/O/g, '0');
       const buy =
         remittanceInfo &&
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
@@ -173,6 +174,7 @@ export class BankTxService {
           });
           continue;
         }
+        if (!entity.buyCrypto && !entity.buyFiats?.length) continue;
 
         const update: Partial<BankTx> = {};
 
@@ -222,15 +224,15 @@ export class BankTxService {
       where: { id: bankTxId },
       relations: {
         transaction: true,
-        buyFiats: { sell: { user: { userData: true } } },
-        buyCryptoChargeback: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
+        buyFiats: { transaction: { user: { userData: true } } },
+        buyCryptoChargeback: { transaction: { user: { userData: true } } },
       },
     });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     return this.updateInternal(bankTx, dto);
   }
 
-  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto): Promise<BankTx> {
+  async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, user?: User): Promise<BankTx> {
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -250,8 +252,8 @@ export class BankTxService {
           if (dto.type)
             await this.transactionService.updateInternal(bankTx.transaction, {
               type: TransactionBankTxTypeMapper[dto.type],
-              user: bankTx.user,
-              userData: bankTx.user?.userData,
+              user: user ?? bankTx.user,
+              userData: user?.userData ?? bankTx.user?.userData,
             });
           break;
       }

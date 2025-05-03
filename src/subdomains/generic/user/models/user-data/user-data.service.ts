@@ -226,7 +226,28 @@ export class UserDataService {
 
     await this.userDataRepo.save(userData);
 
-    if (userData.organization) await this.organizationService.updateOrganizationInternal(userData.organization, dto);
+    if (
+      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) &&
+      !userData.organization
+    ) {
+      userData.organization = await this.organizationService.createOrganization({
+        ...dto,
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+      });
+    } else if (userData.organization) {
+      await this.organizationService.updateOrganizationInternal(userData.organization, {
+        ...dto,
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+      });
+    }
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -487,7 +508,7 @@ export class UserDataService {
   }
 
   async checkMail(userData: UserData, mail: string): Promise<void> {
-    const mailUsers = await this.getUsersByMail(mail).then((l) => this.mergeService.masterFirst(l));
+    const mailUsers = await this.getUsersByMail(mail).then((l) => AccountMergeService.masterFirst(l));
     const conflictUsers = mailUsers.filter((u) => u.id !== userData.id);
     if (!conflictUsers.length) return;
 
@@ -559,7 +580,7 @@ export class UserDataService {
 
     await this.userDataRepo.update(...userData.setUserDataSettings(dto));
 
-    return Object.assign(userData, dto);
+    return userData;
   }
 
   // --- KYC --- //
@@ -623,7 +644,6 @@ export class UserDataService {
   async checkApiKey(key: string, sign: string, timestamp: string): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { apiKeyCT: key }, relations: { users: true } });
     if (!userData) throw new NotFoundException('API key not found');
-
     if (!ApiKeyService.isValidSign(userData, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
 
     return userData;
@@ -694,23 +714,6 @@ export class UserDataService {
       if (existing && (dto.identDocumentId || userData.identDocumentId) && userData.id !== existing.id)
         throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
-
-    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) && !userData.organization)
-      userData.organization = await this.organizationService.createOrganization({
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-        organizationCountryId: dto.organizationCountryId,
-        allBeneficialOwnersName: dto.allBeneficialOwnersName,
-        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
-        accountOpenerAuthorization: dto.accountOpenerAuthorization,
-        complexOrgStructure: dto.complexOrgStructure,
-        accountOpener: dto.accountOpener,
-        legalEntity: dto.legalEntity,
-        signatoryPower: dto.signatoryPower,
-      });
 
     return userData;
   }
@@ -791,7 +794,6 @@ export class UserDataService {
       relations: {
         accountRelations: true,
         relatedAccountRelations: true,
-        kycSteps: true,
         supportIssues: true,
         wallet: true,
         language: true,
@@ -804,13 +806,13 @@ export class UserDataService {
       relations: { userData: true, wallet: true },
     });
     master.bankDatas = await this.bankDataService.getAllBankDatasForUser(masterId);
+    master.kycSteps = await this.kycAdminService.getKycSteps(masterId);
 
     const slave = await this.userDataRepo.findOne({
       where: { id: slaveId },
       relations: {
         accountRelations: true,
         relatedAccountRelations: true,
-        kycSteps: true,
         supportIssues: true,
         wallet: true,
         language: true,
@@ -823,6 +825,7 @@ export class UserDataService {
       relations: { userData: true, wallet: true },
     });
     slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
+    slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
 
     this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
 
@@ -907,6 +910,7 @@ export class UserDataService {
       master.identificationType = KycIdentificationType.VIDEO_ID;
       master.bankTransactionVerification = CheckStatus.UNNECESSARY;
     }
+    if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
 
     // update slave status

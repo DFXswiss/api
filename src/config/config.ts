@@ -579,6 +579,7 @@ export class Configuration {
       baseApiKey: process.env.ALCHEMY_API_KEY,
       baseChainId: +process.env.BASE_CHAIN_ID,
       swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
+      swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
@@ -624,6 +625,7 @@ export class Configuration {
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
+        fpsWrapper: process.env.ZCHF_FPS_WRAPPER_CONTRACT_ADDRESS,
       },
     },
     deuro: {
@@ -676,8 +678,13 @@ export class Configuration {
     Authorization: process.env.IKNA_KEY,
   };
 
+  invoice = {
+    currencies: ['EUR', 'CHF'],
+    defaultCurrency: 'CHF',
+  };
+
   bank = {
-    dfxBankInfo: {
+    dfxAddress: {
       name: 'DFX AG',
       street: 'Bahnhofstrasse',
       number: '7',

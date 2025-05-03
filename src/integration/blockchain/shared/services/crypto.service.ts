@@ -19,7 +19,7 @@ import { EvmUtil } from '../evm/evm.util';
 
 @Injectable()
 export class CryptoService {
-  private static readonly defaultEthereumChain = Blockchain.ARBITRUM;
+  private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
 
   static readonly EthereumBasedChains = [
     Blockchain.ETHEREUM,

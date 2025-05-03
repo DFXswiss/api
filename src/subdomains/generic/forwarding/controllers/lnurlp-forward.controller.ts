@@ -1,7 +1,6 @@
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { PaymentLinkPaymentDto } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
-import { LnurlPayRequestDto } from '../../../../integration/lightning/dto/lnurlp.dto';
 import { PaymentDto } from '../dto/payment.dto';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
@@ -11,7 +10,7 @@ export class LnUrlPForwardController {
   constructor(private readonly forwardService: LnUrlForwardService) {}
 
   @Get(':id')
-  async lnUrlPForward(@Param('id') id: string, @Query() params: any): Promise<LnurlPayRequestDto> {
+  async lnUrlPForward(@Param('id') id: string, @Query() params: any): Promise<any> {
     return this.forwardService.lnurlpForward(id, params);
   }
 

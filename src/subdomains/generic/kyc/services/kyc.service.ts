@@ -126,10 +126,11 @@ export class KycService {
         status: KycStepStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const identStep of expiredIdentSteps) {
+      identStep.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: identStep.userData.id } });
       const user = identStep.userData;
       const step = user.getPendingStepOrThrow(identStep.id);
 
@@ -155,11 +156,12 @@ export class KycService {
         name: KycStepName.NATIONALITY_DATA,
         status: KycStepStatus.INTERNAL_REVIEW,
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
         const errors = this.getNationalityErrors(entity, nationality);
@@ -189,11 +191,12 @@ export class KycService {
         status: KycStepStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
-      relations: { userData: { kycSteps: true } },
+      relations: { userData: true },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.resultData;
 
         const nationality = result.nationality
@@ -268,8 +271,8 @@ export class KycService {
 
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
-    if (kycFile.protected && role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Requires admin role');
+    if (kycFile.protected && ![UserRole.ADMIN, UserRole.COMPLIANCE].includes(role)) {
+      throw new ForbiddenException('Requires admin or compliance role');
     }
 
     const blob = await this.documentService.downloadFile(
@@ -473,7 +476,7 @@ export class KycService {
 
     const language = (lang && (await this.languageService.getLanguageBySymbol(lang.toUpperCase()))) ?? user.language;
 
-    const questions = this.financialService.getQuestions(language.symbol.toLowerCase());
+    const questions = this.financialService.getQuestions(language.symbol.toLowerCase(), user.accountType);
     const responses = kycStep.getResult<KycFinancialResponse[]>() ?? [];
     return { questions, responses };
   }
@@ -491,7 +494,7 @@ export class KycService {
 
     await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
-    const complete = this.financialService.isComplete(data.responses);
+    const complete = this.financialService.isComplete(data.responses, user.accountType);
     if (complete) {
       await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);

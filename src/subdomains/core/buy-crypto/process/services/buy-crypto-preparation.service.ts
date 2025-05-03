@@ -76,7 +76,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true }, userData: { users: true } },
+        transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
     });
@@ -105,7 +105,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           isPayment,
         );
 
-        const { bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
+        const { users, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
@@ -113,6 +113,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          users,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
           'checkoutTx',
@@ -121,6 +122,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
           undefined,
@@ -129,6 +131,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
           undefined,
@@ -309,19 +312,22 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           await this.buyCryptoService.refundCheckoutTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
         }
       } catch (e) {
-        this.logger.error(`Failed buyCrypto chargeback job ${entity.id}:`, e);
+        this.logger.error(`Failed to chargeback buy-crypto ${entity.id}:`, e);
       }
     }
   }
 
   async chargebackFillUp(): Promise<void> {
-    const entities = await this.buyCryptoRepo.findBy({
-      chargebackBankTx: IsNull(),
-      amlCheck: CheckStatus.FAIL,
-      bankTx: { id: Not(IsNull()) },
-      isComplete: false,
-      chargebackRemittanceInfo: Not(IsNull()),
-      chargebackOutput: { id: Not(IsNull()) },
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        chargebackBankTx: IsNull(),
+        amlCheck: CheckStatus.FAIL,
+        bankTx: { id: Not(IsNull()) },
+        isComplete: false,
+        chargebackRemittanceInfo: Not(IsNull()),
+        chargebackOutput: { id: Not(IsNull()) },
+      },
+      relations: { transaction: { user: { userData: true } } },
     });
 
     for (const entity of entities) {
@@ -329,7 +335,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
         if (!bankTx) continue;
 
-        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN }, entity.user);
         await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);

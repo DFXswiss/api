@@ -5,6 +5,7 @@ import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike }
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import sanitizeHtml from 'sanitize-html';
+import { IEntity, UpdateResult } from '../models/entity';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -424,6 +425,11 @@ export class Util {
     Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
   }
 
+  static updateEntity<T extends IEntity>(entity: T, update: Partial<T>): UpdateResult<T> {
+    Object.assign(entity, update);
+    return [entity.id, update];
+  }
+
   static createHash(
     data: BinaryLike,
     algo: CryptoAlgorithm = 'sha256',
@@ -534,7 +540,7 @@ export class Util {
   }
 
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
-    return Boolean(value || value === '');
+    return value != null ? Boolean(value || value === '') : value;
   }
 
   static sanitize({ value }: TransformFnParams): string | undefined {

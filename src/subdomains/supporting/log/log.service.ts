@@ -17,7 +17,7 @@ export class LogService {
     const logCleanupSettings = await this.settingService.getObj<LogCleanupSetting[]>('logCleanup', []);
 
     for (const logCleanupSetting of logCleanupSettings) {
-      await this.logRepo.keepOnePerDay(logCleanupSetting);
+      await this.logRepo.cleanup(logCleanupSetting);
     }
   }
 

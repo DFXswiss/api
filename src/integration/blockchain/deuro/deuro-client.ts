@@ -1,6 +1,7 @@
 import {
   ADDRESS,
   DecentralizedEUROABI,
+  DEPSWrapperABI,
   EquityABI,
   ERC20ABI,
   PositionV2ABI,
@@ -70,6 +71,10 @@ export class DEuroClient {
     return request<{ dEPS: DEuroDepsGraphDto }>(Config.blockchain.deuro.graphUrl, document).then((r) => r.dEPS);
   }
 
+  getWalletAddress(): string {
+    return this.evmClient.wallet.address;
+  }
+
   getDEuroContract(): Contract {
     return new Contract(ADDRESS[this.evmClient.chainId].decentralizedEURO, DecentralizedEUROABI, this.evmClient.wallet);
   }
@@ -84,6 +89,10 @@ export class DEuroClient {
 
   getErc20Contract(address: string): Contract {
     return new Contract(address, ERC20ABI, this.evmClient.wallet);
+  }
+
+  getDEPSWrapperContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].DEPSwrapper, DEPSWrapperABI, this.evmClient.wallet);
   }
 
   getBridgeContracts(): Contract[] {

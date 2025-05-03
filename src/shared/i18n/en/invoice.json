@@ -1,13 +1,17 @@
 {
   "title": "Invoice No. {invoiceId}",
+  "credit_title": "Credit No. {invoiceId}",
   "table": {
     "headers": {
-      "quantity": "Quantity *",
+      "quantity": "Quantity",
       "description": "Description",
       "total": "Total"
     },
     "position_row": {
-      "description": "{assetDescription} ({assetName}) delivered on {assetBlockchain}"
+      "buy_description": "{assetDescription} ({assetName}) delivered on {assetBlockchain}",
+      "sell_description": "{fiatCurrency} delivered for {assetAmount} {assetDescription} ({assetName}) on {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) on {sourceBlockchain} swapped for {targetAmount} {targetDescription} ({targetName}) on {targetBlockchain}",
+      "referral_description": "{assetName} referral bonus on {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Total"
@@ -18,7 +22,11 @@
     },
     "invoice_total_row": {
       "invoice_total_label": "Invoice Total"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Credit Total"
     }
   },
-  "info": "* Info: The effective exchange rate and thus the effectively delivered quantity is determined when the money is received and processed by DFX."
+  "info": "* Info: The effective exchange rate and thus the effectively delivered quantity is determined when the money is received and processed by DFX.",
+  "terms": "Our General Terms and Conditions apply: https://docs.dfx.swiss/en/tnc.html."
 }

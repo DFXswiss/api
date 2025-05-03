@@ -36,16 +36,27 @@ export class LnUrlForwardService {
 
   // --- LNURLp --- //
   // pay request
-  async lnurlpForward(id: string, params: any): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto> {
+  async lnurlpForward(
+    id: string,
+    params: any,
+  ): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto | LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
     if (
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
       id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
     ) {
-      return this.paymentLinkService.createPayRequest(
+      const payRequest = await this.paymentLinkService.createPayRequest(
         id,
         Util.toEnum(PaymentStandard, params.standard),
         params.timeout,
       );
+
+      if (params.method) {
+        // directly forward to lnurlp callback
+        params.quote = payRequest.quote.id;
+        return this.lnurlpCallbackForward(id, params);
+      }
+
+      return payRequest;
     }
 
     return this.createLnurlpPayRequest(id);

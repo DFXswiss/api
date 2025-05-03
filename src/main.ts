@@ -43,7 +43,14 @@ async function bootstrap() {
     type: VersioningType.URI,
     defaultVersion: [Config.defaultVersion],
   });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transformOptions: {
+        exposeUnsetFields: false,
+      },
+    }),
+  );
   app.useGlobalFilters(new ApiExceptionFilter());
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
 

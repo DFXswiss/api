@@ -71,8 +71,12 @@ export class AssetService {
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
-  async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
-    await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
+  async updatePrice(assetId: number, usdPrice: number, chfPrice: number, eurPrice: number) {
+    await this.assetRepo.update(assetId, {
+      approxPriceUsd: usdPrice,
+      approxPriceChf: chfPrice,
+      approxPriceEur: eurPrice,
+    });
     this.assetRepo.invalidateCache();
   }
 

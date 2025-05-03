@@ -107,7 +107,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         : await this.l1Client.getTokenBalance(l1Asset);
     if (l1Liquidity < amount)
       throw new OrderNotProcessableException(
-        `Not enough liquidity on L1 blockchain (requested ${amount} ${name}, available ${l1Liquidity} ${name})`,
+        `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, requested: ${amount})`,
       );
 
     switch (type) {

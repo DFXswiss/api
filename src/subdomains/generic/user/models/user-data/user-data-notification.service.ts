@@ -55,7 +55,7 @@ export class UserDataNotificationService {
           });
         }
       } else {
-        this.logger.warn(`Failed to send userData added address info mail ${master.id}: user has no email`);
+        this.logger.warn(`Failed to send userData (${master.id}) added address info mail: user has no email`);
       }
     } catch (e) {
       this.logger.error(

@@ -180,12 +180,20 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return EvmUtil.fromWeiAmount(deuroTotalSupply);
   }
 
+  getWalletAddress(): string {
+    return this.deuroClient.getWalletAddress();
+  }
+
   getEquityContract(): Contract {
     return this.deuroClient.getEquityContract();
   }
 
   async getEquityPrice(): Promise<number> {
     return this.getDEPSPrice();
+  }
+
+  getWrapperContract(): Contract {
+    return this.deuroClient.getDEPSWrapperContract();
   }
 
   async getDEPSPrice(): Promise<number> {
@@ -274,6 +282,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       const priceChfToUsd = await this.getPrice(this.chf, this.usd);
 
       return 1 / priceChfToUsd.convert(fpsPriceInChf);
+    } else if (collateral.symbol === 'DEPS') {
+      return this.getCoinGeckoPrice(this.deuroClient.getEquityContract().address);
     }
   }
 

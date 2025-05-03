@@ -11,6 +11,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -18,6 +19,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
   BankTxRefund,
@@ -94,6 +96,7 @@ export class BuyCryptoService {
     private readonly amlService: AmlService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
+    private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -313,6 +316,7 @@ export class BuyCryptoService {
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
+          entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
           undefined,
@@ -603,7 +607,13 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: { user: true },
+        cryptoRoute: { user: true },
+      },
     });
   }
 
@@ -613,7 +623,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo
       .find({
         where: { buy: where },
-        relations: ['buy', 'buy.user'],
+        relations: { buy: { user: true } },
       })
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
@@ -624,7 +634,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo
       .find({
         where: { cryptoRoute: where },
-        relations: ['cryptoRoute', 'cryptoRoute.user'],
+        relations: { cryptoRoute: { user: true } },
       })
       .then((history) => history.map(this.toHistoryDto));
   }
@@ -650,6 +660,21 @@ export class BuyCryptoService {
     entity.transaction = await this.transactionService.updateInternal(entity.transaction, { ...dto, request });
 
     entity = await this.buyCryptoRepo.save(entity);
+
+    if (dto.user.role === UserRole.CUSTODY) {
+      if (request?.custodyOrder) {
+        await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
+          transaction: entity.transaction,
+        });
+      } else {
+        await this.custodyOrderService.createOrderInternal({
+          user: dto.user,
+          ...entity.custodyInput,
+          transaction: entity.transaction,
+          transactionRequest: request,
+        });
+      }
+    }
 
     await this.buyCryptoWebhookService.triggerWebhook(entity);
 
@@ -706,7 +731,7 @@ export class BuyCryptoService {
     // cryptoRoute
     const cryptoRoute = await this.swapService
       .getSwapRepo()
-      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
+      .findOne({ where: { id: cryptoRouteId }, relations: { user: { wallet: true } } });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
     return cryptoRoute;
@@ -790,7 +815,13 @@ export class BuyCryptoService {
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
-      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: { user: true },
+        cryptoRoute: { user: true },
+      },
       order: { id: 'DESC' },
     });
   }
@@ -802,13 +833,9 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: [
-        { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) }, transaction: true },
-        { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) }, transaction: true },
-        {
-          cryptoRoute: { user: { id: In(userIds) } },
-          cryptoInput: { created: Between(dateFrom, dateTo) },
-          transaction: true,
-        },
+        { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) } },
+        { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) } },
+        { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
       ],
       relations: {
         bankTx: true,
@@ -827,7 +854,7 @@ export class BuyCryptoService {
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
-      relations: ['buy', 'buy.asset'],
+      relations: { buy: true },
       loadEagerRelations: false,
     });
 
