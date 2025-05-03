@@ -105,26 +105,12 @@ export class FiatOutputJobService {
   }
 
   private async setReadyDate(): Promise<void> {
-    const entities = await this.fiatOutputRepo
-      .find({
-        where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
-        relations: { buyCrypto: true, buyFiats: { sell: true }, bankTx: true },
-      })
-      .then((f) =>
-        f.sort((a, b) => {
-          if (a.accountIban !== b.accountIban) return a.accountIban.localeCompare(b.accountIban);
-          if (a.type !== b.type) return a.type.localeCompare(b.type);
-          return a.amount - b.amount;
-        }),
-      );
+    const entities = await this.fiatOutputRepo.find({
+      where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
+      relations: { buyCrypto: true, buyFiats: { sell: true }, bankTx: true },
+    });
 
     const groupedEntities = Util.groupBy(entities, 'accountIban');
-    const sortedEntities = Array.from(groupedEntities.values()).map((group) =>
-      group.sort((a, b) => {
-        if (a.type !== b.type) return a.type.localeCompare(b.type);
-        return a.amount - b.amount;
-      }),
-    );
 
     const assets = await this.assetService
       .getAllAssets()
@@ -133,10 +119,15 @@ export class FiatOutputJobService {
       assets.map((a) => a.id),
     );
 
-    for (const accountIbanGroup of sortedEntities) {
+    for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
 
-      for (const entity of accountIbanGroup.filter((e) => !e.isReadyDate)) {
+      const sortedEntities = accountIbanGroup.sort((a, b) => {
+        if (a.type !== b.type) return a.type.localeCompare(b.type);
+        return a.amount - b.amount;
+      });
+
+      for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
           const liqBalance = liqBalances.find((l) => l.asset.bank.iban === entity.accountIban);
           const pendingBalance = accountIbanGroup.reduce(
