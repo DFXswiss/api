@@ -55,13 +55,13 @@ export class LogService {
       .where('subsystem = UploadBank')
       .andWhere('severity = :severity', { severity: LogSeverity.INFO });
 
-    query.where(
+    query.andWhere(
       new Brackets((query) =>
         batchIds.forEach((id, index) => {
           if (index === 0) {
-            query.where(`log.message LIKE :${id}`, { id });
+            query.where(`log.message LIKE '%${id}%'`);
           } else {
-            query.orWhere(`log.message LIKE :${id}`, { id });
+            query.orWhere(`log.message LIKE '%${id}%'`);
           }
         }),
       ),
