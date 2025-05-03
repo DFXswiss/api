@@ -1,25 +1,22 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { GetBuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
-import { GetSwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
-import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellService } from '../../sell-crypto/route/sell.service';
-
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
-import { SwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/swap-payment-info.dto';
-import { SellPaymentInfoDto } from '../../sell-crypto/route/dto/sell-payment-info.dto';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderDto, CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { UpdateCustodyOrderInternalDto } from '../dto/input/update-custody-order.dto';
+import { CustodyOrderResponseDto } from '../dto/output/custody-order-response.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
+import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 import { CustodyService } from './custody.service';
@@ -35,34 +32,72 @@ export class CustodyOrderService {
     private readonly buyService: BuyService,
     private readonly swapService: SwapService,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
   ) {}
 
-  // --- ORDERS --- //
+  //*** PUBLIC API ***//
 
+  // --- ORDERS --- //
   async createOrder(jwt: JwtPayload, dto: CreateCustodyOrderDto): Promise<CustodyOrderDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
     const orderDto: CreateCustodyOrderInternalDto = { user, type: dto.type };
 
-    let paymentInfo: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto = null;
+    let paymentInfo: CustodyOrderResponseDto = null;
+
     switch (dto.type) {
       case CustodyOrderType.DEPOSIT:
-        paymentInfo = await this.buyService.createBuyPaymentInfo(jwt, dto.paymentInfo as GetBuyPaymentInfoDto);
-        orderDto.buy = await this.buyService.getById(paymentInfo.routeId);
-        orderDto.inputAsset = await this.assetService.getAssetById(paymentInfo.asset.id);
+        const sourceCurrency = await this.fiatService.getFiatByName(dto.custodyInfo.sourceAsset);
+        if (!sourceCurrency) throw new NotFoundException('Currency not found');
+
+        const targetAsset = await this.assetService.getCustodyAssetByName(dto.custodyInfo.targetAsset);
+        if (!targetAsset) throw new NotFoundException('Asset not found');
+
+        const buyPaymentInfo = await this.buyService.createBuyPaymentInfo(
+          jwt,
+          GetCustodyOrderDtoMapper.getBuyPaymentInfo(dto.custodyInfo, sourceCurrency, targetAsset),
+        );
+
+        orderDto.buy = await this.buyService.getById(buyPaymentInfo.routeId);
+        orderDto.inputAsset = await this.assetService.getAssetById(buyPaymentInfo.asset.id);
+        paymentInfo = CustodyOrderResponseDtoMapper.mapBuyPaymentInfo(buyPaymentInfo);
         break;
+
       case CustodyOrderType.WITHDRAWAL:
-        paymentInfo = await this.sellService.createSellPaymentInfo(jwt.user, dto.paymentInfo as GetSellPaymentInfoDto);
-        orderDto.sell = await this.sellService.getById(paymentInfo.routeId);
-        orderDto.outputAsset = await this.assetService.getAssetById(paymentInfo.asset.id);
+        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.custodyInfo.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Asset not found');
+
+        const targetCurrency = await this.fiatService.getFiatByName(dto.custodyInfo.targetAsset);
+        if (!targetCurrency) throw new NotFoundException('Currency not found');
+
+        const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
+          jwt.user,
+          GetCustodyOrderDtoMapper.getSellPaymentInfo(dto.custodyInfo, sourceAsset, targetCurrency),
+        );
+
+        orderDto.sell = await this.sellService.getById(sellPaymentInfo.routeId);
+        orderDto.outputAsset = await this.assetService.getAssetById(sellPaymentInfo.asset.id);
         orderDto.outputAmount = paymentInfo.amount;
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSellPaymentInfo(sellPaymentInfo);
         break;
+
       case CustodyOrderType.SWAP:
-        paymentInfo = await this.swapService.createSwapPaymentInfo(jwt.user, dto.paymentInfo as GetSwapPaymentInfoDto);
-        orderDto.swap = await this.swapService.getById(paymentInfo.routeId);
-        orderDto.outputAsset = await this.assetService.getAssetById(paymentInfo.sourceAsset.id);
+        const source = await this.assetService.getCustodyAssetByName(dto.custodyInfo.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Asset not found');
+
+        const target = await this.assetService.getCustodyAssetByName(dto.custodyInfo.targetAsset);
+        if (!targetAsset) throw new NotFoundException('Asset not found');
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          jwt.user,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto.custodyInfo, source, target),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.outputAsset = await this.assetService.getAssetById(swapPaymentInfo.sourceAsset.id);
         orderDto.outputAmount = paymentInfo.amount;
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
     }
 
