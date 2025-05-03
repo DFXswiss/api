@@ -1,6 +1,5 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { GetBuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { GetSwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
 import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-payment-info.dto';
@@ -15,7 +14,7 @@ export class GetCustodyOrderDtoMapper {
       asset,
       amount: paymentInfo.amount,
       targetAmount: paymentInfo.targetAmount,
-      paymentMethod: FiatPaymentMethod.BANK,
+      paymentMethod: paymentInfo.paymentMethod,
       exactPrice: true,
     };
 

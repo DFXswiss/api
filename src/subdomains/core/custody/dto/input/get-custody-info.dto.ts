@@ -4,7 +4,7 @@ import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Validate, ValidateI
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
-import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export class GetCustodyInfoDto {
   @ApiPropertyOptional()
@@ -40,5 +40,5 @@ export class GetCustodyInfoDto {
 
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
-  paymentMethod: PaymentMethod = FiatPaymentMethod.BANK;
+  paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 }

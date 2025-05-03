@@ -72,12 +72,16 @@ export class CustodyService {
     if (!account) throw new NotFoundException('User not found');
 
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(account.users.map((u) => u.id)) } });
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, account.currency);
-    const totalValue = balances.reduce((prev, curr) => prev + curr.value, 0);
+    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances);
+    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.valueInEur, 0);
+    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.valueInChf, 0);
+    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.valueInUsd, 0);
 
     return {
       balances,
-      totalValue: Util.roundReadable(totalValue, AmountType.FIAT),
+      totalValueInEur: Util.roundReadable(totalValueInEur, AmountType.FIAT),
+      totalValueInChf: Util.roundReadable(totalValueInChf, AmountType.FIAT),
+      totalValueInUsd: Util.roundReadable(totalValueInUsd, AmountType.FIAT),
       currency: FiatDtoMapper.toDto(account.currency),
     };
   }
