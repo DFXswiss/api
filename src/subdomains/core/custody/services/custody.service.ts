@@ -10,13 +10,13 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { Brackets, In } from 'typeorm';
+import { In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
-import { CustodyOrderStatus, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStatus } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
@@ -101,18 +101,7 @@ export class CustodyService {
         .createQueryBuilder('custodyOrder')
         .select('SUM(custodyOrder.inputAmount)', 'deposit')
         .where('custodyOrder.userId = :id', { id: user.id })
-        .andWhere(
-          new Brackets((query) =>
-            query
-              .where('custodyOrder.status = :status AND custodyOrder.type IN (:...types)', {
-                status: CustodyOrderStatus.COMPLETED,
-                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
-              })
-              .orWhere('custodyOrder.type NOT IN (:...types)', {
-                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
-              }),
-          ),
-        )
+        .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
         .andWhere('custodyOrder.inputAssetId = :asset', { asset: asset.id })
         .getRawOne<{ deposit: number }>();
 
@@ -120,19 +109,8 @@ export class CustodyService {
         .createQueryBuilder('custodyOrder')
         .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
         .where('custodyOrder.userId = :id', { id: user.id })
-        .andWhere(
-          new Brackets((query) =>
-            query
-              .where('custodyOrder.status = :status AND custodyOrder.type IN (:...types)', {
-                status: CustodyOrderStatus.COMPLETED,
-                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
-              })
-              .orWhere('custodyOrder.type NOT IN (:...types)', {
-                types: [CustodyOrderType.DEPOSIT, CustodyOrderType.SAVING_DEPOSIT],
-              }),
-          ),
-        )
         .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
+        .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
         .getRawOne<{ withdrawal: number }>();
 
       await this.custodyBalanceRepo.update(custodyBalance.id, { balance: deposit - withdrawal });

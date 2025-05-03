@@ -125,7 +125,7 @@ export class Transaction extends IEntity {
   request?: TransactionRequest;
 
   @OneToOne(() => CustodyOrder, (custodyOrder) => custodyOrder.transaction, { nullable: true })
-  custodyOrder: CustodyOrder;
+  custodyOrder?: CustodyOrder;
 
   // --- ENTITY METHODS --- //
 

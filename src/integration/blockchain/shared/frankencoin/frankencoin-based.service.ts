@@ -37,9 +37,22 @@ export abstract class FrankencoinBasedService {
   }
 
   async getTvlByCollaterals(collaterals: FrankencoinBasedCollateralDto[]): Promise<number> {
+    const collateralsWithTotalBalances = this.aggregateCollateralBalances(collaterals);
+
+    let tvl = 0;
+
+    for (const collateral of collateralsWithTotalBalances) {
+      const price = await this.getCollateralPrice(collateral);
+      if (price) tvl += collateral.totalBalance / price;
+    }
+
+    return tvl;
+  }
+
+  private aggregateCollateralBalances(collaterals: FrankencoinBasedCollateralDto[]): CollateralWithTotalBalance[] {
     const groupedCollaterals = groupBy(collaterals, (i) => i.collateral);
 
-    const collateralsWithTotalBalances: CollateralWithTotalBalance[] = Object.keys(groupedCollaterals).map((key) => {
+    return Object.keys(groupedCollaterals).map((key) => {
       const first = groupedCollaterals[key][0];
       return {
         address: first.collateral,
@@ -49,18 +62,18 @@ export abstract class FrankencoinBasedService {
         ),
       };
     });
+  }
 
-    let tvl = 0;
+  private async getCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
+    try {
+      const customPrice = await this.getCustomCollateralPrice(collateral);
+      if (customPrice) return customPrice;
 
-    for (const collateralWithTotalBalance of collateralsWithTotalBalances) {
-      let collateralPrice = await this.getCustomCollateralPrice(collateralWithTotalBalance);
-
-      if (!collateralPrice) collateralPrice = await this.getCoinGeckoPrice(collateralWithTotalBalance.address);
-
-      if (collateralPrice) tvl += collateralWithTotalBalance.totalBalance / collateralPrice;
+      return await this.getCoinGeckoPrice(collateral.address);
+    } catch (e) {
+      this.logger.error(`Failed to get price for collateral ${collateral.symbol} (${collateral.address}):`, e);
+      return undefined;
     }
-
-    return tvl;
   }
 
   async getCoinGeckoPrice(contractaddress: string): Promise<number | undefined> {
@@ -74,7 +87,7 @@ export abstract class FrankencoinBasedService {
 
       if (price) return price.price;
     } catch (e) {
-      this.logger.error(`Failed to get price for collateral ${contractaddress}:`, e);
+      this.logger.error(`Failed to get CoinGecko price for collateral ${contractaddress}:`, e);
     }
   }
 

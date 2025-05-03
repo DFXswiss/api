@@ -5,7 +5,12 @@ export enum CustodyAddressType {
 export enum CustodyOrderType {
   DEPOSIT = 'Deposit',
   WITHDRAWAL = 'Withdrawal',
+
+  RECEIVE = 'Receive',
+  SEND = 'Send',
+
   SWAP = 'Swap',
+
   SAVING_DEPOSIT = 'SavingDeposit',
   SAVING_WITHDRAWAL = 'SavingWithdrawal',
 }
@@ -28,3 +33,17 @@ export enum CustodyOrderStepStatus {
 export enum CustodyOrderStepContext {
   DFX = 'DFX',
 }
+
+export const CustodyOrderInputTypes = [
+  CustodyOrderType.DEPOSIT,
+  CustodyOrderType.RECEIVE,
+  CustodyOrderType.SWAP,
+  CustodyOrderType.SAVING_DEPOSIT,
+];
+
+export const CustodyOrderOutputTypes = [
+  CustodyOrderType.WITHDRAWAL,
+  CustodyOrderType.SEND,
+  CustodyOrderType.SWAP,
+  CustodyOrderType.SAVING_WITHDRAWAL,
+];

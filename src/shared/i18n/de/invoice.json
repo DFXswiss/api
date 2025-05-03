@@ -8,8 +8,8 @@
       "total": "Gesamt"
     },
     "position_row": {
-      "buy_description": "{assetDescription} ({assetName}) erhalten auf {assetBlockchain}",
-      "sell_description": "{fiatCurrency} erhalten für {assetAmount} {assetDescription} ({assetName}) auf {assetBlockchain}",
+      "buy_description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}",
+      "sell_description": "{fiatCurrency} geliefert für {assetAmount} {assetDescription} ({assetName}) auf {assetBlockchain}",
       "swap_description": "{sourceDescription} ({sourceName}) auf {sourceBlockchain} getauscht für {targetAmount} {targetDescription} ({targetName}) auf {targetBlockchain}",
       "referral_description": "{assetName} Referral auf {assetBlockchain}"
     },
@@ -27,5 +27,6 @@
       "credit_total_label": "Gutschrift Gesamt"
     }
   },
-  "info": "* Info: Der effektive Wechselkurs und damit die effektiv gelieferte Menge wird bestimmt, wenn das Geld bei DFX eingeht und verarbeitet wird."
+  "info": "* Info: Der effektive Wechselkurs und damit die effektiv gelieferte Menge wird bestimmt, wenn das Geld bei DFX eingeht und verarbeitet wird.",
+  "terms": "Es gelten unsere Allgemeinen Geschäftsbedingungen: https://docs.dfx.swiss/de/tnc.html."
 }

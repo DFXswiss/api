@@ -599,7 +599,7 @@ export class BuyCrypto extends IEntity {
   } {
     return this.isCryptoCryptoTransaction
       ? {
-          type: CustodyOrderType.SWAP,
+          type: CustodyOrderType.RECEIVE,
           swap: this.cryptoRoute,
           outputAsset: this.cryptoInput.asset,
           outputAmount: this.inputAmount,

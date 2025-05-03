@@ -540,7 +540,7 @@ export class Util {
   }
 
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
-    return Boolean(value || value === '');
+    return value != null ? Boolean(value || value === '') : value;
   }
 
   static sanitize({ value }: TransformFnParams): string | undefined {

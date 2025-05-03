@@ -99,12 +99,10 @@ export class BuyFiatService {
 
     entity = await this.buyFiatRepo.save(entity);
 
-    if (sell.user.role === UserRole.CUSTODY) {
-      if (request?.custodyOrder)
-        await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
-          transaction: entity.transaction,
-        });
-    }
+    if (sell.user.role === UserRole.CUSTODY && request?.custodyOrder)
+      await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
+        transaction: entity.transaction,
+      });
 
     await this.triggerWebhook(entity);
 

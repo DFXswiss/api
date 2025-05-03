@@ -4,8 +4,11 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Equal } from 'typeorm';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderDto, CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
@@ -123,6 +126,13 @@ export class CustodyOrderService {
     Object.assign(entity, dto);
 
     return this.custodyOrderRepo.save(entity);
+  }
+
+  async getCustodyOrderByTx(entity: BuyCrypto | BuyFiat): Promise<CustodyOrder> {
+    return this.custodyOrderRepo.findOneBy([
+      { transaction: { id: Equal(entity.transaction.id) } },
+      { transactionRequest: { id: Equal(entity.transaction.request?.id) } },
+    ]);
   }
 
   async confirmOrder(userId: number, orderId: number): Promise<void> {

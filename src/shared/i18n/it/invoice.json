@@ -8,8 +8,8 @@
       "total": "Totale"
     },
     "position_row": {
-      "buy_description": "{assetDescription} ({assetName}) ricevuto su {assetBlockchain}",
-      "sell_description": "{fiatCurrency} ricevuto per {assetAmount} {assetDescription} ({assetName}) su {assetBlockchain}",
+      "buy_description": "{assetDescription} ({assetName}) consegnato su {assetBlockchain}",
+      "sell_description": "{fiatCurrency} consegnato per {assetAmount} {assetDescription} ({assetName}) su {assetBlockchain}",
       "swap_description": "{sourceDescription} ({sourceName}) su {sourceBlockchain} scambiato con {targetAmount} {targetDescription} ({targetName}) su {targetBlockchain}",
       "referral_description": "Bonus referral {assetName} su {assetBlockchain}"
     },
@@ -27,5 +27,6 @@
       "credit_total_label": "Totale Credito"
     }
   },
-  "info": "* Info: Il tasso di cambio effettivo e quindi la quantità effettivamente consegnata vengono determinati quando il denaro viene ricevuto e elaborato da DFX."
+  "info": "* Info: Il tasso di cambio effettivo e quindi la quantità effettivamente consegnata vengono determinati quando il denaro viene ricevuto e elaborato da DFX.",
+  "terms": "Si applicano i nostri Termini e Condizioni Generali: https://docs.dfx.swiss/it/tnc.html."
 }

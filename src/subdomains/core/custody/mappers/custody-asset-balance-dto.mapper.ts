@@ -22,7 +22,7 @@ export class CustodyAssetBalanceDtoMapper {
   }
 
   private static map(asset: Asset, currency: Fiat, balance: number) {
-    const price = Price.create(asset.name, currency.name, asset.getFiatPrice(currency));
+    const price = Price.create(currency.name, asset.name, asset.getFiatPrice(currency)).invert();
 
     const dto: CustodyAssetBalanceDto = {
       asset: { name: asset.name, description: asset.description },
