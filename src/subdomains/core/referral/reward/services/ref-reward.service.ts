@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
@@ -25,7 +26,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.MONERO]: 1,
   [Blockchain.CARDANO]: undefined,
-  [Blockchain.ETHEREUM]: undefined,
+  [Blockchain.ETHEREUM]: 10,
   [Blockchain.BINANCE_SMART_CHAIN]: undefined,
   [Blockchain.OPTIMISM]: undefined,
   [Blockchain.POLYGON]: undefined,
@@ -71,7 +72,14 @@ export class RefRewardService {
       });
       if (pendingBlockchainRewards) continue;
 
-      const payoutAsset = await this.assetService.getNativeAsset(blockchain);
+      const payoutAsset =
+        blockchain === Blockchain.ETHEREUM
+          ? await this.assetService.getAssetByQuery({
+              blockchain,
+              name: 'dEURO',
+              type: AssetType.TOKEN,
+            })
+          : await this.assetService.getNativeAsset(blockchain);
 
       for (const user of users) {
         const refCreditEur = user.refCredit - user.paidRefCredit;

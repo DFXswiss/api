@@ -22,10 +22,6 @@
         "title": "Zone d'activité des travailleurs indépendants",
         "description": "Dans quel domaine exercez-vous une activité indépendante ? Veuillez décrire votre activité et vos clients en 2 ou 3 phrases."
       },
-      "operativ": {
-        "title": "Organisation",
-        "description": "L'entreprise est-elle opérationnelle ?"
-      },
       "occupation": { "title": "Activité professionnelle", "description": "Comment décririez-vous votre travail ?" },
       "employed_description": {
         "title": "Employeur",

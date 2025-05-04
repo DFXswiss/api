@@ -1,13 +1,17 @@
 {
   "title": "Rechnung Nr. {invoiceId}",
+  "credit_title": "Gutschrift Nr. {invoiceId}",
   "table": {
     "headers": {
-      "quantity": "Menge *",
+      "quantity": "Menge",
       "description": "Beschreibung",
       "total": "Gesamt"
     },
     "position_row": {
-      "description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}"
+      "buy_description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}",
+      "sell_description": "{fiatCurrency} geliefert für {assetAmount} {assetDescription} ({assetName}) auf {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) auf {sourceBlockchain} getauscht für {targetAmount} {targetDescription} ({targetName}) auf {targetBlockchain}",
+      "referral_description": "{assetName} Referral auf {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Gesamt"
@@ -18,7 +22,11 @@
     },
     "invoice_total_row": {
       "invoice_total_label": "Rechnung Gesamt"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Gutschrift Gesamt"
     }
   },
-  "info": "* Info: Der effektive Wechselkurs und damit die effektiv gelieferte Menge wird bestimmt, wenn das Geld bei DFX eingeht und verarbeitet wird."
+  "info": "* Info: Der effektive Wechselkurs und damit die effektiv gelieferte Menge wird bestimmt, wenn das Geld bei DFX eingeht und verarbeitet wird.",
+  "terms": "Es gelten unsere Allgemeinen Geschäftsbedingungen: https://docs.dfx.swiss/de/tnc.html."
 }

@@ -44,10 +44,6 @@ export class TransactionIssueDto {
 
 export class CreateSupportIssueBaseDto extends CreateSupportMessageDto {
   @IsOptional()
-  @IsString()
-  author: string;
-
-  @IsOptional()
   @IsEnum(Department)
   department?: Department;
 

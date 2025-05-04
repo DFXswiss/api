@@ -282,6 +282,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       const priceChfToUsd = await this.getPrice(this.chf, this.usd);
 
       return 1 / priceChfToUsd.convert(fpsPriceInChf);
+    } else if (collateral.symbol === 'DEPS') {
+      return this.getCoinGeckoPrice(this.deuroClient.getEquityContract().address);
     }
   }
 

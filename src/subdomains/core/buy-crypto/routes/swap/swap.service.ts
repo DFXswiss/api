@@ -90,7 +90,7 @@ export class SwapService {
     // update user volume
     const { user } = await this.swapRepo.findOne({
       where: { id: swapId },
-      relations: ['user'],
+      relations: { user: true },
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
@@ -152,6 +152,10 @@ export class SwapService {
       (e) => e.message?.includes('duplicate key'),
     );
     return this.toPaymentInfoDto(userId, swap, dto);
+  }
+
+  async getById(id: number): Promise<Swap> {
+    return this.swapRepo.findOne({ where: { id } });
   }
 
   async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {

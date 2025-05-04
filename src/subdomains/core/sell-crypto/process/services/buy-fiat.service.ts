@@ -1,9 +1,11 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -59,6 +61,8 @@ export class BuyFiatService {
     private readonly amlService: AmlService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
+    @Inject(forwardRef(() => CustodyOrderService))
+    private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -94,6 +98,11 @@ export class BuyFiatService {
     }
 
     entity = await this.buyFiatRepo.save(entity);
+
+    if (sell.user.role === UserRole.CUSTODY && request?.custodyOrder)
+      await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
+        transaction: entity.transaction,
+      });
 
     await this.triggerWebhook(entity);
 
@@ -370,7 +379,7 @@ export class BuyFiatService {
     return this.buyFiatRepo
       .find({
         where: { sell: where },
-        relations: ['sell', 'sell.user', 'cryptoInput', 'fiatOutput'],
+        relations: { sell: { user: true }, cryptoInput: true, fiatOutput: true },
       })
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
@@ -416,7 +425,7 @@ export class BuyFiatService {
 
   private async getSell(sellId: number): Promise<Sell> {
     // sell
-    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user', 'user.wallet'] });
+    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: { user: { wallet: true } } });
     if (!sell) throw new BadRequestException('Sell route not found');
 
     return sell;
@@ -475,7 +484,7 @@ export class BuyFiatService {
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
-      relations: ['cryptoInput', 'cryptoInput.asset'],
+      relations: { cryptoInput: true },
       loadEagerRelations: false,
     });
 

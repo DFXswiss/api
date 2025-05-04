@@ -338,6 +338,7 @@ export class TransactionHelper implements OnModuleInit {
 
   async getVolumeChfSince(
     tx: BuyCrypto | BuyFiat,
+    users: User[],
     dateFrom: Date,
     dateTo: Date,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
@@ -345,7 +346,7 @@ export class TransactionHelper implements OnModuleInit {
     from?: Active,
     allowExpiredPrice?: boolean,
   ): Promise<number> {
-    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, tx.userData.users, tx, type);
+    const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, tx, type);
 
     price ??= await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
 
@@ -386,7 +387,7 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency =
       refundEntity instanceof BankTx
         ? await this.fiatService.getFiatByName(refundEntity.currency)
-        : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputReferenceAsset));
+        : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputAsset));
 
     const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
 
@@ -410,7 +411,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);
-    const bankFeeAmount = refundEntity.chargebackBankFee;
+    const bankFeeAmount = price.convert(refundEntity.chargebackBankFee);
 
     const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');

@@ -50,7 +50,11 @@ export class BuyCryptoNotificationService {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       context: MailContext.BUY_CRYPTO,
-      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages, isLiqMail: true },
+      input: {
+        subject: `Buy Crypto Error - missing liquidity for ${outputAssetName}/${blockchain}.`,
+        errors: messages,
+        isLiqMail: true,
+      },
       options: { debounce: 3600000 },
       correlationId,
     });

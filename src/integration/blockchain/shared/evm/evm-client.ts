@@ -188,18 +188,24 @@ export abstract class EvmClient extends BlockchainClient {
     wallet: ethers.Wallet,
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
-    let { nonce, gasPrice, value } = request;
+    let { gasPrice, value } = request;
 
-    nonce = nonce ?? (await this.getNonce(request.from));
+    const currentNonce = await this.getNonce(request.from);
+    const txNonce = request.nonce ? +request.nonce.toString() : currentNonce;
+
     gasPrice = gasPrice ?? +(await this.getRecommendedGasPrice());
     value = EvmUtil.toWeiAmount(value as number);
 
-    return wallet.sendTransaction({
+    const result = await wallet.sendTransaction({
       ...request,
-      nonce,
+      nonce: txNonce,
       gasPrice,
       value,
     });
+
+    if (txNonce >= currentNonce) this.nonce.set(request.from, txNonce + 1);
+
+    return result;
   }
 
   async sendNativeCoinFromAccount(
@@ -281,6 +287,9 @@ export abstract class EvmClient extends BlockchainClient {
       gasPrice,
       nonce: currentNonce,
     });
+
+    this.nonce.set(this.dfxAddress, currentNonce + 1);
+
     return result.hash;
   }
 
@@ -358,6 +367,8 @@ export abstract class EvmClient extends BlockchainClient {
       gasPrice,
       nonce,
     });
+
+    this.nonce.set(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -576,6 +587,8 @@ export abstract class EvmClient extends BlockchainClient {
       gasPrice,
       nonce,
     });
+
+    this.nonce.set(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }

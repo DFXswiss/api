@@ -81,24 +81,18 @@ export class HistoryService {
         ? await this.transactionService.getTransactionsForAccount(user.id, query.from, query.to)
         : await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
 
-    const userIds = user instanceof UserData ? user.users.map((u) => u.id) : [user.id];
+    const buyCryptos = all || query.buy ? transactions.filter((t) => t.buyCrypto).map((t) => t.buyCrypto) : [];
+    const buyFiats = all || query.sell ? transactions.filter((t) => t.buyFiat).map((t) => t.buyFiat) : [];
+    const refRewards = all || query.ref ? transactions.filter((t) => t.refReward).map((t) => t.refReward) : [];
 
-    const buyCryptos = (all || query.buy) && transactions.filter((t) => t.buyCrypto).map((t) => t.buyCrypto);
-    const buyFiats = (all || query.sell) && transactions.filter((t) => t.buyFiat).map((t) => t.buyFiat);
-    const refRewards = (all || query.ref) && transactions.filter((t) => t.refReward).map((t) => t.refReward);
-    const stakingRewards =
-      query.staking && (await this.stakingService.getUserStakingRewards(userIds, query.from, query.to));
-    const stakingInvests = query.staking && (await this.stakingService.getUserInvests(userIds, query.from, query.to));
-    const refStakingReward =
-      query.staking && (await this.stakingService.getUserStakingRefRewards(userIds, query.from, query.to));
+    const staking = query.staking ? await this.getStakingTransactions(user, query, exportType) : [];
 
     const txArray: HistoryDto<T>[] = [
-      ...(await this.getBuyCryptoTransactions(buyCryptos, exportType)),
-      ...(await this.getBuyFiatTransactions(buyFiats, exportType)),
-      ...this.getStakingInvests(stakingInvests?.deposits, stakingInvests?.withdrawals, exportType),
-      ...this.getStakingRewards(stakingRewards, refStakingReward, exportType),
-      ...(await this.getRefRewards(refRewards, exportType)),
-    ].reduce((prev, curr) => prev.concat(curr), []);
+      await this.getBuyCryptoTransactions(buyCryptos, exportType),
+      await this.getBuyFiatTransactions(buyFiats, exportType),
+      await this.getRefRewards(refRewards, exportType),
+      staking,
+    ].flat();
 
     return query.format === ExportFormat.CSV ? this.getCsv(txArray, exportType) : txArray;
   }
@@ -162,6 +156,45 @@ export class HistoryService {
     }
   }
 
+  private async getRefRewards<T>(refRewards: RefReward[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
+    switch (exportFormat) {
+      case ExportType.COIN_TRACKING:
+        return Util.sort(
+          this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards)),
+          'date',
+          'DESC',
+        ) as HistoryDto<T>[];
+
+      case ExportType.CHAIN_REPORT:
+        return Util.sort(
+          this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapRefRewards(refRewards)),
+          'timestamp',
+          'DESC',
+        ) as HistoryDto<T>[];
+
+      case ExportType.COMPACT:
+        const extended = await Util.asyncMap(refRewards, (r) => this.refRewardService.extendReward(r));
+        return Util.sort(TransactionDtoMapper.mapReferralRewards(extended), 'date', 'DESC') as HistoryDto<T>[];
+    }
+  }
+
+  private async getStakingTransactions<T>(
+    user: User | UserData,
+    query: HistoryQuery,
+    exportType: T,
+  ): Promise<HistoryDto<T>[]> {
+    const userIds = user instanceof UserData ? user.users.map((u) => u.id) : [user.id];
+
+    const stakingInvests = await this.stakingService.getUserInvests(userIds, query.from, query.to);
+    const stakingRewards = await this.stakingService.getUserStakingRewards(userIds, query.from, query.to);
+    const refStakingReward = await this.stakingService.getUserStakingRefRewards(userIds, query.from, query.to);
+
+    return [
+      this.getStakingInvests(stakingInvests?.deposits, stakingInvests?.withdrawals, exportType),
+      this.getStakingRewards(stakingRewards, refStakingReward, exportType),
+    ].flat();
+  }
+
   private getStakingInvests<T>(
     deposits: CryptoStaking[] = [],
     withdrawals: CryptoStaking[] = [],
@@ -221,28 +254,6 @@ export class HistoryService {
 
       case ExportType.COMPACT:
         return [];
-    }
-  }
-
-  private async getRefRewards<T>(refRewards: RefReward[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
-    switch (exportFormat) {
-      case ExportType.COIN_TRACKING:
-        return Util.sort(
-          this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards)),
-          'date',
-          'DESC',
-        ) as HistoryDto<T>[];
-
-      case ExportType.CHAIN_REPORT:
-        return Util.sort(
-          this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapRefRewards(refRewards)),
-          'timestamp',
-          'DESC',
-        ) as HistoryDto<T>[];
-
-      case ExportType.COMPACT:
-        const extended = await Util.asyncMap(refRewards, (r) => this.refRewardService.extendReward(r));
-        return Util.sort(TransactionDtoMapper.mapReferralRewards(extended), 'date', 'DESC') as HistoryDto<T>[];
     }
   }
 

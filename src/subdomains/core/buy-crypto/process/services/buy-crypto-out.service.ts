@@ -5,6 +5,8 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { CustodyOrderInputTypes, CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
+import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
@@ -34,6 +36,7 @@ export class BuyCryptoOutService {
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
+    private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -163,6 +166,15 @@ export class BuyCryptoOutService {
 
           tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
+
+          const custodyOrder = await this.custodyOrderService.getCustodyOrderByTx(tx);
+
+          if (custodyOrder) {
+            await this.custodyOrderService.updateCustodyOrderInternal(custodyOrder, {
+              status: CustodyOrderStatus.COMPLETED,
+              inputAmount: CustodyOrderInputTypes.includes(custodyOrder.type) ? tx.outputAmount : undefined,
+            });
+          }
 
           // create sift transaction
           if (!tx.isCryptoCryptoTransaction) {

@@ -26,10 +26,6 @@
         "title": "Bereich Selbstständigkeit",
         "description": "In welchem Bereich bist du Selbständig? Bitte beschreibe Deine Tätigkeit und Kunden in 2-3 Sätzen."
       },
-      "operative": {
-        "title": "Organisation",
-        "description": "Ist die Firma operativ tätig?"
-      },
       "employed_description": {
         "title": "Arbeitgeber",
         "description": "Wie lautet der Name Deines Arbeitgebers?"

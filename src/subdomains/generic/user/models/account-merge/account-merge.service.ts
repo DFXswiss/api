@@ -24,6 +24,14 @@ export class AccountMergeService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
+  static masterFirst(users: UserData[]): UserData[] {
+    return users.sort((a, b) => {
+      if (a.kycLevel >= 20 || b.kycLevel >= 20 || (!a.surname && !b.surname)) return b.kycLevel - a.kycLevel;
+      if (a.surname && !b.surname) return -1;
+      if (!a.surname && b.surname) return 1;
+    });
+  }
+
   async sendMergeRequest(
     master: UserData,
     slave: UserData,
@@ -87,17 +95,13 @@ export class AccountMergeService {
     if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
-    const [master, slave] = this.masterFirst([request.master, request.slave]);
+    const [master, slave] = AccountMergeService.masterFirst([request.master, request.slave]);
 
     await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
     await this.accountMergeRepo.update(...request.complete(master, slave));
 
     return request;
-  }
-
-  masterFirst(users: UserData[]): UserData[] {
-    return users.sort((a, b) => b.kycLevel - a.kycLevel);
   }
 
   private buildConfirmationUrl(code: string): string {

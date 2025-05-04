@@ -133,7 +133,7 @@ export class GsService {
       supportIssues,
       supportMessages,
       limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
-      kycSteps: await this.kycAdminService.getKycSteps(userData.id),
+      kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),

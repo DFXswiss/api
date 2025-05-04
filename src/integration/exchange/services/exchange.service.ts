@@ -1,6 +1,16 @@
 import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
-import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import {
+  Balances,
+  Dictionary,
+  Exchange,
+  ExchangeError,
+  Market,
+  Order,
+  Trade,
+  Transaction,
+  WithdrawalResponse,
+} from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -24,8 +34,8 @@ enum OrderStatus {
 
 enum PrecisionMode {
   DECIMAL_PLACES = 0,
-  SIGNIFICANT_DIGITS = 1,
-  TICK_SIZE = 2,
+  SIGNIFICANT_DIGITS = 2,
+  TICK_SIZE = 4,
 }
 
 export abstract class ExchangeService extends PricingProvider implements OnModuleInit {
@@ -57,11 +67,23 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.exchange.name;
   }
 
-  async getBalances() {
+  async getBalances(): Promise<Balances> {
     return this.callApi((e) => e.fetchBalance());
   }
 
-  async getBalance(currency: string): Promise<number> {
+  async getTotalBalances(): Promise<Dictionary<number>> {
+    const balances = await this.getBalances().then((b) => b.total);
+
+    const totalBalances = {};
+    for (const [asset, amount] of Object.entries(balances)) {
+      const [base, suffix] = asset.split('.');
+      if (!suffix || suffix === 'F') totalBalances[base] = (totalBalances[base] ?? 0) + amount;
+    }
+
+    return totalBalances;
+  }
+
+  async getAvailableBalance(currency: string): Promise<number> {
     return this.getBalances().then((b) => b.total[currency]);
   }
 
@@ -249,7 +271,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   private async trade(from: string, to: string, amount: number): Promise<string> {
     // check balance
-    const balance = await this.getBalance(from);
+    const balance = await this.getAvailableBalance(from);
     if (amount > balance) {
       throw new BadRequestException(
         `${this.name}: not enough balance for ${from} (balance: ${balance}, requested: ${amount})`,

@@ -22,10 +22,6 @@
         "title": "Área autónomos",
         "description": "¿En qué sector trabaja por cuenta propia? Describa su actividad y sus clientes en 2-3 frases."
       },
-      "operative": {
-        "title": "Organización",
-        "description": "¿Está operativa la empresa?"
-      },
       "occupation": { "title": "Actividad profesional", "description": "¿Cómo describiría su trabajo?" },
       "employed_description": {
         "title": "Empresario",

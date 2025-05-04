@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -39,21 +39,50 @@ export class NameCheckService implements OnModuleInit {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.NAME_CHECK_PDF_SYNC, timeout: 1800 })
   async syncNameCheckPdf(): Promise<void> {
     const entities = await this.nameCheckLogRepo.find({
-      where: { file: { id: IsNull() }, synced: IsNull() },
+      where: {
+        file: { id: IsNull() },
+        synced: IsNull(),
+        bankData: { id: Not(IsNull()), type: Not(BankDataType.USER) },
+      },
       relations: { bankData: { userData: true }, file: true },
-      take: 15000,
+      take: 500,
     });
 
     for (const entity of entities) {
       try {
+        const update: Partial<NameCheckLog> = { synced: true };
         if (
           !(await this.nameCheckLogRepo.exists({
-            where: { bankData: { id: entity.bankData.id }, file: { id: Not(IsNull()) } },
+            where: { bankData: { id: entity.bankData.id }, file: { id: Not(IsNull()) }, synced: Not(IsNull()) },
             relations: { bankData: true, file: true },
           }))
-        )
-          await this.refreshRiskStatus(entity.bankData);
-        await this.nameCheckLogRepo.update(entity.id, { synced: true });
+        ) {
+          const userData = entity.bankData.userData;
+
+          if (userData.accountType !== AccountType.ORGANIZATION) {
+            update.file = await this.getRiskDataAndUploadPdf(
+              userData,
+              false,
+              entity.bankData.type === BankDataType.CARD_IN && userData.verifiedName
+                ? userData.verifiedName
+                : entity.bankData.name,
+              userData.birthday,
+              true,
+            ).then((r) => r.file);
+          } else {
+            const isBusiness = entity.comment === 'Business';
+
+            update.file = await this.getRiskDataAndUploadPdf(
+              userData,
+              isBusiness,
+              isBusiness ? userData.organizationName : `${userData.firstname} ${userData.surname}`,
+              isBusiness ? undefined : userData.birthday,
+              true,
+            ).then((r) => r.file);
+          }
+        }
+
+        await this.nameCheckLogRepo.update(entity.id, update);
       } catch (e) {
         this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
         await this.nameCheckLogRepo.update(entity.id, { synced: false });
@@ -82,6 +111,7 @@ export class NameCheckService implements OnModuleInit {
     if (bankData.userData.accountType !== AccountType.ORGANIZATION) {
       const { data, file } = await this.getRiskDataAndUploadPdf(
         bankData.userData,
+        false,
         bankData.type === BankDataType.CARD_IN && bankData.userData.verifiedName
           ? bankData.userData.verifiedName
           : bankData.name,
@@ -94,12 +124,14 @@ export class NameCheckService implements OnModuleInit {
     // Business name check
     const { data: personalSanctionData, file: personalSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
+      false,
       `${bankData.userData.firstname} ${bankData.userData.surname}`,
       bankData.userData.birthday,
     );
 
     const { data: businessSanctionData, file: businessSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
+      true,
       bankData.userData.organizationName,
     );
 
@@ -151,10 +183,13 @@ export class NameCheckService implements OnModuleInit {
 
   async getRiskDataAndUploadPdf(
     userData: UserData,
+    isBusiness: boolean,
     name: string,
     dob?: Date,
+    onlyPdf = false,
   ): Promise<{ data: DilisenseApiData; file: KycFile }> {
-    const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, dob);
+    if (!name) throw new InternalServerErrorException(`NameCheck name is missing, userData ${userData.id}`);
+    const { data: riskData, pdfData } = await this.dilisenseService.getRiskData(name, isBusiness, dob, onlyPdf);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(`application/pdf;base64,${pdfData}`);
@@ -219,6 +254,7 @@ export class NameCheckService implements OnModuleInit {
       riskEvaluation: existing?.riskEvaluation,
       comment: existing?.comment ? [existing.comment, comment].join(';') : comment,
       file,
+      synced: true,
     });
 
     await this.nameCheckLogRepo.save(entity);
