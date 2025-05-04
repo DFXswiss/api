@@ -62,6 +62,7 @@ export class CustodyService {
         role: UserRole.CUSTODY,
       },
       dto.specialCode,
+      dto.moderator,
     );
 
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };
