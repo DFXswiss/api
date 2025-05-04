@@ -101,6 +101,10 @@ export enum UserDataStatus {
   DEACTIVATED = 'Deactivated',
 }
 
+export enum Moderator {
+  WENDEL = 'Wendel',
+}
+
 @Entity()
 @Index(
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
@@ -115,6 +119,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
+
+  @Column({ length: 256, nullable: true })
+  moderator: Moderator;
 
   @Column({ type: 'datetime2', nullable: true })
   deactivationDate?: Date;

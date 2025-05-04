@@ -3,7 +3,6 @@ import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -25,8 +24,6 @@ import { CustodyOrderRepository } from '../repositories/custody-order.repository
 
 @Injectable()
 export class CustodyService {
-  private readonly logger = new DfxLogger(CustodyService);
-
   constructor(
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
@@ -72,6 +69,7 @@ export class CustodyService {
         role: UserRole.CUSTODY,
       },
       dto.specialCode,
+      dto.moderator,
     );
 
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };

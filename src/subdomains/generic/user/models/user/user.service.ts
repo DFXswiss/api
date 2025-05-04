@@ -28,7 +28,7 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, Moderator, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
@@ -162,7 +162,7 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
-  async createUser(data: Partial<User>, specialCode: string): Promise<User> {
+  async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {
     let user = this.userRepo.create({
       address: data.address,
       signature: data.signature,
@@ -196,6 +196,8 @@ export class UserService {
     if (user.userData.status === UserDataStatus.KYC_ONLY)
       await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
 
+    if (moderator) await this.setModerator(user, moderator);
+
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
 
@@ -209,6 +211,11 @@ export class UserService {
     }
 
     return user;
+  }
+
+  async setModerator(user: User, moderator: Moderator): Promise<void> {
+    await this.userRepo.update(user.id, { usedRef: Config.moderators[moderator] });
+    await this.userDataService.updateUserDataInternal(user.userData, { moderator });
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
