@@ -140,6 +140,10 @@ export class PaymentLink extends IEntity {
     );
   }
 
+  get linkConfigObj(): PaymentLinkConfig {
+    return Object.assign({}, DefaultPaymentLinkConfig, JSON.parse(this.config ?? '{}'));
+  }
+
   get defaultStandard(): PaymentStandard {
     return this.configObj.standards[0];
   }

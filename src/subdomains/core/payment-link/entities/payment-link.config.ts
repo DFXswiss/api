@@ -15,7 +15,10 @@ export interface PaymentLinkConfig {
   fee: number;
   recipient?: PaymentLinkRecipientDto;
   paymentTimeout: number;
+  autoConfirmSecs?: number;
+  payoutRouteId?: number;
+  // user data only
   payoutFrequency?: PayoutFrequency;
   ep2ReportContainer?: string;
-  autoConfirmSecs?: number;
+  requiresExplicitPayoutRoute?: boolean;
 }

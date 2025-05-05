@@ -13,6 +13,8 @@ import { LiquidityManagementOrderRepository } from '../../repositories/liquidity
 export class ExchangeAdapter implements LiquidityBalanceIntegration {
   private readonly logger = new DfxLogger(ExchangeAdapter);
 
+  private readonly ASSET_MAPPINGS = { BTC: ['XBT'] };
+
   constructor(
     private readonly exchangeRegistry: ExchangeRegistryService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
@@ -50,7 +52,8 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
 
       return assets.map((a) => {
         const name = isAsset(a) ? a.dexName : a.name;
-        const balance = balances[name] ?? 0;
+        const names = [name, ...(this.ASSET_MAPPINGS[name] ?? [])];
+        const balance = Util.sum(names.map((n) => balances[n] ?? 0));
 
         return LiquidityBalance.create(a, balance);
       });
