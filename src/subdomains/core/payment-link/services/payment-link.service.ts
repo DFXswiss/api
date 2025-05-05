@@ -324,7 +324,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
-      config: JSON.stringify({ ...JSON.parse(paymentLink.config), ...config }),
+      config: JSON.stringify(Util.removeNullFields({ ...JSON.parse(paymentLink.config), ...config })),
     };
 
     if (country === null) {
