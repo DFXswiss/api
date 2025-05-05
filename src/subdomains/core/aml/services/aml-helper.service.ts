@@ -46,9 +46,10 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable) {
+    if (!entity.userData.verifiedName && !bankData.name && !entity.userData.completeName)
+      errors.push(AmlError.NAME_MISSING);
+    if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable)
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
-    }
     if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);

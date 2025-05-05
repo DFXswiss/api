@@ -74,18 +74,14 @@ export class CustodyAdminController {
 
   @Put('user/:id/balance')
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
-  async updateUserBalance(
-    @Param('id') id: string,
-    @Query('assetId') assetId: string,
-    @Query('amount') amount: string,
-  ): Promise<void> {
+  async updateUserBalance(@Param('id') id: string, @Query('assetId') assetId: string): Promise<void> {
     const user = await this.userService.getUser(+id);
     if (!user) throw new NotFoundException('User not found');
 
     const asset = await this.assetService.getAssetById(+assetId);
     if (!asset) throw new NotFoundException('Asset not found');
 
-    return this.service.updateCustodyBalance(+(amount ?? 0), asset, user);
+    return this.service.updateCustodyBalance(asset, user);
   }
 
   @Post('order/:id/approve')
