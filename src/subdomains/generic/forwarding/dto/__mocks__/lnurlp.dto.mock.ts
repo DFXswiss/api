@@ -5,7 +5,6 @@ const defaultLnurlpRequest: Partial<LnurlPayRequestDto> = {
   minSendable: 98765,
   maxSendable: 1234567890,
   metadata: '[["text/plain", "DFX Deposit Test Address"]]',
-  externalId: 'test-external-id',
 };
 
 export function createDefaultLnurlpRequest(): LnurlPayRequestDto {
