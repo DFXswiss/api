@@ -119,7 +119,7 @@ export const AmlErrorResult: {
   [AmlError.NAME_MISSING]: {
     type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.NAME_MISSING,
+    amlReason: AmlReason.KYC_DATA_NEEDED,
   },
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,

@@ -88,7 +88,7 @@
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
                 "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
                 "test_only": "Test",
-                "name_missing": "Un nom est requis pour la transaction"
+                "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -174,13 +174,13 @@
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             },
-            "name_missing": {
-                "title": "Nom requis",
-                "salutation": "Les détails de votre nom sont nécessaires pour compléter votre transaction en cours",
-                "line1": "Malheureusement, nous avons encore besoin de votre nom pour votre transaction.",
-                "line2": "Cliquez sur le lien suivant et complétez au moins les premières étapes jusqu'à ce que vous ayez saisi votre nom:<br>[url:{urlText}]",
+            "kyc_data_needed": {
+                "title": "Données KYC requises",
+                "salutation": "Des informations personnelles sont nécessaires pour finaliser la transaction en cours",
+                "line1": "Malheureusement, nous avons besoin de vos données KYC pour votre transaction.",
+                "line2": "Cliquez sur le lien suivant et complétez au moins les premières étapes jusqu'à ce que vous ayez saisi votre nom et votre adresse:<br>[url:{urlText}]",
                 "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line4": "Il n'est pas nécessaire de s'identifier complètement, il suffit d'entrer son nom.",
+                "line4": "Il n'est pas nécessaire de procéder à une vérification complète, il suffit d'indiquer son nom et son adresse.",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             }
         },

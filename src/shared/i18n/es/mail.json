@@ -88,7 +88,7 @@
                 "video_ident_needed": "Usted debe completar su KYC con la identificación de vídeo para la transacción",
                 "missing_liquidity": "DFX no pudo negociar la cantidad requerida de tokens en el plazo especificado",
                 "test_only": "Prueba",
-                "name_missing": "Se requiere un nombre para la transacción"
+                "kyc_data_needed": "Sus datos KYC son necesarios para la transacción"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -174,13 +174,13 @@
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             },
-            "name_missing": {
-                "title": "Nombre requerido",
-                "salutation": "Los datos de su nombre son necesarios para completar su transacción pendiente",
-                "line1": "Lamentablemente, seguimos necesitando su nombre para su transacción.",
-                "line2": "Haga clic en el siguiente enlace y complete al menos los primeros pasos hasta introducir su nombre:<br>[url:{urlText}]",
+            "kyc_data_needed": {
+                "title": "Datos KYC requeridos",
+                "salutation": "Los datos personales son necesarios para completar su transacción pendiente",
+                "line1": "Lamentablemente, necesitamos sus datos KYC para su transacción.",
+                "line2": "Haga clic en el siguiente enlace y complete al menos los primeros pasos hasta introducir su nombre y dirección:<br>[url:{urlText}]",
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line4": "No es necesario que te identifiques completamente, basta con que introduzcas tu nombre.",
+                "line4": "No es necesario que se identifique completamente, basta con que introduzca su nombre y dirección.",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             }
         },
