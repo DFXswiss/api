@@ -236,6 +236,13 @@ export class PaymentLinkPaymentService {
   }
 
   // --- HANDLE INPUTS --- //
+  async getPaymentQuoteByFailedCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
+    return this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
+      PaymentQuoteStatus.TX_BLOCKCHAIN,
+      PaymentQuoteStatus.TX_COMPLETED,
+    ]);
+  }
+
   async getPaymentQuoteByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | undefined> {
     const quote = await this.getQuoteForInput(cryptoInput);
     if (!quote) throw new Error(`No matching quote found`);
@@ -274,7 +281,7 @@ export class PaymentLinkPaymentService {
   }
 
   private async getQuoteByTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
-    return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId);
+    return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId, [PaymentQuoteStatus.TX_MEMPOOL]);
   }
 
   private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {
