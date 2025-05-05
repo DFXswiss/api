@@ -82,7 +82,13 @@ export class AmlService {
     let bankData = await this.getBankData(entity);
 
     if (bankData) {
-      if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+      if (!entity.userData.hasValidNameCheckDate) {
+        try {
+          await this.checkNameCheck(entity, bankData);
+        } catch (e) {
+          this.logger.error(`Error during aml nameCheck for ${entity.id}`, e);
+        }
+      }
 
       // merge & bank transaction verification
       if (bankData.approved) {

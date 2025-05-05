@@ -87,7 +87,8 @@
                 "user_deactivated": "L'indirizzo blockchain collegato è stato irrevocabilmente cancellato dall'utente. È ancora possibile utilizzare DFX con altri indirizzi blockchain",
                 "video_ident_needed": "È necessario completare il KYC con un'identità video per la transazione",
                 "missing_liquidity": "DFX non è stata in grado di scambiare la quantità di token richiesta entro il tempo specificato",
-                "test_only": "Test"
+                "test_only": "Test",
+                "name_missing": "È necessario un nome per la transazione"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
@@ -172,6 +173,15 @@
                 "line3": "Pertanto, cliccare sul seguente link per verificare se stessi:<br>[url:{urlText}]",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
+            },
+            "name_missing": {
+                "title": "Nome richiesto",
+                "salutation": "I dati del vostro nome sono necessari per completare la transazione in corso",
+                "line1": "Purtroppo abbiamo ancora bisogno del vostro nome per la transazione.",
+                "line2": "Cliccate sul seguente link e completate almeno i primi passaggi fino all'inserimento del vostro nome:<br>[url:{urlText}]",
+                "line3": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line4": "Non è necessario verificare completamente se stessi, è sufficiente inserire il proprio nome.",
+                "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",

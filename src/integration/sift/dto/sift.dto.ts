@@ -1027,6 +1027,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.VIDEO_IDENT_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.MISSING_LIQUIDITY]: DeclineCategory.OTHER,
   [AmlReason.TEST_ONLY]: DeclineCategory.OTHER,
+  [AmlReason.NAME_MISSING]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

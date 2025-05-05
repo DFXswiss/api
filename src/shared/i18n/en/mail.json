@@ -87,7 +87,8 @@
                 "user_deactivated": "Your linked blockchain address has been irrevocably deleted by you. You can still use DFX with other blockchain addresses",
                 "video_ident_needed": "You must complete your KYC with Video-Ident for the transaction",
                 "missing_liquidity": "DFX was unable to trade the required amount of tokens within the specified time",
-                "test_only": "Test"
+                "test_only": "Test",
+                "name_missing": "A name is required for the transaction"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -172,6 +173,15 @@
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
+            },
+            "name_missing": {
+                "title": "Name required",
+                "salutation": "Details of your name are required to complete your pending transaction",
+                "line1": "Unfortunately, we still need your name for your transaction.",
+                "line2": "Click on the following link and complete at least the first few steps until you have entered your name:<br>[url:{urlText}]",
+                "line3": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line4": "You do not have to verify yourself completely, it is sufficient to enter your name.",
+                "line5": "If you would like to request a refund instead:<br>[url:click here]"
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",

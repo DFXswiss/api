@@ -87,7 +87,8 @@
                 "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
                 "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen",
                 "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln",
-                "test_only": "Test"
+                "test_only": "Test",
+                "name_missing": "Für die Transaction wird ein Name benötigt"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -172,6 +173,15 @@
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
+            },
+            "name_missing": {
+                "title": "Name erforderlich",
+                "salutation": "Angaben zu deinem Namen sind erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Leider brauchen wir für deine Transaktion noch deinen Namen.",
+                "line2": "Klicke daher den nachfolgenden Link und führe mindestens die ersten Schritte aus, bis du deinen Namen eingegeben hast:<br>[url:{urlText}]",
+                "line3": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line4": "Du musst dich nicht zwingend komplett verifizieren, es reicht aus, dass du deinen Namen einträgst.",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
