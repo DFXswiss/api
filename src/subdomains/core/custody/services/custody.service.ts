@@ -88,32 +88,34 @@ export class CustodyService {
     return this.custodyBalanceRepo.save(entity);
   }
 
-  async updateCustodyBalance(amount: number, asset: Asset, user: User) {
+  async updateCustodyBalance(asset: Asset, user: User) {
+    const { deposit } = await this.custodyOrderRepo
+      .createQueryBuilder('custodyOrder')
+      .select('SUM(custodyOrder.inputAmount)', 'deposit')
+      .where('custodyOrder.userId = :id', { id: user.id })
+      .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
+      .andWhere('custodyOrder.inputAssetId = :asset', { asset: asset.id })
+      .getRawOne<{ deposit: number }>();
+
+    const { withdrawal } = await this.custodyOrderRepo
+      .createQueryBuilder('custodyOrder')
+      .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
+      .where('custodyOrder.userId = :id', { id: user.id })
+      .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
+      .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
+      .getRawOne<{ withdrawal: number }>();
+
+    const balance = deposit - withdrawal;
+
     const custodyBalance = await this.custodyBalanceRepo.findOneBy({
       asset: { id: asset.id },
       user: { id: user.id },
     });
 
     if (!custodyBalance) {
-      await this.createCustodyBalance(amount, user, asset);
+      await this.createCustodyBalance(balance, user, asset);
     } else {
-      const { deposit } = await this.custodyOrderRepo
-        .createQueryBuilder('custodyOrder')
-        .select('SUM(custodyOrder.inputAmount)', 'deposit')
-        .where('custodyOrder.userId = :id', { id: user.id })
-        .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
-        .andWhere('custodyOrder.inputAssetId = :asset', { asset: asset.id })
-        .getRawOne<{ deposit: number }>();
-
-      const { withdrawal } = await this.custodyOrderRepo
-        .createQueryBuilder('custodyOrder')
-        .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
-        .where('custodyOrder.userId = :id', { id: user.id })
-        .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
-        .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
-        .getRawOne<{ withdrawal: number }>();
-
-      await this.custodyBalanceRepo.update(custodyBalance.id, { balance: deposit - withdrawal });
+      await this.custodyBalanceRepo.update(custodyBalance.id, { balance });
     }
   }
 }
