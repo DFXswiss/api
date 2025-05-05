@@ -62,8 +62,10 @@ export class AssetPricesService {
     }
   }
 
-  async getAssetPrices(asset: Asset): Promise<AssetPrice[]> {
-    return this.assetPriceRepo.find({ where: { asset } });
+  async getAssetPrices(asset: Asset, fromDate: Date): Promise<AssetPrice[]> {
+    const startOfDay = new Date(fromDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    return this.assetPriceRepo.find({ where: { asset, created: MoreThanOrEqual(startOfDay) } });
   }
 
   async saveAssetPrices(asset: Asset, priceUsd: number, priceChf: number, priceEur: number): Promise<void> {
