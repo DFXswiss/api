@@ -191,7 +191,7 @@ export class PayInService {
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
   async updateFailedPayments() {
-    const checkDate = Util.minutesBefore(10);
+    const checkDate = Util.minutesBefore(15);
 
     const recentlyFailedPayments = await this.payInRepository.find({
       where: {
@@ -208,7 +208,7 @@ export class PayInService {
         if (quote) {
           failedPayment.paymentQuote = quote;
           failedPayment.paymentLinkPayment = failedPayment.paymentQuote.payment;
-          failedPayment.status = PayInStatus.COMPLETED;
+          failedPayment.status = PayInStatus.CREATED;
           await this.payInRepository.save(failedPayment);
         }
       } catch {

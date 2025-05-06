@@ -366,7 +366,7 @@ export class PaymentQuoteService {
       if (transferInfo.tx) {
         const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
 
-        const isComplete = await Util.retry(() => client.isTxComplete(transferInfo.tx, 1), tryCount, 1);
+        const isComplete = await Util.retry(() => client.isTxComplete(transferInfo.tx, 1), tryCount, 1000);
 
         if (!isComplete)
           throw new BadRequestException(
