@@ -339,7 +339,7 @@ export class PaymentQuoteService {
       }
     }
 
-    quote.txReceived(transferInfo.method, transferInfo.hex ?? transferInfo.tx);
+    quote.txReceived(transferInfo.method as Blockchain, transferInfo.hex ?? transferInfo.tx);
 
     try {
       switch (transferInfo.method) {
@@ -348,16 +348,19 @@ export class PaymentQuoteService {
         case Blockchain.OPTIMISM:
         case Blockchain.BASE:
         case Blockchain.POLYGON:
-          await this.doEvmHexPayment(transferInfo, quote);
+          await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;
+
         case Blockchain.MONERO:
           await this.doMoneroHexPayment(transferInfo, quote);
           break;
+
         case Blockchain.BITCOIN:
           await this.doBitcoinHexPayment(transferInfo, quote);
           break;
+
         default:
-          throw new BadRequestException(`Unknown method ${transferInfo.method} for hex payment`);
+          throw new BadRequestException(`Invalid method ${transferInfo.method} for hex payment`);
       }
     } catch (e) {
       this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
@@ -368,9 +371,9 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.save(quote);
   }
 
-  private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+  private async doEvmHexPayment(method: Blockchain, transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const client = this.blockchainRegistryService.getClient(transferInfo.method);
+      const client = this.blockchainRegistryService.getClient(method);
 
       if (transferInfo.tx) {
         const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
