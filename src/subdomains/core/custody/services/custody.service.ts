@@ -94,16 +94,15 @@ export class CustodyService {
     const account = await this.userDataService.getUserData(accountId, { users: true });
     if (!account) throw new NotFoundException('User not found');
 
-    const userIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
+    const userIds = account.users?.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
+    if (!userIds?.length) throw new NotFoundException('No custody user found');
 
     // get completed orders (by date and asset)
     const custodyOrders = await this.custodyOrderRepo.find({
       where: { user: { id: In(userIds) }, status: CustodyOrderStatus.COMPLETED },
     });
 
-    if (custodyOrders.length === 0) {
-      return { totalValue: [] };
-    }
+    if (!custodyOrders.length) return { totalValue: [] };
 
     const orderMap = custodyOrders.reduce((map, order) => {
       const key = Util.isoDate(order.created);
@@ -113,7 +112,7 @@ export class CustodyService {
         { asset: order.inputAsset, amount: order.inputAmount },
         { asset: order.outputAsset, amount: -order.outputAmount },
       ]
-        .filter((o) => o.asset != null)
+        .filter((o) => !o.asset)
         .forEach((o) => dayMap.set(o.asset.id, (dayMap.get(o.asset.id) ?? []).concat([o])));
 
       return map.set(key, dayMap);
@@ -123,7 +122,7 @@ export class CustodyService {
     const allAssets = custodyOrders
       .map((o) => [o.inputAsset, o.outputAsset])
       .flat()
-      .filter((a) => a != null);
+      .filter((a) => !a);
     const assets = Array.from(new Map(allAssets.map((a) => [a.id, a])).values());
 
     // get all prices (by date)
@@ -183,7 +182,7 @@ export class CustodyService {
     if (order.outputAsset) await this.updateCustodyBalance(order.outputAsset, order.user);
   }
 
-   async updateCustodyBalance(asset: Asset, user: User): Promise<void> {
+  async updateCustodyBalance(asset: Asset, user: User): Promise<void> {
     const { deposit } = await this.custodyOrderRepo
       .createQueryBuilder('custodyOrder')
       .select('SUM(custodyOrder.inputAmount)', 'deposit')
