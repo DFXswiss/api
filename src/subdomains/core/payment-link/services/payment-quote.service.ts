@@ -118,9 +118,13 @@ export class PaymentQuoteService {
     });
   }
 
-  async getQuoteByTxId(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+  async getQuoteByTxId(
+    txBlockchain: Blockchain,
+    txId: string,
+    status: PaymentQuoteStatus[],
+  ): Promise<PaymentQuote | null> {
     return this.paymentQuoteRepo.findOne({
-      where: { txBlockchain: Equal(txBlockchain), txId: Equal(txId), status: PaymentQuoteStatus.TX_MEMPOOL },
+      where: { txBlockchain: Equal(txBlockchain), txId: Equal(txId), status: In(status) },
       relations: { payment: true },
     });
   }
@@ -321,7 +325,7 @@ export class PaymentQuoteService {
       );
 
       if (verifiedSignMessage) {
-        quote.txCheckbot(Config.payment.checkbotSignTx);
+        quote.txFromCheckbot(Config.payment.checkbotSignTx);
         return this.paymentQuoteRepo.save(quote);
       }
     }
@@ -357,17 +361,28 @@ export class PaymentQuoteService {
 
   private async doEvmHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
+      const client = this.blockchainRegistryService.getClient(transferInfo.method);
+
       if (transferInfo.tx) {
-        quote.txMempool(transferInfo.tx);
+        const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
+
+        const isComplete = await Util.retry(() => client.isTxComplete(transferInfo.tx, 1), tryCount, 1000);
+
+        if (!isComplete)
+          throw new BadRequestException(
+            `Transaction ${transferInfo.tx} not found in blockchain ${transferInfo.method}`,
+          );
+
+        quote.txInBlockchain(transferInfo.tx);
+
         return;
       }
 
-      const client = this.blockchainRegistryService.getClient(transferInfo.method);
       const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
 
       transactionResponse.error
         ? quote.txFailed(transactionResponse.error.message)
-        : quote.txMempool(transactionResponse.response.hash);
+        : quote.txInMempool(transactionResponse.response.hash);
     } catch (e) {
       quote.txFailed(e.message);
     }
@@ -375,7 +390,7 @@ export class PaymentQuoteService {
 
   private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      transferInfo.tx ? quote.txMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
+      transferInfo.tx ? quote.txInMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
     } catch (e) {
       quote.txFailed(e.message);
     }
@@ -412,7 +427,7 @@ export class PaymentQuoteService {
       }
 
       const txId = await this.payoutBitcoinService.sendRawTransaction(transferInfo.hex);
-      txId ? quote.txMempool(txId) : quote.txFailed('Transaction failed');
+      txId ? quote.txInMempool(txId) : quote.txFailed('Transaction failed');
     } catch (e) {
       quote.txFailed(e.message);
     }

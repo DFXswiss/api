@@ -453,6 +453,7 @@ export class Configuration {
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
 
     defaultForexFee: 0.01,
     addressForexFee: 0.02,
