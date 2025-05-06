@@ -10,23 +10,22 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import {
-  CustodyBalanceDto,
-  CustodyHistoryDto,
-  CustodyHistoryEntryDto,
-  CustodyValues,
-} from '../dto/output/custody-balance.dto';
+import { CustodyBalanceDto, CustodyHistoryDto, CustodyHistoryEntryDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
-import { CustodyOrderStatus, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStatus } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
+
+interface CustodyOrderSingle {
+  asset: Asset;
+  amount: number;
+}
 
 @Injectable()
 export class CustodyService {
@@ -94,77 +93,78 @@ export class CustodyService {
     const account = await this.userDataService.getUserData(accountId, { users: true });
     if (!account) throw new NotFoundException('User not found');
 
-    const userIds = account.users.map((u) => u.id);
+    const userIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
 
+    // get completed orders (by date and asset)
     const custodyOrders = await this.custodyOrderRepo.find({
-      where: { user: { id: In(userIds) } },
-      order: { created: 'ASC' },
-      relations: ['inputAsset', 'outputAsset'],
+      where: { user: { id: In(userIds) }, status: CustodyOrderStatus.COMPLETED },
     });
 
     if (custodyOrders.length === 0) {
       return { totalValue: [] };
     }
 
-    const custodyBalances = await this.custodyBalanceRepo.find({
-      where: { user: { id: In(userIds) } },
-      relations: ['asset'],
-    });
+    const orderMap = custodyOrders.reduce((map, order) => {
+      const key = Util.isoDate(order.created);
+      const dayMap = map.get(key) ?? new Map<number, CustodyOrderSingle[]>();
 
-    const assets = Array.from(new Map(custodyBalances.map((b) => [b.asset.id, b.asset])).values());
-    if (assets.length === 0) {
-      return { totalValue: [] };
-    }
+      [
+        { asset: order.inputAsset, amount: order.inputAmount },
+        { asset: order.outputAsset, amount: -order.outputAmount },
+      ]
+        .filter((o) => o.asset != null)
+        .forEach((o) => dayMap.set(o.asset.id, (dayMap.get(o.asset.id) ?? []).concat([o])));
 
-    const assetPricesMap = new Map<number, Map<number, AssetPrice>>();
+      return map.set(key, dayMap);
+    }, new Map<string, Map<number, CustodyOrderSingle[]>>());
 
-    for (const asset of assets) {
-      const prices = await this.assetPricesService.getAssetPrices(asset, custodyOrders[0].created);
-      const priceMap = new Map(prices.map((p) => [p.created.getTime(), p]));
-      assetPricesMap.set(asset.id, priceMap);
-    }
+    // get all assets (unique)
+    const allAssets = custodyOrders
+      .map((o) => [o.inputAsset, o.outputAsset])
+      .flat()
+      .filter((a) => a != null);
+    const assets = Array.from(new Map(allAssets.map((a) => [a.id, a])).values());
 
-    const priceDates = Array.from(assetPricesMap.get(assets[0].id)?.values() ?? [])
-      .map((p) => p.created)
-      .sort((a, b) => a.getTime() - b.getTime());
+    // get all prices (by date)
+    const startDate = new Date(custodyOrders[0].created);
+    startDate.setHours(0, 0, 0, 0);
+    const prices = await this.assetPricesService.getAssetPrices(assets, startDate);
 
+    const priceMap = Util.groupByAccessor(prices, (p) => Util.isoDate(p.created));
+
+    // process by day
     const balancesMap = new Map<number, number>();
     const totalValue: CustodyHistoryEntryDto[] = [];
 
-    for (const day of priceDates) {
-      const dailyTotal: CustodyValues = { chf: 0, eur: 0, usd: 0 };
+    for (const [day, prices] of priceMap.entries()) {
+      const dailyValue = prices.reduce(
+        (value, price) => {
+          // update asset balance
+          const currentBalance = balancesMap.get(price.asset.id) ?? 0;
 
-      for (const asset of assets) {
-        const assetId = asset.id;
+          const ordersToday = orderMap.get(day)?.get(price.asset.id) ?? [];
+          const dayVolume = Util.sum(ordersToday.map((o) => o.amount));
 
-        const currentBalance = balancesMap.get(assetId) ?? 0;
+          const newBalance = currentBalance + dayVolume;
+          balancesMap.set(price.asset.id, newBalance);
 
-        const ordersToday = custodyOrders.filter(
-          (o) =>
-            Util.sameDay(o.created, day) &&
-            ((o.type === CustodyOrderType.DEPOSIT && o.inputAsset.id === assetId) ||
-              (o.type !== CustodyOrderType.DEPOSIT && o.outputAsset.id === assetId)),
-        );
+          // update value
+          value.chf += newBalance * price.priceChf;
+          value.eur += newBalance * price.priceEur;
+          value.usd += newBalance * price.priceUsd;
 
-        const dayVolume = ordersToday.reduce(
-          (sum, o) => sum + (o.type === CustodyOrderType.DEPOSIT ? o.inputAmount : -o.outputAmount),
-          0,
-        );
-
-        const newBalance = currentBalance + dayVolume;
-        balancesMap.set(assetId, newBalance);
-
-        const price = assetPricesMap.get(assetId)?.get(day.getTime());
-        if (!price) continue;
-
-        dailyTotal.chf += newBalance * price.priceChf;
-        dailyTotal.eur += newBalance * price.priceEur;
-        dailyTotal.usd += newBalance * price.priceUsd;
-      }
+          return value;
+        },
+        { chf: 0, eur: 0, usd: 0 },
+      );
 
       totalValue.push({
-        date: day,
-        value: dailyTotal,
+        date: new Date(day),
+        value: {
+          chf: Util.roundReadable(dailyValue.chf, AmountType.FIAT),
+          eur: Util.roundReadable(dailyValue.eur, AmountType.FIAT),
+          usd: Util.roundReadable(dailyValue.usd, AmountType.FIAT),
+        },
       });
     }
 
