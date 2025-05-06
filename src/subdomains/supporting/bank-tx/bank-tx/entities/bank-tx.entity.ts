@@ -240,6 +240,10 @@ export class BankTx extends IEntity {
     return this.chargeAmount;
   }
 
+  get refundAmount(): number {
+    return this.amount + this.chargebackBankFee;
+  }
+
   get feeAmountChf(): number {
     return this.chargeAmountChf;
   }
