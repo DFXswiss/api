@@ -38,6 +38,8 @@ export interface PaymentLinkRequestDto {
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
+  id: string;
+  externalId?: string;
   tag: string;
   callback: string;
   minSendable: number;
