@@ -24,7 +24,7 @@ export enum LimitRequestDecision {
   REJECTED = 'Rejected',
   EXPIRED = 'Expired',
   CLOSED = 'Closed',
-  APPROVAL_1_OF_2 = 'Approval1of2',
+  APPROVED_1_OF_2 = 'Approved1of2',
 }
 
 @Entity()
