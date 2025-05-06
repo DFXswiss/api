@@ -41,7 +41,7 @@ export class CustodyService {
     private readonly assetPricesService: AssetPricesService,
   ) {}
 
-  //*** PUBLIC API ***//
+  // --- ACCOUNT --- //
   async createCustodyAccount(accountId: number, dto: CreateCustodyAccountDto, userIp: string): Promise<CustodyAuthDto> {
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
@@ -75,11 +75,13 @@ export class CustodyService {
     return { accessToken: this.authService.generateUserToken(custodyUser, userIp) };
   }
 
+  // --- BALANCE --- //
   async getUserCustodyBalance(accountId: number): Promise<CustodyBalanceDto> {
     const account = await this.userDataService.getUserData(accountId, { users: true });
     if (!account) throw new NotFoundException('User not found');
 
-    const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(account.users.map((u) => u.id)) } });
+    const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
+    const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, account.currency);
     const totalValue = balances.reduce((prev, curr) => prev + curr.value, 0);
 
@@ -90,16 +92,57 @@ export class CustodyService {
     };
   }
 
+  async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
+    const entity = this.custodyBalanceRepo.create({ user, asset, balance });
+
+    return this.custodyBalanceRepo.save(entity);
+  }
+
+  async updateCustodyBalanceForOrder(order: CustodyOrder): Promise<void> {
+    if (order.inputAsset) await this.updateCustodyBalance(order.inputAsset, order.user);
+    if (order.outputAsset) await this.updateCustodyBalance(order.outputAsset, order.user);
+  }
+
+  async updateCustodyBalance(asset: Asset, user: User): Promise<void> {
+    const { deposit } = await this.custodyOrderRepo
+      .createQueryBuilder('custodyOrder')
+      .select('SUM(custodyOrder.inputAmount)', 'deposit')
+      .where('custodyOrder.userId = :id', { id: user.id })
+      .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
+      .andWhere('custodyOrder.inputAssetId = :asset', { asset: asset.id })
+      .getRawOne<{ deposit: number }>();
+
+    const { withdrawal } = await this.custodyOrderRepo
+      .createQueryBuilder('custodyOrder')
+      .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
+      .where('custodyOrder.userId = :id', { id: user.id })
+      .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
+      .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
+      .getRawOne<{ withdrawal: number }>();
+
+    const balance = deposit - withdrawal;
+
+    const custodyBalance = await this.custodyBalanceRepo.findOneBy({
+      asset: { id: asset.id },
+      user: { id: user.id },
+    });
+
+    if (!custodyBalance) {
+      await this.createCustodyBalance(balance, user, asset);
+    } else {
+      await this.custodyBalanceRepo.update(custodyBalance.id, { balance });
+    }
+  }
+
+  // --- HISTORY --- //
   async getUserCustodyHistory(accountId: number): Promise<CustodyHistoryDto> {
     const account = await this.userDataService.getUserData(accountId, { users: true });
     if (!account) throw new NotFoundException('User not found');
 
-    const userIds = account.users?.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
-    if (!userIds?.length) throw new NotFoundException('No custody user found');
-
     // get completed orders (by date and asset)
+    const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyOrders = await this.custodyOrderRepo.find({
-      where: { user: { id: In(userIds) }, status: CustodyOrderStatus.COMPLETED },
+      where: { user: { id: In(custodyUserIds) }, status: CustodyOrderStatus.COMPLETED },
     });
 
     if (!custodyOrders.length) return { totalValue: [] };
@@ -112,7 +155,7 @@ export class CustodyService {
         { asset: order.inputAsset, amount: order.inputAmount },
         { asset: order.outputAsset, amount: -order.outputAmount },
       ]
-        .filter((o) => !o.asset)
+        .filter((o) => o.asset)
         .forEach((o) => dayMap.set(o.asset.id, (dayMap.get(o.asset.id) ?? []).concat([o])));
 
       return map.set(key, dayMap);
@@ -122,7 +165,7 @@ export class CustodyService {
     const allAssets = custodyOrders
       .map((o) => [o.inputAsset, o.outputAsset])
       .flat()
-      .filter((a) => !a);
+      .filter((a) => a);
     const assets = Array.from(new Map(allAssets.map((a) => [a.id, a])).values());
 
     // get all prices (by date)
@@ -169,47 +212,5 @@ export class CustodyService {
     }
 
     return { totalValue };
-  }
-
-  async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
-    const entity = this.custodyBalanceRepo.create({ user, asset, balance });
-
-    return this.custodyBalanceRepo.save(entity);
-  }
-
-  async updateCustodyBalanceOrder(order: CustodyOrder): Promise<void> {
-    if (order.inputAsset) await this.updateCustodyBalance(order.inputAsset, order.user);
-    if (order.outputAsset) await this.updateCustodyBalance(order.outputAsset, order.user);
-  }
-
-  async updateCustodyBalance(asset: Asset, user: User): Promise<void> {
-    const { deposit } = await this.custodyOrderRepo
-      .createQueryBuilder('custodyOrder')
-      .select('SUM(custodyOrder.inputAmount)', 'deposit')
-      .where('custodyOrder.userId = :id', { id: user.id })
-      .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
-      .andWhere('custodyOrder.inputAssetId = :asset', { asset: asset.id })
-      .getRawOne<{ deposit: number }>();
-
-    const { withdrawal } = await this.custodyOrderRepo
-      .createQueryBuilder('custodyOrder')
-      .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
-      .where('custodyOrder.userId = :id', { id: user.id })
-      .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
-      .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
-      .getRawOne<{ withdrawal: number }>();
-
-    const balance = deposit - withdrawal;
-
-    const custodyBalance = await this.custodyBalanceRepo.findOneBy({
-      asset: { id: asset.id },
-      user: { id: user.id },
-    });
-
-    if (!custodyBalance) {
-      await this.createCustodyBalance(balance, user, asset);
-    } else {
-      await this.custodyBalanceRepo.update(custodyBalance.id, { balance });
-    }
   }
 }
