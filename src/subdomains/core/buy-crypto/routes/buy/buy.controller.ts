@@ -172,7 +172,7 @@ export class BuyController {
     }
 
     return {
-      pdfBase64: await this.swissQrService.createInvoiceFromRequest(
+      pdfData: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
         buy.bankUsage,

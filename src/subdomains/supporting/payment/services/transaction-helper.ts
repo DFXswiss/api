@@ -441,15 +441,7 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  async getInvoiceDetails(userDataId: number, txId: number): Promise<TxStatementDetails> {
-    return this.getTxStatementDetails(userDataId, txId, TxStatementType.INVOICE);
-  }
-
-  async getReceiptDetails(userDataId: number, txId: number): Promise<TxStatementDetails> {
-    return this.getTxStatementDetails(userDataId, txId, TxStatementType.RECEIPT);
-  }
-
-  private async getTxStatementDetails(
+  async getTxStatementDetails(
     userDataId: number,
     txId: number,
     statementType: TxStatementType,
@@ -468,17 +460,17 @@ export class TransactionHelper implements OnModuleInit {
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
-      const currency = (await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset)).name;
+      const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       return {
         statementType,
         transactionType: TransactionType.BUY,
         transaction,
-        currency,
+        currency: fiat.name,
         bankInfo:
           statementType === TxStatementType.INVOICE &&
           (await this.buyService.getBankInfo({
             amount: transaction.buyCrypto.outputAmount,
-            currency: currency,
+            currency: fiat.name,
             paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
             userData: transaction.userData,
           })),
@@ -499,7 +491,7 @@ export class TransactionHelper implements OnModuleInit {
         statementType,
         transactionType: TransactionType.SWAP,
         transaction,
-        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
+        currency: await this.getInvoiceCurrency(transaction.userData).then((c) => c.name),
       };
     }
 
@@ -508,7 +500,7 @@ export class TransactionHelper implements OnModuleInit {
         statementType,
         transactionType: TransactionType.REFERRAL,
         transaction,
-        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
+        currency: await this.getInvoiceCurrency(transaction.userData).then((c) => c.name),
       };
     }
 

@@ -174,6 +174,6 @@ export class Transaction extends IEntity {
   }
 
   get completionDate(): Date | undefined {
-    return this.buyCrypto?.outputDate ?? this.buyFiat?.outputDate ?? this.updated;
+    return this.buyCrypto?.outputDate ?? this.buyFiat?.outputDate ?? this.refReward?.outputDate;
   }
 }

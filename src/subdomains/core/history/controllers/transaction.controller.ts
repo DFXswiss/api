@@ -51,6 +51,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -432,14 +433,18 @@ export class TransactionController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const txStatementDetails = await this.transactionHelper.getInvoiceDetails(jwt.account, +id);
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.INVOICE,
+    );
 
     if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 
     return {
-      pdfBase64: await this.swissQrService.createTxStatement(txStatementDetails),
+      pdfData: await this.swissQrService.createTxStatement(txStatementDetails),
     };
   }
 
@@ -448,14 +453,18 @@ export class TransactionController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const txStatementDetails = await this.transactionHelper.getReceiptDetails(jwt.account, +id);
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.RECEIPT,
+    );
 
     if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
       throw new Error('PDF receipt is only available for CHF and EUR transactions');
     }
 
     return {
-      pdfBase64: await this.swissQrService.createTxStatement(txStatementDetails),
+      pdfData: await this.swissQrService.createTxStatement(txStatementDetails),
     };
   }
 
