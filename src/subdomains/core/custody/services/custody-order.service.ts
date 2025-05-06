@@ -93,8 +93,7 @@ export class CustodyOrderService {
 
     entity = await this.custodyOrderRepo.save(entity);
 
-    if (dto.inputAmount) await this.custodyService.updateCustodyBalance(entity.inputAsset, entity.user);
-    if (dto.outputAmount) await this.custodyService.updateCustodyBalance(entity.outputAsset, entity.user);
+    await this.custodyService.updateCustodyBalanceOrder(entity);
 
     return entity;
   }
@@ -154,8 +153,7 @@ export class CustodyOrderService {
     } else {
       await this.custodyOrderRepo.update(...order.complete());
 
-      if (order.inputAsset) await this.custodyService.updateCustodyBalance(order.inputAsset, order.user);
-      if (order.outputAsset) await this.custodyService.updateCustodyBalance(order.outputAsset, order.user);
+      await this.custodyService.updateCustodyBalanceOrder(order);
     }
   }
 }

@@ -16,6 +16,7 @@ import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
+import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderStatus } from '../enums/custody';
 import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
@@ -88,7 +89,12 @@ export class CustodyService {
     return this.custodyBalanceRepo.save(entity);
   }
 
-  async updateCustodyBalance(asset: Asset, user: User) {
+  async updateCustodyBalanceOrder(order: CustodyOrder): Promise<void> {
+    if (order.inputAsset) await this.updateCustodyBalance(order.inputAsset, order.user);
+    if (order.outputAsset) await this.updateCustodyBalance(order.outputAsset, order.user);
+  }
+
+   async updateCustodyBalance(asset: Asset, user: User): Promise<void> {
     const { deposit } = await this.custodyOrderRepo
       .createQueryBuilder('custodyOrder')
       .select('SUM(custodyOrder.inputAmount)', 'deposit')
