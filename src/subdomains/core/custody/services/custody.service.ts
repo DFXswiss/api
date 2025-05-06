@@ -133,20 +133,20 @@ export class CustodyService {
     const priceMap = Util.groupByAccessor(prices, (p) => Util.isoDate(p.created));
 
     // process by day
-    const balancesMap = new Map<number, number>();
+    const assetBalancesMap = new Map<number, number>();
     const totalValue: CustodyHistoryEntryDto[] = [];
 
     for (const [day, prices] of priceMap.entries()) {
       const dailyValue = prices.reduce(
         (value, price) => {
           // update asset balance
-          const currentBalance = balancesMap.get(price.asset.id) ?? 0;
+          const currentBalance = assetBalancesMap.get(price.asset.id) ?? 0;
 
           const ordersToday = orderMap.get(day)?.get(price.asset.id) ?? [];
           const dayVolume = Util.sum(ordersToday.map((o) => o.amount));
 
           const newBalance = currentBalance + dayVolume;
-          balancesMap.set(price.asset.id, newBalance);
+          assetBalancesMap.set(price.asset.id, newBalance);
 
           // update value
           value.chf += newBalance * price.priceChf;
@@ -168,9 +168,7 @@ export class CustodyService {
       });
     }
 
-    return {
-      totalValue,
-    };
+    return { totalValue };
   }
 
   async createCustodyBalance(balance: number, user: User, asset: Asset): Promise<CustodyBalance> {
