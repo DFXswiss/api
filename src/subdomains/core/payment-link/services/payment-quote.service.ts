@@ -213,6 +213,15 @@ export class PaymentQuoteService {
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
 
+    for (const method of Config.payment.manualMethods) {
+      transferAmounts.push({
+        method,
+        minFee: 0,
+        assets: [],
+        available: false,
+      });
+    }
+
     return transferAmounts;
   }
 
