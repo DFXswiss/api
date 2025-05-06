@@ -93,7 +93,7 @@ export class CustodyOrderService {
 
     entity = await this.custodyOrderRepo.save(entity);
 
-    await this.custodyService.updateCustodyBalanceOrder(entity);
+    await this.custodyService.updateCustodyBalanceForOrder(entity);
 
     return entity;
   }
@@ -153,7 +153,7 @@ export class CustodyOrderService {
     } else {
       await this.custodyOrderRepo.update(...order.complete());
 
-      await this.custodyService.updateCustodyBalanceOrder(order);
+      await this.custodyService.updateCustodyBalanceForOrder(order);
     }
   }
 }
