@@ -31,26 +31,26 @@ export class CustodyBalanceDto {
   balances: CustodyAssetBalanceDto[];
 }
 
-export class CustodyValues {
-  @ApiProperty({ description: 'Custody value in Swiss Franc' })
+export class CustodyFiatValueDto {
+  @ApiProperty({ description: 'Value in Swiss Franc' })
   chf: number;
 
-  @ApiProperty({ description: 'Custody value in Euro' })
+  @ApiProperty({ description: 'Value in Euro' })
   eur: number;
 
-  @ApiProperty({ description: 'Custody value in US Dollar' })
+  @ApiProperty({ description: 'Value in US Dollar' })
   usd: number;
 }
 
 export class CustodyHistoryEntryDto {
-  @ApiProperty({ description: 'Date of the custody history entry' })
+  @ApiProperty({ description: 'Entry timestamp' })
   date: Date;
 
-  @ApiProperty({ type: CustodyValues, description: 'Values of a custody history entry' })
-  value: CustodyValues;
+  @ApiProperty({ type: CustodyFiatValueDto, description: 'Fiat values' })
+  value: CustodyFiatValueDto;
 }
 
 export class CustodyHistoryDto {
-  @ApiProperty({ type: CustodyHistoryEntryDto, description: 'All custody history entries', isArray: true })
+  @ApiProperty({ type: CustodyHistoryEntryDto, description: 'Total value history', isArray: true })
   totalValue: CustodyHistoryEntryDto[];
 }
