@@ -425,6 +425,19 @@ export class Util {
     Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
   }
 
+  static removeDefaultFields<T extends object>(source: T, defaults: Partial<T>): Partial<T> {
+    const result = { ...source };
+    Object.keys(result).forEach((key) => {
+      if (key in defaults) {
+        if (JSON.stringify(result[key]) === JSON.stringify(defaults[key])) {
+          delete result[key];
+        }
+      }
+    });
+
+    return result;
+  }
+
   static updateEntity<T extends IEntity>(entity: T, update: Partial<T>): UpdateResult<T> {
     Object.assign(entity, update);
     return [entity.id, update];
