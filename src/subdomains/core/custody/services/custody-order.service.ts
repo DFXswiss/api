@@ -1,21 +1,20 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { GetBuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
-import { GetSwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
-import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
-import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-payment-info.dto';
-import { SellService } from '../../sell-crypto/route/sell.service';
-
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Equal } from 'typeorm';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { BuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
+import { GetSwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
 import { SwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/swap-payment-info.dto';
+import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from '../../sell-crypto/route/dto/sell-payment-info.dto';
+import { SellService } from '../../sell-crypto/route/sell.service';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderDto, CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { UpdateCustodyOrderInternalDto } from '../dto/input/update-custody-order.dto';
@@ -92,7 +91,11 @@ export class CustodyOrderService {
   async updateCustodyOrderInternal(entity: CustodyOrder, dto: UpdateCustodyOrderInternalDto): Promise<CustodyOrder> {
     Object.assign(entity, dto);
 
-    return this.custodyOrderRepo.save(entity);
+    entity = await this.custodyOrderRepo.save(entity);
+
+    await this.custodyService.updateCustodyBalanceOrder(entity);
+
+    return entity;
   }
 
   async getCustodyOrderByTx(entity: BuyCrypto | BuyFiat): Promise<CustodyOrder> {
@@ -148,12 +151,9 @@ export class CustodyOrderService {
     if (nextStep) {
       await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
     } else {
-      if (order.inputAmount)
-        await this.custodyService.updateCustodyBalance(order.inputAmount, order.inputAsset, order.user);
-      if (order.outputAmount)
-        await this.custodyService.updateCustodyBalance(-order.outputAmount, order.outputAsset, order.user);
-
       await this.custodyOrderRepo.update(...order.complete());
+
+      await this.custodyService.updateCustodyBalanceOrder(order);
     }
   }
 }
