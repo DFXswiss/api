@@ -145,6 +145,12 @@ export class UnassignedTransactionDto {
   chargebackAmount?: number;
 
   @ApiPropertyOptional()
+  chargebackAsset?: string;
+
+  @ApiPropertyOptional({ description: 'Fiat ID for sell transactions, asset ID otherwise' })
+  chargebackAssetId?: number;
+
+  @ApiPropertyOptional()
   chargebackTxId?: string;
 
   @ApiPropertyOptional()
