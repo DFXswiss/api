@@ -261,8 +261,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
     const { price: pricePrecision } = await this.getPrecision(pair);
 
-    const price =
-      direction == OrderSide.BUY ? orderBook.asks[0][0] - pricePrecision : orderBook.bids[0][0] + pricePrecision;
+    const priceOffset = 0; // positive for better price
+    const price = direction === OrderSide.BUY ? orderBook.asks[0][0] - priceOffset : orderBook.bids[0][0] + priceOffset;
 
     return Util.roundToValue(price, pricePrecision);
   }
