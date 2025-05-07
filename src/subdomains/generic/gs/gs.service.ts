@@ -74,7 +74,7 @@ export class GsService {
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
         ...(query.select
-          ?.filter((s) => s.includes('['))
+          ?.filter((s) => s.includes('[') && !s.includes('-'))
           .map((s) => [`${s.split('[')[0]}.id`, `${s.split('[')[0]}${s.split(']')[1]}`])
           .flat() || []),
       ]),
