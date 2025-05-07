@@ -200,9 +200,12 @@ export class GsService {
 
       const parsedJsonData = jsonPath.split('.').reduce((o, k) => {
         if (o) {
-          if (Array.isArray(o) && k.includes('=')) {
+          if (Array.isArray(o) && k.includes('!=')) {
+            const [key, value] = k.split('!=');
+            return o.find((e) => e[key]?.toString() != (value == 'null' ? null : value?.toString()));
+          } else if (Array.isArray(o) && k.includes('=')) {
             const [key, value] = k.split('=');
-            return o.find((e) => e[key]?.toString() === value?.toString());
+            return o.find((e) => e[key]?.toString() == (value == 'null' ? null : value?.toString()));
           } else if (k.includes('[') && Array.isArray(o[`${k.split('[')[0]}`])) {
             const split = k.split(']')[0].split('[');
             const array = o[split[0]];
