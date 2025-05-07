@@ -9,6 +9,7 @@ import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
+import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 import { Transaction } from '../entities/transaction.entity';
@@ -35,9 +36,11 @@ enum SupportedSwissQRBillCurrency {
 }
 
 interface SwissQRBillTableData {
+  title: string;
   quantity: number | string;
   description: any;
   fiatAmount: number;
+  date: Date;
 }
 
 @Injectable()
@@ -68,6 +71,7 @@ export class SwissQRService {
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const asset = await this.assetService.getAssetById(request.targetId);
     const tableData: SwissQRBillTableData = {
+      title: this.translate('invoice.title', language, { invoiceId: request.id }),
       quantity: request.estimatedAmount,
       description: {
         assetDescription: asset.description ?? asset.name,
@@ -75,17 +79,19 @@ export class SwissQRService {
         assetBlockchain: asset.blockchain,
       },
       fiatAmount: amount,
+      date: new Date(),
     };
 
-    return this.generatePdfInvoice(request.id, tableData, language, data, true, TransactionType.BUY);
+    return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
   }
 
-  async createInvoiceFromTx(
-    txType: TransactionType,
-    transaction: Transaction,
-    currency: string,
-    bankInfo?: BankInfoDto,
-  ): Promise<string> {
+  async createTxStatement({
+    statementType,
+    transactionType,
+    transaction,
+    currency,
+    bankInfo,
+  }: TxStatementDetails): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
@@ -96,35 +102,25 @@ export class SwissQRService {
 
     const userLanguage = transaction.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const tableData = await this.getTableData(txType, transaction, currency);
+    const tableData = await this.getTableData(statementType, transactionType, transaction, currency);
 
     const billData: QrBillData = {
-      creditor: (bankInfo && this.getCreditor(bankInfo)) ?? (this.dfxCreditor() as unknown as Creditor),
+      creditor: (bankInfo && this.getCreditor(bankInfo)) || (this.dfxCreditor() as unknown as Creditor),
       debtor,
       currency,
       amount: bankInfo && transaction.buyCrypto?.inputAmount,
       message: bankInfo && transaction.buyCrypto?.buy.bankUsage,
     };
 
-    return this.generatePdfInvoice(
-      transaction.id,
-      tableData,
-      language,
-      billData,
-      !!bankInfo,
-      txType,
-      transaction.created,
-    );
+    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);
   }
 
   private generatePdfInvoice(
-    invoiceId: number | string,
     tableData: SwissQRBillTableData,
     language: string,
     billData: QrBillData,
     includeQrBill: boolean,
     transactionType: TransactionType,
-    invoiceDate?: Date,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -191,25 +187,15 @@ export class SwissQRService {
         // Title
         pdf.fontSize(14);
         pdf.font('Helvetica-Bold');
-        pdf.text(
-          this.translate(
-            transactionType === TransactionType.REFERRAL ? 'invoice.credit_title' : 'invoice.title',
-            language,
-            { invoiceId },
-          ),
-          mm2pt(20),
-          mm2pt(100),
-          {
-            align: 'left',
-            width: mm2pt(170),
-          },
-        );
+        pdf.text(tableData.title, mm2pt(20), mm2pt(100), {
+          align: 'left',
+          width: mm2pt(170),
+        });
 
         // Date
-        const date = invoiceDate ?? new Date();
         pdf.fontSize(11);
         pdf.font('Helvetica');
-        pdf.text(`Zug ${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`, {
+        pdf.text(`Zug ${tableData.date.getDate()}.${tableData.date.getMonth() + 1}.${tableData.date.getFullYear()}`, {
           align: 'right',
           width: mm2pt(170),
         });
@@ -415,6 +401,30 @@ export class SwissQRService {
     };
   }
 
+  private getStatementTitle(
+    statementType: TxStatementType,
+    transactionType: TransactionType,
+    transaction: Transaction,
+  ): string {
+    let titleKey: string;
+
+    if (statementType === TxStatementType.RECEIPT) {
+      titleKey = 'invoice.receipt_title';
+    } else if (transactionType === TransactionType.REFERRAL) {
+      titleKey = 'invoice.credit_title';
+    } else {
+      titleKey = 'invoice.title';
+    }
+
+    return this.translate(titleKey, transaction.userData.language.symbol.toLowerCase(), {
+      invoiceId: transaction.id,
+    });
+  }
+
+  private getStatementDate(statementType: TxStatementType, transaction: Transaction): Date {
+    return statementType === TxStatementType.RECEIPT ? transaction.completionDate : transaction.created;
+  }
+
   private getCreditor(bankInfo: BankInfoDto): Creditor {
     return {
       account: bankInfo.iban,
@@ -446,11 +456,17 @@ export class SwissQRService {
   }
 
   private async getTableData(
-    txType: TransactionType,
+    statementType: TxStatementType,
+    transactionType: TransactionType,
     transaction: Transaction,
     currency: string,
   ): Promise<SwissQRBillTableData> {
-    switch (txType) {
+    const titleAndDate = {
+      title: this.getStatementTitle(statementType, transactionType, transaction),
+      date: this.getStatementDate(statementType, transaction),
+    };
+
+    switch (transactionType) {
       case TransactionType.BUY:
         const outputAsset = transaction.buyCrypto?.outputAsset;
 
@@ -462,21 +478,21 @@ export class SwissQRService {
             assetBlockchain: outputAsset.blockchain,
           },
           fiatAmount: transaction.buyCrypto?.inputAmount,
+          ...titleAndDate,
         };
 
       case TransactionType.SELL:
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
 
         return {
-          quantity: transaction.buyFiat?.outputAmount,
+          quantity: transaction.buyFiat?.inputAmount,
           description: {
-            fiatCurrency: transaction.buyFiat?.outputAsset.name,
-            assetAmount: transaction.buyFiat?.inputAmount,
             assetDescription: inputAsset.description ?? inputAsset.name,
             assetName: inputAsset.name,
             assetBlockchain: inputAsset.blockchain,
           },
           fiatAmount: transaction.buyFiat?.outputAmount,
+          ...titleAndDate,
         };
 
       case TransactionType.SWAP:
@@ -495,6 +511,7 @@ export class SwissQRService {
             targetBlockchain: targetAsset.blockchain,
           },
           fiatAmount: currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur,
+          ...titleAndDate,
         };
 
       case TransactionType.REFERRAL:
@@ -510,6 +527,7 @@ export class SwissQRService {
             assetBlockchain: targetBlockchain,
           },
           fiatAmount: currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur,
+          ...titleAndDate,
         };
 
       default:
