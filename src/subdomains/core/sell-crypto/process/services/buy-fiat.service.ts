@@ -298,7 +298,7 @@ export class BuyFiatService {
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
     const inputAssetEntity = buyFiat.cryptoInput.asset;
 
-    return Object.assign(buyFiat, { inputAssetEntity });
+    return Object.assign(buyFiat, { inputAssetEntity, inputReferenceAssetEntity: inputAssetEntity });
   }
 
   async resetAmlCheck(id: number): Promise<void> {

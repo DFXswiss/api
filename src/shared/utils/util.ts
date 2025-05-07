@@ -257,6 +257,10 @@ export class Util {
     return this.daysAfter(-days, from);
   }
 
+  static sameDay(a: Date, b: Date): boolean {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
   static isoDate(date: Date): string {
     return date.toISOString().split('T')[0];
   }

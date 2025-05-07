@@ -453,11 +453,14 @@ export class Configuration {
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
 
     defaultForexFee: 0.01,
     addressForexFee: 0.02,
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
+
+    manualMethods: ['BinancePay', 'KuCoinPay'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),

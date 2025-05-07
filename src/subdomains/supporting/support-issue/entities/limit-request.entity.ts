@@ -24,7 +24,7 @@ export enum LimitRequestDecision {
   REJECTED = 'Rejected',
   EXPIRED = 'Expired',
   CLOSED = 'Closed',
-  APPROVAL_1_OF_2 = 'Approval1of2',
+  APPROVED_1_OF_2 = 'Approved1of2',
 }
 
 @Entity()
@@ -79,7 +79,12 @@ export class LimitRequest extends IEntity {
 }
 
 export const LimitRequestAcceptedStates = [LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED];
-export const LimitRequestFinalStates = [LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED];
+export const LimitRequestFinalStates = [
+  ...LimitRequestAcceptedStates,
+  LimitRequestDecision.CLOSED,
+  LimitRequestDecision.EXPIRED,
+  LimitRequestDecision.REJECTED,
+];
 
 export function LimitRequestAccepted(decision?: LimitRequestDecision): boolean {
   return LimitRequestAcceptedStates.includes(decision);

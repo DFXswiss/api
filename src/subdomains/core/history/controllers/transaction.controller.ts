@@ -34,7 +34,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -52,7 +51,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -62,7 +61,6 @@ import {
   TransactionDetailDto,
   TransactionDto,
   TransactionTarget,
-  TransactionType,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
@@ -70,8 +68,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { BankInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
-import { InvoiceDto } from '../../buy-crypto/routes/buy/dto/invoice.dto';
+import { PdfDto } from '../../buy-crypto/routes/buy/dto/pdf.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
@@ -434,77 +431,41 @@ export class TransactionController {
   @Put(':id/invoice')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
-  @ApiOkResponse({ type: InvoiceDto })
-  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
-    const transaction = await this.transactionService.getTransactionById(+id, {
-      userData: true,
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
-      buyFiat: { sell: true, cryptoInput: true },
-      refReward: { user: { userData: true } },
-    });
+  @ApiOkResponse({ type: PdfDto })
+  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.INVOICE,
+    );
 
-    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
-      throw new BadRequestException('Transaction not found');
-    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
-    if (transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
-
-    const { transactionType, currency, bankInfo } = await this.getInvoiceDetails(transaction);
-    if (!Config.invoice.currencies.includes(currency))
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
 
     return {
-      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency, bankInfo),
+      pdfData: await this.swissQrService.createTxStatement(txStatementDetails),
     };
   }
 
-  private async getInvoiceDetails(
-    transaction: Transaction,
-  ): Promise<{ transactionType: TransactionType; currency: string; bankInfo?: BankInfoDto }> {
-    if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
-      const currency = (await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset)).name;
-      return {
-        transactionType: TransactionType.BUY,
-        currency,
-        bankInfo: await this.buyService.getBankInfo({
-          amount: transaction.buyCrypto.outputAmount,
-          currency: currency,
-          paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-          userData: transaction.userData,
-        }),
-      };
+  @Put(':id/receipt')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @ApiOkResponse({ type: PdfDto })
+  async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.RECEIPT,
+    );
+
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
+      throw new Error('PDF receipt is only available for CHF and EUR transactions');
     }
 
-    if (transaction.buyFiat) {
-      return { transactionType: TransactionType.SELL, currency: transaction.buyFiat.outputAsset.name };
-    }
-
-    if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
-      return {
-        transactionType: TransactionType.SWAP,
-        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
-      };
-    }
-
-    if (transaction.refReward) {
-      return {
-        transactionType: TransactionType.REFERRAL,
-        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
-      };
-    }
-
-    throw new BadRequestException('Transaction type not supported for invoice generation');
-  }
-
-  private async getInvoiceCurrency(userData: UserData): Promise<Fiat> {
-    const preferredCurrency = userData.currency.name;
-    const allowedCurrency = Config.invoice.currencies.includes(preferredCurrency)
-      ? preferredCurrency
-      : Config.invoice.defaultCurrency;
-    const currency = await this.fiatService.getFiatByName(allowedCurrency);
-    if (!currency) throw new BadRequestException('Preferred currency not found');
-
-    return currency;
+    return {
+      pdfData: await this.swissQrService.createTxStatement(txStatementDetails),
+    };
   }
 
   // --- HELPER METHODS --- //

@@ -47,6 +47,6 @@ import { PricingService } from './services/pricing.service';
     PricingEbel2xService,
     PricingConstantService,
   ],
-  exports: [PricingService],
+  exports: [PricingService, AssetPricesService],
 })
 export class PricingModule {}
