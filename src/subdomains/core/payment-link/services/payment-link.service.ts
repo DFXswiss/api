@@ -212,6 +212,8 @@ export class PaymentLinkService {
     const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
 
     const payRequest: PaymentLinkPayRequestDto = {
+      id: pendingPayment.link.uniqueId,
+      externalId: pendingPayment.link.externalId,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -324,7 +326,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
-      config: JSON.stringify({ ...JSON.parse(paymentLink.config), ...config }),
+      config: JSON.stringify(Util.removeNullFields({ ...JSON.parse(paymentLink.config), ...config })),
     };
 
     if (country === null) {

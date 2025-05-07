@@ -17,6 +17,7 @@ export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   displayQr: false,
   fee: 0.002,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
+  evmHexPaymentCompletionCheckTryCount: GetConfig().payment.defaultEvmHexPaymentTryCount,
 };
 
 @Entity()
@@ -138,6 +139,10 @@ export class PaymentLink extends IEntity {
       this.route.userData.paymentLinksConfigObj,
       JSON.parse(this.config ?? '{}'),
     );
+  }
+
+  get linkConfigObj(): PaymentLinkConfig {
+    return Object.assign({}, DefaultPaymentLinkConfig, JSON.parse(this.config ?? '{}'));
   }
 
   get defaultStandard(): PaymentStandard {

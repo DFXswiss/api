@@ -23,10 +23,12 @@ import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 
 export class BuyCryptoExtended extends BuyCrypto {
   inputAssetEntity: Active;
+  inputReferenceAssetEntity: Active;
 }
 
 export class BuyFiatExtended extends BuyFiat {
   inputAssetEntity: Active;
+  inputReferenceAssetEntity: Active;
 }
 
 export class RefRewardExtended extends RefReward {
@@ -70,6 +72,8 @@ export class TransactionDtoMapper {
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
       outputDate: buyCrypto.outputDate,
       chargebackAmount: buyCrypto.chargebackAmount,
+      chargebackAsset: buyCrypto.inputReferenceAssetEntity.name,
+      chargebackAssetId: buyCrypto.inputReferenceAssetEntity.id,
       chargebackTarget: buyCrypto.chargebackIban,
       chargebackTxId: buyCrypto.chargebackRemittanceInfo ?? buyCrypto.chargebackCryptoTxId,
       chargebackTxUrl:
@@ -131,6 +135,8 @@ export class TransactionDtoMapper {
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
       chargebackAmount: buyFiat.chargebackAmount,
+      chargebackAsset: buyFiat.inputReferenceAssetEntity.name,
+      chargebackAssetId: buyFiat.inputReferenceAssetEntity.id,
       chargebackTarget: buyFiat.chargebackAddress,
       chargebackTxId: buyFiat.chargebackTxId,
       chargebackTxUrl: buyFiat.chargebackTxId
@@ -188,6 +194,8 @@ export class TransactionDtoMapper {
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
       chargebackAmount: undefined,
+      chargebackAsset: undefined,
+      chargebackAssetId: undefined,
       chargebackTarget: undefined,
       chargebackTxId: undefined,
       chargebackTxUrl: undefined,

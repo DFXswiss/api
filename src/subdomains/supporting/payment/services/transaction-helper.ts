@@ -391,20 +391,14 @@ export class TransactionHelper implements OnModuleInit {
     refundTarget: string,
     isFiat: boolean,
   ): Promise<RefundDataDto> {
-    const inputCurrency =
-      refundEntity instanceof BankTx
-        ? await this.fiatService.getFiatByName(refundEntity.currency)
-        : refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputReferenceAsset));
+    const inputCurrency = await this.getRefundActive(refundEntity);
 
     const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
 
     const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
     const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
 
-    const inputAmount = Util.roundReadable(
-      refundEntity instanceof BankTx ? refundEntity.amount + refundEntity.chargeAmount : refundEntity.inputAmount,
-      amountType,
-    );
+    const inputAmount = Util.roundReadable(refundEntity.refundAmount, amountType);
 
     const chargebackFee = await this.feeService.getChargebackFee({
       from: inputCurrency,
@@ -418,7 +412,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);
-    const bankFeeAmount = refundEntity.chargebackBankFee;
+    const bankFeeAmount = price.convert(refundEntity.chargebackBankFee);
 
     const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
@@ -505,6 +499,14 @@ export class TransactionHelper implements OnModuleInit {
     }
 
     throw new BadRequestException('Transaction type not supported for invoice generation');
+  }
+
+  private async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
+    if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
+    if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
+      return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
+
+    return refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputAsset));
   }
 
   private async getNetworkStartFee(to: Active, allowExpiredPrice: boolean, user?: User): Promise<number> {

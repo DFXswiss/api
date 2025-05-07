@@ -5,7 +5,7 @@ import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, Pa
 import { PaymentLinkConfigDto } from './payment-link-config.dto';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
-export type TransferMethod = Blockchain;
+export type TransferMethod = Blockchain | string;
 
 export interface TransferInfo {
   asset: string;
@@ -20,6 +20,7 @@ export interface TransferAmount {
   method: TransferMethod;
   minFee: number;
   assets: TransferAmountAsset[];
+  available?: boolean;
 }
 
 export interface TransferAmountAsset {
@@ -38,6 +39,8 @@ export interface PaymentLinkRequestDto {
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
+  id: string;
+  externalId?: string;
   tag: string;
   callback: string;
   minSendable: number;

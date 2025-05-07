@@ -1,8 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
-import { createCustomPrice, createDefaultPrice } from 'src/integration/exchange/dto/__mocks__/price.dto.mock';
-import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
+import { createCustomPrice } from 'src/integration/exchange/dto/__mocks__/price.dto.mock';
+import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -91,9 +91,11 @@ describe('TransactionHelper', () => {
       bankTx: createDefaultBankTx(),
     });
 
-    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
     jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
-    jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createDefaultPrice());
+    jest
+      .spyOn(pricingService, 'getPrice')
+      .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
 
     await expect(
       txHelper.getRefundData(
@@ -104,7 +106,7 @@ describe('TransactionHelper', () => {
         !transaction.cryptoInput,
       ),
     ).resolves.toMatchObject({
-      fee: { network: 0, bank: 0 },
+      fee: { network: 0, bank: 1 },
       refundAmount: 100,
       refundTarget: 'DE12500105170648489890',
     });

@@ -12,7 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
-import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
+import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyService } from '../services/custody.service';
@@ -27,6 +27,13 @@ export class CustodyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
     return this.service.getUserCustodyBalance(jwt.account);
+  }
+
+  @Get('history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  async getUserCustodyHistory(@GetJwt() jwt: JwtPayload): Promise<CustodyHistoryDto> {
+    return this.service.getUserCustodyHistory(jwt.account);
   }
 
   @Post()
@@ -67,18 +74,14 @@ export class CustodyAdminController {
 
   @Put('user/:id/balance')
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
-  async updateUserBalance(
-    @Param('id') id: string,
-    @Query('assetId') assetId: string,
-    @Query('amount') amount: string,
-  ): Promise<void> {
+  async updateUserBalance(@Param('id') id: string, @Query('assetId') assetId: string): Promise<void> {
     const user = await this.userService.getUser(+id);
     if (!user) throw new NotFoundException('User not found');
 
     const asset = await this.assetService.getAssetById(+assetId);
     if (!asset) throw new NotFoundException('Asset not found');
 
-    return this.service.updateCustodyBalance(+(amount ?? 0), asset, user);
+    return this.service.updateCustodyBalance(asset, user);
   }
 
   @Post('order/:id/approve')
