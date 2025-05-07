@@ -104,7 +104,8 @@ export class GsService {
 
     if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
 
-    if (query.select?.some((s) => s.includes('['))) data = this.getArrayData(data, query.select, query.table);
+    if (query.select?.some((s) => s.includes('[') && !s.includes('-')))
+      data = this.getArrayData(data, query.select, query.table);
 
     additionalSelect.forEach((key) => {
       if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
@@ -170,7 +171,7 @@ export class GsService {
   }
 
   private getArrayData(data: any[], selects: string[], table: string): any[] {
-    const arraySelects = selects.filter((s) => s.includes('['));
+    const arraySelects = selects.filter((s) => s.includes('[') && !s.includes('-'));
     const parentIds = Array.from(new Set(data.map((d) => d[`${table}_id`])));
 
     return parentIds.map((nd) => {
@@ -202,6 +203,12 @@ export class GsService {
           if (Array.isArray(o) && k.includes('=')) {
             const [key, value] = k.split('=');
             return o.find((e) => e[key]?.toString() === value?.toString());
+          } else if (k.includes('[') && Array.isArray(o[`${k.split('[')[0]}`])) {
+            const split = k.split(']')[0].split('[');
+            const array = o[split[0]];
+            const searchIndex = split[1] === 'max' ? array.length - 1 : +split[1];
+
+            return array[searchIndex];
           }
 
           return o[k];
