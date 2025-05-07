@@ -84,10 +84,12 @@ export class GsService {
 
     let data = await this.getRawDbData({
       ...query,
-      select: [
-        ...(query.select?.filter((s) => !s.includes('-') && !s.includes('documents') && !s.includes('[')) ?? []),
-        ...additionalSelect,
-      ],
+      select: Array.from(
+        new Set([
+          ...(query.select?.filter((s) => !s.includes('-') && !s.includes('documents') && !s.includes('[')) ?? []),
+          ...additionalSelect,
+        ]),
+      ),
     });
 
     const runTime = Date.now() - startTime;
