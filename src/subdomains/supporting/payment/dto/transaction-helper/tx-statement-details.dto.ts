@@ -3,8 +3,8 @@ import { Transaction } from '../../entities/transaction.entity';
 import { TransactionType } from '../transaction.dto';
 
 export enum TxStatementType {
-  INVOICE = 'INVOICE',
-  RECEIPT = 'RECEIPT',
+  INVOICE = 'Invoice',
+  RECEIPT = 'Receipt',
 }
 
 export interface TxStatementDetails {
