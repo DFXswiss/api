@@ -101,6 +101,10 @@ export class DEuroClient {
       this.getBridgeEURCContract(),
       this.getBridgeEURSContract(),
       this.getBridgeVEURContract(),
+      this.getBridgeEURRContract(),
+      this.getBridgeEUROPContract(),
+      this.getBridgeEURIContract(),
+      this.getBridgeEUREContract(),
     ];
   }
 
@@ -118,5 +122,21 @@ export class DEuroClient {
 
   getBridgeVEURContract(): Contract {
     return new Contract(ADDRESS[this.evmClient.chainId].bridgeVEUR, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEURRContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURR, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEUROPContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEUROP, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEURIContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURI, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEUREContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURE, StablecoinBridgeABI, this.evmClient.wallet);
   }
 }
