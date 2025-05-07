@@ -170,7 +170,7 @@ export class PaymentLinkService {
       mail: dto.config?.recipient?.mail,
       website: dto.config?.recipient?.website,
       payments: [],
-      config: JSON.stringify(dto.config),
+      config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
 
     await this.paymentLinkRepo.save(paymentLink);
@@ -315,6 +315,10 @@ export class PaymentLinkService {
     const { name, address, phone, mail, website } = config.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
+    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
+    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
+    const configString = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
+
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
       webhookUrl,
@@ -326,7 +330,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
-      config: JSON.stringify(Util.removeNullFields({ ...JSON.parse(paymentLink.config), ...config })),
+      config: configString,
     };
 
     if (country === null) {

@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { isEqual } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 import { IEntity, UpdateResult } from '../models/entity';
 
@@ -421,15 +422,17 @@ export class Util {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  static removeNullFields(entity: any): void {
-    Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
+  static removeNullFields<T extends object>(entity: T): Partial<T> {
+    const result = { ...entity };
+    Object.keys(result).forEach((k) => result[k] == null && delete result[k]);
+    return result;
   }
 
   static removeDefaultFields<T extends object>(source: T, defaults: Partial<T>): Partial<T> {
     const result = { ...source };
     Object.keys(result).forEach((key) => {
       if (key in defaults) {
-        if (JSON.stringify(result[key]) === JSON.stringify(defaults[key])) {
+        if (this.areValuesEqual(result[key], defaults[key])) {
           delete result[key];
         }
       }
@@ -603,5 +606,21 @@ export class Util {
 
   static numberToFixedString(value: number, precision = 8): string {
     return value.toFixed(precision).replace(/0+$/, '');
+  }
+
+  private static areValuesEqual(a: unknown, b: unknown): boolean {
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+
+      if (a.every((v) => typeof v !== 'object' || v === null) && b.every((v) => typeof v !== 'object' || v === null)) {
+        const sortedValue1 = [...a].sort();
+        const sortedValue2 = [...b].sort();
+        return isEqual(sortedValue1, sortedValue2);
+      }
+
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    return isEqual(a, b);
   }
 }

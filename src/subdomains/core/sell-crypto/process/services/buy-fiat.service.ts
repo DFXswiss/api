@@ -158,13 +158,13 @@ export class BuyFiatService {
         approved: dto.bankDataActive,
       });
 
-    Util.removeNullFields(entity);
+    const entityWithoutNulls = Util.removeNullFields(entity);
 
     const forceUpdate: Partial<BuyFiat> = {
-      ...((BuyFiatEditableAmlCheck.includes(entity.amlCheck) ||
-        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
-      !entity.isComplete &&
-      (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
+      ...((BuyFiatEditableAmlCheck.includes(entityWithoutNulls.amlCheck) ||
+        (entityWithoutNulls.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
+      !entityWithoutNulls.isComplete &&
+      (update?.amlCheck !== entityWithoutNulls.amlCheck || update.amlReason !== entityWithoutNulls.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
       isComplete: dto.isComplete,
@@ -374,8 +374,9 @@ export class BuyFiatService {
   }
 
   async getSellHistory(userId: number, sellId?: number): Promise<SellHistoryDto[]> {
-    const where = { user: { id: userId }, id: sellId };
-    Util.removeNullFields(where);
+    const where: { user: { id: number }; id?: number } = { user: { id: userId } };
+    if (sellId !== undefined) where.id = sellId;
+
     return this.buyFiatRepo
       .find({
         where: { sell: where },

@@ -276,16 +276,16 @@ export class BuyCryptoService {
 
     if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
 
-    Util.removeNullFields(entity);
-    const fee = entity.fee;
+    const entityWithoutNulls = Util.removeNullFields(entity);
+    const fee = entityWithoutNulls.fee;
 
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
     const forceUpdate: Partial<BuyCrypto> = {
-      ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
-        (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
-      !entity.isComplete &&
-      (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
+      ...((BuyCryptoEditableAmlCheck.includes(entityWithoutNulls.amlCheck) ||
+        (entityWithoutNulls.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
+      !entityWithoutNulls.isComplete &&
+      (update?.amlCheck !== entityWithoutNulls.amlCheck || update.amlReason !== entityWithoutNulls.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
         : undefined),
       isComplete: dto.isComplete,

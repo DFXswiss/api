@@ -136,9 +136,9 @@ export class BankTxReturnService implements OnModuleInit {
       await this.bankTxService.updateInternal(update.chargebackBankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
 
-    Util.removeNullFields(entity);
+    const entityWithoutNulls = Util.removeNullFields(entity);
 
-    return this.bankTxReturnRepo.save({ ...update, ...entity });
+    return this.bankTxReturnRepo.save({ ...update, ...entityWithoutNulls });
   }
 
   async getPendingTx(): Promise<BankTxReturn[]> {

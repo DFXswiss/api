@@ -183,16 +183,16 @@ export class MailFactory {
   //*** MAIL BUILDING METHODS ***//
 
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
-    Util.removeNullFields(table);
-    return Object.entries(table).map(([key, value]) => ({
+    const tableWithoutNulls = Util.removeNullFields(table);
+    return Object.entries(tableWithoutNulls).map(([key, value]) => ({
       text: this.translate(key, lang),
       value: value,
     }));
   }
 
   private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
-    Util.removeNullFields(affix);
-    return affix.map((element) => this.mapMailAffix(element, lang).flat()).flat();
+    const affixWithoutNulls = Util.removeNullFields(affix);
+    return affixWithoutNulls.map((element) => this.mapMailAffix(element, lang).flat()).flat();
   }
 
   private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
@@ -216,8 +216,9 @@ export class MailFactory {
         ];
 
       default:
-        if (element.params) Util.removeNullFields(element.params);
-        const translatedParams = this.translateParams(element.params, lang);
+        let params = element.params;
+        if (params) params = Util.removeNullFields(params);
+        const translatedParams = this.translateParams(params, lang);
         const text = this.translate(element.key, lang, translatedParams);
         const specialTag = this.parseSpecialTag(text);
 

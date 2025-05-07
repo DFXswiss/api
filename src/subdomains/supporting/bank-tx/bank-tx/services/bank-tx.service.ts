@@ -259,9 +259,9 @@ export class BankTxService {
       }
     }
 
-    Util.removeNullFields(dto);
+    const dtoWithoutNulls = Util.removeNullFields(dto);
 
-    return this.bankTxRepo.save({ ...bankTx, ...dto });
+    return this.bankTxRepo.save({ ...bankTx, ...dtoWithoutNulls });
   }
 
   async reset(id: number): Promise<void> {

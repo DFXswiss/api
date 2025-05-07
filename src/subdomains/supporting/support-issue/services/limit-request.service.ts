@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
@@ -69,8 +68,6 @@ export class LimitRequestService {
       });
       if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
     }
-
-    Util.removeNullFields(entity);
 
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
