@@ -218,7 +218,7 @@ export class UserService {
   }
 
   async setModerator(user: User, moderator: Moderator): Promise<void> {
-    await this.userRepo.update(user.id, { usedRef: Config.moderators[moderator] });
+    if (!user.usedRef) await this.userRepo.update(user.id, { usedRef: Config.moderators[moderator] });
     await this.userDataService.updateUserDataInternal(user.userData, { moderator });
   }
 
