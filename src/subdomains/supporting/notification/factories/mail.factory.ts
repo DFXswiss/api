@@ -190,8 +190,9 @@ export class MailFactory {
   }
 
   private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
-    return Util.removeNullFields(affix)
-      .map((element) => this.mapMailAffix(element, lang).flat())
+    return affix
+      .filter((i) => i)
+      .map((i) => this.mapMailAffix(i, lang).flat())
       .flat();
   }
 
