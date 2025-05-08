@@ -917,10 +917,8 @@ export class KycService {
       case KycStepName.DFX_APPROVAL:
         const missingCompletedSteps = requiredKycSteps(user).filter((rs) => !user.hasCompletedStep(rs));
 
-        if (user.kycLevel === KycLevel.LEVEL_50) {
-          kycStep.complete();
-        } else if (missingCompletedSteps.length === 1) {
-          kycStep.internalReview();
+        if (missingCompletedSteps.length === 1) {
+          kycStep.manualReview();
         } else {
           kycStep.status = KycStepStatus.NOT_STARTED;
         }

@@ -282,7 +282,7 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  manualReview(comment: string): UpdateResult<KycStep> {
+  manualReview(comment?: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.MANUAL_REVIEW,
       comment,
