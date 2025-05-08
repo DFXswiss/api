@@ -70,6 +70,10 @@ export class Configuration {
     },
   };
 
+  moderators = {
+    Wendel: '019-957',
+  };
+
   loginCountries = {
     '1': ['CH'],
   };
