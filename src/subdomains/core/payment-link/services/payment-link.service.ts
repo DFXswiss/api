@@ -291,6 +291,8 @@ export class PaymentLinkService {
     const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
     return {
+      id: paymentLink.uniqueId,
+      externalId: paymentLink.externalId,
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
