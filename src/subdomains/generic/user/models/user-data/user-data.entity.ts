@@ -69,6 +69,7 @@ export enum LegalEntity {
   AG = 'AG',
   GMBH = 'GmbH',
   UG = 'UG',
+  GBR = 'GbR',
   ASSOCIATION = 'Association',
   FOUNDATION = 'Foundation',
   LIFE_INSURANCE = 'LifeInsurance',
