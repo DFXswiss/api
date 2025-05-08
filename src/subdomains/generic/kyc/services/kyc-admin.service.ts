@@ -45,10 +45,7 @@ export class KycAdminService {
         (rs) => !kycStep.userData.hasCompletedStep(rs),
       );
 
-      if (
-        missingCompletedSteps.length === 1 ||
-        (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name))
-      ) {
+      if (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name)) {
         const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
         await this.kycStepRepo.update(...approvalStep.manualReview());
       }
@@ -70,7 +67,7 @@ export class KycAdminService {
         break;
 
       case KycStepName.DFX_APPROVAL:
-        if (kycStep.isCompleted)
+        if (kycStep.isCompleted && kycStep.userData.kycLevel < KycLevel.LEVEL_50)
           await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_50 });
         break;
     }
