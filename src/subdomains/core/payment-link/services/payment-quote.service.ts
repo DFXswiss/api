@@ -218,7 +218,7 @@ export class PaymentQuoteService {
         method,
         minFee: 0,
         assets: [],
-        available: false,
+        disabled: true,
       });
     }
 

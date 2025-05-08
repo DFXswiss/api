@@ -20,7 +20,7 @@ export interface TransferAmount {
   method: TransferMethod;
   minFee: number;
   assets: TransferAmountAsset[];
-  available?: boolean;
+  disabled?: boolean;
 }
 
 export interface TransferAmountAsset {
