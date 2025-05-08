@@ -206,12 +206,10 @@ export class GsService {
           } else if (Array.isArray(o) && k.includes('=')) {
             const [key, value] = k.split('=');
             return o.find((e) => e[key]?.toString() == (value == 'null' ? null : value?.toString()));
-          } else if (k.includes('[') && Array.isArray(o[`${k.split('[')[0]}`])) {
-            const split = k.split(']')[0].split('[');
-            const array = o[split[0]];
-            const searchIndex = split[1] === 'max' ? array.length - 1 : +split[1];
-
-            return array[searchIndex];
+          } else if (k.match(/(.*)\[(.*)\]/)) {
+            const [_, key, value] = k.match(/(.*)\[(.*)\]/);
+            const array = o[key];
+            if (Array.isArray(array)) return value === 'max' ? array.at(-1) : array.at(+value);
           }
 
           return o[k];
