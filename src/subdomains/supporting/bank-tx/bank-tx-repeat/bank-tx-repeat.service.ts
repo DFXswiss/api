@@ -76,9 +76,7 @@ export class BankTxRepeatService {
       });
     }
 
-    const entityWithoutNulls = Util.removeNullFields(entity);
-
-    return this.bankTxRepeatRepo.save({ ...update, ...entityWithoutNulls });
+    return this.bankTxRepeatRepo.save({ ...update, ...Util.removeNullFields(entity) });
   }
 
   async getAllUserRepeats(userIds: number[]): Promise<BankTxRepeat[]> {

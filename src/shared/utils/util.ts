@@ -426,23 +426,20 @@ export class Util {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  static removeNullFields<T extends object>(entity: T): Partial<T> {
-    const result = { ...entity };
-    Object.keys(result).forEach((k) => result[k] == null && delete result[k]);
-    return result;
+  static removeNullFields<T extends Record<any, any>>(entity?: T): Partial<T> | undefined {
+    if (!entity) return entity;
+    return Object.fromEntries(Object.entries(entity).filter(([_, v]) => v != null)) as Partial<T>;
   }
 
-  static removeDefaultFields<T extends object>(source: T, defaults: Partial<T>): Partial<T> {
-    const result = { ...source };
-    Object.keys(result).forEach((key) => {
-      if (key in defaults) {
-        if (this.areValuesEqual(result[key], defaults[key])) {
-          delete result[key];
+  static removeDefaultFields<T extends Record<any, any>>(source: T, defaults: Partial<T>): Partial<T> | undefined {
+    return Object.fromEntries(
+      Object.entries(source).filter(([key, value]) => {
+        if (key in defaults) {
+          return !this.areValuesEqual(value, defaults[key]);
         }
-      }
-    });
-
-    return result;
+        return true;
+      }),
+    ) as Partial<T>;
   }
 
   static updateEntity<T extends IEntity>(entity: T, update: Partial<T>): UpdateResult<T> {

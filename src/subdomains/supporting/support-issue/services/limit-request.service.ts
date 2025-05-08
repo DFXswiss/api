@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
@@ -75,7 +76,7 @@ export class LimitRequestService {
       ...update,
     });
 
-    return this.limitRequestRepo.save({ ...update, ...entity });
+    return this.limitRequestRepo.save({ ...update, ...Util.removeNullFields(entity) });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {
