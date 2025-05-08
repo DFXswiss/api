@@ -20,7 +20,7 @@ export interface TransferAmount {
   method: TransferMethod;
   minFee: number;
   assets: TransferAmountAsset[];
-  available?: boolean;
+  disabled?: boolean;
 }
 
 export interface TransferAmountAsset {
@@ -31,6 +31,8 @@ export interface TransferAmountAsset {
 export type RequestedAmountAsset = TransferAmountAsset;
 
 export interface PaymentLinkRequestDto {
+  id: string;
+  externalId?: string;
   displayName: string;
   standard: PaymentStandard;
   possibleStandards: PaymentStandard[];
@@ -39,8 +41,6 @@ export interface PaymentLinkRequestDto {
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
-  id: string;
-  externalId?: string;
   tag: string;
   callback: string;
   minSendable: number;

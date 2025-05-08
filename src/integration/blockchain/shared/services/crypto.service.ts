@@ -167,7 +167,7 @@ export class CryptoService {
       if (CryptoService.EthereumBasedChains.includes(blockchain))
         return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
-      if (blockchain === Blockchain.LIGHTNING) return this.verifyLightning(message, signature, key);
+      if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
       if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
       if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
@@ -197,7 +197,9 @@ export class CryptoService {
     return isValid;
   }
 
-  private verifyLightning(message: string, signature: string, key: string): boolean {
+  private async verifyLightning(address: string, message: string, signature: string): Promise<boolean> {
+    const key = await this.lightningService.getPublicKeyOfAddress(address);
+
     return this.lightningService.verifySignature(message, signature, key);
   }
 

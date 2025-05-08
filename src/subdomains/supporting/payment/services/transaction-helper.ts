@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -16,6 +16,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
@@ -28,6 +29,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
@@ -37,8 +39,11 @@ import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/transaction-details.dto';
 import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
+import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
+import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
+import { TransactionService } from './transaction.service';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -59,6 +64,8 @@ export class TransactionHelper implements OnModuleInit {
     private readonly buyFiatService: BuyFiatService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly walletService: WalletService,
+    private readonly transactionService: TransactionService,
+    private readonly buyService: BuyService,
   ) {}
 
   onModuleInit() {
@@ -428,6 +435,72 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
+  async getTxStatementDetails(
+    userDataId: number,
+    txId: number,
+    statementType: TxStatementType,
+  ): Promise<TxStatementDetails> {
+    const transaction = await this.transactionService.getTransactionById(txId, {
+      userData: true,
+      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
+      buyFiat: { sell: true, cryptoInput: true },
+      refReward: { user: { userData: true } },
+    });
+
+    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
+      throw new BadRequestException('Transaction not found');
+    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
+    if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
+
+    if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
+      const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+      return {
+        statementType,
+        transactionType: TransactionType.BUY,
+        transaction,
+        currency: fiat.name,
+        bankInfo:
+          statementType === TxStatementType.INVOICE &&
+          (await this.buyService.getBankInfo({
+            amount: transaction.buyCrypto.outputAmount,
+            currency: fiat.name,
+            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+            userData: transaction.userData,
+          })),
+      };
+    }
+
+    if (transaction.buyFiat) {
+      return {
+        statementType,
+        transactionType: TransactionType.SELL,
+        transaction,
+        currency: transaction.buyFiat.outputAsset.name,
+      };
+    }
+
+    if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
+      return {
+        statementType,
+        transactionType: TransactionType.SWAP,
+        transaction,
+        currency: await this.getInvoiceCurrency(transaction.userData).then((c) => c.name),
+      };
+    }
+
+    if (transaction.refReward) {
+      return {
+        statementType,
+        transactionType: TransactionType.REFERRAL,
+        transaction,
+        currency: await this.getInvoiceCurrency(transaction.userData).then((c) => c.name),
+      };
+    }
+
+    throw new BadRequestException('Transaction type not supported for invoice generation');
+  }
+
   private async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
@@ -720,5 +793,16 @@ export class TransactionHelper implements OnModuleInit {
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;
     if (txAmountChf > maxAmountChf) return QuoteError.AMOUNT_TOO_HIGH;
+  }
+
+  private async getInvoiceCurrency(userData: UserData): Promise<Fiat> {
+    const preferredCurrency = userData.currency.name;
+    const allowedCurrency = Config.invoice.currencies.includes(preferredCurrency)
+      ? preferredCurrency
+      : Config.invoice.defaultCurrency;
+    const currency = await this.fiatService.getFiatByName(allowedCurrency);
+    if (!currency) throw new BadRequestException('Preferred currency not found');
+
+    return currency;
   }
 }

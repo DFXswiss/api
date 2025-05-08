@@ -70,15 +70,13 @@ export class LimitRequestService {
       if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
     }
 
-    Util.removeNullFields(entity);
-
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
       limitRequest: entity,
       ...update,
     });
 
-    return this.limitRequestRepo.save({ ...update, ...entity });
+    return this.limitRequestRepo.save({ ...update, ...Util.removeNullFields(entity) });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

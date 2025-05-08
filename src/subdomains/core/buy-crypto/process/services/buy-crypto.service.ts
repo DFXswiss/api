@@ -276,9 +276,6 @@ export class BuyCryptoService {
 
     if (dto.chargebackIban && entity.amlCheck === CheckStatus.FAIL) entity.mailSendDate = null;
 
-    Util.removeNullFields(entity);
-    const fee = entity.fee;
-
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
     const forceUpdate: Partial<BuyCrypto> = {
@@ -296,9 +293,9 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
-        ...entity,
+        ...Util.removeNullFields(entity),
         ...forceUpdate,
-        fee,
+        fee: entity.fee,
       }),
     );
 
@@ -609,8 +606,7 @@ export class BuyCryptoService {
   }
 
   async getBuyHistory(userId: number, buyId?: number): Promise<BuyHistoryDto[]> {
-    const where = { user: { id: userId }, id: buyId };
-    Util.removeNullFields(where);
+    const where = Util.removeNullFields({ user: { id: userId }, id: buyId });
     return this.buyCryptoRepo
       .find({
         where: { buy: where },
@@ -620,8 +616,7 @@ export class BuyCryptoService {
   }
 
   async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDtoDeprecated[]> {
-    const where = { user: { id: userId }, id: routeId };
-    Util.removeNullFields(where);
+    const where = Util.removeNullFields({ user: { id: userId }, id: routeId });
     return this.buyCryptoRepo
       .find({
         where: { cryptoRoute: where },

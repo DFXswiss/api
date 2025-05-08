@@ -74,7 +74,7 @@ export class GsService {
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
         ...(query.select
-          ?.filter((s) => s.includes('['))
+          ?.filter((s) => s.includes('[') && !s.includes('-'))
           .map((s) => [`${s.split('[')[0]}.id`, `${s.split('[')[0]}${s.split(']')[1]}`])
           .flat() || []),
       ]),
@@ -84,10 +84,12 @@ export class GsService {
 
     let data = await this.getRawDbData({
       ...query,
-      select: [
-        ...(query.select?.filter((s) => !s.includes('-') && !s.includes('documents') && !s.includes('[')) ?? []),
-        ...additionalSelect,
-      ],
+      select: Array.from(
+        new Set([
+          ...(query.select?.filter((s) => !s.includes('-') && !s.includes('documents') && !s.includes('[')) ?? []),
+          ...additionalSelect,
+        ]),
+      ),
     });
 
     const runTime = Date.now() - startTime;
@@ -102,7 +104,8 @@ export class GsService {
 
     if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
 
-    if (query.select?.some((s) => s.includes('['))) data = this.getArrayData(data, query.select, query.table);
+    if (query.select?.some((s) => s.includes('[') && !s.includes('-')))
+      data = this.getArrayData(data, query.select, query.table);
 
     additionalSelect.forEach((key) => {
       if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
@@ -168,7 +171,7 @@ export class GsService {
   }
 
   private getArrayData(data: any[], selects: string[], table: string): any[] {
-    const arraySelects = selects.filter((s) => s.includes('['));
+    const arraySelects = selects.filter((s) => s.includes('[') && !s.includes('-'));
     const parentIds = Array.from(new Set(data.map((d) => d[`${table}_id`])));
 
     return parentIds.map((nd) => {
@@ -197,9 +200,16 @@ export class GsService {
 
       const parsedJsonData = jsonPath.split('.').reduce((o, k) => {
         if (o) {
-          if (Array.isArray(o) && k.includes('=')) {
+          if (Array.isArray(o) && k.includes('!=')) {
+            const [key, value] = k.split('!=');
+            return o.find((e) => e[key]?.toString() != (value == 'null' ? null : value?.toString()));
+          } else if (Array.isArray(o) && k.includes('=')) {
             const [key, value] = k.split('=');
-            return o.find((e) => e[key]?.toString() === value?.toString());
+            return o.find((e) => e[key]?.toString() == (value == 'null' ? null : value?.toString()));
+          } else if (k.match(/(.*)\[(.*)\]/)) {
+            const [_, key, value] = k.match(/(.*)\[(.*)\]/);
+            const array = o[key];
+            if (Array.isArray(array)) return value === 'max' ? array.at(-1) : array.at(+value);
           }
 
           return o[k];
