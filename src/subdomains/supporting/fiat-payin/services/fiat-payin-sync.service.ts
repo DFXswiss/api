@@ -79,8 +79,7 @@ export class FiatPayInSyncService {
       relations: { buyCrypto: true, transaction: { request: true, user: true } },
     });
     if (entity) {
-      Util.removeNullFields(tx);
-      Object.assign(entity, tx);
+      Object.assign(entity, Util.removeNullFields(tx));
     } else {
       entity = tx;
     }

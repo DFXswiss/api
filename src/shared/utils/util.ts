@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { isEqual } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 import { IEntity, UpdateResult } from '../models/entity';
 
@@ -425,8 +426,20 @@ export class Util {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  static removeNullFields(entity: any): void {
-    Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
+  static removeNullFields<T extends Record<any, any>>(entity?: T): Partial<T> | undefined {
+    if (!entity) return entity;
+    return Object.fromEntries(Object.entries(entity).filter(([_, v]) => v != null)) as Partial<T>;
+  }
+
+  static removeDefaultFields<T extends Record<any, any>>(source: T, defaults: Partial<T>): Partial<T> {
+    return Object.fromEntries(
+      Object.entries(source).filter(([key, value]) => {
+        if (key in defaults) {
+          return !this.areValuesEqual(value, defaults[key]);
+        }
+        return true;
+      }),
+    ) as Partial<T>;
   }
 
   static updateEntity<T extends IEntity>(entity: T, update: Partial<T>): UpdateResult<T> {
@@ -594,5 +607,21 @@ export class Util {
 
   static numberToFixedString(value: number, precision = 8): string {
     return value.toFixed(precision).replace(/0+$/, '');
+  }
+
+  private static areValuesEqual(a: unknown, b: unknown): boolean {
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+
+      if (a.every((v) => typeof v !== 'object' || v === null) && b.every((v) => typeof v !== 'object' || v === null)) {
+        const sortedValue1 = [...a].sort();
+        const sortedValue2 = [...b].sort();
+        return isEqual(sortedValue1, sortedValue2);
+      }
+
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    return isEqual(a, b);
   }
 }

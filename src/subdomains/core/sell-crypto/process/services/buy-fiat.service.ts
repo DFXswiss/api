@@ -158,8 +158,6 @@ export class BuyFiatService {
         approved: dto.bankDataActive,
       });
 
-    Util.removeNullFields(entity);
-
     const forceUpdate: Partial<BuyFiat> = {
       ...((BuyFiatEditableAmlCheck.includes(entity.amlCheck) ||
         (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
@@ -173,7 +171,9 @@ export class BuyFiatService {
 
     const amlCheckBefore = entity.amlCheck;
 
-    entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
+    entity = await this.buyFiatRepo.save(
+      Object.assign(new BuyFiat(), { ...update, ...Util.removeNullFields(entity), ...forceUpdate }),
+    );
 
     if (forceUpdate.amlCheck) {
       if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
@@ -374,8 +374,8 @@ export class BuyFiatService {
   }
 
   async getSellHistory(userId: number, sellId?: number): Promise<SellHistoryDto[]> {
-    const where = { user: { id: userId }, id: sellId };
-    Util.removeNullFields(where);
+    const where = Util.removeNullFields({ user: { id: userId }, id: sellId });
+
     return this.buyFiatRepo
       .find({
         where: { sell: where },

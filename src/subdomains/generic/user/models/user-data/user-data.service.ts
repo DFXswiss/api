@@ -26,6 +26,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -433,10 +434,9 @@ export class UserDataService {
   }
 
   async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
-    const paymentLinksConfig = JSON.stringify({
-      ...JSON.parse(user.paymentLinksConfig || '{}'),
-      ...dto,
-    });
+    const mergedConfig = { ...JSON.parse(user.paymentLinksConfig || '{}'), ...dto };
+    const customConfig = Util.removeDefaultFields(mergedConfig, DefaultPaymentLinkConfig);
+    const paymentLinksConfig = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
 
     await this.userDataRepo.update(user.id, { paymentLinksConfig });
     user.paymentLinksConfig = paymentLinksConfig;
