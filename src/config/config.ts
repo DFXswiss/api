@@ -429,7 +429,7 @@ export class Configuration {
           filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
         },
         {
-          name: (file: KycFileBlob) => file.name.replace('NameCheck', 'Dilisense'),
+          name: () => 'Dilisense Screening Report',
           prefixes: (userData: UserData) => [`user/${userData.id}/NameCheck`],
           fileTypes: [ContentType.PDF],
         },
