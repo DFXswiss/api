@@ -78,6 +78,13 @@ export class Configuration {
     '1': ['CH'],
   };
 
+  liquidityManagement = {
+    bankMinBalance: 100,
+    fiatOutput: {
+      batchAmountLimit: 9500,
+    },
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 
