@@ -48,7 +48,7 @@ export class NameCheckService implements OnModuleInit {
     // );
 
     // Personal name check
-    if (bankData.userData.accountType === AccountType.PERSONAL) {
+    if (!bankData.userData.accountType || bankData.userData.accountType === AccountType.PERSONAL) {
       const { data, file } = await this.getRiskDataAndUploadPdf(
         bankData.userData,
         false,
