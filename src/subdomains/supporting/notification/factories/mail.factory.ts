@@ -7,6 +7,7 @@ import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
+import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
@@ -54,7 +55,7 @@ interface SpecialTag {
 }
 
 const UserMailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
-const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px` };
+const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle}` };
 
 @Injectable()
 export class MailFactory {
@@ -74,8 +75,12 @@ export class MailFactory {
         return this.createErrorMonitoringMail(request);
       }
 
-      case MailType.USER: {
+      case MailType.USER_DEPRECATED: {
         return this.createUserMail(request);
+      }
+
+      case MailType.USER_V2: {
+        return this.createUserV2Mail(request);
       }
 
       case MailType.PERSONAL: {
@@ -155,6 +160,25 @@ export class MailFactory {
     );
   }
 
+  private createUserV2Mail(request: MailRequest): UserMailV2 {
+    const { correlationId, options } = request;
+    const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
+
+    const lang = userData.language.symbol.toLowerCase();
+
+    return new UserMailV2(
+      {
+        to: userData.mail,
+        subject: this.translate(title, lang),
+        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
+        texts: texts && this.getMailAffix(texts, lang),
+        correlationId,
+        options,
+      },
+      wallet,
+    );
+  }
+
   private createPersonalMail(request: MailRequest): PersonalMail {
     const { userData, title, prefix, banner, from, displayName, bcc } = request.input as MailRequestPersonalInput;
     const { correlationId, options } = request;
@@ -204,16 +228,13 @@ export class MailFactory {
       case MailKey.DFX_TEAM_CLOSING:
         return [
           DefaultEmptyLine,
-          DefaultEmptyLine,
           {
             text: this.translate(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
             style: UserMailDefaultStyle,
           },
-          DefaultEmptyLine,
-          DefaultEmptyLine,
-          DefaultEmptyLine,
-          DefaultEmptyLine,
           { text: this.translate(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
+          DefaultEmptyLine,
+          DefaultEmptyLine,
         ];
 
       default:
@@ -228,14 +249,24 @@ export class MailFactory {
               specialTag?.tag === 'url'
                 ? {
                     link: element.params?.url ?? specialTag.value,
+                    button: element.params?.button,
                     text: specialTag.value,
                     textSuffix: specialTag.textSuffix,
                   }
                 : undefined,
             mail:
-              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
+              specialTag?.tag === 'mail'
+                ? {
+                    address: specialTag.value,
+                    textSuffix: specialTag.textSuffix,
+                    button: element.params?.button,
+                  }
+                : undefined,
             style: element.params?.style ?? UserMailDefaultStyle,
             text: specialTag?.text ?? text,
+            marginBottom: element.params?.marginBottom ?? '10px',
+            marginTop: element.params?.marginTop ?? '10px',
+            underline: element.params?.underline,
           },
         ];
     }
