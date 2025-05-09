@@ -66,7 +66,6 @@ export enum Process {
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
-  NAME_CHECK_PDF_SYNC = 'NameCheckPdfSync',
 }
 
 const safetyProcesses: Process[] = [
