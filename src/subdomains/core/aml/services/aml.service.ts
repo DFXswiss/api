@@ -176,7 +176,8 @@ export class AmlService {
   }
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
-    if (entity instanceof BuyFiat) return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban);
+    if (entity instanceof BuyFiat)
+      return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban, undefined, { userData: true });
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService
         .getValidBankDatasForUser(entity.userData.id)
@@ -186,6 +187,8 @@ export class AmlService {
 
     return this.bankDataService.getVerifiedBankDataWithIban(
       entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
+      undefined,
+      { userData: true },
     );
   }
 }
