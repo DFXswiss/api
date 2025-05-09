@@ -431,7 +431,9 @@ export class Util {
     return Object.fromEntries(Object.entries(entity).filter(([_, v]) => v != null)) as Partial<T>;
   }
 
-  static removeDefaultFields<T extends Record<any, any>>(source: T, defaults: Partial<T>): Partial<T> {
+  static removeDefaultFields<T extends Record<any, any>>(source: T | undefined, defaults: Partial<T>): Partial<T> {
+    if (!source) return source;
+
     return Object.fromEntries(
       Object.entries(source).filter(([key, value]) => {
         if (key in defaults) {
