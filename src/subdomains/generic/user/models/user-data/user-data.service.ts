@@ -209,9 +209,6 @@ export class UserDataService {
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
-      const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-      if (pendingDfxApproval) await this.kycAdminService.updateKycStepInternal(pendingDfxApproval.complete());
-
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
       }

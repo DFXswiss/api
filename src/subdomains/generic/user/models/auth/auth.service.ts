@@ -149,6 +149,7 @@ export class AuthService {
         userData,
       },
       dto.specialCode ?? dto.discountCode,
+      dto.moderator,
     );
     return { accessToken: this.generateUserToken(user, userIp) };
   }
@@ -189,6 +190,8 @@ export class AuthService {
     } catch (e) {
       this.logger.warn(`Error while adding specialCode in user signIn ${user.id}:`, e);
     }
+
+    if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
 
     await this.siftService.login(user, userIp);
 

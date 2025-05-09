@@ -430,7 +430,7 @@ export class TransactionController {
 
   @Put(':id/invoice')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
@@ -450,7 +450,7 @@ export class TransactionController {
 
   @Put(':id/receipt')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard)
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
