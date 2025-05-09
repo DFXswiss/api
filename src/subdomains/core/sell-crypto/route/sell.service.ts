@@ -77,7 +77,7 @@ export class SellService {
   }
 
   async getById(id: number): Promise<Sell> {
-    return this.sellRepo.findOne({ where: { id }, relations: { user: true } });
+    return this.sellRepo.findOne({ where: { id }, relations: { user: { userData: true } } });
   }
 
   async getLatest(userId: number): Promise<Sell | null> {
