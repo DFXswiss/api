@@ -8,7 +8,7 @@ export class UploadFileDto {
   documentType: FileType;
 
   @IsOptional()
-  @IsEnum(FileType)
+  @IsEnum(FileSubType)
   documentSubType: FileSubType;
 
   @IsNotEmpty()
