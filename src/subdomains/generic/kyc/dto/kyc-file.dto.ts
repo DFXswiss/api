@@ -44,6 +44,7 @@ export enum FileSubType {
   IDENT_REPORT = 'IdentReport',
   IDENT_SELFIE = 'IdentSelfie',
   IDENT_DOC = 'IdentDoc',
+  IDENT_RECORDING = 'IdentRecording',
 }
 
 export enum KycReportType {
