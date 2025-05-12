@@ -1,11 +1,15 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString, ValidateIf } from 'class-validator';
-import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { FileSubType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 
 export class UploadFileDto {
   @IsNotEmpty()
   @IsEnum(FileType)
   documentType: FileType;
+
+  @IsOptional()
+  @IsEnum(FileType)
+  documentSubType: FileSubType;
 
   @IsNotEmpty()
   @IsString()
