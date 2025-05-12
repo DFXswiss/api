@@ -33,7 +33,7 @@ export enum FileSubType {
   FORM_A = 'FormA',
   FORM_K = 'FormK',
   CUSTOMER_PROFILE = 'CustomerProfile',
-  POST_DISPATCH = 'PostDispatch', // postversand
+  POST_DISPATCH = 'PostDispatch',
   LIMIT_REQUEST_USER_UPLOAD = 'LimitRequestUserUpload',
   LIMIT_REQUEST_REPORT = 'LimitRequestReport',
   COMMERCIAL_REGISTER_REPORT = 'CommercialRegisterReport',

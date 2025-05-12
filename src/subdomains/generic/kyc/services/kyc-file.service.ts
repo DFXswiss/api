@@ -16,7 +16,7 @@ export class KycFileService {
   async syncFileSubType() {
     const entities = await this.kycFileRepository.find({
       where: { type: In([FileType.USER_NOTES, FileType.NAME_CHECK]), subType: IsNull() },
-      take: 5000,
+      take: 15000,
       relations: { logs: true },
     });
 
