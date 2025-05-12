@@ -218,7 +218,7 @@ export class PaymentQuoteService {
         method,
         minFee: 0,
         assets: [],
-        disabled: true,
+        available: false,
       });
     }
 
@@ -237,6 +237,7 @@ export class PaymentQuoteService {
       method: blockchain,
       minFee: minFee,
       assets: [],
+      available: true,
     };
 
     if (minFee != null) {
