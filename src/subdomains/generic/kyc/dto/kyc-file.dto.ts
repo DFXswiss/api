@@ -25,6 +25,7 @@ export enum FileSubType {
   ADDRESS_SIGNATURE = 'AddressSignature',
   BANK_TRANSACTION_VERIFICATION = 'BankTransactionVerification',
   IDENTIFICATION_FORM = 'IdentificationForm',
+  DFX_NAME_CHECK = 'DfxNameCheck',
   PERSONAL_NAME_CHECK = 'PersonalNameCheck',
   BUSINESS_NAME_CHECK = 'BusinessNameCheck',
   RISK_PROFILE = 'RiskProfile',
