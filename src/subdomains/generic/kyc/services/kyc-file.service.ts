@@ -15,7 +15,7 @@ export class KycFileService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SYNC_FILE_SUB_TYPE, timeout: 7200 })
   async syncFileSubType() {
     const entities = await this.kycFileRepository.find({
-      where: { type: In([FileType.USER_NOTES, FileType.NAME_CHECK]), subType: IsNull() },
+      where: { type: In([FileType.USER_NOTES, FileType.NAME_CHECK, FileType.IDENTIFICATION]), subType: IsNull() },
       take: 15000,
       relations: { logs: true },
     });
@@ -45,6 +45,20 @@ export class KycFileService {
       if (entity.name.includes('GenerelleAktennotiz-')) entity.subType = FileSubType.GENERAL_NOTE;
       if (entity.name.includes('Vollmacht-')) entity.subType = FileSubType.AUTHORITY_REPORT;
       if (entity.name.includes('HRAuszug-')) entity.subType = FileSubType.COMMERCIAL_REGISTER_REPORT;
+      if (entity.type === FileType.IDENTIFICATION) {
+        if (
+          entity.name.includes('manualonboarding') ||
+          entity.name.includes('-auto-') ||
+          entity.name.includes('.zip') ||
+          entity.name.includes('.pdf') ||
+          entity.name.includes('manual-ident_')
+        )
+          entity.subType = FileSubType.IDENT_REPORT;
+
+        if (entity.name.includes('.mp3') || entity.name.includes('.mp4')) entity.subType = FileSubType.IDENT_RECORDING;
+
+        if (entity.name.includes('.png')) entity.subType = FileSubType.IDENT_DOC;
+      }
 
       if (entity.subType) await this.kycFileRepository.update(entity.id, { subType: entity.subType });
     }
