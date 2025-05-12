@@ -302,7 +302,7 @@ export class UserDataService {
 
           if (!files.length) {
             if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
-            errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
+            errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
             continue;
           }
 
