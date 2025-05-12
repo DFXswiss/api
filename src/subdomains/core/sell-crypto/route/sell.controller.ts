@@ -189,7 +189,7 @@ export class SellController {
     return Promise.all(sell.map((s) => this.toDto(s)));
   }
 
-  private async toDto(sell: Sell): Promise<SellDto> {
+  async toDto(sell: Sell): Promise<SellDto> {
     const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       sell.deposit.blockchainList[0],
       undefined,

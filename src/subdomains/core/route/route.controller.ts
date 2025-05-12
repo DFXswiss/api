@@ -9,7 +9,9 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RouteDto } from 'src/shared/dto/route.dto';
 import { BuyController } from '../buy-crypto/routes/buy/buy.controller';
 import { SwapController } from '../buy-crypto/routes/swap/swap.controller';
+import { SellDto } from '../sell-crypto/route/dto/sell.dto';
 import { SellController } from '../sell-crypto/route/sell.controller';
+import { SellService } from '../sell-crypto/route/sell.service';
 import { UpdateRouteDto } from './dto/update-route.dto';
 import { Route } from './route.entity';
 import { RouteService } from './route.service';
@@ -22,6 +24,7 @@ export class RouteController {
     private readonly buyController: BuyController,
     private readonly sellController: SellController,
     private readonly swapController: SwapController,
+    private readonly sellService: SellService,
   ) {}
 
   @Get()
@@ -35,6 +38,13 @@ export class RouteController {
       this.sellController.getAllSell(jwt),
       this.swapController.getAllSwap(jwt),
     ]).then(([buy, sell, swap]) => ({ buy, sell, swap, crypto: swap }));
+  }
+
+  @Get('payment/:id')
+  @ApiExcludeEndpoint()
+  async getPaymentRoute(@Param('id') id: string): Promise<SellDto> {
+    const sellRoute = await this.sellService.getPaymentRoute(id);
+    return this.sellController.toDto(sellRoute);
   }
 
   @Put(':id')

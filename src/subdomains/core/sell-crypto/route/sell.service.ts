@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -93,6 +94,18 @@ export class SellService {
       where: { route: { label }, user: { id: userId } },
       relations: { user: { userData: true } },
     });
+  }
+
+  async getPaymentRoute(idOrLabel: string): Promise<Sell> {
+    const isRouteId = !isNaN(+idOrLabel);
+    const sellRoute = isRouteId ? await this.getById(+idOrLabel) : await this.getByLabel(undefined, idOrLabel);
+
+    if (!sellRoute) throw new NotFoundException('Sell route not found');
+    if (!sellRoute.active) throw new BadRequestException('Requested route is not active');
+    if (sellRoute.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
+
+    return sellRoute;
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {
