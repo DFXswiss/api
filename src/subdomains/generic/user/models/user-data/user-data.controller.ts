@@ -123,6 +123,7 @@ export class UserDataController {
       dto.contentType,
       true,
       undefined,
+      dto.documentSubType,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),
