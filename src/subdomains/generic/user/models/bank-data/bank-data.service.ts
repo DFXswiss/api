@@ -69,9 +69,9 @@ export class BankDataService {
       )
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
-      if ([BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.USER].includes(entity.type)) {
-        if (entity.type === BankDataType.USER) return;
+      if (entity.type === BankDataType.USER) return;
 
+      if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
         await this.nameCheckService.closeAndRefreshRiskStatus(entity);
         await this.bankDataRepo.update(entity.id, { comment: 'Pass' });
 
