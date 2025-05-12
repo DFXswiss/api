@@ -66,6 +66,7 @@ export enum Process {
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
+  SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
 }
 
 const safetyProcesses: Process[] = [
