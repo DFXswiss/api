@@ -1183,7 +1183,7 @@ export class KycService {
     kycStep: KycStep,
     namePrefix = '',
   ): Promise<void> {
-    for (const { name, content, contentType } of documents) {
+    for (const { name, content, contentType, fileSubType } of documents) {
       await this.documentService.uploadFile(
         user,
         FileType.IDENTIFICATION,
@@ -1192,6 +1192,7 @@ export class KycService {
         contentType,
         true,
         kycStep,
+        fileSubType,
       );
     }
   }

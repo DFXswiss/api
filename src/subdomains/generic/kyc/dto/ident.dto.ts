@@ -1,4 +1,5 @@
 import { ContentType } from '../enums/content-type.enum';
+import { FileSubType } from './kyc-file.dto';
 
 export interface IdentConfig {
   customer: string;
@@ -9,6 +10,7 @@ export interface IdentDocument {
   name: string;
   content: Buffer;
   contentType: ContentType;
+  fileSubType?: FileSubType;
 }
 
 export enum IdentStatus {

@@ -125,6 +125,8 @@ export enum DocumentSource {
 export enum IdDocType {
   ID_CARD = 'ID_CARD',
   PASSPORT = 'PASSPORT',
+  SELFIE = 'SELFIE',
+  VIDEO_SELFIE = 'VIDEO_SELFIE',
 }
 
 export enum IdDocSubType {
