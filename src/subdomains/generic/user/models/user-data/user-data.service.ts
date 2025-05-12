@@ -255,7 +255,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.kyc.downloadTargets.reverse();
+    const downloadTargets = Config.fileDownloadConfig.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
@@ -280,10 +280,12 @@ export class UserDataService {
 
       const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
 
-      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
+      const allPrefixes = Array.from(
+        new Set(applicableTargets.map((t) => t.files.map((f) => f.prefixes(userData))).flat(2)),
+      );
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { id, name, fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of applicableTargets) {
+      for (const { id, name, files: fileConfig } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
@@ -292,30 +294,32 @@ export class UserDataService {
           continue;
         }
 
-        const files = allFiles
-          .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
-          .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
-          .filter((f) => !filter || filter(f, userData));
+        for (const { name: fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+          const files = allFiles
+            .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
+            .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
+            .filter((f) => !filter || filter(f, userData));
 
-        if (!files.length) {
-          if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
-          errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
-          continue;
-        }
+          if (!files.length) {
+            if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
+            errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
+            continue;
+          }
 
-        const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
+          const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
-        try {
-          const fileData = await this.documentService.downloadFile(
-            selectedFile.category,
-            userDataId,
-            selectedFile.type,
-            selectedFile.name,
-          );
-          const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
-          subFolder.file(filePath, fileData.data);
-        } catch (error) {
-          errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+          try {
+            const fileData = await this.documentService.downloadFile(
+              selectedFile.category,
+              userDataId,
+              selectedFile.type,
+              selectedFile.name,
+            );
+            const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+            subFolder.file(filePath, fileData.data);
+          } catch (error) {
+            errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+          }
         }
       }
     }

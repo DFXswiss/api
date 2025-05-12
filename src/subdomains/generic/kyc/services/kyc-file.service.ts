@@ -23,7 +23,9 @@ export class KycFileService {
     for (const entity of entities) {
       if (entity.name.includes('AddressSignature-')) entity.subType = FileSubType.ADDRESS_SIGNATURE;
       if (entity.name.includes('NameCheck-'))
-        entity.logs[0]?.comment === 'Business'
+        entity.type === FileType.USER_NOTES
+          ? FileSubType.DFX_NAME_CHECK
+          : entity.logs[0]?.comment === 'Business'
           ? (entity.subType = FileSubType.BUSINESS_NAME_CHECK)
           : FileSubType.PERSONAL_NAME_CHECK;
       if (entity.name.includes('limit-request_user-upload')) entity.subType = FileSubType.LIMIT_REQUEST_USER_UPLOAD;
