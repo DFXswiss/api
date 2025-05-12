@@ -7,7 +7,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
-import { FileType } from '../dto/kyc-file.dto';
+import { FileSubType, FileType } from '../dto/kyc-file.dto';
 import { KycFile } from '../entities/kyc-file.entity';
 import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
 import { ContentType } from '../enums/content-type.enum';
@@ -142,6 +142,8 @@ export class NameCheckService implements OnModuleInit {
       buffer,
       contentType as ContentType,
       true,
+      undefined,
+      isBusiness ? FileSubType.BUSINESS_NAME_CHECK : FileSubType.PERSONAL_NAME_CHECK,
     );
 
     return { data: riskData, file };
