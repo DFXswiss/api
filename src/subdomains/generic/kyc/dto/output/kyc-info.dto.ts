@@ -13,6 +13,7 @@ export enum KycStepStatus {
   COMPLETED = 'Completed',
   OUTDATED = 'Outdated',
   DATA_REQUESTED = 'DataRequested',
+  WAITING = 'Waiting',
 }
 
 export enum KycStepReason {
