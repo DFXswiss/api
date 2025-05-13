@@ -147,7 +147,7 @@ export class KycStep extends IEntity {
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
-    return [KycStepStatus.IN_PROGRESS, KycStepStatus.CREATED].includes(this.status);
+    return [KycStepStatus.IN_PROGRESS, KycStepStatus.ON_HOLD].includes(this.status);
   }
 
   get isInReview(): boolean {
@@ -282,8 +282,8 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  creating(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = { status: KycStepStatus.CREATED };
+  onHold(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = { status: KycStepStatus.ON_HOLD };
 
     Object.assign(this, update);
 

@@ -101,7 +101,7 @@ export enum KycStepStatus {
   OUTDATED = 'Outdated',
   DATA_REQUESTED = 'DataRequested',
   PAUSED = 'Paused',
-  CREATED = 'Created',
+  ON_HOLD = 'OnHold',
 }
 
 export enum UrlType {
