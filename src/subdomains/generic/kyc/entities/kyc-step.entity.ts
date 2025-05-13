@@ -282,8 +282,8 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  waiting(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = { status: KycStepStatus.WAITING };
+  created(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = { status: KycStepStatus.CREATED };
 
     Object.assign(this, update);
 
