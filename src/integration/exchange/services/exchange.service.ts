@@ -117,10 +117,14 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.trade(from, to, amount);
   }
 
-  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+  async getTrade(id: string, from: string, to: string): Promise<Order> {
     const pair = await this.getPair(from, to);
 
-    const order = await this.callApi((e) => e.fetchOrder(id, pair));
+    return this.callApi((e) => e.fetchOrder(id, pair));
+  }
+
+  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+    const order = await this.getTrade(id, from, to);
 
     switch (order.status) {
       case OrderStatus.OPEN:

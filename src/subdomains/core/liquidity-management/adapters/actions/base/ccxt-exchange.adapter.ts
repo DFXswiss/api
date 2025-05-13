@@ -96,6 +96,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, requested: ${order.amount})`,
       );
 
+    order.inputAmount = order.amount;
+    order.inputAsset = token;
+    order.outputAsset = token;
+
     try {
       const response = await this.exchangeService.withdrawFunds(token, order.amount, address, key, network);
 
@@ -122,6 +126,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${asset} balance higher than required amount (${balance} > ${order.amount})`,
       );
     }
+
+    order.inputAmount = order.amount;
+    order.inputAsset = tradeAsset;
+    order.outputAsset = asset;
 
     try {
       return await this.exchangeService.buy(tradeAsset, asset, amount);
@@ -157,6 +165,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     const amount = Util.round(order.amount * 0.99, 6); // small cap for price changes
+
+    order.inputAmount = amount;
+    order.inputAsset = asset;
+    order.outputAsset = tradeAsset;
 
     try {
       return await this.exchangeService.sell(asset, tradeAsset, amount);
@@ -201,6 +213,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const amount = Math.min(sourceBalance, maxAmount);
 
+    order.inputAmount = amount;
+    order.inputAsset = token;
+    order.outputAsset = token;
+
     try {
       const response = await this.exchangeService.withdrawFunds(token, amount, address, key, network);
 
@@ -236,8 +252,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    const blockchain = paramMap.destinationBlockchain as Blockchain;
+    order.outputAmount = withdrawal.amount;
 
+    const blockchain = paramMap.destinationBlockchain as Blockchain;
     return this.dexService.checkTransferCompletion(withdrawal.txid, blockchain);
   }
 
@@ -259,7 +276,15 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     try {
-      return await this.exchangeService.checkTrade(order.correlationId, from, to);
+      const isComplete = await this.exchangeService.checkTrade(order.correlationId, from, to);
+      if (isComplete) {
+        const trade = await this.exchangeService.getTrade(order.correlationId, from, to);
+
+        order.inputAmount = trade.cost;
+        order.outputAmount = trade.amount;
+      }
+
+      return isComplete;
     } catch (e) {
       if (e instanceof TradeChangedException) {
         order.correlationId = e.id;
@@ -294,6 +319,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       );
       return false;
     }
+
+    order.outputAmount = withdrawal.amount;
 
     const targetExchange = this.exchangeRegistry.get(target);
 
