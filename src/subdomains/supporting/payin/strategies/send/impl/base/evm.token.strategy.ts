@@ -3,7 +3,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { EvmStrategy } from './evm.strategy';
-import { SendGroup } from './send.strategy';
+import { SendGroup, SendType } from './send.strategy';
 
 export abstract class EvmTokenStrategy extends EvmStrategy {
   constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
@@ -42,14 +42,14 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     }
   }
 
-  protected dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string> {
+  protected dispatchSend(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<string> {
     const { account, destinationAddress, asset } = payInGroup;
 
     return this.payInEvmService.sendToken(
       account,
       destinationAddress,
       asset,
-      this.getTotalGroupAmount(payInGroup),
+      this.getTotalGroupAmount(payInGroup, type),
       estimatedNativeFee,
     );
   }

@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike } from 'crypto';
+import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { isEqual } from 'lodash';
@@ -89,6 +89,29 @@ export class Util {
     return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 
+  static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
+    const listTotal = Util.round(Util.sumObjValue<T>(list, key), precision);
+    const mismatch = Util.round(targetAmount - listTotal, precision);
+    const maxMismatchThreshold = 10 ** -precision * list.length;
+
+    if (mismatch === 0) return list;
+
+    if (Math.abs(mismatch) >= maxMismatchThreshold) throw new Error(`Mismatch is too high. Mismatch: ${mismatch}`);
+
+    let remainsToDistribute = mismatch;
+    const correction = remainsToDistribute > 0 ? 10 ** -precision : -(10 ** -precision);
+
+    return list.map((item) => {
+      if (remainsToDistribute !== 0) {
+        (item[key] as unknown as number) = Util.round((item[key] as unknown as number) + correction, precision);
+        remainsToDistribute = Util.round(remainsToDistribute - correction, precision);
+      }
+
+      return item;
+    });
+  }
+
+  // --- LISTS --- //
   static sort<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>, sorting: 'ASC' | 'DESC' = 'ASC'): T[] {
     return list.sort((a, b) => (sorting === 'ASC' ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key])));
   }
@@ -129,6 +152,7 @@ export class Util {
     );
   }
 
+  // --- STRINGS --- //
   static isSameName(input1: string, input2: string): boolean {
     if (!input1 || !input2) return false;
 
@@ -173,30 +197,49 @@ export class Util {
       .replace(/[-‘`´']/g, ' ');
   }
 
-  static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
-    const listTotal = Util.round(Util.sumObjValue<T>(list, key), precision);
-    const mismatch = Util.round(targetAmount - listTotal, precision);
-    const maxMismatchThreshold = 10 ** -precision * list.length;
-
-    if (mismatch === 0) return list;
-
-    if (Math.abs(mismatch) >= maxMismatchThreshold) throw new Error(`Mismatch is too high. Mismatch: ${mismatch}`);
-
-    let remainsToDistribute = mismatch;
-    const correction = remainsToDistribute > 0 ? 10 ** -precision : -(10 ** -precision);
-
-    return list.map((item) => {
-      if (remainsToDistribute !== 0) {
-        (item[key] as unknown as number) = Util.round((item[key] as unknown as number) + correction, precision);
-        remainsToDistribute = Util.round(remainsToDistribute - correction, precision);
-      }
-
-      return item;
-    });
+  static blankCenter(value: string, visibleLength = 4): string {
+    return value.slice(0, visibleLength) + this.blankStart(value, visibleLength);
   }
 
+  static blankStart(value: string, visibleLength = 4): string {
+    return '***' + value.slice(value.length - visibleLength);
+  }
+
+  static blankMail(value: string, visibleLength = 4): string {
+    const mailSplit = value.split('@');
+    return `${mailSplit[0].slice(0, visibleLength)}***@${mailSplit[1]}`;
+  }
+
+  static trimAll({ value }: TransformFnParams): string | undefined {
+    return value?.replace(/ /g, '');
+  }
+
+  static trim({ value }: TransformFnParams): string | undefined {
+    return value?.trim();
+  }
+
+  static equalsIgnoreCase(left: string, right: string): boolean {
+    return left?.toLowerCase() === right?.toLowerCase();
+  }
+
+  static includesIgnoreCase(left: string[], right: string): boolean | undefined {
+    return left?.map((s) => s?.toLowerCase()).includes(right?.toLowerCase());
+  }
+
+  // --- ID GENERATION --- //
   static randomId(): number {
-    return Math.round(Math.random() * 1000000000);
+    return randomBytes(4).readUInt32BE();
+  }
+
+  static randomString(length = 16): string {
+    return randomBytes(length / 2)
+      .toString('hex')
+      .toUpperCase();
+  }
+
+  static createUniqueId(prefix: string, length = 6): string {
+    const hash = this.randomString(length).toLowerCase();
+    return `${prefix}_${hash}`;
   }
 
   // --- DATES --- //
@@ -281,7 +324,7 @@ export class Util {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0);
   }
 
-  // --- ENCRYPTION --- //
+  // --- CRYPTO --- //
 
   static encrypt(input: string, key: string): string {
     const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(key, 'GfG', 32), Buffer.alloc(16, 0));
@@ -302,6 +345,58 @@ export class Util {
     return decrypted.toString();
   }
 
+  static createHash(
+    data: BinaryLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    const hash = createHash(algo);
+    hash.update(data);
+    return hash.digest(encoding);
+  }
+
+  static createObjectHash(
+    data: object,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    return this.createHash(JSON.stringify(data), algo, encoding);
+  }
+
+  static createSign(
+    data: BinaryLike,
+    key: KeyLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'base64',
+  ): string {
+    const sign = createSign(algo);
+    sign.update(data);
+    return sign.sign(key, encoding);
+  }
+
+  static verifySign(
+    data: BinaryLike,
+    key: KeyLike,
+    signature: string,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'base64',
+  ): boolean {
+    const verify = createVerify(algo);
+    verify.update(data);
+    return verify.verify(key, signature, encoding);
+  }
+
+  static createHmac(
+    key: BinaryLike,
+    data: BinaryLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
+    const hmac = createHmac(algo, key);
+    hmac.update(data);
+    return hmac.digest(encoding);
+  }
+
   // --- CONVERT --- //
 
   static uint8ToString(array: Uint8Array, encoding: BufferEncoding): string {
@@ -312,14 +407,13 @@ export class Util {
     return Uint8Array.from(Buffer.from(value, encoding));
   }
 
-  // --- COMPARE --- //
-
-  static equalsIgnoreCase(left: string, right: string): boolean {
-    return left?.toLowerCase() === right?.toLowerCase();
+  static numberToFixedString(value: number, precision = 8): string {
+    return value.toFixed(precision).replace(/0+$/, '');
   }
 
-  static includesIgnoreCase(left: string[], right: string): boolean | undefined {
-    return left?.map((s) => s?.toLowerCase()).includes(right?.toLowerCase());
+  static fromBase64(file: string): { contentType: string; buffer: Buffer } {
+    const [contentType, content] = file.split(';base64,');
+    return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
   }
 
   // --- MISC --- //
@@ -449,63 +543,6 @@ export class Util {
     return [entity.id, update];
   }
 
-  static createHash(
-    data: BinaryLike,
-    algo: CryptoAlgorithm = 'sha256',
-    encoding: crypto.BinaryToTextEncoding = 'hex',
-  ): string {
-    const hash = createHash(algo);
-    hash.update(data);
-    return hash.digest(encoding);
-  }
-
-  static createObjectHash(
-    data: object,
-    algo: CryptoAlgorithm = 'sha256',
-    encoding: crypto.BinaryToTextEncoding = 'hex',
-  ): string {
-    return this.createHash(JSON.stringify(data), algo, encoding);
-  }
-
-  static createUniqueId(prefix: string, length = 6): string {
-    const hash = this.createHash(`${Date.now()}${Util.randomId()}`).toLowerCase();
-    return `${prefix}_${hash.slice(0, length)}`;
-  }
-
-  static createSign(
-    data: BinaryLike,
-    key: KeyLike,
-    algo: CryptoAlgorithm = 'sha256',
-    encoding: crypto.BinaryToTextEncoding = 'base64',
-  ): string {
-    const sign = createSign(algo);
-    sign.update(data);
-    return sign.sign(key, encoding);
-  }
-
-  static verifySign(
-    data: BinaryLike,
-    key: KeyLike,
-    signature: string,
-    algo: CryptoAlgorithm = 'sha256',
-    encoding: crypto.BinaryToTextEncoding = 'base64',
-  ): boolean {
-    const verify = createVerify(algo);
-    verify.update(data);
-    return verify.verify(key, signature, encoding);
-  }
-
-  static createHmac(
-    key: BinaryLike,
-    data: BinaryLike,
-    algo: CryptoAlgorithm = 'sha256',
-    encoding: crypto.BinaryToTextEncoding = 'hex',
-  ): string {
-    const hmac = createHmac(algo, key);
-    hmac.update(data);
-    return hmac.digest(encoding);
-  }
-
   static async retry<T>(
     action: () => Promise<T>,
     tryCount = 3,
@@ -537,27 +574,6 @@ export class Util {
     );
   }
 
-  static blankCenter(value: string, visibleLength = 4): string {
-    return value.slice(0, visibleLength) + this.blankStart(value, visibleLength);
-  }
-
-  static blankStart(value: string, visibleLength = 4): string {
-    return '***' + value.slice(value.length - visibleLength);
-  }
-
-  static blankMail(value: string, visibleLength = 4): string {
-    const mailSplit = value.split('@');
-    return `${mailSplit[0].slice(0, visibleLength)}***@${mailSplit[1]}`;
-  }
-
-  static trimAll({ value }: TransformFnParams): string | undefined {
-    return value?.replace(/ /g, '');
-  }
-
-  static trim({ value }: TransformFnParams): string | undefined {
-    return value?.trim();
-  }
-
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
     return value != null ? Boolean(value || value === '') : value;
   }
@@ -566,11 +582,6 @@ export class Util {
     return value
       ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
       : value;
-  }
-
-  static fromBase64(file: string): { contentType: string; buffer: Buffer } {
-    const [contentType, content] = file.split(';base64,');
-    return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
   }
 
   static toCsv(list: any[], separator = ',', toGermanLocalDateString = false): string {
@@ -605,10 +616,6 @@ export class Util {
   static createMemoryLogString(): string {
     const memoryUsage = process.memoryUsage();
     return `RSS (Total memory): ${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`;
-  }
-
-  static numberToFixedString(value: number, precision = 8): string {
-    return value.toFixed(precision).replace(/0+$/, '');
   }
 
   private static areValuesEqual(a: unknown, b: unknown): boolean {

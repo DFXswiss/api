@@ -41,6 +41,10 @@ export enum FileSubType {
   OWNER_DIRECTORY_REPORT = 'OwnerDirectoryReport',
   AUTHORITY_REPORT = 'AuthorityReport',
   GENERAL_NOTE = 'GeneralNote',
+  IDENT_REPORT = 'IdentReport',
+  IDENT_SELFIE = 'IdentSelfie',
+  IDENT_DOC = 'IdentDoc',
+  IDENT_RECORDING = 'IdentRecording',
 }
 
 export enum KycReportType {

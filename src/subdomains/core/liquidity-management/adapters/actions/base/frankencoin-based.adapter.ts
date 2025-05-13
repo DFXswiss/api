@@ -76,11 +76,11 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
         `Not enough ${stableToken.name} liquidity balance: ${stableBuyingAmount} > ${stableTotalLiquidityBalance}`,
       );
 
-    try {
-      order.inputAmount = stableBuyingAmount;
-      order.inputAsset = stableToken.name;
-      order.outputAsset = order.target?.name;
+    order.inputAmount = stableBuyingAmount;
+    order.inputAsset = stableToken.name;
+    order.outputAsset = order.target?.name;
 
+    try {
       const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);
 
       const equityContract = this.frankencoinBasedService.getEquityContract();
