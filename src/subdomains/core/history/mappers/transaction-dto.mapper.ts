@@ -331,19 +331,19 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         };
 
       case CheckStatus.PASS:
-        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
+        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason: null };
         if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE)
-          return { state: TransactionState.FEE_TOO_HIGH, reason };
+          return { state: TransactionState.FEE_TOO_HIGH, reason: null };
         if ([BuyCryptoStatus.MISSING_LIQUIDITY, BuyCryptoStatus.PENDING_LIQUIDITY].includes(entity.status))
-          return { state: TransactionState.LIQUIDITY_PENDING, reason };
+          return { state: TransactionState.LIQUIDITY_PENDING, reason: null };
         if ([BuyCryptoStatus.PRICE_INVALID, BuyCryptoStatus.PRICE_SLIPPAGE].includes(entity.status))
-          return { state: TransactionState.PRICE_UNDETERMINABLE, reason };
+          return { state: TransactionState.PRICE_UNDETERMINABLE, reason: null };
         if (
           [BuyCryptoStatus.BATCHED, BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT].includes(
             entity.status,
           )
         )
-          return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
+          return { state: TransactionState.PAYOUT_IN_PROGRESS, reason: null };
         break;
     }
 
@@ -368,8 +368,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
         return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:
-        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
-        if (entity.fiatOutput) return { state: TransactionState.PAYOUT_IN_PROGRESS, reason };
+        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason: null };
+        if (entity.fiatOutput) return { state: TransactionState.PAYOUT_IN_PROGRESS, reason: null };
 
         break;
     }
