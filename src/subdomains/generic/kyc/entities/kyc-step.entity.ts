@@ -282,7 +282,7 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  created(): UpdateResult<KycStep> {
+  creating(): UpdateResult<KycStep> {
     const update: Partial<KycStep> = { status: KycStepStatus.CREATED };
 
     Object.assign(this, update);
