@@ -96,15 +96,18 @@ export class SellService {
     });
   }
 
+  validateLightningRoute(route: Sell): void {
+    if (!route) throw new NotFoundException('Sell route not found');
+    if (!route.active) throw new BadRequestException('Requested route is not active');
+    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
+  }
+
   async getPaymentRoute(idOrLabel: string): Promise<Sell> {
     const isRouteId = !isNaN(+idOrLabel);
     const sellRoute = isRouteId ? await this.getById(+idOrLabel) : await this.getByLabel(undefined, idOrLabel);
 
-    if (!sellRoute) throw new NotFoundException('Sell route not found');
-    if (!sellRoute.active) throw new BadRequestException('Requested route is not active');
-    if (sellRoute.deposit.blockchains !== Blockchain.LIGHTNING)
-      throw new BadRequestException('Only Lightning routes are allowed');
-
+    this.validateLightningRoute(sellRoute);
     return sellRoute;
   }
 
