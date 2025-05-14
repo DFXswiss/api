@@ -491,6 +491,9 @@
     "tatumApiKey": {
       "value": "xxx"
     },
+    "tatumHmacKey": {
+      "value": "xxx"
+    },
     "customBalanceAssets": {
       "value": "xxx"
     },

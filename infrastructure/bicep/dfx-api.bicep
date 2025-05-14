@@ -272,6 +272,8 @@ param alchemyApiKey string
 param alchemyAuthToken string
 @secure()
 param tatumApiKey string
+@secure()
+param tatumHmacKey string
 
 param customBalanceAssets string
 param customBalanceAddresses string
@@ -1215,6 +1217,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'TATUM_API_KEY'
           value: tatumApiKey
+        }
+        {
+          name: 'TATUM_HMAC_KEY'
+          value: tatumHmacKey
         }
         {
           name: 'CUSTOM_BALANCE_ASSETS'
