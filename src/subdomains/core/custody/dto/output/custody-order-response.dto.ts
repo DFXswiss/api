@@ -4,6 +4,43 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
+export class CustodyOrderBuyResponseDto {
+  @ApiPropertyOptional()
+  remittanceInfo?: string;
+
+  paymentLink?: string;
+
+  @ApiPropertyOptional()
+  name?: string;
+
+  @ApiPropertyOptional()
+  bank?: string;
+
+  @ApiPropertyOptional()
+  street?: string;
+
+  @ApiPropertyOptional()
+  number?: string;
+
+  @ApiPropertyOptional()
+  zip?: string;
+
+  @ApiPropertyOptional()
+  city?: string;
+
+  @ApiPropertyOptional()
+  country?: string;
+
+  @ApiPropertyOptional()
+  iban?: string;
+
+  @ApiPropertyOptional()
+  bic?: string;
+
+  @ApiPropertyOptional()
+  sepaInstant?: boolean;
+}
+
 export class CustodyOrderResponseDto {
   @ApiProperty({ description: 'Transaction order ID' })
   id: number;
@@ -13,9 +50,6 @@ export class CustodyOrderResponseDto {
 
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
-
-  @ApiPropertyOptional()
-  remittanceInfo?: string;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
@@ -70,36 +104,6 @@ export class CustodyOrderResponseDto {
   beneficiary?: BeneficiaryDto;
 
   // Buy
-  paymentLink?: string;
-
-  // Buy
-  @ApiPropertyOptional()
-  name?: string;
-
-  @ApiPropertyOptional()
-  bank?: string;
-
-  @ApiPropertyOptional()
-  street?: string;
-
-  @ApiPropertyOptional()
-  number?: string;
-
-  @ApiPropertyOptional()
-  zip?: string;
-
-  @ApiPropertyOptional()
-  city?: string;
-
-  @ApiPropertyOptional()
-  country?: string;
-
-  @ApiPropertyOptional()
-  iban?: string;
-
-  @ApiPropertyOptional()
-  bic?: string;
-
-  @ApiPropertyOptional()
-  sepaInstant?: boolean;
+  @ApiPropertyOptional({ description: 'Infos for Buy Custody Orders' })
+  buyInfos?: CustodyOrderBuyResponseDto;
 }

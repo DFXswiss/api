@@ -12,7 +12,7 @@ export class GetCustodyOrderDtoMapper {
       iban: paymentInfo.iban,
       currency,
       asset,
-      amount: paymentInfo.amount,
+      amount: paymentInfo.sourceAmount,
       targetAmount: paymentInfo.targetAmount,
       paymentMethod: paymentInfo.paymentMethod,
       exactPrice: true,
@@ -26,7 +26,7 @@ export class GetCustodyOrderDtoMapper {
       iban: paymentInfo.iban,
       asset,
       currency,
-      amount: paymentInfo.amount,
+      amount: paymentInfo.sourceAmount,
       targetAmount: paymentInfo.targetAmount,
       exactPrice: true,
     };
@@ -42,7 +42,7 @@ export class GetCustodyOrderDtoMapper {
     const dto: GetSwapPaymentInfoDto = {
       sourceAsset,
       targetAsset,
-      amount: paymentInfo.amount,
+      amount: paymentInfo.sourceAmount,
       targetAmount: paymentInfo.targetAmount,
       exactPrice: true,
     };

@@ -10,7 +10,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
-import { CreateCustodyOrderDto } from '../dto/input/create-custody-order.dto';
+import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto } from '../dto/output/custody-balance.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
@@ -43,7 +43,7 @@ export class CustodyController {
   @Post('order')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.CUSTODY), UserActiveGuard)
-  async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCustodyOrderDto): Promise<CustodyOrderDto> {
+  async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
     return this.custodyOrderService.createOrder(jwt, dto);
   }
 

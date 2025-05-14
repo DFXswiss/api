@@ -7,20 +7,22 @@ export class CustodyOrderResponseDtoMapper {
   static mapBuyPaymentInfo(paymentInfo: BuyPaymentInfoDto): CustodyOrderResponseDto {
     const dto: CustodyOrderResponseDto = {
       ...this.map(paymentInfo),
-      remittanceInfo: paymentInfo.remittanceInfo,
       sourceAsset: paymentInfo.currency.name,
       targetAsset: paymentInfo.asset.name,
-      paymentLink: paymentInfo.paymentLink,
-      name: paymentInfo.name,
-      bank: paymentInfo.bank,
-      street: paymentInfo.street,
-      number: paymentInfo.number,
-      zip: paymentInfo.zip,
-      city: paymentInfo.city,
-      country: paymentInfo.country,
-      iban: paymentInfo.iban,
-      bic: paymentInfo.bic,
-      sepaInstant: paymentInfo.sepaInstant,
+      buyInfos: {
+        remittanceInfo: paymentInfo.remittanceInfo,
+        paymentLink: paymentInfo.paymentLink,
+        name: paymentInfo.name,
+        bank: paymentInfo.bank,
+        street: paymentInfo.street,
+        number: paymentInfo.number,
+        zip: paymentInfo.zip,
+        city: paymentInfo.city,
+        country: paymentInfo.country,
+        iban: paymentInfo.iban,
+        bic: paymentInfo.bic,
+        sepaInstant: paymentInfo.sepaInstant,
+      },
     };
 
     return Object.assign(new CustodyOrderResponseDto(), dto);
