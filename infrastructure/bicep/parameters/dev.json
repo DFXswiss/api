@@ -270,7 +270,7 @@
       "value": "xxx"
     },
     "solanaGatewayUrl": {
-      "value": "xxx"
+      "value": "https://solana-mainnet.gateway.tatum.io"
     },
     "zchfGraphUrl": {
       "value": "https://maindevponder.frankencoin.com"
