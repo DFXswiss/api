@@ -16,7 +16,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
-import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
+import { EvmSignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../util/blockchain-client';
 import { WalletAccount } from './domain/wallet-account';
 import { EvmUtil } from './evm.util';
@@ -293,7 +293,7 @@ export abstract class EvmClient extends BlockchainClient {
     return result.hash;
   }
 
-  async sendSignedTransaction(tx: string): Promise<SignedTransactionResponse> {
+  async sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse> {
     const txToUse = tx.toLowerCase().startsWith('0x') ? tx : '0x' + tx;
 
     return this.alchemyService

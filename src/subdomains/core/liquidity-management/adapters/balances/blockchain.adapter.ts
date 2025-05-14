@@ -92,7 +92,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.MONERO:
-          await this.getForMonero(assets);
+        case Blockchain.SOLANA:
+          await this.getForMoneroOrSolana(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -134,7 +135,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForMonero(assets: Asset[]): Promise<void> {
+  private async getForMoneroOrSolana(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);

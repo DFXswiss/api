@@ -52,6 +52,14 @@ describe('Config', () => {
       true,
     );
 
+    // Arweave
+    expect(addrExp.test('RKYXQy00iKp-HmeYqsiXA_pDZTfdDyT-y-Brg93lgMk')).toEqual(true);
+    expect(addrExp.test('w5AtiFsNvORfcRtikbdrp2tzqixb05vdPw-ZhgVkD70')).toEqual(true);
+
+    // Solana
+    expect(addrExp.test('LUKAzPV8dDbVykTVT14pCGKzFfNcgZgRbAXB8AGdKx3')).toEqual(true);
+    expect(addrExp.test('oQPnhXAbLbMuKHESaGrbXT17CyvWCpLyERSJA9HCYd7')).toEqual(true);
+
     // Defichain
     expect(addrExp.test('8a2jKb8p6FWix6Q7prhWaCA8ghoTBttEBk')).toEqual(true);
     expect(addrExp.test('dak7adNN4FtfT4wADqZFPmPEDCfUfhaqD3')).toEqual(true);

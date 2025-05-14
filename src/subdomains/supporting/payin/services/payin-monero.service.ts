@@ -7,15 +7,15 @@ import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 
 @Injectable()
 export class PayInMoneroService extends PayInBitcoinBasedService {
-  private client: MoneroClient;
+  private readonly client: MoneroClient;
 
-  constructor(private moneroService: MoneroService) {
+  constructor(private readonly moneroService: MoneroService) {
     super();
     this.client = moneroService.getDefaultClient();
   }
 
   async checkHealthOrThrow(): Promise<void> {
-    const isHealthy = this.moneroService.isHealthy();
+    const isHealthy = await this.moneroService.isHealthy();
     if (!isHealthy) throw new Error('Monero node is unhealthy');
   }
 
