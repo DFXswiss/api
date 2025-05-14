@@ -3,8 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -18,7 +18,7 @@ describe('CryptoService', () => {
   let arweaveService: ArweaveService;
   let nodeService: NodeService;
   let railgunService: RailgunService;
-  let blockchainRegistryService: BlockchainRegistryService;
+  let solanaService: SolanaService;
 
   beforeEach(async () => {
     lightningService = createMock<LightningService>();
@@ -26,7 +26,7 @@ describe('CryptoService', () => {
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
     nodeService = createMock<NodeService>();
-    blockchainRegistryService = createMock<BlockchainRegistryService>();
+    solanaService = createMock<SolanaService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -36,7 +36,7 @@ describe('CryptoService', () => {
         { provide: ArweaveService, useValue: arweaveService },
         { provide: NodeService, useValue: nodeService },
         { provide: RailgunService, useValue: railgunService },
-        { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
+        { provide: SolanaService, useValue: solanaService },
         TestUtil.provideConfig(),
       ],
     }).compile();

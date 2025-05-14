@@ -263,6 +263,15 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
+    "solanaWalletAddress": {
+      "value": "xxx"
+    },
+    "solanaWalletSeed": {
+      "value": "xxx"
+    },
+    "solanaGatewayUrl": {
+      "value": "xxx"
+    },
     "zchfGraphUrl": {
       "value": "https://maindevponder.frankencoin.com"
     },
@@ -477,6 +486,9 @@
       "value": "xxx"
     },
     "alchemyAuthToken": {
+      "value": "xxx"
+    },
+    "tatumApiKey": {
       "value": "xxx"
     },
     "customBalanceAssets": {

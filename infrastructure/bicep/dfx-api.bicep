@@ -135,6 +135,11 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
+param solanaWalletAddress string
+@secure()
+param solanaWalletSeed string
+param solanaGatewayUrl string
+
 param zchfGraphUrl string
 param zchfContractAddress string
 param zchfEquityContractAddress string
@@ -265,6 +270,8 @@ param delisenseKey string
 param alchemyApiKey string
 @secure()
 param alchemyAuthToken string
+@secure()
+param tatumApiKey string
 
 param customBalanceAssets string
 param customBalanceAddresses string
@@ -910,6 +917,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
+          name: 'SOLANA_WALLET_ADDRESS'
+          value: solanaWalletAddress
+        }
+        {
+          name: 'SOLANA_WALLET_SEED'
+          value: solanaWalletSeed
+        }
+        {
+          name: 'SOLANA_GATEWAY_URL'
+          value: solanaGatewayUrl
+        }
+        {
           name: 'ZCHF_GRAPH_URL'
           value: zchfGraphUrl
         }
@@ -1192,6 +1211,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ALCHEMY_AUTH_TOKEN'
           value: alchemyAuthToken
+        }
+        {
+          name: 'TATUM_API_KEY'
+          value: tatumApiKey
         }
         {
           name: 'CUSTOM_BALANCE_ASSETS'

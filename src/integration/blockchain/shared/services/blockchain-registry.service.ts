@@ -7,6 +7,8 @@ import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
 import { PolygonService } from '../../polygon/polygon.service';
+import { SolanaService } from '../../solana/services/solana.service';
+import { SolanaClient } from '../../solana/solana-client';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
@@ -22,9 +24,10 @@ export class BlockchainRegistryService {
     private readonly polygonService: PolygonService,
     private readonly baseService: BaseService,
     private readonly moneroService: MoneroService,
+    private readonly solanaService: SolanaService,
   ) {}
 
-  getClient(blockchain: Blockchain): EvmClient | MoneroClient {
+  getClient(blockchain: Blockchain): EvmClient | MoneroClient | SolanaClient {
     return this.getService(blockchain).getDefaultClient();
   }
 
@@ -34,7 +37,7 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient();
   }
 
-  getService(blockchain: Blockchain): EvmService | MoneroService {
+  getService(blockchain: Blockchain): EvmService | MoneroService | SolanaService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
@@ -50,6 +53,8 @@ export class BlockchainRegistryService {
         return this.baseService;
       case Blockchain.MONERO:
         return this.moneroService;
+      case Blockchain.SOLANA:
+        return this.solanaService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);

@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
+import { EvmSignedTransactionResponse } from 'src/integration/blockchain/shared/dto/signed-transaction-reponse.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -374,7 +376,7 @@ export class PaymentQuoteService {
 
   private async doEvmHexPayment(method: Blockchain, transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const client = this.blockchainRegistryService.getClient(method);
+      const client = this.blockchainRegistryService.getClient(method) as EvmClient;
 
       if (transferInfo.tx) {
         const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
@@ -391,7 +393,9 @@ export class PaymentQuoteService {
         return;
       }
 
-      const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+      const transactionResponse = (await client.sendSignedTransaction(
+        transferInfo.hex,
+      )) as EvmSignedTransactionResponse;
 
       transactionResponse.error
         ? quote.txFailed(transactionResponse.error.message)
