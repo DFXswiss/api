@@ -374,8 +374,9 @@ export class PaymentQuoteService {
 
   private async doEvmHexPayment(method: Blockchain, transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const client = this.blockchainRegistryService.getClient(method);
+      const client = this.blockchainRegistryService.getEvmClient(method);
 
+      // handle TX ID
       if (transferInfo.tx) {
         const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
 
@@ -388,6 +389,20 @@ export class PaymentQuoteService {
 
         quote.txInBlockchain(transferInfo.tx);
 
+        return;
+      }
+
+      // handle HEX
+      const transferAmount = quote.getTransferAmount(method);
+      if (!transferAmount) {
+        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for ${method} hex payment`);
+        return;
+      }
+
+      const feeLimit = await client.getGasPriceLimitFromHex(transferInfo.hex);
+
+      if (feeLimit < transferAmount.minFee) {
+        quote.txFailed(`Fee ${feeLimit} lower than min fee ${transferAmount.minFee}`);
         return;
       }
 
