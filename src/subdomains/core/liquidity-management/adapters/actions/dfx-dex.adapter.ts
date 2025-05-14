@@ -125,6 +125,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       amount,
     };
 
+    order.inputAmount = amount;
+    order.inputAsset = request.asset.name;
+
     return this.dexService.transferLiquidity(request);
   }
 
@@ -155,7 +158,13 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
     const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
 
-    return deposit && deposit.status === 'ok';
+    const isComplete = deposit && deposit.status === 'ok';
+    if (isComplete) {
+      order.outputAmount = deposit.amount;
+      order.outputAsset = deposit.currency;
+    }
+
+    return isComplete;
   }
 
   // --- PARAM VALIDATION --- //
