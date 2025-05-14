@@ -13,7 +13,7 @@ enum FeeType {
 }
 
 interface FeeInfo {
-  type: FeeType; // 0 = legacy
+  type: FeeType;
   gasLimit: ethers.BigNumber;
   // for legacy tx
   gasPrice?: ethers.BigNumber;
@@ -99,12 +99,8 @@ export class EvmUtil {
   static getGasPriceLimitFromHex(txHex: string, gasPrice: EthersNumber): number {
     const feeInfo = EvmUtil.decodeTransactionFees(txHex);
 
-    switch (feeInfo.type) {
-      case FeeType.EIP1559:
-        return Math.min(+feeInfo.maxFeePerGas, +gasPrice.add(feeInfo.maxPriorityFeePerGas));
-
-      default:
-        return +feeInfo.gasPrice;
-    }
+    return feeInfo.type === FeeType.EIP1559
+      ? Math.min(+feeInfo.maxFeePerGas, +gasPrice.add(feeInfo.maxPriorityFeePerGas))
+      : +feeInfo.gasPrice;
   }
 }
