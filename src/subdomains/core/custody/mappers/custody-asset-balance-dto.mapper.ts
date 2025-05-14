@@ -20,7 +20,7 @@ export class CustodyAssetBalanceDtoMapper {
     });
   }
 
-  private static map(asset: Asset, balance: number) {
+  private static map(asset: Asset, balance: number): CustodyAssetBalanceDto {
     const priceInEur = Price.create('EUR', asset.name, asset.approxPriceEur).invert();
     const priceInChf = Price.create('CHF', asset.name, asset.approxPriceChf).invert();
     const priceInUsd = Price.create('USD', asset.name, asset.approxPriceUsd).invert();

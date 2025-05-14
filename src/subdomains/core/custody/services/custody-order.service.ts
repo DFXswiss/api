@@ -7,14 +7,8 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import { Equal } from 'typeorm';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { BuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
-import { GetBuyPaymentInfoDto } from '../../buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
-import { GetSwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
-import { SwapPaymentInfoDto } from '../../buy-crypto/routes/swap/dto/swap-payment-info.dto';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { GetSellPaymentInfoDto } from '../../sell-crypto/route/dto/get-sell-payment-info.dto';
-import { SellPaymentInfoDto } from '../../sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
