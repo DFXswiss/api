@@ -15,9 +15,7 @@ export class GetCustodyInfoDto {
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((b: GetCustodyInfoDto) =>
-    Boolean([CustodyOrderType.WITHDRAWAL, CustodyOrderType.SAVING_WITHDRAWAL].includes(b.type)),
-  )
+  @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.WITHDRAWAL === b.type))
   @IsString()
   @IsDfxIban(IbanType.BUY) // TODO
   @Transform(Util.trimAll)

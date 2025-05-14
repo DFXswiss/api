@@ -3,7 +3,6 @@ import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -96,7 +95,6 @@ export class CustodyService {
         chf: Util.roundReadable(totalValueInChf, AmountType.FIAT),
         usd: Util.roundReadable(totalValueInUsd, AmountType.FIAT),
       },
-      currency: FiatDtoMapper.toDto(account.currency),
     };
   }
 

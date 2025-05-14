@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 
 export class CustodyAssetDto {
   @ApiProperty({ description: 'Asset name' })
@@ -34,9 +33,6 @@ export class CustodyAssetBalanceDto {
 export class CustodyBalanceDto {
   @ApiProperty({ description: 'Total balance in fiat values' })
   totalValue: CustodyFiatValueDto;
-
-  @ApiProperty({ type: FiatDto, description: 'Currency selected by user' })
-  currency: FiatDto;
 
   @ApiProperty({ type: CustodyAssetBalanceDto, description: 'Asset balances', isArray: true })
   balances: CustodyAssetBalanceDto[];

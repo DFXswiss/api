@@ -69,13 +69,13 @@ export class CustodyOrderResponseDto {
   @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
   fees: FeeDto;
 
-  @ApiProperty({ type: FeeDto, description: 'Fee infos in target currency' })
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in target asset' })
   feesTarget: FeeDto;
 
-  @ApiProperty({ description: 'Minimum volume in target currency' })
+  @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;
 
-  @ApiProperty({ description: 'Maximum volume in target currency' })
+  @ApiProperty({ description: 'Maximum volume in target asset' })
   maxVolumeTarget: number;
 
   @ApiProperty({ description: 'Exchange rate in source/target' })
@@ -87,7 +87,7 @@ export class CustodyOrderResponseDto {
   @ApiProperty({ type: PriceStep, isArray: true })
   priceSteps: PriceStep[];
 
-  @ApiProperty({ description: 'Estimated amount in target currency' })
+  @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
@@ -104,6 +104,6 @@ export class CustodyOrderResponseDto {
   beneficiary?: BeneficiaryDto;
 
   // Buy
-  @ApiPropertyOptional({ description: 'Infos for Buy Custody Orders' })
+  @ApiPropertyOptional({ type: CustodyOrderBuyResponseDto, description: 'Infos for Buy Custody Orders' })
   buyInfos?: CustodyOrderBuyResponseDto;
 }
