@@ -85,15 +85,17 @@ export class CustodyService {
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
     const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances);
 
-    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.valueInEur, 0);
-    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.valueInChf, 0);
-    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.valueInUsd, 0);
+    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
+    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
+    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd, 0);
 
     return {
       balances,
-      totalValueInEur: Util.roundReadable(totalValueInEur, AmountType.FIAT),
-      totalValueInChf: Util.roundReadable(totalValueInChf, AmountType.FIAT),
-      totalValueInUsd: Util.roundReadable(totalValueInUsd, AmountType.FIAT),
+      totalValue: {
+        eur: Util.roundReadable(totalValueInEur, AmountType.FIAT),
+        chf: Util.roundReadable(totalValueInChf, AmountType.FIAT),
+        usd: Util.roundReadable(totalValueInUsd, AmountType.FIAT),
+      },
       currency: FiatDtoMapper.toDto(account.currency),
     };
   }

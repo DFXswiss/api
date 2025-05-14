@@ -9,40 +9,6 @@ export class CustodyAssetDto {
   description: string;
 }
 
-export class CustodyAssetBalanceDto {
-  @ApiProperty({ type: CustodyAssetDto, description: 'Asset' })
-  asset: CustodyAssetDto;
-
-  @ApiProperty({ description: 'Balance in asset' })
-  balance: number;
-
-  @ApiProperty({ description: 'Balance in EUR' })
-  valueInEur: number;
-
-  @ApiProperty({ description: 'Balance in CHF' })
-  valueInChf: number;
-
-  @ApiProperty({ description: 'Balance in USD' })
-  valueInUsd: number;
-}
-
-export class CustodyBalanceDto {
-  @ApiProperty({ description: 'Total balance in EUR' })
-  totalValueInEur: number;
-
-  @ApiProperty({ description: 'Total balance in CHF' })
-  totalValueInChf: number;
-
-  @ApiProperty({ description: 'Total balance in USD' })
-  totalValueInUsd: number;
-
-  @ApiProperty({ type: FiatDto, description: 'Currency selected by user' })
-  currency: FiatDto;
-
-  @ApiProperty({ type: CustodyAssetBalanceDto, description: 'Asset balances', isArray: true })
-  balances: CustodyAssetBalanceDto[];
-}
-
 export class CustodyFiatValueDto {
   @ApiProperty({ description: 'Value in Swiss Franc' })
   chf: number;
@@ -52,6 +18,28 @@ export class CustodyFiatValueDto {
 
   @ApiProperty({ description: 'Value in US Dollar' })
   usd: number;
+}
+
+export class CustodyAssetBalanceDto {
+  @ApiProperty({ type: CustodyAssetDto, description: 'Asset' })
+  asset: CustodyAssetDto;
+
+  @ApiProperty({ description: 'Balance in asset' })
+  balance: number;
+
+  @ApiProperty({ description: 'Balances in fiat values' })
+  value: CustodyFiatValueDto;
+}
+
+export class CustodyBalanceDto {
+  @ApiProperty({ description: 'Total balance in fiat values' })
+  totalValue: CustodyFiatValueDto;
+
+  @ApiProperty({ type: FiatDto, description: 'Currency selected by user' })
+  currency: FiatDto;
+
+  @ApiProperty({ type: CustodyAssetBalanceDto, description: 'Asset balances', isArray: true })
+  balances: CustodyAssetBalanceDto[];
 }
 
 export class CustodyHistoryEntryDto {
