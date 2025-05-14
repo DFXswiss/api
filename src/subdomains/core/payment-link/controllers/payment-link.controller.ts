@@ -13,6 +13,9 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SellDto } from 'src/subdomains/core/sell-crypto/route/dto/sell.dto';
+import { SellController } from 'src/subdomains/core/sell-crypto/route/sell.controller';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -35,6 +38,8 @@ export class PaymentLinkController {
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly sellController: SellController,
+    private readonly sellService: SellService,
   ) {}
 
   @Get()
@@ -124,6 +129,14 @@ export class PaymentLinkController {
   }
 
   // --- PAYMENT --- //
+
+  @Get('recipient')
+  @ApiExcludeEndpoint()
+  @ApiQuery({ name: 'id', description: 'Route ID or label', required: true })
+  async getPaymentRecipient(@Query('id') id: string): Promise<SellDto> {
+    const sellRoute = await this.sellService.getPaymentRoute(id);
+    return this.sellController.toDto(sellRoute);
+  }
 
   @Get('payment')
   @ApiExcludeEndpoint()
