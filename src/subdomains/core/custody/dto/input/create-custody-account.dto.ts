@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, Matches } from 'class-validator';
 import { GetConfig } from 'src/config/config';
+import { Moderator } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CustodyAddressType } from '../../enums/custody';
 
 export class CreateCustodyAccountDto {
@@ -23,4 +24,9 @@ export class CreateCustodyAccountDto {
   @IsOptional()
   @IsString()
   specialCode?: string;
+
+  @ApiPropertyOptional({ description: 'Moderator' })
+  @IsOptional()
+  @IsEnum(Moderator)
+  moderator?: Moderator;
 }

@@ -16,6 +16,7 @@ export interface PaymentLinkConfig {
   recipient?: PaymentLinkRecipientDto;
   paymentTimeout: number;
   autoConfirmSecs?: number;
+  evmHexPaymentCompletionCheckTryCount?: number;
   payoutRouteId?: number;
   // user data only
   payoutFrequency?: PayoutFrequency;

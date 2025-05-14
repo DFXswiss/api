@@ -1,17 +1,13 @@
 import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { IsNull, Not } from 'typeorm';
+import { IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
-import { FileType } from '../dto/kyc-file.dto';
+import { FileSubType, FileType } from '../dto/kyc-file.dto';
 import { KycFile } from '../entities/kyc-file.entity';
 import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
 import { ContentType } from '../enums/content-type.enum';
@@ -21,8 +17,6 @@ import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class NameCheckService implements OnModuleInit {
-  private readonly logger = new DfxLogger(NameCheckService);
-
   // private sanctionData: DilisenseJsonData[] = [];
 
   constructor(
@@ -34,60 +28,6 @@ export class NameCheckService implements OnModuleInit {
 
   onModuleInit() {
     // void this.reloadSanctionList();
-  }
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.NAME_CHECK_PDF_SYNC, timeout: 1800 })
-  async syncNameCheckPdf(): Promise<void> {
-    const entities = await this.nameCheckLogRepo.find({
-      where: {
-        file: { id: IsNull() },
-        synced: IsNull(),
-        bankData: { id: Not(IsNull()), type: Not(BankDataType.USER) },
-      },
-      relations: { bankData: { userData: true }, file: true },
-      take: 500,
-    });
-
-    for (const entity of entities) {
-      try {
-        const update: Partial<NameCheckLog> = { synced: true };
-        if (
-          !(await this.nameCheckLogRepo.exists({
-            where: { bankData: { id: entity.bankData.id }, file: { id: Not(IsNull()) }, synced: Not(IsNull()) },
-            relations: { bankData: true, file: true },
-          }))
-        ) {
-          const userData = entity.bankData.userData;
-
-          if (userData.accountType !== AccountType.ORGANIZATION) {
-            update.file = await this.getRiskDataAndUploadPdf(
-              userData,
-              false,
-              entity.bankData.type === BankDataType.CARD_IN && userData.verifiedName
-                ? userData.verifiedName
-                : entity.bankData.name,
-              userData.birthday,
-              true,
-            ).then((r) => r.file);
-          } else {
-            const isBusiness = entity.comment === 'Business';
-
-            update.file = await this.getRiskDataAndUploadPdf(
-              userData,
-              isBusiness,
-              isBusiness ? userData.organizationName : `${userData.firstname} ${userData.surname}`,
-              isBusiness ? undefined : userData.birthday,
-              true,
-            ).then((r) => r.file);
-          }
-        }
-
-        await this.nameCheckLogRepo.update(entity.id, update);
-      } catch (e) {
-        this.logger.error(`Error in nameCheck sync ${entity.id}`, e);
-        await this.nameCheckLogRepo.update(entity.id, { synced: false });
-      }
-    }
   }
 
   async updateLog(id: number, dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
@@ -108,7 +48,7 @@ export class NameCheckService implements OnModuleInit {
     // );
 
     // Personal name check
-    if (bankData.userData.accountType !== AccountType.ORGANIZATION) {
+    if (!bankData.userData.accountType || bankData.userData.accountType === AccountType.PERSONAL) {
       const { data, file } = await this.getRiskDataAndUploadPdf(
         bankData.userData,
         false,
@@ -202,6 +142,8 @@ export class NameCheckService implements OnModuleInit {
       buffer,
       contentType as ContentType,
       true,
+      undefined,
+      isBusiness ? FileSubType.BUSINESS_NAME_CHECK : FileSubType.PERSONAL_NAME_CHECK,
     );
 
     return { data: riskData, file };
@@ -254,7 +196,6 @@ export class NameCheckService implements OnModuleInit {
       riskEvaluation: existing?.riskEvaluation,
       comment: existing?.comment ? [existing.comment, comment].join(';') : comment,
       file,
-      synced: true,
     });
 
     await this.nameCheckLogRepo.save(entity);

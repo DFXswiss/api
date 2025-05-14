@@ -87,7 +87,8 @@
                 "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain",
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
                 "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
-                "test_only": "Test"
+                "test_only": "Test",
+                "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -172,6 +173,15 @@
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "kyc_data_needed": {
+                "title": "Données KYC requises",
+                "salutation": "Des informations personnelles sont nécessaires pour finaliser la transaction en cours",
+                "line1": "Malheureusement, nous avons besoin de vos données KYC pour votre transaction.",
+                "line2": "Cliquez sur le lien suivant et complétez au moins les premières étapes jusqu'à ce que vous ayez saisi votre nom et votre adresse:<br>[url:{urlText}]",
+                "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
+                "line4": "Il n'est pas nécessaire de procéder à une vérification complète, il suffit d'indiquer son nom et son adresse.",
+                "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",

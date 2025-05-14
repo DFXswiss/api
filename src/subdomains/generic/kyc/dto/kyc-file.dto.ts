@@ -19,6 +19,34 @@ export enum FileType {
   AUTHORITY = 'Authority',
 }
 
+export enum FileSubType {
+  GWG_FILE_COVER = 'GwGFileCover',
+  BLOCKCHAIN_ADDRESS_ANALYSIS = 'BlockchainAddressAnalysis',
+  ADDRESS_SIGNATURE = 'AddressSignature',
+  BANK_TRANSACTION_VERIFICATION = 'BankTransactionVerification',
+  IDENTIFICATION_FORM = 'IdentificationForm',
+  DFX_NAME_CHECK = 'DfxNameCheck',
+  PERSONAL_NAME_CHECK = 'PersonalNameCheck',
+  BUSINESS_NAME_CHECK = 'BusinessNameCheck',
+  RISK_PROFILE = 'RiskProfile',
+  TX_AUDIT = 'TxAudit',
+  ONBOARDING_REPORT = 'OnboardingReport',
+  FORM_A = 'FormA',
+  FORM_K = 'FormK',
+  CUSTOMER_PROFILE = 'CustomerProfile',
+  POST_DISPATCH = 'PostDispatch',
+  LIMIT_REQUEST_USER_UPLOAD = 'LimitRequestUserUpload',
+  LIMIT_REQUEST_REPORT = 'LimitRequestReport',
+  COMMERCIAL_REGISTER_REPORT = 'CommercialRegisterReport',
+  OWNER_DIRECTORY_REPORT = 'OwnerDirectoryReport',
+  AUTHORITY_REPORT = 'AuthorityReport',
+  GENERAL_NOTE = 'GeneralNote',
+  IDENT_REPORT = 'IdentReport',
+  IDENT_SELFIE = 'IdentSelfie',
+  IDENT_DOC = 'IdentDoc',
+  IDENT_RECORDING = 'IdentRecording',
+}
+
 export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
@@ -36,6 +64,7 @@ export class CreateKycFileDto {
   protected: boolean;
   userData: UserData;
   kycStep?: KycStep;
+  subType?: FileSubType;
 }
 
 export class KycFileDataDto {

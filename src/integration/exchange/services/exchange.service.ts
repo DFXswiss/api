@@ -117,10 +117,14 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.trade(from, to, amount);
   }
 
-  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+  async getTrade(id: string, from: string, to: string): Promise<Order> {
     const pair = await this.getPair(from, to);
 
-    const order = await this.callApi((e) => e.fetchOrder(id, pair));
+    return this.callApi((e) => e.fetchOrder(id, pair));
+  }
+
+  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+    const order = await this.getTrade(id, from, to);
 
     switch (order.status) {
       case OrderStatus.OPEN:
@@ -261,8 +265,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
     const { price: pricePrecision } = await this.getPrecision(pair);
 
-    const price =
-      direction == OrderSide.BUY ? orderBook.asks[0][0] - pricePrecision : orderBook.bids[0][0] + pricePrecision;
+    const priceOffset = 0; // positive for better price
+    const price = direction === OrderSide.BUY ? orderBook.asks[0][0] - priceOffset : orderBook.bids[0][0] + priceOffset;
 
     return Util.roundToValue(price, pricePrecision);
   }

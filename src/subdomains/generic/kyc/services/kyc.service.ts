@@ -915,8 +915,10 @@ export class KycService {
         break;
 
       case KycStepName.DFX_APPROVAL:
-        const missingSteps = requiredKycSteps(user).filter((rs) => !user.hasDoneStep(rs));
-        user.kycLevel < KycLevel.LEVEL_50 || missingSteps.length > 1 ? kycStep.internalReview() : kycStep.complete();
+        const missingCompletedSteps = requiredKycSteps(user).filter((rs) => !user.hasCompletedStep(rs));
+
+        missingCompletedSteps.length === 1 ? kycStep.manualReview() : kycStep.onHold();
+
         break;
     }
 
@@ -1181,7 +1183,7 @@ export class KycService {
     kycStep: KycStep,
     namePrefix = '',
   ): Promise<void> {
-    for (const { name, content, contentType } of documents) {
+    for (const { name, content, contentType, fileSubType } of documents) {
       await this.documentService.uploadFile(
         user,
         FileType.IDENTIFICATION,
@@ -1190,6 +1192,7 @@ export class KycService {
         contentType,
         true,
         kycStep,
+        fileSubType,
       );
     }
   }

@@ -29,6 +29,7 @@ export enum AmlReason {
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
   TEST_ONLY = 'TestOnly',
+  KYC_DATA_NEEDED = 'KycDataNeeded',
 }
 
 export const KycAmlReasons = [

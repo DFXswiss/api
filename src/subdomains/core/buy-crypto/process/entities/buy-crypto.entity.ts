@@ -611,6 +611,10 @@ export class BuyCrypto extends IEntity {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
+  get refundAmount(): number {
+    return this.bankTx ? this.bankTx.refundAmount : this.inputAmount;
+  }
+
   get inputPriceStep(): PriceStep[] {
     return this.inputAsset !== this.inputReferenceAsset
       ? [
@@ -650,7 +654,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.bankTx ? this.bankTx.chargeAmount : 0;
+    return this.bankTx ? this.bankTx.chargeAmountChf : 0;
   }
 
   get wallet(): Wallet {

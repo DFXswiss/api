@@ -8,8 +8,10 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentDocument } from '../../dto/ident.dto';
+import { FileSubType } from '../../dto/kyc-file.dto';
 import {
   ApplicantType,
+  IdDocType,
   SumSubDataResult,
   SumSubDocumentMetaData,
   SumsubResult,
@@ -99,7 +101,12 @@ export class SumsubService {
       'arraybuffer',
     ).then(Buffer.from);
 
-    return { name: this.fileName(transactionId, 'pdf'), content, contentType: ContentType.PDF };
+    return {
+      name: this.fileName(transactionId, 'pdf'),
+      content,
+      contentType: ContentType.PDF,
+      fileSubType: FileSubType.IDENT_REPORT,
+    };
   }
 
   private async getDocumentMedia(applicantId: string, transactionId: string): Promise<IdentDocument[]> {
@@ -115,10 +122,21 @@ export class SumsubService {
         'arraybuffer',
       ).then(Buffer.from);
 
+      const identDocTypes = [
+        IdDocType.ID_CARD,
+        IdDocType.PASSPORT,
+        IdDocType.DRIVERS,
+        IdDocType.DRIVERS_TRANSLATION,
+        IdDocType.ID_DOC_PHOTO,
+      ];
+
       identDocuments.push({
         name: this.fileName(`${transactionId}-${image.id}`, 'png'),
         content,
         contentType: ContentType.PNG,
+        fileSubType: identDocTypes.includes(image.idDocDef.idDocType)
+          ? FileSubType.IDENT_DOC
+          : FileSubType.IDENT_SELFIE,
       });
     }
 
@@ -141,6 +159,7 @@ export class SumsubService {
         name: this.fileName(`${transactionId}-${composition.compositionMediaId}`, 'mp4'),
         content,
         contentType: ContentType.MP4,
+        fileSubType: FileSubType.IDENT_RECORDING,
       });
     }
 

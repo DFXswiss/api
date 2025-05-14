@@ -93,8 +93,7 @@ export class SupportIssueService {
 
     if (!existingIssue) {
       // create UID
-      const hash = Util.createHash(newIssue.type + new Date() + Util.randomId()).toUpperCase();
-      newIssue.uid = `${ISSUE_UID_PREFIX}${hash.slice(0, 16)}`;
+      newIssue.uid = `${ISSUE_UID_PREFIX}${Util.randomString(16)}`;
 
       // map transaction
       if (dto.transaction) {

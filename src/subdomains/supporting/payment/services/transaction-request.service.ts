@@ -32,8 +32,7 @@ export class TransactionRequestService {
     userId: number,
   ): Promise<void> {
     try {
-      const hash = Util.createHash(type + new Date() + Util.randomId()).toUpperCase();
-      const uid = `${QUOTE_UID_PREFIX}${hash.slice(0, 16)}`;
+      const uid = `${QUOTE_UID_PREFIX}${Util.randomString(16)}`;
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
