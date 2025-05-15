@@ -5,6 +5,7 @@ import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/bl
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
@@ -15,6 +16,8 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration } from '../../interfaces';
+
+type TokenClient = EvmClient | SolanaClient;
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -92,8 +95,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.MONERO:
-        case Blockchain.SOLANA:
-          await this.getForMoneroOrSolana(assets);
+          await this.getForMonero(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -103,6 +105,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.BASE:
         case Blockchain.BINANCE_SMART_CHAIN:
           await this.getForEvm(assets);
+          break;
+
+        case Blockchain.SOLANA:
+          await this.getForSolana(assets);
           break;
 
         default:
@@ -135,7 +141,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForMoneroOrSolana(assets: Asset[]): Promise<void> {
+  private async getForMonero(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
@@ -156,7 +162,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
-    await this.getForEvmAsset(
+    await this.getForTokenAsset(
       assets.filter((a) => a.type !== AssetType.POOL),
       client,
     );
@@ -166,7 +172,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
   }
 
-  private async getForEvmAsset(assets: Asset[], client: EvmClient): Promise<void> {
+  private async getForTokenAsset(assets: Asset[], client: TokenClient): Promise<void> {
     let coinBalance: number;
     let tokenBalances: BlockchainTokenBalance[];
 
@@ -208,6 +214,18 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         this.invalidateCacheFor(assetMap.get(pool));
       }
     }
+  }
+
+  private async getForSolana(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.blockchainRegistryService.getClient(blockchain) as SolanaClient;
+
+    await this.getForTokenAsset(
+      assets.filter((a) => a.type !== AssetType.POOL),
+      client,
+    );
   }
 
   // --- HELPER METHODS --- //
