@@ -188,9 +188,7 @@ export class TransactionDtoMapper {
       outputBlockchain: isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity?.blockchain : null,
       outputPaymentMethod: txRequest.targetPaymentMethod,
       priceSteps: null,
-      feeAmount: fees.total
-        ? Util.roundReadable(fees.total * txRequest.amount, feeAmountType(txRequest.sourceAssetEntity))
-        : null,
+      feeAmount: fees.total,
       feeAsset: fees.total ? txRequest.sourceAssetEntity.name : null,
       fees,
       inputTxId: null,
