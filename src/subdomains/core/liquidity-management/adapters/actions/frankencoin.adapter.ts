@@ -24,4 +24,12 @@ export class FrankencoinAdapter extends FrankencoinBasedAdapter {
       blockchain: Blockchain.ETHEREUM,
     });
   }
+
+  async getEquityToken(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'FPS',
+      type: AssetType.TOKEN,
+      blockchain: Blockchain.ETHEREUM,
+    });
+  }
 }

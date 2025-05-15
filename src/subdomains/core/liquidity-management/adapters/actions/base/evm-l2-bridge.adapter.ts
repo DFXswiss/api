@@ -110,6 +110,11 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, requested: ${amount})`,
       );
 
+    order.inputAmount = amount;
+    order.inputAsset = l1Asset.name;
+    order.outputAmount = amount;
+    order.outputAsset = l2Asset.name;
+
     switch (type) {
       case AssetType.COIN: {
         return this.l2Client.depositCoinOnDex(amount);
@@ -140,20 +145,24 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
 
     const { type, name } = l2Asset;
 
+    const l1Asset = await this.assetService.getAssetByQuery({ name, type, blockchain: Blockchain.ETHEREUM });
+    if (!l1Asset) {
+      throw new Error(
+        `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
+      );
+    }
+
+    order.inputAmount = amount;
+    order.inputAsset = l2Asset.name;
+    order.outputAmount = amount;
+    order.outputAsset = l1Asset.name;
+
     switch (type) {
       case AssetType.COIN: {
         return this.l2Client.withdrawCoinOnDex(amount);
       }
 
       case AssetType.TOKEN: {
-        const l1Asset = await this.assetService.getAssetByQuery({ name, type, blockchain: Blockchain.ETHEREUM });
-
-        if (!l1Asset) {
-          throw new Error(
-            `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
-          );
-        }
-
         return this.l2Client.withdrawTokenOnDex(l1Asset, l2Asset, amount);
       }
 

@@ -24,7 +24,7 @@ export class DexController {
   @Get('check-liquidity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async checkLiquidity(@Query() dto: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.checkLiquidity(dto);
@@ -34,7 +34,7 @@ export class DexController {
   @Post('reserve-liquidity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async reserveLiquidity(@Body() dto: ReserveLiquidityRequest): Promise<number> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.reserveLiquidity(dto);
@@ -44,7 +44,7 @@ export class DexController {
   @Post('purchase-liquidity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async purchaseLiquidity(@Body() dto: PurchaseLiquidityRequest): Promise<void> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.purchaseLiquidity(dto);
@@ -54,7 +54,7 @@ export class DexController {
   @Post('transfer-liquidity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async transferLiquidity(@Body() dto: TransferRequest): Promise<string> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.transferLiquidity(dto);
@@ -64,7 +64,7 @@ export class DexController {
   @Get('liquidity-after-purchase')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async fetchTargetLiquidityAfterPurchase(
     @Query('context') context: LiquidityOrderContext,
     @Query('correlationId') correlationId: string,
@@ -77,7 +77,7 @@ export class DexController {
   @Get('transfer-completion')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async checkTransferCompletion(
     @Query('transferTxId') transferTxId: string,
     @Query('blockchain') blockchain: Blockchain,
@@ -90,7 +90,7 @@ export class DexController {
   @Put('complete-orders')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async completeOrders(
     @Query('context') context: LiquidityOrderContext,
     @Query('correlationId') correlationId: string,

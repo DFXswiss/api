@@ -51,7 +51,7 @@ export class HistoryController {
   // --- DEPRECATED ENDPOINTS --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: TypedHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   async getHistory(
@@ -89,7 +89,7 @@ export class HistoryController {
 
   @Post('csv')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   @ApiCreatedResponse()
   async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<number> {

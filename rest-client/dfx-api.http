@@ -246,6 +246,14 @@ Authorization: Bearer {{authToken}}
 
 ###
 
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/kyc/admin/ident/file/sync?step=72208
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+###
+
 
 
 // ALCHEMY
@@ -370,4 +378,14 @@ Authorization: Bearer {{authToken}}
 @authToken = {{login.response.body.accessToken}}
 
 GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&allowExpired=false
+Authorization: Bearer {{authToken}}
+
+
+###
+
+// CUSTODY
+
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/custody/admin/user/324748/balance?assetId=337
 Authorization: Bearer {{authToken}}

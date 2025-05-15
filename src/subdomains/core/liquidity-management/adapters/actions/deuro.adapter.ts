@@ -24,4 +24,12 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
       blockchain: Blockchain.ETHEREUM,
     });
   }
+
+  async getEquityToken(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'nDEPS',
+      type: AssetType.TOKEN,
+      blockchain: Blockchain.ETHEREUM,
+    });
+  }
 }
