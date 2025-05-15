@@ -17,7 +17,7 @@ export class GetCustodyInfoDto {
   @IsNotEmpty()
   @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.WITHDRAWAL === b.type))
   @IsString()
-  @IsDfxIban(IbanType.BUY) // TODO
+  @IsDfxIban(IbanType.SELL)
   @Transform(Util.trimAll)
   iban?: string;
 
