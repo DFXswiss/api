@@ -79,7 +79,10 @@ export class TradingRuleService {
       const tradingInfo = await this.tradingService.createTradingInfo(rule);
 
       if (tradingInfo) {
-        if (rule.status !== TradingRuleStatus.ACTIVE) tradingInfo.tradeRequired = false;
+        if (rule.status !== TradingRuleStatus.ACTIVE) {
+          tradingInfo.tradeRequired = false;
+          tradingInfo.message = `Rule is ${rule.status.toLowerCase()}`;
+        }
 
         if (tradingInfo.tradeRequired) {
           rule.processing();
