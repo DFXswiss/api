@@ -37,6 +37,7 @@ export class RouteController {
     ]).then(([buy, sell, swap]) => ({ buy, sell, swap, crypto: swap }));
   }
 
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

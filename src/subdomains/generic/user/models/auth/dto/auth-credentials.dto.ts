@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { Moderator } from '../../user-data/user-data.entity';
 
 export class SignInDto {
   @ApiProperty()
@@ -35,6 +36,11 @@ export class SignInDto {
   @IsString()
   specialCode?: string;
 
+  @ApiPropertyOptional({ description: 'Moderator' })
+  @IsOptional()
+  @IsEnum(Moderator)
+  moderator?: Moderator;
+
   @ApiPropertyOptional({ description: 'IP region filter' })
   @IsOptional()
   region?: string | number;
@@ -65,6 +71,11 @@ export class OptionalSignUpDto {
   @IsOptional()
   @IsString()
   specialCode?: string;
+
+  @ApiPropertyOptional({ description: 'Moderator' })
+  @IsOptional()
+  @IsEnum(Moderator)
+  moderator?: Moderator;
 }
 
 export class SignUpDto extends SignInDto {

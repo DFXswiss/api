@@ -26,6 +26,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -208,9 +209,6 @@ export class UserDataService {
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
-      const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-      if (pendingDfxApproval) await this.kycAdminService.updateKycStepInternal(pendingDfxApproval.complete());
-
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
       }
@@ -257,7 +255,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.kyc.downloadTargets.reverse();
+    const downloadTargets = Config.fileDownloadConfig.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
@@ -282,10 +280,12 @@ export class UserDataService {
 
       const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
 
-      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
+      const allPrefixes = Array.from(
+        new Set(applicableTargets.map((t) => t.files.map((f) => f.prefixes(userData))).flat(2)),
+      );
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { id, name, fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of applicableTargets) {
+      for (const { id, name, files: fileConfig } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
@@ -294,30 +294,32 @@ export class UserDataService {
           continue;
         }
 
-        const files = allFiles
-          .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
-          .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
-          .filter((f) => !filter || filter(f, userData));
+        for (const { name: fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+          const files = allFiles
+            .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
+            .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
+            .filter((f) => !filter || filter(f, userData));
 
-        if (!files.length) {
-          if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
-          errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
-          continue;
-        }
+          if (!files.length) {
+            if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
+            errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
+            continue;
+          }
 
-        const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
+          const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
-        try {
-          const fileData = await this.documentService.downloadFile(
-            selectedFile.category,
-            userDataId,
-            selectedFile.type,
-            selectedFile.name,
-          );
-          const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
-          subFolder.file(filePath, fileData.data);
-        } catch (error) {
-          errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+          try {
+            const fileData = await this.documentService.downloadFile(
+              selectedFile.category,
+              userDataId,
+              selectedFile.type,
+              selectedFile.name,
+            );
+            const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+            subFolder.file(filePath, fileData.data);
+          } catch (error) {
+            errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+          }
         }
       }
     }
@@ -433,10 +435,9 @@ export class UserDataService {
   }
 
   async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
-    const paymentLinksConfig = JSON.stringify({
-      ...JSON.parse(user.paymentLinksConfig || '{}'),
-      ...dto,
-    });
+    const mergedConfig = { ...JSON.parse(user.paymentLinksConfig || '{}'), ...dto };
+    const customConfig = Util.removeDefaultFields(mergedConfig, DefaultPaymentLinkConfig);
+    const paymentLinksConfig = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
 
     await this.userDataRepo.update(user.id, { paymentLinksConfig });
     user.paymentLinksConfig = paymentLinksConfig;
@@ -871,6 +872,7 @@ export class UserDataService {
             KycStepStatus.PARTIALLY_APPROVED,
             KycStepStatus.DATA_REQUESTED,
             KycStepStatus.PAUSED,
+            KycStepStatus.ON_HOLD,
           ].includes(kycStep.status)
             ? KycStepStatus.CANCELED
             : undefined,

@@ -1,6 +1,7 @@
 {
   "title": "Invoice No. {invoiceId}",
   "credit_title": "Credit No. {invoiceId}",
+  "receipt_title": "Transaction Confirmation No. {invoiceId}",
   "table": {
     "headers": {
       "quantity": "Quantity",
@@ -8,10 +9,10 @@
       "total": "Total"
     },
     "position_row": {
-      "buy_description": "{assetDescription} ({assetName}) delivered on {assetBlockchain}",
-      "sell_description": "{fiatCurrency} delivered for {assetAmount} {assetDescription} ({assetName}) on {assetBlockchain}",
+      "buy_description": "{assetDescription} ({assetName}) bought on {assetBlockchain}",
+      "sell_description": "{assetDescription} ({assetName}) sold on {assetBlockchain}",
       "swap_description": "{sourceDescription} ({sourceName}) on {sourceBlockchain} swapped for {targetAmount} {targetDescription} ({targetName}) on {targetBlockchain}",
-      "referral_description": "{assetName} referral bonus on {assetBlockchain}"
+      "referral_description": "{assetName} credit on {assetBlockchain}"
     },
     "total_row": {
       "total_label": "Total"

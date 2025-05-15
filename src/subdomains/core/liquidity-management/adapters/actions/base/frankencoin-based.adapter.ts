@@ -60,6 +60,7 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   abstract getStableToken(): Promise<Asset>;
+  abstract getEquityToken(): Promise<Asset>;
 
   private async mint(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const equityPrice = await this.frankencoinBasedService.getEquityPrice();
@@ -76,11 +77,11 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
         `Not enough ${stableToken.name} liquidity balance: ${stableBuyingAmount} > ${stableTotalLiquidityBalance}`,
       );
 
-    try {
-      order.inputAmount = stableBuyingAmount;
-      order.inputAsset = stableToken.name;
-      order.outputAsset = order.target?.name;
+    order.inputAmount = stableBuyingAmount;
+    order.inputAsset = stableToken.name;
+    order.outputAsset = order.target?.name;
 
+    try {
       const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);
 
       const equityContract = this.frankencoinBasedService.getEquityContract();
@@ -107,6 +108,12 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
 
     if (wrapWeiAmount.gt(allowance))
       await equityContract.approve(depsWrapperContract.address, ethers.constants.MaxInt256);
+
+    const equityToken = await this.getEquityToken();
+
+    order.inputAmount = order.amount;
+    order.inputAsset = equityToken.name;
+    order.outputAsset = order.target?.name;
 
     const result = await depsWrapperContract.depositFor(walletAddress, wrapWeiAmount, {
       gasPrice: gasPrice,

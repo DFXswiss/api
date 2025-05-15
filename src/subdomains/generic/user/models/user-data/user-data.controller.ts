@@ -41,7 +41,7 @@ export class UserDataController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.COMPLIANCE), UserActiveGuard)
   async updateUserData(@Param('id') id: string, @Body() userData: UpdateUserDataDto): Promise<UserData> {
     return this.userDataService.updateUserData(+id, userData);
   }
@@ -123,6 +123,7 @@ export class UserDataController {
       dto.contentType,
       true,
       undefined,
+      dto.documentSubType,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),

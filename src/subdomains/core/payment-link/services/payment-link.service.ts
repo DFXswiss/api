@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -90,8 +84,8 @@ export class PaymentLinkService {
       : dto.routeId
       ? await this.sellService.get(userId, dto.routeId)
       : await this.sellService.getLatest(userId);
-    if (!route) throw new NotFoundException('Sell route not found');
-    if (!route.active) throw new BadRequestException('Sell route not active');
+
+    this.sellService.validateLightningRoute(route);
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
@@ -109,7 +103,8 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.sellService.getByLabel(undefined, dto.route)
       : await this.sellService.getById(+dto.routeId);
-    if (!route) throw new NotFoundException('Route not found');
+
+    this.sellService.validateLightningRoute(route);
 
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
@@ -118,6 +113,7 @@ export class PaymentLinkService {
       },
       relations: { payments: true },
     });
+
     if (existingLinks.length) {
       const matchingLink = existingLinks.find(
         (l) =>
@@ -146,10 +142,6 @@ export class PaymentLinkService {
   }
 
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
-    if (!route) throw new NotFoundException('Route not found');
-    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
-      throw new BadRequestException('Only Lightning routes are allowed');
-
     const country = dto.config?.recipient?.address?.country
       ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
       : undefined;
@@ -170,7 +162,7 @@ export class PaymentLinkService {
       mail: dto.config?.recipient?.mail,
       website: dto.config?.recipient?.website,
       payments: [],
-      config: JSON.stringify(dto.config),
+      config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
 
     await this.paymentLinkRepo.save(paymentLink);
@@ -212,6 +204,8 @@ export class PaymentLinkService {
     const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
 
     const payRequest: PaymentLinkPayRequestDto = {
+      id: pendingPayment.link.uniqueId,
+      externalId: pendingPayment.link.externalId,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -289,6 +283,8 @@ export class PaymentLinkService {
     const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
     return {
+      id: paymentLink.uniqueId,
+      externalId: paymentLink.externalId,
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
@@ -313,6 +309,10 @@ export class PaymentLinkService {
     const { name, address, phone, mail, website } = config.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
+    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
+    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
+    const configString = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
+
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
       webhookUrl,
@@ -324,7 +324,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
-      config: JSON.stringify({ ...JSON.parse(paymentLink.config), ...config }),
+      config: configString,
     };
 
     if (country === null) {

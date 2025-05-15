@@ -18,7 +18,7 @@ export abstract class EvmStrategy extends SendStrategy {
     super();
   }
 
-  protected abstract dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string>;
+  protected abstract dispatchSend(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<string>;
   protected abstract prepareSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<void>;
   protected abstract checkPreparation(payInGroup: SendGroup): Promise<boolean>;
 
@@ -173,7 +173,7 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private async dispatch(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<void> {
-    const outTxId = await this.dispatchSend(payInGroup, estimatedNativeFee);
+    const outTxId = await this.dispatchSend(payInGroup, type, estimatedNativeFee);
 
     const updatedPayIns = await this.updatePayInsWithSendData(payInGroup, outTxId, type);
 

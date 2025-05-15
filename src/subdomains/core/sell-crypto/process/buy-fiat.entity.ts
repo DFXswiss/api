@@ -481,7 +481,11 @@ export class BuyFiat extends IEntity {
   get chargebackBankFee(): number {
     return 0;
   }
-  
+
+  get refundAmount(): number {
+    return this.inputAmount;
+  }
+
   get wallet(): Wallet {
     return this.user.wallet;
   }

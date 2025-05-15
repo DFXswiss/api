@@ -25,9 +25,6 @@ export class KycLog extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   eventDate?: Date;
 
-  @Column({ nullable: true })
-  synced?: boolean;
-
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 
