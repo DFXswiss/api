@@ -17,7 +17,7 @@ export class LimitRequestController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateUserData(@Param('id') id: string, @Body() dto: UpdateLimitRequestDto): Promise<LimitRequest> {
     return this.limitRequestService.updateLimitRequest(+id, dto);
   }

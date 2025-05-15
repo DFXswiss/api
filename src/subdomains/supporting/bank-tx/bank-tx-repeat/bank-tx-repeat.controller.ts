@@ -16,7 +16,7 @@ export class BankTxRepeatController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async update(@Param('id') id: string, @Body() dto: UpdateBankTxRepeatDto): Promise<BankTxRepeat> {
     return this.bankTxRepeatService.update(+id, dto);
   }

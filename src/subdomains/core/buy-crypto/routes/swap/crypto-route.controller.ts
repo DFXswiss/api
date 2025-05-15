@@ -12,7 +12,7 @@ export class CryptoRouteController {
   // --- DEPRECATED ENDPOINTS --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiExcludeEndpoint()
   @Redirect('swap', 301)
   async getAllCrypto(): Promise<void> {
@@ -21,7 +21,7 @@ export class CryptoRouteController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiExcludeEndpoint()
   async getCrypto(@Param('id') id: string, @Res() res): Promise<void> {
     // Redirecting to swap
@@ -30,7 +30,7 @@ export class CryptoRouteController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiExcludeEndpoint()
   @Redirect('swap', 301)
   async createCrypto(): Promise<void> {
@@ -39,7 +39,7 @@ export class CryptoRouteController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiExcludeEndpoint()
   async updateCryptoRoute(@Param('id') id: string, @Res() res): Promise<void> {
     // Redirecting to swap

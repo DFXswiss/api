@@ -24,21 +24,21 @@ export class CustodyController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
     return this.service.getUserCustodyBalance(jwt.account);
   }
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   async getUserCustodyHistory(@GetJwt() jwt: JwtPayload): Promise<CustodyHistoryDto> {
     return this.service.getUserCustodyHistory(jwt.account);
   }
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   async createCustodyAccount(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: CreateCustodyAccountDto,
@@ -49,14 +49,14 @@ export class CustodyController {
 
   @Post('order')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
   async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCustodyOrderDto): Promise<CustodyOrderDto> {
     return this.custodyOrderService.createOrder(jwt, dto);
   }
 
   @Post('order/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
   async confirmOrder(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.custodyOrderService.confirmOrder(jwt.user, +id);
   }
@@ -73,7 +73,7 @@ export class CustodyAdminController {
   ) {}
 
   @Put('user/:id/balance')
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateUserBalance(@Param('id') id: string, @Query('assetId') assetId: string): Promise<void> {
     const user = await this.userService.getUser(+id);
     if (!user) throw new NotFoundException('User not found');
@@ -85,7 +85,7 @@ export class CustodyAdminController {
   }
 
   @Post('order/:id/approve')
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async approveOrder(@Param('id') id: string): Promise<void> {
     return this.custodyOrderService.approveOrder(+id);
   }

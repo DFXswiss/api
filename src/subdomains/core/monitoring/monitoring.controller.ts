@@ -15,7 +15,7 @@ export class MonitoringController {
   @Get('data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getSystemState(
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,
@@ -26,7 +26,7 @@ export class MonitoringController {
   @Post('data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async onWebhook(
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,

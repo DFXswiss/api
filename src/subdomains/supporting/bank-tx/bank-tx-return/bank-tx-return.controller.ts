@@ -17,14 +17,14 @@ export class BankTxReturnController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async update(@Param('id') id: string, @Body() dto: UpdateBankTxReturnDto): Promise<BankTxReturn> {
     return this.bankTxReturnService.update(+id, dto);
   }
 
   @Post(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async refundBuyCrypto(@Param('id') id: string, @Body() dto: RefundInternalDto): Promise<void> {
     return this.bankTxReturnService.refundBankTxReturn(+id, dto);

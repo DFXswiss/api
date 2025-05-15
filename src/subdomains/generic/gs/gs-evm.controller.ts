@@ -19,7 +19,7 @@ export class GsEvmController {
   @Post('rawTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sendRawTransaction(@Body() dto: EvmRawTransactionDto): Promise<ethers.providers.TransactionResponse> {
     return this.gsEvmService.sendRawTransaction(dto);
   }
@@ -27,7 +27,7 @@ export class GsEvmController {
   @Post('contractTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sendContractTransaction(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> {
     return this.gsEvmService.sendContractTransaction(dto);
   }
@@ -35,7 +35,7 @@ export class GsEvmController {
   @Post('tokenTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sendTokenTransaction(@Body() dto: EvmTokenTransactionDto): Promise<string> {
     return this.gsEvmService.sendTokenTransaction(dto);
   }
@@ -43,7 +43,7 @@ export class GsEvmController {
   @Post('coinTransaction')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sendCoinTransaction(@Body() dto: EvmCoinTransactionDto): Promise<string> {
     return this.gsEvmService.sendCoinTransaction(dto);
   }
@@ -51,7 +51,7 @@ export class GsEvmController {
   @Post('bridgeApproval')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async approveBridge(@Body() dto: EvmBridgeApproval): Promise<string> {
     return this.gsEvmService.approveBridge(dto);
   }
@@ -59,7 +59,7 @@ export class GsEvmController {
   @Post('contractApproval')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async approveContract(@Body() dto: EvmContractApproval): Promise<string> {
     return this.gsEvmService.approveContract(dto);
   }

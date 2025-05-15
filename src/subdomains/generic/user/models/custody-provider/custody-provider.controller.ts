@@ -17,7 +17,7 @@ export class CustodyProviderController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createCustodyProvider(@Body() dto: CustodyProviderDto): Promise<CustodyProvider> {
     return this.custodyProviderService.createCustodyProvider(dto);
   }
@@ -25,7 +25,7 @@ export class CustodyProviderController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateCustodyProvider(
     @Param('id') id: string,
     @Body() custodyProvider: CustodyProviderDto,

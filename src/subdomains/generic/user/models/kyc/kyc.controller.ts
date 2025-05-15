@@ -22,7 +22,7 @@ export class KycController {
   // --- TRANSFER --- //
   @Put('transfer')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async transferKycDataV1(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
@@ -32,7 +32,7 @@ export class KycController {
   // --- JWT Calls --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async getKycProgressV1(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
@@ -41,7 +41,7 @@ export class KycController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async requestKycV1(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
@@ -50,7 +50,7 @@ export class KycController {
 
   @Get('countries')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiOperation({ deprecated: true })
   async getKycCountriesV1(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {

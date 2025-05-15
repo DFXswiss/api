@@ -17,7 +17,7 @@ export class WalletController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createWallet(@Body() dto: WalletDto): Promise<Wallet> {
     return this.walletService.createWallet(dto);
   }
@@ -25,7 +25,7 @@ export class WalletController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateWallet(@Param('id') id: string, @Body() wallet: WalletDto): Promise<Wallet> {
     return this.walletService.updateWallet(+id, wallet);
   }

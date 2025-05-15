@@ -16,7 +16,7 @@ export class SpecialExternalAccountController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async createSpecialExternalAccount(@Body() dto: CreateSpecialExternalAccountDto): Promise<SpecialExternalAccount> {
     return this.specialExternalAccountService.createSpecialExternalAccount(dto);
