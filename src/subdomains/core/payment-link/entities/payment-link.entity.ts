@@ -17,7 +17,6 @@ export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   displayQr: false,
   fee: 0.002,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
-  evmHexPaymentCompletionCheckTryCount: GetConfig().payment.defaultEvmHexPaymentTryCount,
 };
 
 @Entity()
