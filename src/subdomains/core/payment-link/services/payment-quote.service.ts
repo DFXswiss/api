@@ -340,7 +340,7 @@ export class PaymentQuoteService {
       }
     }
 
-    quote.txReceived(transferInfo.method as Blockchain, transferInfo.hex ?? transferInfo.tx);
+    quote.txReceived(transferInfo.method as Blockchain, transferInfo.hex, transferInfo.tx);
 
     try {
       switch (transferInfo.method) {
@@ -378,7 +378,7 @@ export class PaymentQuoteService {
 
       // handle TX ID
       if (transferInfo.tx) {
-        const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
+        const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
         const isComplete = await Util.retry(() => client.isTxComplete(transferInfo.tx, 1), tryCount, 1000);
 
