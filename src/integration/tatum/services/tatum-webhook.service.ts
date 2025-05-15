@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { Solana as TatumSolana } from '@tatumio/tatum';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Network as TatumNetwork, TatumSDK, Solana as TatumSolana } from '@tatumio/tatum';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
@@ -7,11 +7,20 @@ import { CreateTatumWebhookDto, TatumWebhookDto } from '../dto/tatum.dto';
 import { TatumNetworkMapper } from '../tatum-network-mapper';
 
 @Injectable()
-export class TatumWebhookService {
+export class TatumWebhookService implements OnModuleInit {
   private readonly addressWebhookSubject: Subject<TatumWebhookDto>;
 
-  constructor(@Inject('TATUM_SOLANA') readonly tatum: TatumSolana) {
+  private tatum: TatumSolana;
+
+  constructor() {
     this.addressWebhookSubject = new Subject<TatumWebhookDto>();
+  }
+
+  async onModuleInit() {
+    this.tatum = await TatumSDK.init<TatumSolana>({
+      network: TatumNetwork.SOLANA,
+      apiKey: Config.blockchain.solana.solanaApiKey,
+    });
   }
 
   isValidWebhookSignature(tatumSignature: string, rawBody: any): boolean {
@@ -25,16 +34,8 @@ export class TatumWebhookService {
 
     const url = `${Config.url()}/tatum/addressWebhook`;
 
-    const allSubscriptions = await this.tatum.notification.getAll();
-
-    const filteredSubscriptions = allSubscriptions.data.filter((s) => s.network === network && s.url === url);
-
-    for (const subscriptionToBeDeleted of filteredSubscriptions) {
-      await this.tatum.notification.unsubscribe(subscriptionToBeDeleted.id);
-    }
-
-    // Max. 5 allowed in Testaccount, currently use 1 for development ...
-    const createWebhookAddresses = Config.environment === Environment.PRD ? dto.addresses : dto.addresses.splice(0, 1);
+    // Max. 5 allowed in Testaccount ...
+    const createWebhookAddresses = Config.environment === Environment.PRD ? dto.addresses : dto.addresses.splice(0, 5);
 
     const allSubscriptionIds = (
       await Util.doInBatches(

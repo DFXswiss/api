@@ -198,7 +198,7 @@ export class DepositService {
   }
 
   private async createSolanaDeposits(blockchain: Blockchain, count: number): Promise<void> {
-    const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
+    const addresses: string[] = [];
 
     const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
 
