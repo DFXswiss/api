@@ -13,7 +13,6 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { SellDto } from 'src/subdomains/core/sell-crypto/route/dto/sell.dto';
 import { SellController } from 'src/subdomains/core/sell-crypto/route/sell.controller';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -24,6 +23,8 @@ import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
+import { PaymentRecipientMapper } from '../dto/payment-recipient-mapper';
+import { PaymentRecipientDto } from '../dto/payment-recipient.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -133,9 +134,9 @@ export class PaymentLinkController {
   @Get('recipient')
   @ApiExcludeEndpoint()
   @ApiQuery({ name: 'id', description: 'Route ID or label', required: true })
-  async getPaymentRecipient(@Query('id') id: string): Promise<SellDto> {
+  async getPaymentRecipient(@Query('id') id: string): Promise<PaymentRecipientDto> {
     const sellRoute = await this.sellService.getPaymentRoute(id);
-    return this.sellController.toDto(sellRoute);
+    return PaymentRecipientMapper.toDto(sellRoute);
   }
 
   @Get('payment')
