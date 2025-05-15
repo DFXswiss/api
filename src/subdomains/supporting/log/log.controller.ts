@@ -16,7 +16,7 @@ export class LogController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.BANKING_BOT), UserActiveGuard)
   async create(@Body() dto: CreateLogDto): Promise<Log> {
     return this.logService.create(dto);
   }
@@ -24,7 +24,7 @@ export class LogController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateLogDto): Promise<Log> {
     return this.logService.update(+id, dto);
   }

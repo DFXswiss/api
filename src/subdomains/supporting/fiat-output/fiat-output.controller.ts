@@ -18,7 +18,7 @@ export class FiatOutputController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async create(@Body() dto: CreateFiatOutputDto): Promise<FiatOutput> {
     return this.fiatOutputService.create(dto);
   }
@@ -26,7 +26,7 @@ export class FiatOutputController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateFiatOutputDto): Promise<FiatOutput> {
     if (dto.batchId && DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE))
       throw new BadRequestException('Process disabled');

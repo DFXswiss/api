@@ -18,7 +18,7 @@ export class BankDataController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateBankData(@Param('id') id: string, @Body() dto: UpdateBankDataDto): Promise<BankData> {
     return this.bankDataService.updateBankData(+id, dto);
   }
@@ -26,7 +26,7 @@ export class BankDataController {
   @Put(':id/nameCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async doNameCheck(@Param('id') id: string): Promise<RiskStatus> {
     const bankData = await this.bankDataService.getBankData(+id);
     if (!bankData) throw new NotFoundException('BankData not found');

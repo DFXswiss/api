@@ -82,7 +82,7 @@ export class KycController {
   // --- 2FA --- //
   @Get('2fa')
   @ApiOkResponse({ description: '2FA active' })
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
     return this.tfaService.check(jwt.account, ip, level);
   }

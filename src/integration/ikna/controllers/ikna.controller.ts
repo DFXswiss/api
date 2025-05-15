@@ -17,7 +17,7 @@ export class IknaController {
   @Post('bfs/address')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(),  RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async createBfsAddressRequest(@Query() query: IknaBfsAddressQuery): Promise<number> {
     return this.iknaService.doAddressBFS(query.address, query.blockchain, +query.depth);
   }
@@ -25,7 +25,7 @@ export class IknaController {
   @Get('bfs/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(),  RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getBfsResult(@Param('id') id: string): Promise<IknaSanctionResult> {
     return this.iknaService.getBfsResult(+id);
   }
@@ -33,7 +33,7 @@ export class IknaController {
   @Get('tag')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(),  RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getIknaAddressTag(@Query() query: IknaAddressQuery): Promise<IknaAddressTag[]> {
     return this.iknaService.getAddressTags(query.address, query.blockchain);
   }

@@ -17,21 +17,21 @@ export class UserDataRelationController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async create(@Body() dto: CreateUserDataRelationDto): Promise<UserDataRelation> {
     return this.userDataRelationService.createUserDataRelation(dto);
   }
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateUserDataRelationDto): Promise<UserDataRelation> {
     return this.userDataRelationService.updateUserDataRelation(+id, dto);
   }
 
   @Delete(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async delete(@Param('id') id: string): Promise<void> {
     return this.userDataRelationService.deleteUserDataRelation(+id);
   }

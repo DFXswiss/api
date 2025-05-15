@@ -15,7 +15,7 @@ export class LiquidityManagementOrderController {
   @Get('in-progress')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
     return this.service.getProcessingOrders();
   }

@@ -37,7 +37,7 @@ export class AlchemyController {
   @Post('syncTransactions')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async syncTransactions(@Body() dto: AlchemySyncTransactionsDto) {
     return this.alchemyService.syncTransactions(dto);
   }

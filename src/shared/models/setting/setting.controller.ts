@@ -27,7 +27,7 @@ export class SettingController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getSettings(): Promise<Setting[]> {
     return this.settingService.getAll();
   }
@@ -35,7 +35,7 @@ export class SettingController {
   @Put('customSignUpFees')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateCustomSignUpFees(@Body() dto: CustomSignUpFeesDto): Promise<void> {
     return this.settingService.updateCustomSignUpFees(dto);
   }
@@ -43,7 +43,7 @@ export class SettingController {
   @Put('disabledProcesses')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateProcess(@Body() dto: UpdateProcessDto): Promise<void> {
     return this.settingService.updateProcess(dto);
   }
@@ -51,7 +51,7 @@ export class SettingController {
   @Put(':key')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateSetting(@Param('key') key: string, @Body() { value }: { value: string }): Promise<void> {
     return this.settingService.set(key, value);
   }

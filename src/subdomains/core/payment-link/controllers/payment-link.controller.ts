@@ -43,7 +43,7 @@ export class PaymentLinkController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: PaymentLinkDto, isArray: true })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -64,7 +64,7 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
@@ -77,7 +77,7 @@ export class PaymentLinkController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
     await this.checkPaymentLinksAllowed(jwt.account);
@@ -87,7 +87,7 @@ export class PaymentLinkController {
 
   @Put()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -110,7 +110,7 @@ export class PaymentLinkController {
 
   @Get('config')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiOkResponse({ type: PaymentLinkConfigDto })
   async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkConfigDto> {
     return this.paymentLinkService.getUserPaymentLinksConfig(jwt.account);
@@ -118,7 +118,7 @@ export class PaymentLinkController {
 
   @Put('config')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
   @ApiOkResponse()
   async updateUserPaymentLinksConfig(
     @GetJwt() jwt: JwtPayload,
@@ -163,7 +163,7 @@ export class PaymentLinkController {
 
   @Post('payment')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -180,7 +180,7 @@ export class PaymentLinkController {
 
   @Get('payment/wait')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -198,7 +198,7 @@ export class PaymentLinkController {
 
   @Put('payment/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -216,7 +216,7 @@ export class PaymentLinkController {
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -237,7 +237,7 @@ export class PaymentLinkController {
   @Put('payment/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updatePaymentLinkPayment(
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkPaymentDto,
@@ -248,7 +248,7 @@ export class PaymentLinkController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updatePaymentLinkAdmin(
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkInternalDto,

@@ -24,7 +24,7 @@ export class PricingController {
   @Get('price')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getPrice(@Query() dto: PriceRequest): Promise<Price> {
     const from = await this.getCurrency(dto.fromType, +dto.fromId);
     const to = await this.getCurrency(dto.toType, +dto.toId);
@@ -36,7 +36,7 @@ export class PricingController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getRawPrice(@Query() dto: PriceRequestRaw): Promise<Price> {
     return this.pricingService.getPriceFrom(dto.source, dto.from, dto.to, dto.param);
   }
@@ -44,7 +44,7 @@ export class PricingController {
   @Put()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updatePrices(): Promise<void> {
     return this.pricingService.updatePrices();
   }

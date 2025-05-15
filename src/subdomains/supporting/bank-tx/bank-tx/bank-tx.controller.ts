@@ -32,7 +32,7 @@ export class BankTxController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.BANKING_BOT), UserActiveGuard)
   @UseInterceptors(FilesInterceptor('files'))
   async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<(BankTxBatch | Error)[]> {
     const batches = [];
@@ -52,7 +52,7 @@ export class BankTxController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateBankTxDto): Promise<BankTx> {
     return this.bankTxService.update(+id, dto);
   }
@@ -60,7 +60,7 @@ export class BankTxController {
   @Delete(':id/buyCrypto')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async reset(@Param('id') id: string): Promise<void> {
     return this.bankTxService.reset(+id);
   }

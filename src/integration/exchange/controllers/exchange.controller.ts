@@ -42,7 +42,7 @@ export class ExchangeController {
   @Get(':exchange/balances')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getBalance(@Param('exchange') exchange: string): Promise<Balances> {
     return this.call(exchange, (e) => e.getBalances());
   }
@@ -50,7 +50,7 @@ export class ExchangeController {
   @Get(':exchange/price')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   getPrice(@Param('exchange') exchange: string, @Query('from') from: string, @Query('to') to: string): Promise<Price> {
     return this.call(exchange, (e) => e.getPrice(from.toUpperCase(), to.toUpperCase()));
   }
@@ -58,7 +58,7 @@ export class ExchangeController {
   @Get(':exchange/trade')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getTrades(
     @Param('exchange') exchange: string,
     @Query('from') from: string,
@@ -70,7 +70,7 @@ export class ExchangeController {
   @Get(':exchange/trade/history')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getTradeHistory(
     @Param('exchange') exchange: string,
     @Query('from') from: string,
@@ -82,7 +82,7 @@ export class ExchangeController {
   @Post(':exchange/trade')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
     if (DisabledProcess(Process.EXCHANGE_TRADE)) throw new BadRequestException('Process disabled');
 
@@ -104,7 +104,7 @@ export class ExchangeController {
   @Get('trade/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getTrade(@Param('id') tradeId: string): Promise<TradeResult> {
     const trade = this.trades[+tradeId];
     if (!trade) throw new NotFoundException('Trade not found');
@@ -116,7 +116,7 @@ export class ExchangeController {
   @Post(':exchange/withdraw')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async withdrawFunds(
     @Param('exchange') exchange: string,
     @Body() withdrawalDto: WithdrawalOrder,
@@ -136,7 +136,7 @@ export class ExchangeController {
   @Get(':exchange/withdraw/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getWithdraw(
     @Param('exchange') exchange: string,
     @Param('id') id: string,

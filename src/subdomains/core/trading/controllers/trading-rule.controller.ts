@@ -15,7 +15,7 @@ export class TradingRuleController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateTradingRuleDto): Promise<void> {
     return this.tradingRuleService.updateTradingRule(+id, dto);
   }

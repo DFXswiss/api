@@ -15,7 +15,7 @@ export class LiquidityBalanceController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async getBalances(): Promise<LiquidityBalance[]> {
     return this.service.getBalances();
   }

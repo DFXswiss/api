@@ -20,7 +20,7 @@ export class BuyCryptoController {
 
   @Post(':id/webhook')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   @ApiExcludeEndpoint()
   async triggerWebhook(@Param('id') id: string): Promise<void> {
     return this.buyCryptoWebhookService.triggerWebhookManual(+id);
@@ -28,7 +28,7 @@ export class BuyCryptoController {
 
   @Post(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   @ApiExcludeEndpoint()
   async refundBuyCrypto(@Param('id') id: string, @Body() dto: RefundInternalDto): Promise<void> {
     return this.buyCryptoService.refundBuyCrypto(+id, dto);
@@ -37,7 +37,7 @@ export class BuyCryptoController {
   @Put('volumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateBuyVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
     return this.buyCryptoService.updateVolumes(start ? +start : undefined, end ? +end : undefined);
   }
@@ -45,7 +45,7 @@ export class BuyCryptoController {
   @Put('refVolumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async updateRefVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
     return this.buyCryptoService.updateRefVolumes(start ? +start : undefined, end ? +end : undefined);
   }
@@ -53,7 +53,7 @@ export class BuyCryptoController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     return this.buyCryptoService.update(+id, dto);
   }
@@ -61,7 +61,7 @@ export class BuyCryptoController {
   @Delete(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard)
   async resetAmlCheck(@Param('id') id: string): Promise<void> {
     return this.buyCryptoService.resetAmlCheck(+id);
   }
