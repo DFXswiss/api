@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { FiatOutputType } from '../fiat-output.entity';
 
 export class CreateFiatOutputDto {
   @IsOptional()
@@ -15,8 +16,8 @@ export class CreateFiatOutputDto {
   bankTxReturnId?: number;
 
   @IsNotEmpty()
-  @IsString()
-  type: string;
+  @IsEnum(FiatOutputType)
+  type: FiatOutputType;
 
   @IsOptional()
   @IsNumber()
