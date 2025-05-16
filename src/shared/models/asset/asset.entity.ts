@@ -5,7 +5,6 @@ import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/as
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { IEntity } from '../entity';
-import { Fiat } from '../fiat/fiat.entity';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -117,22 +116,6 @@ export class Asset extends IEntity {
 
   isBuyableOn(blockchains: Blockchain[]): boolean {
     return blockchains.includes(this.blockchain) || this.type === AssetType.CUSTOM;
-  }
-
-  getFiatPrice(fiat: Fiat): number {
-    switch (fiat.name) {
-      case 'CHF':
-        return this.approxPriceChf;
-
-      case 'EUR':
-        return this.approxPriceEur;
-
-      case 'USD':
-        return this.approxPriceUsd;
-
-      default:
-        return undefined;
-    }
   }
 
   get isActive(): boolean {
