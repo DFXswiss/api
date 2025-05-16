@@ -93,7 +93,7 @@ export class TradingService {
       assetIn,
       assetOut,
       tradeRequired,
-      message: tradeRequired ? undefined : `${!priceDeviationTooHigh ? 'price' : 'check'} deviation below limit`,
+      message: tradeRequired ? undefined : `${!priceDeviationTooHigh ? 'price' : 'check'} deviation in range`,
     };
 
     return result;
