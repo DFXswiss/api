@@ -341,6 +341,7 @@ export class PaymentQuoteService {
     }
 
     quote.txReceived(transferInfo.method as Blockchain, transferInfo.hex, transferInfo.tx);
+    await this.paymentQuoteRepo.save(quote);
 
     try {
       switch (transferInfo.method) {
@@ -380,16 +381,17 @@ export class PaymentQuoteService {
       if (transferInfo.tx) {
         const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
-        const isComplete = await Util.retry(() => client.isTxComplete(transferInfo.tx, 1), tryCount, 1000);
+        for (let i = 0; i < tryCount; i++) {
+          const isComplete = await client.isTxComplete(transferInfo.tx, 1);
+          if (isComplete) {
+            quote.txInBlockchain(transferInfo.tx);
+            return;
+          }
 
-        if (!isComplete)
-          throw new BadRequestException(
-            `Transaction ${transferInfo.tx} not found in blockchain ${transferInfo.method}`,
-          );
+          await Util.delay(1000);
+        }
 
-        quote.txInBlockchain(transferInfo.tx);
-
-        return;
+        throw new BadRequestException(`Transaction ${transferInfo.tx} not found in blockchain ${transferInfo.method}`);
       }
 
       // handle HEX
