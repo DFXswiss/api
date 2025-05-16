@@ -105,7 +105,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
       return response.id;
     } catch (e) {
-      if (['Insufficient funds', 'insufficient balance'].some((m) => e.message?.includes(m))) {
+      if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
@@ -127,8 +127,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       );
     }
 
-    order.inputAmount = order.amount;
     order.inputAsset = tradeAsset;
+    order.outputAmount = amount;
     order.outputAsset = asset;
 
     try {
@@ -136,7 +136,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     } catch (e) {
       try {
         // try to sell min amount
-        if (e.message?.includes('not enough balance') && minTradeAmount != null) {
+        if (this.isBalanceTooLowError(e) && minTradeAmount != null) {
           const availableBalance = await this.exchangeService.getAvailableBalance(tradeAsset);
           if (availableBalance >= minTradeAmount) {
             const reserve = Math.min(availableBalance * 0.01, minTradeAmount * 0.9);
@@ -146,7 +146,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
         throw e;
       } catch (e) {
-        if (e.message?.includes('not enough balance')) {
+        if (this.isBalanceTooLowError(e)) {
           throw new OrderNotProcessableException(e.message);
         }
 
@@ -173,7 +173,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     try {
       return await this.exchangeService.sell(asset, tradeAsset, amount);
     } catch (e) {
-      if (e.message?.includes('not enough balance')) {
+      if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
@@ -222,7 +222,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
       return response.id;
     } catch (e) {
-      if (['Insufficient funds', 'insufficient balance'].some((m) => e.message?.includes(m))) {
+      if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
@@ -427,5 +427,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       throw new Error(`Params provided to CcxtExchangeAdapter.transfer(...) command are invalid.`);
 
     return { address, key, network, target, asset, optimum };
+  }
+
+  // --- HELPER METHODS --- //
+  private isBalanceTooLowError(e: Error): boolean {
+    return ['Insufficient funds', 'insufficient balance', 'not enough balance'].some((m) => e.message?.includes(m));
   }
 }

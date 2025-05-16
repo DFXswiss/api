@@ -135,6 +135,7 @@ export class PaymentLinkService {
     const paymentLinkDto: CreatePaymentLinkDto = {
       externalId: dto.externalId,
       webhookUrl: dto.webhookUrl,
+      label: dto.label,
       payment,
     };
 
@@ -149,6 +150,7 @@ export class PaymentLinkService {
     const paymentLink = this.paymentLinkRepo.create({
       route,
       externalId: dto.externalId,
+      label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
       webhookUrl: dto.webhookUrl,
@@ -305,7 +307,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    const { status, webhookUrl, config } = dto;
+    const { status, label, webhookUrl, config } = dto;
     const { name, address, phone, mail, website } = config.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
@@ -315,6 +317,7 @@ export class PaymentLinkService {
 
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
+      label,
       webhookUrl,
       street,
       houseNumber,

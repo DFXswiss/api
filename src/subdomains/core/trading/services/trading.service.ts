@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -58,30 +59,44 @@ export class TradingService {
     const lowerCheckDeviation = currentPrice / lowerCheckPrice - 1;
     const upperCheckDeviation = currentPrice / upperCheckPrice - 1;
 
-    const result = {
+    let priceDeviationTooHigh: boolean;
+    let checkDeviationTooHigh: boolean;
+
+    let priceImpact: number;
+    let assetIn: Asset;
+    let assetOut: Asset;
+
+    if (lowerDeviation < 0) {
+      priceDeviationTooHigh = lowerDeviation < -tradingRule.lowerLimit;
+      checkDeviationTooHigh = lowerCheckDeviation < -tradingRule.lowerLimit;
+
+      priceImpact = lowerDeviation;
+      assetIn = tradingRule.leftAsset;
+      assetOut = tradingRule.rightAsset;
+    } else {
+      priceDeviationTooHigh = upperDeviation > tradingRule.upperLimit;
+      checkDeviationTooHigh = upperCheckDeviation > tradingRule.upperLimit;
+
+      priceImpact = upperDeviation;
+      assetIn = tradingRule.rightAsset;
+      assetOut = tradingRule.leftAsset;
+    }
+
+    const tradeRequired = priceDeviationTooHigh && checkDeviationTooHigh;
+
+    const result: TradingInfo = {
       price1: referencePrice.price,
       price2: currentPrice,
       price3: checkPrice.price,
       poolFee: tradingRule.poolFee,
+      priceImpact,
+      assetIn,
+      assetOut,
+      tradeRequired,
+      message: tradeRequired ? undefined : `${!priceDeviationTooHigh ? 'price' : 'check'} deviation in range`,
     };
 
-    if (lowerDeviation < 0) {
-      return {
-        ...result,
-        priceImpact: lowerDeviation,
-        assetIn: tradingRule.leftAsset,
-        assetOut: tradingRule.rightAsset,
-        tradeRequired: lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit,
-      };
-    } else {
-      return {
-        ...result,
-        priceImpact: upperDeviation,
-        assetIn: tradingRule.rightAsset,
-        assetOut: tradingRule.leftAsset,
-        tradeRequired: upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit,
-      };
-    }
+    return result;
   }
 
   private async calculateAmountForPriceImpact(
@@ -158,9 +173,9 @@ export class TradingService {
     const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
     if (swapFeeChf > estimatedProfitChf) {
       tradingInfo.tradeRequired = false;
-      this.logger.info(
-        `Trading rule ${tradingRule.id} ignored: swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`,
-      );
+      tradingInfo.message = `Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`;
+
+      this.logger.info(`Trading rule ${tradingRule.id} ignored: ${tradingInfo.message}`);
     }
 
     const approximateAmountOut =
@@ -169,9 +184,9 @@ export class TradingService {
         : amountIn * tradingInfo.price1;
     if (Math.abs(targetAmount / approximateAmountOut - 1) > 0.1) {
       tradingInfo.tradeRequired = false;
-      this.logger.error(
-        `Estimated output amount ${targetAmount} is out of range, approximate amount is ${approximateAmountOut}`,
-      );
+      tradingInfo.message = `Estimated output amount ${targetAmount} is out of range, approximate amount is ${approximateAmountOut}`;
+
+      this.logger.error(`Trading rule ${tradingRule.id} ignored: ${tradingInfo.message}`);
     }
 
     return tradingInfo;

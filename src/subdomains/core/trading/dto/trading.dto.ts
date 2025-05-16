@@ -12,4 +12,5 @@ export interface TradingInfo {
   amountIn?: number;
   amountExpected?: number;
   tradeRequired: boolean;
+  message?: string;
 }
