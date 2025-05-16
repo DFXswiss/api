@@ -3,7 +3,6 @@ import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -83,13 +82,19 @@ export class CustodyService {
 
     const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances, account.currency);
-    const totalValue = balances.reduce((prev, curr) => prev + curr.value, 0);
+    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances);
+
+    const totalValueInEur = balances.reduce((prev, curr) => prev + curr.value.eur, 0);
+    const totalValueInChf = balances.reduce((prev, curr) => prev + curr.value.chf, 0);
+    const totalValueInUsd = balances.reduce((prev, curr) => prev + curr.value.usd, 0);
 
     return {
       balances,
-      totalValue: Util.roundReadable(totalValue, AmountType.FIAT),
-      currency: FiatDtoMapper.toDto(account.currency),
+      totalValue: {
+        eur: Util.roundReadable(totalValueInEur, AmountType.FIAT),
+        chf: Util.roundReadable(totalValueInChf, AmountType.FIAT),
+        usd: Util.roundReadable(totalValueInUsd, AmountType.FIAT),
+      },
     };
   }
 
