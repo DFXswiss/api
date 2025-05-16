@@ -39,6 +39,7 @@ export class PaymentLinkDtoMapper {
       id: paymentLink.id,
       routeId: paymentLink.route.id,
       externalId: paymentLink.externalId,
+      label: paymentLink.label,
       webhookUrl: paymentLink.webhookUrl ?? undefined,
       recipient: paymentLink.recipient,
       status: paymentLink.status,
