@@ -461,7 +461,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview(url));
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
