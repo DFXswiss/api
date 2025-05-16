@@ -33,6 +33,9 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   externalId?: string;
 
+  @Column({ length: 256, nullable: true })
+  label?: string;
+
   @Column({ length: 256 })
   status: PaymentLinkStatus;
 

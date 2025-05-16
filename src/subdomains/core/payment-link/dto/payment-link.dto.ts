@@ -114,6 +114,9 @@ export class PaymentLinkBaseDto {
   externalId?: string;
 
   @ApiPropertyOptional()
+  label?: string;
+
+  @ApiPropertyOptional()
   webhookUrl?: string;
 
   @ApiProperty({ enum: PaymentLinkStatus })

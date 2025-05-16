@@ -150,6 +150,7 @@ export class PaymentLinkController {
     }
     dto.externalId ??= dto.e;
     dto.message ??= dto.m;
+    dto.label ??= dto.l;
     dto.amount ??= dto.a;
     dto.currency ??= dto.c;
     dto.expiryDate ??= dto.d;

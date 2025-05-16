@@ -6,7 +6,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { PaymentLinkStatus } from '../enums';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
-export class UpdatePaymentLinkBaseDto {
+export class UpdatePaymentLinkDto {
   @ApiPropertyOptional({ enum: PaymentLinkStatus })
   @IsOptional()
   @IsEnum(PaymentLinkStatus)
@@ -15,10 +15,13 @@ export class UpdatePaymentLinkBaseDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  webhookUrl?: string;
-}
+  label?: string;
 
-export class UpdatePaymentLinkDto extends UpdatePaymentLinkBaseDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
+
   @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })
   @IsOptional()
   @Type(() => UpdatePaymentLinkConfigDto)

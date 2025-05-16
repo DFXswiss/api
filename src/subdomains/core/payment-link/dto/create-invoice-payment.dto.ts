@@ -46,6 +46,15 @@ export class CreateInvoicePaymentDto {
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.m || !(b.message || b.externalId || b.e)))
   m: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsOptional()
+  @IsString()
+  l?: string;
+
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
