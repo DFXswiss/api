@@ -38,8 +38,9 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
@@ -193,7 +194,7 @@ export class TransactionController {
   // --- AUTHORIZED ENDPOINTS --- //
   @Get('detail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto, isArray: true })
   async getTransactionDetails(
     @GetJwt() jwt: JwtPayload,
@@ -204,7 +205,7 @@ export class TransactionController {
 
   @Get('detail/single')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto })
   @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
@@ -231,7 +232,7 @@ export class TransactionController {
 
   @Put('detail/csv')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
@@ -244,7 +245,11 @@ export class TransactionController {
 
   @Get('unassigned')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
@@ -258,7 +263,7 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
     const buys = await this.buyService.getUserDataBuys(jwt.account);
@@ -273,7 +278,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
@@ -296,7 +301,11 @@ export class TransactionController {
 
   @Get(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { bankTxReturn: true },
@@ -362,7 +371,11 @@ export class TransactionController {
 
   @Put(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -430,7 +443,7 @@ export class TransactionController {
 
   @Put(':id/invoice')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
@@ -450,7 +463,7 @@ export class TransactionController {
 
   @Put(':id/receipt')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(

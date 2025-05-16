@@ -56,8 +56,6 @@ export class KycFileService {
           entity.subType = FileSubType.IDENT_REPORT;
 
         if (entity.name.includes('.mp3') || entity.name.includes('.mp4')) entity.subType = FileSubType.IDENT_RECORDING;
-
-        if (entity.name.includes('.png')) entity.subType = FileSubType.IDENT_DOC;
       }
 
       if (entity.subType) await this.kycFileRepository.update(entity.id, { subType: entity.subType });

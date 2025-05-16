@@ -340,7 +340,8 @@ export class PaymentQuoteService {
       }
     }
 
-    quote.txReceived(transferInfo.method as Blockchain, transferInfo.hex ?? transferInfo.tx);
+    quote.txReceived(transferInfo.method as Blockchain, transferInfo.hex, transferInfo.tx);
+    await this.paymentQuoteRepo.save(quote);
 
     try {
       switch (transferInfo.method) {
@@ -374,20 +375,36 @@ export class PaymentQuoteService {
 
   private async doEvmHexPayment(method: Blockchain, transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      const client = this.blockchainRegistryService.getClient(method);
+      const client = this.blockchainRegistryService.getEvmClient(method);
 
+      // handle TX ID
       if (transferInfo.tx) {
-        const tryCount = quote.payment.link.configObj.evmHexPaymentCompletionCheckTryCount;
+        const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
-        const isComplete = await Util.retry(() => client.isTxComplete(transferInfo.tx, 1), tryCount, 1000);
+        for (let i = 0; i < tryCount; i++) {
+          const isComplete = await client.isTxComplete(transferInfo.tx, 1);
+          if (isComplete) {
+            quote.txInBlockchain(transferInfo.tx);
+            return;
+          }
 
-        if (!isComplete)
-          throw new BadRequestException(
-            `Transaction ${transferInfo.tx} not found in blockchain ${transferInfo.method}`,
-          );
+          await Util.delay(1000);
+        }
 
-        quote.txInBlockchain(transferInfo.tx);
+        throw new BadRequestException(`Transaction ${transferInfo.tx} not found in blockchain ${transferInfo.method}`);
+      }
 
+      // handle HEX
+      const transferAmount = quote.getTransferAmount(method);
+      if (!transferAmount) {
+        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for ${method} hex payment`);
+        return;
+      }
+
+      const feeLimit = await client.getGasPriceLimitFromHex(transferInfo.hex);
+
+      if (feeLimit < transferAmount.minFee) {
+        quote.txFailed(`Fee ${feeLimit} lower than min fee ${transferAmount.minFee}`);
         return;
       }
 

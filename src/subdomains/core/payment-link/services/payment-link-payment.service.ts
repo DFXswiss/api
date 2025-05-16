@@ -281,7 +281,11 @@ export class PaymentLinkPaymentService {
   }
 
   private async getQuoteByTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
-    return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId, [PaymentQuoteStatus.TX_MEMPOOL]);
+    return this.paymentQuoteService.getQuoteByTxId(txBlockchain, txId, [
+      PaymentQuoteStatus.TX_RECEIVED,
+      PaymentQuoteStatus.TX_MEMPOOL,
+      PaymentQuoteStatus.TX_BLOCKCHAIN,
+    ]);
   }
 
   private async handleQuoteChange(payment: PaymentLinkPayment, quote: PaymentQuote): Promise<void> {

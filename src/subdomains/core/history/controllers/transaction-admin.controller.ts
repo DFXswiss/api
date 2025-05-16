@@ -16,7 +16,7 @@ export class TransactionAdminController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async updateTransaction(@Param('id') id: string, @Body() dto: UpdateTransactionDto): Promise<Transaction> {
     return this.transactionService.update(+id, dto);
