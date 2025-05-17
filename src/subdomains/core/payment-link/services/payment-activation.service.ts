@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { BinancePayService } from 'src/integration/binance-pay/binance-pay.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -36,6 +37,7 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
     private readonly cryptoService: CryptoService,
+    private readonly binancePayService: BinancePayService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -188,6 +190,9 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.MONERO:
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
+      case Blockchain.BINANCE_PAY:
+        return this.createBinancePayRequest(payment, transferInfo);
+
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
     }
@@ -279,6 +284,35 @@ export class PaymentActivationService implements OnModuleInit {
     });
 
     return this.paymentActivationRepo.save(newPaymentActivation);
+  }
+
+  private async createBinancePayRequest(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
+    const {
+      data: { deeplink },
+    } = await this.binancePayService.createOrder({
+      env: {
+        terminalType: 'OTHER',
+      },
+      merchantId: '9825382937292',
+      merchantTradeNo: payment.id.toString(),
+      orderAmount: transferInfo.amount,
+      currency: 'USDT', // TODO: get the correct currency
+      description: payment.memo,
+      goodsDetails: [
+        {
+          goodsType: 'OTHER',
+          goodsCategory: 'OTHER',
+          referenceGoodsId: payment.id.toString(),
+          goodsName: payment.memo,
+          goodsDetail: payment.memo,
+        },
+      ],
+    });
+
+    return { paymentRequest: deeplink };
   }
 
   private async getAssetByInfo(transferInfo: TransferInfo): Promise<Asset> {

@@ -547,6 +547,9 @@ export class Configuration {
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
 
+    binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
+    binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
+
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
