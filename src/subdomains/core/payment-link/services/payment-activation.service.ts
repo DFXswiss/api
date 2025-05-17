@@ -294,18 +294,18 @@ export class PaymentActivationService implements OnModuleInit {
       data: { deeplink },
     } = await this.binancePayService.createOrder({
       env: {
-        terminalType: 'OTHER',
+        terminalType: 'OTHERS',
       },
-      merchantId: '9825382937292',
-      merchantTradeNo: payment.id.toString(),
+      merchantId: '9825382937292', // TODO: [DANIEL] This needs to be replaced with the submerchant id from binance, store in our end too???
+      merchantTradeNo: payment.id.toString(), // TODO: [DANIEL] Figure this out, maybe linked somehow with the order in our system
       orderAmount: transferInfo.amount,
-      currency: 'USDT', // TODO: get the correct currency
+      currency: 'USDT', // TODO: [DANIEL] get the correct currency
       description: payment.memo,
       goodsDetails: [
         {
-          goodsType: 'OTHER',
-          goodsCategory: 'OTHER',
-          referenceGoodsId: payment.id.toString(),
+          goodsType: '01',
+          goodsCategory: 'D000',
+          referenceGoodsId: '01',
           goodsName: payment.memo,
           goodsDetail: payment.memo,
         },

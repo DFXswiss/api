@@ -217,9 +217,14 @@ export class PaymentQuoteService {
     for (const method of Config.payment.manualMethods) {
       transferAmounts.push({
         method,
-        minFee: 0,
-        assets: [],
-        available: false,
+        minFee: 0, // TODO: [DANIEL] needs clarification, unique asset name in the DB had to be manually added in local
+        assets: [
+          {
+            asset: 'USDT',
+            amount: 0.010101,
+          },
+        ],
+        available: true,
       });
     }
 
