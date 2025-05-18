@@ -297,7 +297,7 @@ export class PaymentActivationService implements OnModuleInit {
         terminalType: 'OTHERS',
       },
       merchantId: '9825382937292', // TODO: [DANIEL] This needs to be replaced with the submerchant id from binance, store in our end too???
-      merchantTradeNo: `${payment.uniqueId}${Date.now()}`,
+      merchantTradeNo: `${payment.uniqueId}${Date.now()}`.replace('_', ''),
       orderAmount: transferInfo.amount,
       currency: transferInfo.asset,
       description: payment.memo,
