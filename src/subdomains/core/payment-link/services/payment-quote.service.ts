@@ -217,7 +217,7 @@ export class PaymentQuoteService {
     for (const method of Config.payment.manualMethods) {
       transferAmounts.push({
         method,
-        minFee: 0, // TODO: [DANIEL] needs clarification, needs to be added to the assets list, make sure to make it payment enabled
+        minFee: 0, // TODO: [DANIEL] needs clarification, needs to be added to the assets list, make sure to make it payment enabled, price rule
         assets: [
           {
             asset: 'USDT',
@@ -263,6 +263,7 @@ export class PaymentQuoteService {
 
   private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
     switch (blockchain) {
+      case Blockchain.BINANCE_PAY:
       case Blockchain.LIGHTNING:
         return 0;
       case Blockchain.ETHEREUM:
