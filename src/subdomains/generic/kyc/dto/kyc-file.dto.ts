@@ -38,6 +38,8 @@ export enum FileSubType {
   POST_DISPATCH = 'PostDispatch',
   LIMIT_REQUEST_USER_UPLOAD = 'LimitRequestUserUpload',
   LIMIT_REQUEST_REPORT = 'LimitRequestReport',
+  LIMIT_REQUEST_1_OF_2_REPORT = 'LimitRequest1of2Report',
+  LIMIT_REQUEST_2_OF_2_REPORT = 'LimitRequest2of2Report',
   COMMERCIAL_REGISTER_REPORT = 'CommercialRegisterReport',
   OWNER_DIRECTORY_REPORT = 'OwnerDirectoryReport',
   AUTHORITY_REPORT = 'AuthorityReport',
