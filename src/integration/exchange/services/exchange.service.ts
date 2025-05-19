@@ -186,16 +186,16 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {
-    const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50));
+    const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50, { limit: 50 }));
     return withdrawals.find((w) => w.id === id);
   }
 
   async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 50));
+    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 200, { limit: 200 }));
   }
 
   async getWithdrawals(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 50));
+    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 200, { limit: 200 }));
   }
 
   // --- Helper Methods --- //
