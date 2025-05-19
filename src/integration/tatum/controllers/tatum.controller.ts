@@ -28,15 +28,17 @@ export class TatumController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
-    if (!this.tatumWebhookService.isValidWebhookSignature(tatumSignature, req.body)) {
-      this.logger.warn(`Received Tatum webhook with invalid signature '${tatumSignature}': ${req.body}`);
-      throw new BadRequestException('Invalid signature');
-    }
-
     try {
+      if (!this.tatumWebhookService.isValidWebhookSignature(tatumSignature, req.body)) {
+        this.logger.warn(`Received Tatum webhook with invalid signature '${tatumSignature}': ${req.body}`);
+        throw new BadRequestException('Invalid signature');
+      }
+
       const dto = JSON.parse(req.body) as TatumWebhookDto;
       this.tatumWebhookService.processAddressWebhook(dto);
     } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+
       this.logger.error('addressWebhook failed:', e);
       throw new InternalServerErrorException('addressWebhook failed');
     }
