@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
-import { EvmSignedTransactionResponse } from 'src/integration/blockchain/shared/dto/signed-transaction-reponse.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -409,9 +408,7 @@ export class PaymentQuoteService {
         return;
       }
 
-      const transactionResponse = (await client.sendSignedTransaction(
-        transferInfo.hex,
-      )) as EvmSignedTransactionResponse;
+      const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
 
       transactionResponse.error
         ? quote.txFailed(transactionResponse.error.message)

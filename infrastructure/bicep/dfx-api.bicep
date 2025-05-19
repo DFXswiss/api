@@ -65,6 +65,8 @@ param paymentQuoteTimeout string
 param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
+@secure()
+param paymentSolanaSeed string
 param paymentMoneroAddress string
 param paymentBitcoinAddress string
 param paymentCheckbotSignTx string
@@ -135,10 +137,10 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
-param solanaWalletAddress string
 @secure()
 param solanaWalletSeed string
 param solanaGatewayUrl string
+param solanaTransactionPriorityRate string
 
 param zchfGraphUrl string
 param zchfContractAddress string
@@ -703,6 +705,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentEvmSeed
         }
         {
+          name: 'PAYMENT_SOLANA_SEED'
+          value: paymentSolanaSeed
+        }
+        {
           name: 'PAYMENT_MONERO_ADDRESS'
           value: paymentMoneroAddress
         }
@@ -919,16 +925,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
-          name: 'SOLANA_WALLET_ADDRESS'
-          value: solanaWalletAddress
-        }
-        {
           name: 'SOLANA_WALLET_SEED'
           value: solanaWalletSeed
         }
         {
           name: 'SOLANA_GATEWAY_URL'
           value: solanaGatewayUrl
+        }
+        {
+          name: 'SOLANA_TRANSACTION_PRIORITY_RATE'
+          value: solanaTransactionPriorityRate
         }
         {
           name: 'ZCHF_GRAPH_URL'

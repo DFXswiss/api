@@ -531,6 +531,7 @@ export class Configuration {
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
@@ -699,10 +700,10 @@ export class Configuration {
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
     solana: {
-      solanaWalletAddress: process.env.SOLANA_WALLET_ADDRESS,
       solanaWalletSeed: process.env.SOLANA_WALLET_SEED,
       solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
       solanaApiKey: process.env.TATUM_API_KEY,
+      transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 100),
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.solana.solanaWalletSeed,

@@ -36,6 +36,11 @@ export class SolanaTokenStrategy extends SolanaStrategy {
   protected async sendTransfer(payIn: CryptoInput): Promise<string> {
     const account = Config.blockchain.solana.walletAccount(payIn.route.deposit.accountIndex);
 
-    return this.payInSolanaService.sendToken(account, payIn.destinationAddress.address, payIn.asset, payIn.amount);
+    return this.payInSolanaService.sendToken(
+      account,
+      payIn.destinationAddress.address,
+      payIn.asset,
+      payIn.sendingAmount,
+    );
   }
 }

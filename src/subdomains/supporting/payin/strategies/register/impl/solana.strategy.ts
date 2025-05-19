@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { SolanaUtil } from 'src/integration/blockchain/solana/SolanaUtil';
 import { TatumWebhookDto } from 'src/integration/tatum/dto/tatum.dto';
 import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhook.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -39,7 +41,7 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
       .getAddressWebhookObservable()
       .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
 
-    this.solanaPaymentDepositAddress = this.solanaService.getWalletAddress();
+    this.solanaPaymentDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
   }
 
   get blockchain(): Blockchain {

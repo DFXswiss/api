@@ -1,9 +1,10 @@
 import * as SolanaToken from '@solana/spl-token';
 import * as Solana from '@solana/web3.js';
 import { Currency, Token } from '@uniswap/sdk-core';
-import { GetConfig } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
+import { AsyncCache } from 'src/shared/utils/async-cache';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SolanaSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
@@ -21,6 +22,8 @@ export class SolanaClient extends BlockchainClient {
 
   private readonly wallet: SolanaWallet;
   private readonly connection: Solana.Connection;
+
+  private readonly tokens = new AsyncCache<Token>();
 
   constructor(private readonly http: HttpService) {
     super();
@@ -59,21 +62,24 @@ export class SolanaClient extends BlockchainClient {
     const tokenBalances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
+      const mint = new Solana.PublicKey(asset.chainId);
+
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         new Solana.PublicKey(address ?? this.getWalletAddress()),
-        {
-          mint: new Solana.PublicKey(asset.chainId),
-        },
+        { mint },
         'confirmed',
       );
+
+      let balance = 0;
 
       for (const tokenAccount of tokenAccounts.value) {
         const info = tokenAccount.account.data.parsed.info;
         const tokenAmount = info.tokenAmount;
 
-        const balance = SolanaUtil.fromLamportAmount(tokenAmount.amount, tokenAmount.decimals);
-        tokenBalances.push({ contractAddress: info.mint, balance: balance });
+        balance += SolanaUtil.fromLamportAmount(tokenAmount.amount, tokenAmount.decimals);
       }
+
+      tokenBalances.push({ contractAddress: mint.toBase58(), balance: balance });
     }
 
     return tokenBalances;
@@ -101,11 +107,12 @@ export class SolanaClient extends BlockchainClient {
   }
 
   private async getTokenByAddress(address: string): Promise<Token> {
-    const mintAccount = await SolanaToken.getMint(this.connection, new Solana.PublicKey(address));
-    const mintAddress = mintAccount.address.toBase58();
-    const decimals = mintAccount.decimals;
-
-    return new Token(-1, mintAddress, decimals);
+    return this.tokens.get(address, async () => {
+      const mintAccount = await SolanaToken.getMint(this.connection, new Solana.PublicKey(address));
+      const mintAddress = mintAccount.address.toBase58();
+      const decimals = mintAccount.decimals;
+      return new Token(-1, mintAddress, decimals);
+    });
   }
 
   async sendSignedTransaction(hex: string): Promise<SolanaSignedTransactionResponse> {
@@ -229,7 +236,7 @@ export class SolanaClient extends BlockchainClient {
           sourceAccount.address,
           destinationAccount.address,
           keypair.publicKey,
-          amount * Math.pow(10, decimals),
+          SolanaUtil.toLamportAmount(amount, decimals),
         ),
       )
       .add(this.calculatePriorityFee());
@@ -241,7 +248,7 @@ export class SolanaClient extends BlockchainClient {
   }
 
   private calculatePriorityFee(): Solana.TransactionInstruction {
-    const priorityRate = 100;
+    const priorityRate = Config.blockchain.solana.transactionPriorityRate;
     return Solana.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityRate });
   }
 
@@ -271,7 +278,7 @@ export class SolanaClient extends BlockchainClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
-    return this.getTransaction(txHash).then((t) => t[0]?.fee ?? 0);
+    return this.getTransaction(txHash).then((t) => t.fee ?? 0);
   }
 
   async getAllTokens(address: string): Promise<SolanaTokenDto[]> {
@@ -312,10 +319,8 @@ export class SolanaClient extends BlockchainClient {
   async getHistory(limit: number): Promise<SolanaTransactionDto[]> {
     const history: SolanaTransactionDto[] = [];
 
-    const walletInfo = await this.createWalletInfo();
-
     const allSignatures = await this.connection
-      .getSignaturesForAddress(walletInfo.publicKey, { limit }, 'finalized')
+      .getSignaturesForAddress(this.wallet.publicKey, { limit }, 'finalized')
       .then((s) => s.map((s) => s.signature));
 
     const allParsedTransactions = await this.connection.getParsedTransactions(allSignatures, {
@@ -328,28 +333,6 @@ export class SolanaClient extends BlockchainClient {
     }
 
     return history;
-  }
-
-  private async createWalletInfo(): Promise<{
-    publicKey: Solana.PublicKey;
-    walletAddress: string;
-    allAddresses: string[];
-    allTokens: SolanaTokenDto[];
-  }> {
-    const publicKey = this.wallet.publicKey;
-    const walletAddress = publicKey.toBase58();
-
-    const allTokens = await this.getAllTokens(walletAddress);
-    const allTokenAddresses = allTokens.map((t) => t.address);
-
-    const allAddresses = [walletAddress, ...allTokenAddresses];
-
-    return {
-      publicKey,
-      walletAddress,
-      allAddresses,
-      allTokens,
-    };
   }
 
   private async createTransactionDto(

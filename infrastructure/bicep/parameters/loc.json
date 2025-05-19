@@ -119,6 +119,9 @@
     "paymentEvmSeed": {
       "value": "xxx"
     },
+    "paymentSolanaSeed": {
+      "value": "xxx"
+    },
     "paymentMoneroAddress": {
       "value": "xxx"
     },
@@ -263,14 +266,14 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
-    "solanaWalletAddress": {
-      "value": "xxx"
-    },
     "solanaWalletSeed": {
       "value": "xxx"
     },
     "solanaGatewayUrl": {
       "value": "https://solana-mainnet.gateway.tatum.io"
+    },
+    "solanaTransactionPriorityRate": {
+      "value": "100"
     },
     "zchfGraphUrl": {
       "value": "https://maindevponder.frankencoin.com"
