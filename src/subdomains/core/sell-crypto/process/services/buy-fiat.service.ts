@@ -175,7 +175,7 @@ export class BuyFiatService {
       Object.assign(new BuyFiat(), { ...update, ...Util.removeNullFields(entity), ...forceUpdate }),
     );
 
-    if (forceUpdate.amlCheck) {
+    if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
       if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
 
       await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
