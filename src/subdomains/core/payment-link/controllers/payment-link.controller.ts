@@ -8,6 +8,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { BinancePayService } from 'src/integration/binance-pay/binance-pay.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -39,6 +40,7 @@ export class PaymentLinkController {
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
+    private readonly binancePayService: BinancePayService,
   ) {}
 
   @Get()
@@ -255,6 +257,13 @@ export class PaymentLinkController {
     @Body() dto: UpdatePaymentLinkInternalDto,
   ): Promise<PaymentLink> {
     return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
+  }
+
+  // --- INTEGRATION --- //
+  @Post('integration/binance-pay/webhook')
+  @ApiExcludeEndpoint()
+  async binancePayWebhook(@Body() dto: any): Promise<void> {
+    return this.binancePayService.handleWebhook(dto);
   }
 
   // --- HELPER METHODS --- //

@@ -88,6 +88,28 @@ export class BinancePayService {
       throw error.response?.data || error;
     }
   }
+
+  async queryCertificate(): Promise<any> {
+    const timestamp = Date.now();
+    const nonce = this.getNonce();
+    const body = JSON.stringify({});
+    const signature = this.generateSignature(timestamp, nonce, body);
+
+    const response = await this.http.post(`${this.baseUrl}/binancepay/openapi/v3/certificate`, body, {
+      headers: {
+        'BinancePay-Timestamp': timestamp,
+        'BinancePay-Nonce': nonce,
+        'BinancePay-Certificate-SN': this.apiKey,
+        'BinancePay-Signature': signature,
+      },
+    });
+    console.log(response);
+    return response;
+  }
+
+  async handleWebhook(dto: any): Promise<void> {
+    console.log(dto);
+  }
 }
 
 const exampleOrder = {

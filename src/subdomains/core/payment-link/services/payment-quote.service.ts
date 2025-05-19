@@ -246,6 +246,17 @@ export class PaymentQuoteService {
       available: true,
     };
 
+    if (blockchain === Blockchain.BINANCE_PAY) {
+      const { binancePayMerchantId, binancePaySubMerchantId } = payment.link.configObj;
+      if (!binancePayMerchantId && !binancePaySubMerchantId) {
+        return {
+          ...transferAmount,
+          assets: [],
+          available: false,
+        };
+      }
+    }
+
     if (minFee != null) {
       for (const asset of assets) {
         const transferAmountAsset = await this.getTransferAmountAsset(

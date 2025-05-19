@@ -155,7 +155,7 @@ export class PaymentActivationService implements OnModuleInit {
     expiryDate: Date,
     standard: PaymentStandard,
   ): Promise<PaymentActivation> {
-    const { paymentRequest, paymentHash } = await this.createBlockchainRequest(payment, transferInfo, expirySec);
+    const { paymentRequest, paymentHash } = await this.createBlockchainRequest(payment, transferInfo, expirySec, quote);
 
     return this.savePaymentActivationRequest(
       payment,
@@ -172,6 +172,7 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
+    quote: PaymentQuote,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
     switch (transferInfo.method) {
       case Blockchain.LIGHTNING:
@@ -191,7 +192,7 @@ export class PaymentActivationService implements OnModuleInit {
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
       case Blockchain.BINANCE_PAY:
-        return this.createBinancePayRequest(payment, transferInfo);
+        return this.createBinancePayRequest(payment, transferInfo, quote);
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
@@ -289,15 +290,13 @@ export class PaymentActivationService implements OnModuleInit {
   private async createBinancePayRequest(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
+    quote: PaymentQuote,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
-    const {
-      data: { deeplink },
-    } = await this.binancePayService.createOrder({
+    const orderDetails: any = {
       env: {
         terminalType: 'OTHERS',
       },
-      merchantId: '9825382937292', // TODO: [DANIEL] This needs to be replaced with the submerchant id from binance, store in our end too???
-      merchantTradeNo: `${payment.uniqueId}${Date.now()}`.replace('_', ''), // TODO: [DANIEL] We need to store this in our end too, so we can match the payment in the webhook notification sent from binance
+      merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
       currency: transferInfo.asset,
       description: payment.memo,
@@ -310,9 +309,20 @@ export class PaymentActivationService implements OnModuleInit {
           goodsDetail: payment.memo,
         },
       ],
-    });
+    };
 
-    return { paymentRequest: deeplink };
+    const { binancePayMerchantId, binancePaySubMerchantId } = payment.link.configObj;
+    if (binancePayMerchantId) {
+      orderDetails.merchantId = binancePayMerchantId;
+    } else {
+      orderDetails.merchant = {
+        subMerchantId: binancePaySubMerchantId,
+      };
+    }
+
+    const { data } = await this.binancePayService.createOrder(orderDetails);
+
+    return { paymentRequest: data.deeplink };
   }
 
   private async getAssetByInfo(transferInfo: TransferInfo): Promise<Asset> {
