@@ -210,9 +210,9 @@ export class LogJobService {
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
 
-        const balances =
+        const balances: BlockchainTokenBalance[] =
           e === Blockchain.MONERO
-            ? [{ contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
+            ? [{ owner: undefined, contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
             : await this.getCustomBalances(client, a, [
                 EvmUtil.createWallet({
                   seed: Config.payment.evmSeed,
@@ -353,9 +353,11 @@ export class LogJobService {
       const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
       if (liquidityBalance == null && !curr.isActive) return prev;
 
-      const customBalance = customBalances
+      const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
+        ?.balances.filter((b) => b.contractAddress === curr.chainId);
+
+      const totalCustomBalance = customAddressBalances.reduce((sum, result) => sum + result.balance, 0);
 
       const depositBalance = depositBalances
         .find((c) => c.blockchain === curr.blockchain)
@@ -370,7 +372,7 @@ export class LogJobService {
 
       // plus
       const liquidity =
-        (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+        (liquidityBalance ?? 0) + (totalCustomBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -578,6 +580,18 @@ export class LogJobService {
         plusBalance: {
           total: this.getJsonValue(totalPlus, amountType(curr), true),
           liquidity: this.getJsonValue(liquidity, amountType(curr)),
+          custom: totalCustomBalance
+            ? {
+                total: this.getJsonValue(totalCustomBalance, amountType(curr), true),
+                ...Util.aggregate(
+                  customAddressBalances.map((b) => {
+                    return { ...b, balance: this.getJsonValue(b.balance, amountType(curr)) };
+                  }),
+                  'owner',
+                  'balance',
+                ),
+              }
+            : undefined,
           pending: totalPlusPending
             ? {
                 total: this.getJsonValue(totalPlusPending, amountType(curr), true),
