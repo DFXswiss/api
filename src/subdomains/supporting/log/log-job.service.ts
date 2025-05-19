@@ -357,7 +357,7 @@ export class LogJobService {
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances.filter((b) => b.contractAddress === curr.chainId);
 
-      const totalCustomBalance = customAddressBalances.reduce((sum, result) => sum + result.balance, 0);
+      const totalCustomBalance = Util.sumObjValue(customAddressBalances, 'balance');
 
       const depositBalance = depositBalances
         .find((c) => c.blockchain === curr.blockchain)
@@ -584,9 +584,7 @@ export class LogJobService {
             ? {
                 total: this.getJsonValue(totalCustomBalance, amountType(curr), true),
                 ...Util.aggregate(
-                  customAddressBalances.map((b) => {
-                    return { ...b, balance: this.getJsonValue(b.balance, amountType(curr)) };
-                  }),
+                  customAddressBalances.map((b) => ({ ...b, balance: this.getJsonValue(b.balance, amountType(curr)) })),
                   'owner',
                   'balance',
                 ),
