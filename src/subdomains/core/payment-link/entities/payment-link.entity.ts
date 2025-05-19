@@ -17,7 +17,6 @@ export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   displayQr: false,
   fee: 0.002,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
-  evmHexPaymentCompletionCheckTryCount: GetConfig().payment.defaultEvmHexPaymentTryCount,
 };
 
 @Entity()
@@ -33,6 +32,9 @@ export class PaymentLink extends IEntity {
 
   @Column({ length: 256, nullable: true })
   externalId?: string;
+
+  @Column({ length: 256, nullable: true })
+  label?: string;
 
   @Column({ length: 256 })
   status: PaymentLinkStatus;

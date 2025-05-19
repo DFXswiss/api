@@ -353,6 +353,11 @@ export abstract class EvmClient extends BlockchainClient {
     return EvmUtil.fromWeiAmount(actualFee);
   }
 
+  async getGasPriceLimitFromHex(txHex: string): Promise<number> {
+    const currentGasPrice = await this.getRecommendedGasPrice();
+    return EvmUtil.getGasPriceLimitFromHex(txHex, currentGasPrice);
+  }
+
   async approveContract(asset: Asset, contractAddress: string): Promise<string> {
     const contract = this.getERC20ContractForDex(asset.chainId);
 

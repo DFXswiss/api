@@ -18,7 +18,7 @@ export class GsController {
   @Post('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getDbData(@Body() query: DbQueryDto): Promise<DbReturnData> {
     const startTime = Date.now();
 
@@ -39,7 +39,7 @@ export class GsController {
   @Post('db/custom')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getExtendedData(@Body() query: DbQueryBaseDto): Promise<DbReturnData> {
     return this.gsService.getExtendedDbData(query);
   }
@@ -47,7 +47,7 @@ export class GsController {
   @Get('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
     return this.gsService.getSupportData(query);
   }

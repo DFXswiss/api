@@ -290,10 +290,11 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  manualReview(comment?: string): UpdateResult<KycStep> {
+  manualReview(comment?: string, result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.MANUAL_REVIEW,
       comment,
+      result: this.setResult(result),
     };
 
     Object.assign(this, update);

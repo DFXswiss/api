@@ -15,7 +15,7 @@ export class DepositController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createDeposits(@Body() dto: CreateDepositDto): Promise<void> {
     await this.depositService.createDeposits(dto);
   }
@@ -23,7 +23,7 @@ export class DepositController {
   @Put('lightningWebhook')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateLightningDepositWebhook(): Promise<void> {
     await this.depositService.updateLightningDepositWebhook();
   }

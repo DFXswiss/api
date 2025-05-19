@@ -23,6 +23,11 @@ export class CreatePaymentLinkDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  label?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   webhookUrl?: string;
 
   @ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })

@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -90,8 +84,8 @@ export class PaymentLinkService {
       : dto.routeId
       ? await this.sellService.get(userId, dto.routeId)
       : await this.sellService.getLatest(userId);
-    if (!route) throw new NotFoundException('Sell route not found');
-    if (!route.active) throw new BadRequestException('Sell route not active');
+
+    this.sellService.validateLightningRoute(route);
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
@@ -109,7 +103,8 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.sellService.getByLabel(undefined, dto.route)
       : await this.sellService.getById(+dto.routeId);
-    if (!route) throw new NotFoundException('Route not found');
+
+    this.sellService.validateLightningRoute(route);
 
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
@@ -118,6 +113,7 @@ export class PaymentLinkService {
       },
       relations: { payments: true },
     });
+
     if (existingLinks.length) {
       const matchingLink = existingLinks.find(
         (l) =>
@@ -139,6 +135,7 @@ export class PaymentLinkService {
     const paymentLinkDto: CreatePaymentLinkDto = {
       externalId: dto.externalId,
       webhookUrl: dto.webhookUrl,
+      label: dto.label,
       payment,
     };
 
@@ -146,10 +143,6 @@ export class PaymentLinkService {
   }
 
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
-    if (!route) throw new NotFoundException('Route not found');
-    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
-      throw new BadRequestException('Only Lightning routes are allowed');
-
     const country = dto.config?.recipient?.address?.country
       ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
       : undefined;
@@ -157,6 +150,7 @@ export class PaymentLinkService {
     const paymentLink = this.paymentLinkRepo.create({
       route,
       externalId: dto.externalId,
+      label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
       webhookUrl: dto.webhookUrl,
@@ -313,7 +307,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
-    const { status, webhookUrl, config } = dto;
+    const { status, label, webhookUrl, config } = dto;
     const { name, address, phone, mail, website } = config.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
@@ -323,6 +317,7 @@ export class PaymentLinkService {
 
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
+      label,
       webhookUrl,
       street,
       houseNumber,
