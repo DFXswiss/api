@@ -30,33 +30,76 @@ export interface ChannelPartnerOrderData extends OrderData {
   };
 }
 
-export interface OrderResponse {
+export interface BinancePayResponse<T> {
   status: 'SUCCESS' | 'FAILED';
   code: string;
-  data?: {
-    prepayId: string;
-    terminalType: string;
-    expireTime: number;
-    qrcodeLink: string;
-    qrContent: string;
-    checkoutUrl: string;
-    deeplink: string;
-    universalUrl: string;
-    totalFee: number;
-    currency: string;
-  };
+  data?: T;
   errorMessage?: string;
+}
+
+export type OrderResponse = BinancePayResponse<{
+  prepayId: string;
+  terminalType: string;
+  expireTime: number;
+  qrcodeLink: string;
+  qrContent: string;
+  checkoutUrl: string;
+  deeplink: string;
+  universalUrl: string;
+  totalFee: number;
+  currency: string;
+}>;
+
+export type CertificateResponse = BinancePayResponse<{
+  certPublic: string;
+  certSerial: string;
+}>;
+
+interface PaymentInfo {
+  payMethod: string;
+  paymentInstructions: {
+    currency: string;
+    amount: number;
+    price: number;
+  }[];
+  channel: string;
+}
+
+interface WebhookData {
+  merchantTradeNo: string;
+  productType: string;
+  productName: string;
+  transactTime: number;
+  tradeType: string;
+  totalFee: number;
+  currency: string;
+  transactionId: string;
+  openUserId: string;
+  commission: number;
+  paymentInfo: PaymentInfo;
+}
+
+export interface BinancePayWebhookDto {
+  bizType: string;
+  data: string; // JSON string of WebhookData
+  bizIdStr: string;
+  bizId: number;
+  bizStatus: string;
 }
 
 @Injectable()
 export class BinancePayService {
+  private readonly baseUrl = 'https://bpay.binanceapi.com';
   private readonly apiKey: string;
   private readonly secretKey: string;
-  private readonly baseUrl = 'https://bpay.binanceapi.com';
+  private certificatedExpiry: number;
+  private certPublic: string;
+  private certSerial: string;
 
   constructor(private http: HttpService) {
     this.apiKey = Config.payment.binancePayPublic;
     this.secretKey = Config.payment.binancePaySecret;
+    this.certificatedExpiry = 0;
   }
 
   private generateSignature(timestamp: number, nonce: string, body: string): string {
@@ -68,20 +111,23 @@ export class BinancePayService {
     return crypto.randomBytes(16).toString('hex');
   }
 
-  async createOrder(orderData: DirectMerchantOrderData | ChannelPartnerOrderData): Promise<OrderResponse> {
+  private getHeaders(body: any): Record<string, string | number> {
     const timestamp = Date.now();
     const nonce = this.getNonce();
-    const body = JSON.stringify(orderData);
-    const signature = this.generateSignature(timestamp, nonce, body);
+    const signature = this.generateSignature(timestamp, nonce, JSON.stringify(body));
 
+    return {
+      'BinancePay-Timestamp': timestamp,
+      'BinancePay-Nonce': nonce,
+      'BinancePay-Certificate-SN': this.apiKey,
+      'BinancePay-Signature': signature,
+    };
+  }
+
+  async createOrder(orderData: DirectMerchantOrderData | ChannelPartnerOrderData): Promise<OrderResponse> {
     try {
       const response = await this.http.post<OrderResponse>(`${this.baseUrl}/binancepay/openapi/v3/order`, orderData, {
-        headers: {
-          'BinancePay-Timestamp': timestamp,
-          'BinancePay-Nonce': nonce,
-          'BinancePay-Certificate-SN': this.apiKey,
-          'BinancePay-Signature': signature,
-        },
+        headers: this.getHeaders(orderData),
       });
       return response;
     } catch (error) {
@@ -89,43 +135,43 @@ export class BinancePayService {
     }
   }
 
-  async queryCertificate(): Promise<any> {
-    const timestamp = Date.now();
-    const nonce = this.getNonce();
-    const body = JSON.stringify({});
-    const signature = this.generateSignature(timestamp, nonce, body);
+  async queryCertificate(): Promise<CertificateResponse> {
+    if (Date.now() < this.certificatedExpiry) {
+      return {
+        status: 'SUCCESS',
+        code: '000000',
+        data: {
+          certPublic: this.certPublic,
+          certSerial: this.certSerial,
+        },
+      };
+    }
 
-    const response = await this.http.post(`${this.baseUrl}/binancepay/openapi/v3/certificate`, body, {
-      headers: {
-        'BinancePay-Timestamp': timestamp,
-        'BinancePay-Nonce': nonce,
-        'BinancePay-Certificate-SN': this.apiKey,
-        'BinancePay-Signature': signature,
+    this.certificatedExpiry = Date.now() + 5 * 60 * 1000;
+    const response = await this.http.post<CertificateResponse>(
+      `${this.baseUrl}/binancepay/openapi/certificates`,
+      {},
+      {
+        headers: this.getHeaders({}),
       },
-    });
-    console.log(response);
+    );
+
+    this.certPublic = response.data.certPublic;
+    this.certSerial = response.data.certSerial;
+
     return response;
   }
 
-  async handleWebhook(dto: any): Promise<void> {
-    console.log(dto);
+  public async verifyWebhook(dto: BinancePayWebhookDto, headers: Record<string, string>): Promise<boolean> {
+    const { 'BinancePay-Timestamp': timestamp, 'BinancePay-Nonce': nonce, 'BinancePay-Signature': signature } = headers;
+    const payload = `${timestamp}\n${nonce}\n${dto.data}\n`;
+    const decodedSignature = Buffer.from(signature, 'base64');
+    const { data } = await this.queryCertificate();
+    return crypto.verify('sha256', Buffer.from(payload), data?.certPublic, decodedSignature);
+  }
+
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<void> {
+    const webhookData: WebhookData = JSON.parse(dto.data);
+    console.log(webhookData);
   }
 }
-
-const exampleOrder = {
-  status: 'SUCCESS',
-  code: '000000',
-  data: {
-    currency: 'USDT',
-    totalFee: '25.17',
-    prepayId: '363969700195475456',
-    terminalType: 'APP',
-    expireTime: 1747326999067,
-    qrcodeLink: 'https://public.bnbstatic.com/static/payment/20250515/10d4263e-29b5-4cd5-a094-5a44b58fc94f.jpg',
-    qrContent: 'https://app.binance.com/qr/dplk8d729cd0b5b646fa96dc4f951bcb488b',
-    checkoutUrl: 'https://pay.binance.com/en/checkout/637e918899f14f128010b28372a167a1',
-    deeplink: 'bnc://app.binance.com/payment/secpay?tempToken=Y227jEaCxWU0KFsWPd0URnKE7wg4dB4M',
-    universalUrl:
-      'https://app.binance.com/payment/secpay?linkToken=637e918899f14f128010b28372a167a1&_dp=Ym5jOi8vYXBwLmJpbmFuY2UuY29tL3BheW1lbnQvc2VjcGF5P3RlbXBUb2tlbj1ZMjI3akVhQ3hXVTBLRnNXUGQwVVJuS0U3d2c0ZEI0TQ',
-  },
-};
