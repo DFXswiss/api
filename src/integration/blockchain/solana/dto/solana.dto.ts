@@ -23,3 +23,26 @@ export interface SolanaTransactionDestinationDto {
     decimals: number;
   };
 }
+
+export interface SolanaNativeInstructionsDto {
+  destination: string;
+  source: string;
+  lamports: number;
+}
+
+export interface SolanaTokenInstructionsDto {
+  destination: string;
+  source: string;
+  mint: string;
+  amount: string;
+  decimals: number;
+  authority: string;
+}
+
+export interface SolanaTokenBalancesDto {
+  accountIndex: number;
+  mint: string;
+  owner: string;
+  amount: string;
+  decimals: number;
+}

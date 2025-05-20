@@ -77,7 +77,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   // --- BALANCE UPDATES --- //
 
   private async updateCacheFor(blockchain: Blockchain, assets: Asset[]): Promise<void> {
-    if (!this.updateCalls.get(blockchain)) {
+    if (!this.updateCalls.has(blockchain)) {
       this.updateCalls.set(blockchain, this.updateBalancesFor(blockchain, assets));
     }
 
@@ -91,11 +91,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       switch (blockchain) {
         case Blockchain.BITCOIN:
         case Blockchain.LIGHTNING:
-          await this.getForBitcoin(assets);
+          await this.updateBitcoinBalance(assets);
           break;
 
         case Blockchain.MONERO:
-          await this.getForMonero(assets);
+          await this.updateMoneroBalance(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -104,11 +104,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.POLYGON:
         case Blockchain.BASE:
         case Blockchain.BINANCE_SMART_CHAIN:
-          await this.getForEvm(assets);
+          await this.updateEvmBalance(assets);
           break;
 
         case Blockchain.SOLANA:
-          await this.getForSolana(assets);
+          await this.updateSolanaBalance(assets);
           break;
 
         default:
@@ -125,7 +125,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   // --- BLOCKCHAIN INTEGRATIONS --- //
 
-  private async getForBitcoin(assets: Asset[]): Promise<void> {
+  private async updateBitcoinBalance(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
@@ -141,7 +141,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForMonero(assets: Asset[]): Promise<void> {
+  private async updateMoneroBalance(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
@@ -156,23 +156,23 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForEvm(assets: Asset[]): Promise<void> {
+  private async updateEvmBalance(assets: Asset[]): Promise<void> {
     if (assets.length === 0) return;
 
     const blockchain = assets[0].blockchain;
     const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
-    await this.getForTokenAsset(
+    await this.updateCoinAndTokenBalance(
       assets.filter((a) => a.type !== AssetType.POOL),
       client,
     );
-    await this.getForEvmPosition(
+    await this.updateEvmPosition(
       assets.filter((a) => a.type === AssetType.POOL),
       client,
     );
   }
 
-  private async getForTokenAsset(assets: Asset[], client: TokenClient): Promise<void> {
+  private async updateCoinAndTokenBalance(assets: Asset[], client: TokenClient): Promise<void> {
     let coinBalance: number;
     let tokenBalances: BlockchainTokenBalance[];
 
@@ -200,7 +200,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForEvmPosition(assets: Asset[], client: EvmClient): Promise<void> {
+  private async updateEvmPosition(assets: Asset[], client: EvmClient): Promise<void> {
     const assetMap = Util.groupByAccessor(assets, (a) => a.chainId.split('/').slice(0, 2).join('/'));
 
     for (const pool of new Set(assetMap.keys())) {
@@ -219,13 +219,13 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async getForSolana(assets: Asset[]): Promise<void> {
+  private async updateSolanaBalance(assets: Asset[]): Promise<void> {
     if (assets.length === 0) return;
 
     const blockchain = assets[0].blockchain;
     const client = this.blockchainRegistryService.getClient(blockchain) as SolanaClient;
 
-    await this.getForTokenAsset(
+    await this.updateCoinAndTokenBalance(
       assets.filter((a) => a.type !== AssetType.POOL),
       client,
     );

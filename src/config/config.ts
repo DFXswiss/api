@@ -704,6 +704,7 @@ export class Configuration {
       solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
       solanaApiKey: process.env.TATUM_API_KEY,
       transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 100),
+      createTokenAccountFee: 0.00203928,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.solana.solanaWalletSeed,

@@ -115,6 +115,17 @@ export class SolanaClient extends BlockchainClient {
     });
   }
 
+  private async sendTransaction(wallet: SolanaWallet, transaction: Solana.Transaction): Promise<string> {
+    wallet.signTransaction(transaction);
+
+    const hexTransaction = transaction.serialize().toString('hex');
+
+    const result = await this.sendSignedTransaction(hexTransaction);
+    if (result.error) throw new Error(result.error.message);
+
+    return result.hash;
+  }
+
   async sendSignedTransaction(hex: string): Promise<SolanaSignedTransactionResponse> {
     const hexToUse = hex.toLowerCase().startsWith('0x') ? hex.substring(0, 2) : hex;
     const tx = Buffer.from(hexToUse, 'hex').toString('base64');
@@ -153,14 +164,7 @@ export class SolanaClient extends BlockchainClient {
 
   private async sendNativeCoin(wallet: SolanaWallet, toAddress: string, amount: number): Promise<string> {
     const transaction = await this.createNativeCoinTransaction(wallet, toAddress, amount);
-    wallet.signTransaction(transaction);
-
-    const hexTransaction = transaction.serialize().toString('hex');
-
-    const result = await this.sendSignedTransaction(hexTransaction);
-    if (result.error) throw new Error(result.error.message);
-
-    return result.hash;
+    return this.sendTransaction(wallet, transaction);
   }
 
   private async createNativeCoinTransaction(
@@ -194,57 +198,84 @@ export class SolanaClient extends BlockchainClient {
   }
 
   private async sendToken(wallet: SolanaWallet, toAddress: string, token: Asset, amount: number): Promise<string> {
-    const transaction = await this.createTokenTransaction(wallet, token.chainId, toAddress, amount);
-    wallet.signTransaction(transaction);
-
-    const hexTransaction = transaction.serialize().toString('hex');
-
-    const result = await this.sendSignedTransaction(hexTransaction);
-    if (result.error) throw new Error(result.error.message);
-
-    return result.hash;
+    const transaction = await this.createTokenTransaction(wallet, token, toAddress, amount);
+    return this.sendTransaction(wallet, transaction);
   }
 
   private async createTokenTransaction(
     wallet: SolanaWallet,
-    mintAddress: string,
+    token: Asset,
     toAddress: string,
     amount: number,
   ): Promise<Solana.Transaction> {
-    const keypair = wallet.keypair;
+    const mintAddress = token.chainId;
+    if (!mintAddress) throw new Error(`No mint address for token ${token.uniqueName} found`);
+    const decimals = token.decimals;
+    if (!decimals) throw new Error(`No decimals for token ${token.uniqueName} found`);
 
-    const sourceAccount = await SolanaToken.getOrCreateAssociatedTokenAccount(
-      this.connection,
-      keypair,
-      new Solana.PublicKey(mintAddress),
-      keypair.publicKey,
+    const fromPublicKey = wallet.keypair.publicKey;
+    const toPublicKey = new Solana.PublicKey(toAddress);
+
+    const mintPublicKey = new Solana.PublicKey(mintAddress);
+
+    const fromTokenAccount = await SolanaToken.getAssociatedTokenAddress(mintPublicKey, fromPublicKey);
+    const toTokenAccount = await SolanaToken.getAssociatedTokenAddress(mintPublicKey, toPublicKey);
+
+    const isTokenAccountAvailable = await this.checkTokenAccount(toAddress, mintAddress);
+
+    const transaction = new Solana.Transaction();
+
+    if (!isTokenAccountAvailable) {
+      transaction.add(
+        SolanaToken.createAssociatedTokenAccountInstruction(fromPublicKey, toTokenAccount, toPublicKey, mintPublicKey),
+      );
+    }
+
+    transaction.add(
+      SolanaToken.createTransferInstruction(
+        fromTokenAccount,
+        toTokenAccount,
+        fromPublicKey,
+        SolanaUtil.toLamportAmount(amount, decimals),
+        [],
+        SolanaToken.TOKEN_PROGRAM_ID,
+      ),
     );
 
-    const destinationAccount = await SolanaToken.getOrCreateAssociatedTokenAccount(
-      this.connection,
-      keypair,
-      new Solana.PublicKey(mintAddress),
-      new Solana.PublicKey(toAddress),
-    );
-
-    const info = await this.connection.getParsedAccountInfo(new Solana.PublicKey(mintAddress));
-    const decimals = (info.value?.data as Solana.ParsedAccountData).parsed.info.decimals as number;
-
-    const transaction = new Solana.Transaction()
-      .add(
-        SolanaToken.createTransferInstruction(
-          sourceAccount.address,
-          destinationAccount.address,
-          keypair.publicKey,
-          SolanaUtil.toLamportAmount(amount, decimals),
-        ),
-      )
-      .add(this.calculatePriorityFee());
+    transaction.add(this.calculatePriorityFee());
 
     const latestBlockHash = await this.connection.getLatestBlockhash('confirmed');
     transaction.recentBlockhash = latestBlockHash.blockhash;
 
     return transaction;
+  }
+
+  async checkTokenAccount(address: string, mintAddress: string): Promise<boolean> {
+    const accountsResponse = await this.connection.getTokenAccountsByOwner(new Solana.PublicKey(address), {
+      mint: new Solana.PublicKey(mintAddress),
+    });
+
+    return accountsResponse.value.length > 0;
+  }
+
+  async closeTokenAccount(account: WalletAccount, mintAddress: string): Promise<string> {
+    const wallet = SolanaUtil.createWallet(account);
+    if (!(await this.checkTokenAccount(wallet.address, mintAddress))) return '';
+
+    const feePayerPublicKey = wallet.keypair.publicKey;
+    const mintPublicKey = new Solana.PublicKey(mintAddress);
+
+    const tokenAccount = await SolanaToken.getAssociatedTokenAddress(mintPublicKey, feePayerPublicKey);
+
+    const transaction = new Solana.Transaction();
+
+    transaction.add(SolanaToken.createCloseAccountInstruction(tokenAccount, feePayerPublicKey, feePayerPublicKey));
+    transaction.add(this.calculatePriorityFee());
+
+    const latestBlockHash = await this.connection.getLatestBlockhash('confirmed');
+    transaction.recentBlockhash = latestBlockHash.blockhash;
+
+    return this.sendTransaction(wallet, transaction);
   }
 
   private calculatePriorityFee(): Solana.TransactionInstruction {
@@ -264,12 +295,7 @@ export class SolanaClient extends BlockchainClient {
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
     const amount = 10 / Solana.LAMPORTS_PER_SOL;
-    const transaction = await this.createTokenTransaction(
-      this.wallet,
-      token.chainId,
-      this.randomReceiverAddress,
-      amount,
-    );
+    const transaction = await this.createTokenTransaction(this.wallet, token, this.randomReceiverAddress, amount);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
     const feeInLamports = response.value;

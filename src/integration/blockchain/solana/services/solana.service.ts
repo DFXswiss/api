@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bs58 from 'bs58';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -58,6 +59,12 @@ export class SolanaService extends BlockchainService {
 
   async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
     return this.client.sendNativeCoinFromDex(toAddress, amount);
+  }
+
+  async getCreateTokenAccountFee(toAddress: string, token: Asset): Promise<number> {
+    return (await this.client.checkTokenAccount(toAddress, token.chainId))
+      ? 0
+      : Config.blockchain.solana.createTokenAccountFee;
   }
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number) {
