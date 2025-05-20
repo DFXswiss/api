@@ -50,6 +50,9 @@ export class BankData extends IEntity {
   @Column({ default: true })
   active: boolean;
 
+  @Column({ default: false })
+  default: boolean;
+
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency?: Fiat;
 
@@ -66,6 +69,7 @@ export class BankData extends IEntity {
       active: true,
       label: dto.label ?? null,
       preferredCurrency: dto.preferredCurrency ?? null,
+      default: dto.default ?? false,
     };
 
     Object.assign(this, update);
