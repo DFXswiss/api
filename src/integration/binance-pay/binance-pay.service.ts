@@ -50,10 +50,12 @@ export type OrderResponse = BinancePayResponse<{
   currency: string;
 }>;
 
-export type CertificateResponse = BinancePayResponse<{
-  certPublic: string;
-  certSerial: string;
-}>;
+export type CertificateResponse = BinancePayResponse<
+  {
+    certPublic: string;
+    certSerial: string;
+  }[]
+>;
 
 interface PaymentInfo {
   payMethod: string;
@@ -93,8 +95,7 @@ export class BinancePayService {
   private readonly apiKey: string;
   private readonly secretKey: string;
   private certificatedExpiry: number;
-  private certPublic: string;
-  private certSerial: string;
+  private cert: CertificateResponse['data'];
 
   constructor(private http: HttpService) {
     this.apiKey = Config.payment.binancePayPublic;
@@ -136,14 +137,11 @@ export class BinancePayService {
   }
 
   async queryCertificate(): Promise<CertificateResponse> {
-    if (Date.now() < this.certificatedExpiry) {
+    if (this.certificatedExpiry > Date.now()) {
       return {
         status: 'SUCCESS',
         code: '000000',
-        data: {
-          certPublic: this.certPublic,
-          certSerial: this.certSerial,
-        },
+        data: this.cert,
       };
     }
 
@@ -156,18 +154,28 @@ export class BinancePayService {
       },
     );
 
-    this.certPublic = response.data.certPublic;
-    this.certSerial = response.data.certSerial;
-
+    this.cert = response.data;
     return response;
   }
 
   public async verifyWebhook(dto: BinancePayWebhookDto, headers: Record<string, string>): Promise<boolean> {
-    const { 'BinancePay-Timestamp': timestamp, 'BinancePay-Nonce': nonce, 'BinancePay-Signature': signature } = headers;
+    const {
+      'binancepay-timestamp': timestamp,
+      'binancepay-nonce': nonce,
+      'binancepay-signature': signature,
+      'binancepay-certificate-sn': certSN,
+    } = headers;
+    console.log(headers);
     const payload = `${timestamp}\n${nonce}\n${dto.data}\n`;
     const decodedSignature = Buffer.from(signature, 'base64');
     const { data } = await this.queryCertificate();
-    return crypto.verify('sha256', Buffer.from(payload), data?.certPublic, decodedSignature);
+
+    const cert = data.find((cert) => cert.certSerial === certSN);
+    if (!cert) {
+      throw new Error('Certificate not found');
+    }
+
+    return crypto.verify('RSA-SHA256', Buffer.from(payload), cert.certPublic, decodedSignature);
   }
 
   async handleWebhook(dto: BinancePayWebhookDto): Promise<void> {
