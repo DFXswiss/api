@@ -21,7 +21,7 @@ export class SpecialExternalAccountService {
   }
 
   async getMultiAccounts(): Promise<SpecialExternalAccount[]> {
-    return this.specialExternalAccountRepo.findCachedBy(`MultiAccountIbans`, {
+    return this.specialExternalAccountRepo.findCachedBy(`MultiAccounts`, {
       type: In([SpecialExternalAccountType.MULTI_ACCOUNT_IBAN, SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME]),
     });
   }
