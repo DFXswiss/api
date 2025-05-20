@@ -357,9 +357,7 @@ export class LogJobService {
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances.filter((b) => b.contractAddress === curr.chainId);
 
-      const totalCustomBalance = customAddressBalances.length
-        ? Util.sumObjValue(customAddressBalances, 'balance')
-        : undefined;
+      const totalCustomBalance = customAddressBalances && Util.sumObjValue(customAddressBalances, 'balance');
 
       const depositBalance = depositBalances
         .find((c) => c.blockchain === curr.blockchain)
