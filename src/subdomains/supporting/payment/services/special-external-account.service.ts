@@ -22,12 +22,14 @@ export class SpecialExternalAccountService {
 
   async getMultiAccounts(): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findCachedBy(`MultiAccountIbans`, {
-      type: SpecialExternalAccountType.MULTI_ACCOUNT_IBAN,
+      type: In([SpecialExternalAccountType.MULTI_ACCOUNT_IBAN, SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME]),
     });
   }
 
   async getMultiAccountIbans(): Promise<string[]> {
-    return this.getMultiAccounts().then((list) => list.map((a) => a.value));
+    return this.getMultiAccounts().then((list) =>
+      list.filter((a) => a.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN).map((a) => a.value),
+    );
   }
 
   async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {

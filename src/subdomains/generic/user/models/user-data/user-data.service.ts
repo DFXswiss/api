@@ -697,7 +697,7 @@ export class UserDataService {
     if (dto.verifiedName) {
       const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccounts();
       if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
-        throw new BadRequestException('VerifiedName includes a multiAccountIban');
+        throw new BadRequestException('VerifiedName includes a multiAccount');
     }
 
     if (dto.kycFileId) {
