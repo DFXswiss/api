@@ -222,8 +222,6 @@ export class UserDataService {
 
     Object.assign(userData, dto);
 
-    await this.userDataRepo.save(userData);
-
     if (
       [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) &&
       !userData.organization
@@ -248,6 +246,8 @@ export class UserDataService {
         country: dto.organizationCountry,
       });
     }
+
+    await this.userDataRepo.save(userData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
