@@ -235,6 +235,7 @@ export class UserDataService {
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
+        country: dto.organizationCountry,
       });
     } else if (userData.organization) {
       await this.organizationService.updateOrganizationInternal(userData.organization, {
@@ -244,6 +245,7 @@ export class UserDataService {
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
+        country: dto.organizationCountry,
       });
     }
 
@@ -397,7 +399,7 @@ export class UserDataService {
         location: update.organizationLocation,
         houseNumber: update.organizationHouseNumber,
         zip: update.organizationZip,
-        country: update.organizationCountry,
+        country: organizationCountry,
       };
 
       update.organization = !userData.organization
