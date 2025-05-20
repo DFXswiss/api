@@ -107,7 +107,12 @@ export class SellService {
     const isRouteId = !isNaN(+idOrLabel);
     const sellRoute = isRouteId ? await this.getById(+idOrLabel) : await this.getByLabel(undefined, idOrLabel);
 
-    this.validateLightningRoute(sellRoute);
+    try {
+      this.validateLightningRoute(sellRoute);
+    } catch (e) {
+      this.logger.verbose(`Failed to validate sell route ${idOrLabel}:`, e);
+      throw new NotFoundException(`Payment route not found`);
+    }
     return sellRoute;
   }
 

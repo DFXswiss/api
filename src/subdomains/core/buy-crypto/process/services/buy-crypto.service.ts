@@ -299,7 +299,7 @@ export class BuyCryptoService {
       }),
     );
 
-    if (forceUpdate.amlCheck) {
+    if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
       if (update.amlCheck === CheckStatus.PASS) {
         await this.buyCryptoNotificationService.paymentProcessing(entity);
 
