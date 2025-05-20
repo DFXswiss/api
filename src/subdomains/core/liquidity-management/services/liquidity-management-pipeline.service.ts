@@ -267,7 +267,7 @@ export class LiquidityManagementPipelineService {
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
     const { id, type, optAmount, rule } = pipeline;
-    const successMessage = `${type} pipeline for ${optAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
+    const successMessage = `${type} pipeline with target of ${optAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
@@ -286,7 +286,7 @@ export class LiquidityManagementPipelineService {
     order: LiquidityManagementOrder,
   ): [string, MailRequest] {
     const { id, type, optAmount, rule } = pipeline;
-    const errorMessage = `${type} pipeline for ${optAmount} ${rule.targetName} (rule ${
+    const errorMessage = `${type} pipeline with target of ${optAmount} ${rule.targetName} (rule ${
       rule.id
     }) ${pipeline.status.toLowerCase()}. Pipeline ID: ${id}`;
 

@@ -54,24 +54,32 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
     }
 
-    let deficit = optAmount;
-    if (targetOptimal) deficit = Util.round(deficit + rule.optimal, 6);
+    if (targetOptimal) optAmount = Util.round(optAmount + rule.optimal, 6);
 
-    const liquidityState = { deficit, minDeficit: minAmount, redundancy: 0 };
+    const liquidityState: LiquidityState = { action: LiquidityOptimizationType.DEFICIT, minAmount, optAmount };
 
     return this.executeRule(rule, liquidityState, LiquidityOptimizationType.DEFICIT);
   }
 
-  async sellLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<LiquidityManagementPipeline> {
+  async sellLiquidity(
+    assetId: number,
+    minAmount: number,
+    optAmount: number,
+    targetOptimal: boolean,
+  ): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
     if (!rule.redundancyStartAction) {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
     }
 
-    if (targetOptimal) amount = Util.round(amount - rule.optimal, 6);
+    if (targetOptimal) optAmount = Util.round(optAmount - rule.optimal, 6);
 
-    const liquidityState = { deficit: 0, minDeficit: 0, redundancy: amount };
+    const liquidityState: LiquidityState = {
+      action: LiquidityOptimizationType.REDUNDANCY,
+      minAmount,
+      optAmount,
+    };
 
     return this.executeRule(rule, liquidityState, LiquidityOptimizationType.REDUNDANCY);
   }
@@ -107,15 +115,15 @@ export class LiquidityManagementService {
 
       const result = rule.verify(balance);
 
-      if (result.deficit || result.redundancy) {
+      if (result.action) {
         if (!this.ruleActivations.has(rule.id)) {
           this.ruleActivations.set(rule.id, new Date());
           this.logger.info(
-            `Rule ${rule.id} activated: ${result.deficit} deficit (min ${result.minDeficit}), ${result.redundancy} redundancy`,
+            `Rule ${rule.id} activated: ${result.optAmount} (min. ${result.minAmount}) ${result.action.toLowerCase()}`,
           );
         }
 
-        // execute rule 30 minutes after activation
+        // execute rule with delay
         const delay = await this.settingService.get('lmActivationDelay', '30');
         const requiredActivationTime = Util.minutesBefore(+delay);
 
@@ -169,10 +177,10 @@ export class LiquidityManagementService {
   }
 
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
-    const message = result.deficit
-      ? `${result.deficit} deficit (min ${result.minDeficit})`
-      : `${result.redundancy} redundancy`;
-
-    this.logger.verbose(`Executing liquidity management rule ${rule.id} (${message} of ${rule.targetName})`);
+    this.logger.verbose(
+      `Executing liquidity management rule ${rule.id} with ${result.action.toLowerCase()} of ${
+        result.optAmount
+      } (min. ${result.minAmount}) ${rule.targetName})`,
+    );
   }
 }

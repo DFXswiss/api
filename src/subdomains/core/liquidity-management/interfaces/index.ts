@@ -2,7 +2,7 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
-import { LiquidityManagementContext } from '../enums';
+import { LiquidityManagementContext, LiquidityOptimizationType } from '../enums';
 
 export type CorrelationId = string;
 export type PipelineId = number;
@@ -23,7 +23,7 @@ export interface LiquidityActionIntegration {
 }
 
 export interface LiquidityState {
-  deficit: number;
-  minDeficit: number;
-  redundancy: number;
+  action: LiquidityOptimizationType | null;
+  minAmount: number;
+  optAmount: number;
 }

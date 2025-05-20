@@ -53,9 +53,9 @@ export class LiquidityManagementPipeline extends IEntity {
     pipeline.status = LiquidityManagementPipelineStatus.CREATED;
     pipeline.rule = rule;
     pipeline.ordersProcessed = 0;
-    pipeline.type = this.getPipelineType(verificationResult);
-    pipeline.minAmount = verificationResult.minDeficit;
-    pipeline.optAmount = verificationResult.deficit || verificationResult.redundancy;
+    pipeline.type = verificationResult.action;
+    pipeline.minAmount = verificationResult.minAmount;
+    pipeline.optAmount = verificationResult.optAmount;
 
     return pipeline;
   }
@@ -104,17 +104,5 @@ export class LiquidityManagementPipeline extends IEntity {
     }
 
     return this;
-  }
-
-  //*** HELPER METHODS ***//
-
-  private static getPipelineType(verificationResult: LiquidityState): LiquidityOptimizationType {
-    const { deficit, redundancy } = verificationResult;
-
-    if (!deficit && !redundancy) {
-      throw new Error('Cannot create pipeline for optimal rule. No liquidity deficit or redundancy found');
-    }
-
-    return deficit ? LiquidityOptimizationType.DEFICIT : LiquidityOptimizationType.REDUNDANCY;
   }
 }
