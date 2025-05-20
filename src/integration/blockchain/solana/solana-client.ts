@@ -61,11 +61,13 @@ export class SolanaClient extends BlockchainClient {
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const tokenBalances: BlockchainTokenBalance[] = [];
 
+    const owner = address ?? this.getWalletAddress();
+
     for (const asset of assets) {
       const mint = new Solana.PublicKey(asset.chainId);
 
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
-        new Solana.PublicKey(address ?? this.getWalletAddress()),
+        new Solana.PublicKey(owner),
         { mint },
         'confirmed',
       );
@@ -79,7 +81,7 @@ export class SolanaClient extends BlockchainClient {
         balance += SolanaUtil.fromLamportAmount(tokenAmount.amount, tokenAmount.decimals);
       }
 
-      tokenBalances.push({ contractAddress: mint.toBase58(), balance: balance });
+      tokenBalances.push({ owner, contractAddress: mint.toBase58(), balance });
     }
 
     return tokenBalances;
