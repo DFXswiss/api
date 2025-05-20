@@ -24,5 +24,6 @@ export interface LiquidityActionIntegration {
 
 export interface LiquidityState {
   deficit: number;
+  minDeficit: number;
   redundancy: number;
 }

@@ -26,7 +26,7 @@ export class LiquidityManagementPipelineController {
   async buyLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
     const { assetId, amount, targetOptimal } = dto;
 
-    return this.lmService.buyLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
+    return this.lmService.buyLiquidity(assetId, amount, amount, targetOptimal).then((p) => p.id);
   }
 
   @Post('sell')

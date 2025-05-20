@@ -87,6 +87,7 @@ export class LiquidityManagementRule extends IEntity {
     const redundancy = !deficit && this.maximal != null && balance.amount > this.maximal ? deviation : 0;
 
     return {
+      minDeficit: deficit,
       deficit,
       redundancy,
     };

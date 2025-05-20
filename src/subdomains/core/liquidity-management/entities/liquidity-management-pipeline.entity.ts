@@ -29,7 +29,10 @@ export class LiquidityManagementPipeline extends IEntity {
   type: LiquidityOptimizationType;
 
   @Column({ type: 'float', nullable: true })
-  targetAmount?: number;
+  minAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  optAmount?: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
@@ -51,7 +54,8 @@ export class LiquidityManagementPipeline extends IEntity {
     pipeline.rule = rule;
     pipeline.ordersProcessed = 0;
     pipeline.type = this.getPipelineType(verificationResult);
-    pipeline.targetAmount = verificationResult.deficit || verificationResult.redundancy;
+    pipeline.minAmount = verificationResult.minDeficit;
+    pipeline.optAmount = verificationResult.deficit || verificationResult.redundancy;
 
     return pipeline;
   }
