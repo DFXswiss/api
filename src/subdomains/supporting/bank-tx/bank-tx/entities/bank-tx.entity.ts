@@ -290,7 +290,7 @@ export class BankTx extends IEntity {
       (m) =>
         (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN && m.value === this.iban) ||
         (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME &&
-          (this.name.includes(m.value) || this.ultimateName.includes(m.value))),
+          (this.name?.includes(m.value) || this.ultimateName?.includes(m.value))),
     );
 
     return this.completeName(multiAccount?.name);
