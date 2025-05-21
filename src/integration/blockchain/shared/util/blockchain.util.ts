@@ -31,6 +31,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
   [Blockchain.BASE]: 'https://basescan.org',
+  [Blockchain.SOLANA]: 'https://solscan.io',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
@@ -49,6 +50,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
   [Blockchain.BASE]: 'tx',
+  [Blockchain.SOLANA]: 'tx',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
@@ -72,6 +74,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.ARBITRUM:
     case Blockchain.POLYGON:
     case Blockchain.BASE:
+    case Blockchain.SOLANA:
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
@@ -97,5 +100,8 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.ARWEAVE:
     case Blockchain.CARDANO:
       return 'address';
+
+    case Blockchain.SOLANA:
+      return 'account';
   }
 }

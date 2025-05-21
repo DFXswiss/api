@@ -1,7 +1,10 @@
 import { Currency } from '@uniswap/sdk-core';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { SolanaToken } from '../../solana/dto/solana.dto';
 import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
+
+export type BlockchainCurrency = Currency | SolanaToken;
 
 export abstract class BlockchainClient {
   abstract getNativeCoinBalance(): Promise<number>;
@@ -9,6 +12,6 @@ export abstract class BlockchainClient {
   abstract getTokenBalance(asset: Asset, address?: string): Promise<number>;
   abstract getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]>;
   abstract isTxComplete(txHash: string, confirmations?: number): Promise<boolean>;
-  abstract getToken(asset: Asset): Promise<Currency>;
+  abstract getToken(asset: Asset): Promise<BlockchainCurrency>;
   abstract sendSignedTransaction(tx: string): Promise<SignedTransactionResponse>;
 }

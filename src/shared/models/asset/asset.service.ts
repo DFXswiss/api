@@ -179,4 +179,12 @@ export class AssetService {
       type: AssetType.COIN,
     });
   }
+
+  async getSolanaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'SOL',
+      blockchain: Blockchain.SOLANA,
+      type: AssetType.COIN,
+    });
+  }
 }

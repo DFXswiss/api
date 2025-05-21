@@ -4,7 +4,7 @@ import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbit
 
 @Injectable()
 export class PayInWebHookService {
-  private lightningTransactionWebhookSubject: Subject<LnBitsTransactionWebhookDto>;
+  private readonly lightningTransactionWebhookSubject: Subject<LnBitsTransactionWebhookDto>;
 
   constructor() {
     this.lightningTransactionWebhookSubject = new Subject<LnBitsTransactionWebhookDto>();

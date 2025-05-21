@@ -14,6 +14,7 @@ export enum Blockchain {
   CARDANO = 'Cardano',
   DEFICHAIN = 'DeFiChain',
   RAILGUN = 'Railgun',
+  SOLANA = 'Solana',
 }
 
 export const PaymentLinkBlockchain = {

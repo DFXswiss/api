@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { TatumModule } from 'src/integration/tatum/tatum.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
@@ -20,6 +21,7 @@ import { DepositRouteRepository } from './route/deposit-route.repository';
     SharedModule,
     BlockchainModule,
     AlchemyModule,
+    TatumModule,
   ],
   controllers: [DepositController],
   providers: [DepositRepository, DepositRouteRepository, DepositService],

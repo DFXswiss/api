@@ -8,7 +8,7 @@ import { CryptoInput } from '../entities/crypto-input.entity';
 export class PayInLightningService {
   private readonly logger = new DfxLogger(PayInLightningService);
 
-  private client: LightningClient;
+  private readonly client: LightningClient;
 
   constructor(private readonly service: LightningService) {
     this.client = service.getDefaultClient();

@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomPrice } from 'src/integration/exchange/dto/__mocks__/price.dto.mock';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -42,6 +43,7 @@ describe('TransactionHelper', () => {
   let walletService: WalletService;
   let transactionService: TransactionService;
   let buyService: BuyService;
+  let assetService: AssetService;
 
   beforeEach(async () => {
     specRepo = createMock<TransactionSpecificationRepository>();
@@ -54,6 +56,7 @@ describe('TransactionHelper', () => {
     feeService = createMock<FeeService>();
     transactionService = createMock<TransactionService>();
     buyService = createMock<BuyService>();
+    assetService = createMock<AssetService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -69,6 +72,7 @@ describe('TransactionHelper', () => {
         { provide: FeeService, useValue: feeService },
         { provide: TransactionService, useValue: transactionService },
         { provide: BuyService, useValue: buyService },
+        { provide: AssetService, useValue: assetService },
         TestUtil.provideConfig(),
       ],
     }).compile();
