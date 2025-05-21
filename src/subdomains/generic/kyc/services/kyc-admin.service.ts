@@ -9,7 +9,7 @@ import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
@@ -40,16 +40,7 @@ export class KycAdminService {
 
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
 
-    if (kycStep.isCompleted) {
-      const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
-        (rs) => !kycStep.userData.hasCompletedStep(rs),
-      );
-
-      if (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name)) {
-        const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
-        await this.kycStepRepo.update(...approvalStep.manualReview());
-      }
-    }
+    if (kycStep.isCompleted) await this.kycService.dfxApprovalCheck(kycStep);
 
     switch (kycStep.name) {
       case KycStepName.COMMERCIAL_REGISTER:

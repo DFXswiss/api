@@ -244,10 +244,27 @@ export class KycService {
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
 
-        if (entity.isCompleted) await this.completeIdent(entity, nationality);
+        if (entity.isCompleted) {
+          await this.completeIdent(entity, nationality);
+          await this.dfxApprovalCheck(entity);
+        }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
+    }
+  }
+
+  async dfxApprovalCheck(kycStep: KycStep): Promise<void> {
+    const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
+      (rs) => !kycStep.userData.hasCompletedStep(rs),
+    );
+
+    if (
+      (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name)) ||
+      (missingCompletedSteps.length === 1 && missingCompletedSteps[0] === KycStepName.DFX_APPROVAL)
+    ) {
+      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
+      await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
