@@ -1,6 +1,5 @@
 import * as SolanaToken from '@solana/spl-token';
 import * as Solana from '@solana/web3.js';
-import { Currency, Token } from '@uniswap/sdk-core';
 import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
@@ -9,11 +8,23 @@ import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.d
 import { SolanaSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
 import { BlockchainClient } from '../shared/util/blockchain-client';
-import { SolanaTokenDto, SolanaTransactionDto } from './dto/solana.dto';
+import {
+  SolanaToken as SolanaBlockchainToken,
+  SolanaNativeInstructionsDto,
+  SolanaTokenDto,
+  SolanaTokenInstructionsDto,
+  SolanaTransactionDestinationDto,
+  SolanaTransactionDto,
+} from './dto/solana.dto';
 import { SolanaWallet } from './solana-wallet';
 import { SolanaUtil } from './SolanaUtil';
 
-const TRANSFER_TYPES = ['transfer', 'transferchecked'];
+const INSTRUCTION_TYPES = ['create', 'closeAccount', 'transfer', 'transferchecked'];
+const TOKEN_PROGRAM_IDS = [
+  SolanaToken.TOKEN_PROGRAM_ID.toBase58(),
+  SolanaToken.TOKEN_2022_PROGRAM_ID.toBase58(),
+  SolanaToken.ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(),
+];
 
 export class SolanaClient extends BlockchainClient {
   private readonly randomReceiverAddress = '3f5tFNkZDjGCjrkNRfLNE5Cr648H1yyCDdfYGHVcRqRV';
@@ -23,7 +34,7 @@ export class SolanaClient extends BlockchainClient {
   private readonly wallet: SolanaWallet;
   private readonly connection: Solana.Connection;
 
-  private readonly tokens = new AsyncCache<Token>();
+  private readonly tokens = new AsyncCache<SolanaBlockchainToken>();
 
   constructor(private readonly http: HttpService) {
     super();
@@ -104,16 +115,16 @@ export class SolanaClient extends BlockchainClient {
     return false;
   }
 
-  async getToken(asset: Asset): Promise<Currency> {
+  async getToken(asset: Asset): Promise<SolanaBlockchainToken> {
     return this.getTokenByAddress(asset.chainId);
   }
 
-  private async getTokenByAddress(address: string): Promise<Token> {
+  private async getTokenByAddress(address: string): Promise<SolanaBlockchainToken> {
     return this.tokens.get(address, async () => {
       const mintAccount = await SolanaToken.getMint(this.connection, new Solana.PublicKey(address));
       const mintAddress = mintAccount.address.toBase58();
       const decimals = mintAccount.decimals;
-      return new Token(-1, mintAddress, decimals);
+      return new SolanaBlockchainToken(mintAddress, decimals);
     });
   }
 
@@ -356,6 +367,8 @@ export class SolanaClient extends BlockchainClient {
       maxSupportedTransactionVersion: 0,
     });
 
+    allParsedTransactions.sort((t1, t2) => t1.blockTime - t2.blockTime);
+
     for (const parsedTransaction of allParsedTransactions) {
       history.push(await this.createTransactionDto(parsedTransaction));
     }
@@ -367,40 +380,139 @@ export class SolanaClient extends BlockchainClient {
     parsedTransaction: Solana.ParsedTransactionWithMeta,
   ): Promise<SolanaTransactionDto> {
     const accountKeys = parsedTransaction.transaction.message.accountKeys;
-    const messageAccount = accountKeys.find((ak) => ak.signer && ak.source === 'transaction');
-    const signer = messageAccount.pubkey.toBase58();
+    const messageAccounts = accountKeys.filter((ak) => ak.signer && ak.source === 'transaction');
+    const signers = messageAccounts.map((ma) => ma.pubkey.toBase58());
 
     const transaction: SolanaTransactionDto = {
       slotNumber: parsedTransaction.slot,
       blocktime: parsedTransaction.blockTime,
       txid: parsedTransaction.transaction.signatures[0],
-      from: signer,
+      from: signers,
       fee: SolanaUtil.fromLamportAmount(parsedTransaction.meta.fee),
       destinations: [],
     };
 
-    const instructions = parsedTransaction.transaction.message.instructions as Solana.ParsedInstruction[];
-    const transferInstructions = instructions.filter((i) => TRANSFER_TYPES.includes(i.parsed?.type.toLowerCase()));
+    const allParsedInstructions = parsedTransaction.transaction.message.instructions as Solana.ParsedInstruction[];
+    const parsedInstructions = allParsedInstructions.filter((i) =>
+      INSTRUCTION_TYPES.includes(i.parsed?.type.toLowerCase()),
+    );
 
-    const instructionInfos = transferInstructions
-      .filter((ti) => ti.parsed.info)
-      .map((ti) => ({
-        destination: ti.parsed.info.destination as string,
-        lamports: ti.parsed.info.lamports as number,
-        source: ti.parsed.info.source as string,
-        amount: ti.parsed.info.amount as string,
-        authority: ti.parsed.info.authority as string,
-      }));
+    const isNativeTransaction = parsedInstructions.some(
+      (i) => i.programId.toBase58() === Solana.SystemProgram.programId.toBase58(),
+    );
 
-    const destinationsOfSigner = instructionInfos.filter((ii) => ii.source === signer || ii.authority === signer);
+    const isTokenTransaction = parsedInstructions.some((i) => TOKEN_PROGRAM_IDS.includes(i.programId.toBase58()));
 
-    for (const destination of destinationsOfSigner) {
-      transaction.destinations.push({
-        to: destination.destination,
-        amount: SolanaUtil.fromLamportAmount(destination.lamports),
-      });
+    if (isNativeTransaction) {
+      transaction.destinations.push(...this.getNativeTransactionDestinations(parsedInstructions));
+    } else if (isTokenTransaction) {
+      const tokenInstruction = this.getTokenInstructions(parsedTransaction);
+      transaction.destinations.push(await this.getTokenTransactionDestination(tokenInstruction));
     }
 
     return transaction;
+  }
+
+  private getNativeTransactionDestinations(
+    transferInstructions: Solana.ParsedInstruction[],
+  ): SolanaTransactionDestinationDto[] {
+    const transactionDestinations: SolanaTransactionDestinationDto[] = [];
+
+    const instructionInfos: SolanaNativeInstructionsDto[] = transferInstructions
+      .filter((ti) => ti.parsed.info)
+      .map((ti) => {
+        const info = ti.parsed.info;
+
+        return {
+          destination: info.destination,
+          lamports: info.lamports,
+          source: info.source,
+        };
+      });
+
+    for (const instructionInfo of instructionInfos) {
+      transactionDestinations.push({
+        to: instructionInfo.destination,
+        amount: SolanaUtil.fromLamportAmount(instructionInfo.lamports),
+      });
+    }
+
+    return transactionDestinations;
+  }
+
+  private async getTokenTransactionDestination(
+    tokenInstruction: Partial<SolanaTokenInstructionsDto>,
+  ): Promise<SolanaTransactionDestinationDto> {
+    const token = await this.getTokenByAddress(tokenInstruction.mint);
+
+    return {
+      to: tokenInstruction.destination,
+      amount: SolanaUtil.fromLamportAmount(tokenInstruction.amount ?? 0, token.decimals),
+      tokenInfo: {
+        address: tokenInstruction.mint,
+        decimals: token.decimals,
+      },
+    };
+  }
+
+  private getTokenInstructions(
+    parsedTransaction: Solana.ParsedTransactionWithMeta,
+  ): Partial<SolanaTokenInstructionsDto> {
+    const parsedInstructions = parsedTransaction.transaction.message.instructions as Solana.ParsedInstruction[];
+
+    const tokenInstruction: Partial<SolanaTokenInstructionsDto> = {};
+
+    for (const instruction of parsedInstructions) {
+      const info = instruction.parsed?.info;
+      if (!info) continue;
+
+      switch (instruction.parsed.type) {
+        case 'create':
+          tokenInstruction.mint = info.mint;
+          tokenInstruction.source = info.source;
+          tokenInstruction.destination = info.wallet;
+          break;
+
+        case 'closeAccount':
+          tokenInstruction.destination = info.destination;
+          tokenInstruction.source = info.owner;
+          break;
+
+        case 'transfer':
+          tokenInstruction.authority = info.authority;
+          tokenInstruction.amount = info.amount;
+          break;
+
+        case 'transferChecked':
+          tokenInstruction.authority = info.authority ?? info.multisigAuthority;
+          tokenInstruction.amount = info.tokenAmount.amount;
+          break;
+      }
+    }
+
+    if (!tokenInstruction.source && !tokenInstruction.destination && !tokenInstruction.mint) {
+      this.updateTokenInstruction(parsedTransaction, tokenInstruction);
+    }
+
+    return tokenInstruction;
+  }
+
+  private updateTokenInstruction(
+    parsedTransaction: Solana.ParsedTransactionWithMeta,
+    tokenInstruction: Partial<SolanaTokenInstructionsDto>,
+  ) {
+    const authority = tokenInstruction.authority;
+    if (!authority) return;
+
+    const tokenBalances = parsedTransaction.meta.postTokenBalances;
+
+    const sourceTokenBalance = tokenBalances.find((b) => b.owner === authority);
+    const destinationTokenBalance = tokenBalances.find(
+      (b) => b.owner !== authority && b.mint === sourceTokenBalance?.mint,
+    );
+
+    tokenInstruction.source = sourceTokenBalance.owner;
+    tokenInstruction.destination = destinationTokenBalance.owner;
+    tokenInstruction.mint = destinationTokenBalance.mint;
   }
 }

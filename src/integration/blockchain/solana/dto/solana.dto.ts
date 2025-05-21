@@ -1,3 +1,10 @@
+export class SolanaToken {
+  readonly isNative = false;
+  readonly isToken = true;
+
+  constructor(readonly address: string, readonly decimals: number) {}
+}
+
 export interface SolanaTokenDto {
   address: string;
   mint: string;
@@ -10,7 +17,7 @@ export interface SolanaTransactionDto {
   slotNumber: number;
   blocktime: number;
   txid: string;
-  from: string;
+  from: string[];
   fee: number;
   destinations: SolanaTransactionDestinationDto[];
 }
@@ -37,12 +44,4 @@ export interface SolanaTokenInstructionsDto {
   amount: string;
   decimals: number;
   authority: string;
-}
-
-export interface SolanaTokenBalancesDto {
-  accountIndex: number;
-  mint: string;
-  owner: string;
-  amount: string;
-  decimals: number;
 }
