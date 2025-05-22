@@ -8,7 +8,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { NodeService } from '../../node/node.service';
+import { BtcService } from '../../node/btc.service';
 
 describe('CryptoService', () => {
   let service: CryptoService;
@@ -16,7 +16,7 @@ describe('CryptoService', () => {
   let lightningService: LightningService;
   let moneroService: MoneroService;
   let arweaveService: ArweaveService;
-  let nodeService: NodeService;
+  let btcService: BtcService;
   let railgunService: RailgunService;
   let blockchainRegistryService: BlockchainRegistryService;
 
@@ -25,7 +25,7 @@ describe('CryptoService', () => {
     moneroService = createMock<MoneroService>();
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
-    nodeService = createMock<NodeService>();
+    btcService = createMock<BtcService>();
     blockchainRegistryService = createMock<BlockchainRegistryService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -34,7 +34,7 @@ describe('CryptoService', () => {
         { provide: LightningService, useValue: lightningService },
         { provide: MoneroService, useValue: moneroService },
         { provide: ArweaveService, useValue: arweaveService },
-        { provide: NodeService, useValue: nodeService },
+        { provide: BtcService, useValue: btcService },
         { provide: RailgunService, useValue: railgunService },
         { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
         TestUtil.provideConfig(),

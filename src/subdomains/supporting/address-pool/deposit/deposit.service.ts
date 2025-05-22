@@ -3,8 +3,8 @@ import { BadRequestException, Injectable, InternalServerErrorException } from '@
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
-import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
+import { BtcService, BtcType } from 'src/integration/blockchain/ain/node/btc.service';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -23,21 +23,20 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @Injectable()
 export class DepositService {
-  private btcInpClient: NodeClient;
+  private readonly btcClient: BtcClient;
   private readonly lightningClient: LightningClient;
   private readonly moneroClient: MoneroClient;
 
   constructor(
     private readonly depositRepo: DepositRepository,
     private readonly alchemyWebhookService: AlchemyWebhookService,
-    nodeService: NodeService,
+    btcService: BtcService,
     lightningService: LightningService,
     moneroService: MoneroService,
   ) {
+    this.btcClient = btcService.getDefaultClient(BtcType.BTC_INPUT);
     this.lightningClient = lightningService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
-
-    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((c) => (this.btcInpClient = c));
   }
 
   async getDeposit(id: number): Promise<Deposit> {
@@ -83,7 +82,7 @@ export class DepositService {
   }
 
   private async createBitcoinDeposits(blockchain: Blockchain, count: number): Promise<void> {
-    const client = this.btcInpClient;
+    const client = this.btcClient;
     const label = Util.isoDate(new Date());
     const type = AddressType.P2SH_SEGWIT;
 

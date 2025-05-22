@@ -8,6 +8,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
+import { BlockchainClient } from '../../shared/util/blockchain-client';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -15,9 +16,10 @@ export enum NodeCommand {
   SEND = 'send',
   TEST_MEMPOOL_ACCEPT = 'testmempoolaccept',
   SEND_RAW_TRANSACTION = 'sendrawtransaction',
+  LIST_ADDRESS_GROUPINGS = 'listaddressgroupings',
 }
 
-export class NodeClient {
+export abstract class NodeClient extends BlockchainClient {
   private readonly logger = new DfxLogger(NodeClient);
 
   protected chain = Config.network;
@@ -25,6 +27,8 @@ export class NodeClient {
   private readonly queue: QueueHandler;
 
   constructor(private readonly http: HttpService, private readonly url: string) {
+    super();
+
     this.client = this.createJellyfishClient();
     this.queue = new QueueHandler(180000, 60000);
   }

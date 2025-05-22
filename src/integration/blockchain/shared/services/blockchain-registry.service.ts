@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { BtcClient } from '../../ain/node/btc-client';
+import { BtcService, BtcType } from '../../ain/node/btc.service';
 import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BaseService } from '../../base/base.service';
 import { BscService } from '../../bsc/bsc.service';
@@ -22,9 +24,10 @@ export class BlockchainRegistryService {
     private readonly polygonService: PolygonService,
     private readonly baseService: BaseService,
     private readonly moneroService: MoneroService,
+    private readonly btcService: BtcService,
   ) {}
 
-  getClient(blockchain: Blockchain): EvmClient | MoneroClient {
+  getClient(blockchain: Blockchain): EvmClient | MoneroClient | BtcClient {
     return this.getService(blockchain).getDefaultClient();
   }
 
@@ -34,7 +37,13 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient();
   }
 
-  getService(blockchain: Blockchain): EvmService | MoneroService {
+  getBtcClient(blockchain: Blockchain, type: BtcType): BtcClient {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof BtcService)) throw new Error(`No btc client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient(type);
+  }
+
+  getService(blockchain: Blockchain): EvmService | MoneroService | BtcService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
@@ -50,6 +59,8 @@ export class BlockchainRegistryService {
         return this.baseService;
       case Blockchain.MONERO:
         return this.moneroService;
+      case Blockchain.BITCOIN:
+        return this.btcService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);

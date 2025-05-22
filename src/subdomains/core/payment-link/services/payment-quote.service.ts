@@ -456,8 +456,11 @@ export class PaymentQuoteService {
         return;
       }
 
-      const txId = await this.payoutBitcoinService.sendRawTransaction(transferInfo.hex);
-      txId ? quote.txInMempool(txId) : quote.txFailed('Transaction failed');
+      const transactionResponse = await this.payoutBitcoinService.sendSignedTransaction(transferInfo.hex);
+
+      transactionResponse.error
+        ? quote.txFailed(transactionResponse.error.message)
+        : quote.txInMempool(transactionResponse.hash);
     } catch (e) {
       quote.txFailed(e.message);
     }

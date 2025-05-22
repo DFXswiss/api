@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { BtcService, BtcType } from 'src/integration/blockchain/ain/node/btc.service';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
@@ -26,16 +26,16 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly updateCalls = new Map<Blockchain, Promise<void>>();
   private readonly updateTimestamps = new Map<Blockchain, Date>();
 
-  private btcClient: BtcClient;
+  private readonly btcClient: BtcClient;
   private readonly lightningClient: LightningClient;
 
   constructor(
     private readonly dexService: DexService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    nodeService: NodeService,
+    btcService: BtcService,
     lightningService: LightningService,
   ) {
-    nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.btcClient = client));
+    this.btcClient = btcService.getDefaultClient(BtcType.BTC_OUTPUT);
     this.lightningClient = lightningService.getDefaultClient();
   }
 

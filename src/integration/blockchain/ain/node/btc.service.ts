@@ -5,71 +5,76 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { BlockchainService } from '../../shared/util/blockchain.service';
 import { BtcClient } from './btc-client';
-import { NodeClient } from './node-client';
 
-export enum NodeType {
+export enum BtcType {
   BTC_INPUT = 'btc-inp',
   BTC_OUTPUT = 'btc-out',
 }
 
-export interface NodeError {
+export interface BtcError {
   message: string;
-  nodeType: NodeType;
+  nodeType: BtcType;
 }
 
-interface NodeCheckResult {
-  errors: NodeError[];
+interface BtcCheckResult {
+  errors: BtcError[];
   info: BlockchainInfo | undefined;
 }
 
 @Injectable()
-export class NodeService {
-  private readonly logger = new DfxLogger(NodeClient);
+export class BtcService extends BlockchainService {
+  private readonly logger = new DfxLogger(BtcService);
 
-  readonly #allNodes: Map<NodeType, NodeClient> = new Map();
-  readonly #connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
+  readonly #allNodes: Map<BtcType, BtcClient> = new Map();
+  readonly #connectedNodes: Map<BtcType, BehaviorSubject<BtcClient | null>> = new Map();
+  readonly #subscribedNodes: Map<BtcType, BtcClient> = new Map();
 
   constructor(private readonly http: HttpService) {
+    super();
+
     this.initAllNodes();
     this.initConnectedNodes();
   }
 
+  getDefaultClient(type?: BtcType): BtcClient {
+    if (!type) throw new BadRequestException('type not found');
+
+    let btcClient = this.#subscribedNodes.get(type);
+    if (btcClient) return btcClient;
+
+    this.getConnectedNode(type).subscribe((client) => (btcClient = client));
+    this.#subscribedNodes.set(type, btcClient);
+
+    return btcClient;
+  }
+
   // --- HEALTH CHECK API --- //
 
-  async checkNodes(): Promise<NodeError[]> {
-    return Promise.all(Object.values(NodeType).map((type) => this.checkNode(type))).then((errors) =>
+  async checkNodes(): Promise<BtcError[]> {
+    return Promise.all(Object.values(BtcType).map((type) => this.checkNode(type))).then((errors) =>
       errors.reduce((prev, curr) => prev.concat(curr), []),
     );
   }
 
   // --- PUBLIC API --- //
 
-  getConnectedNode<T extends NodeType>(type: T): Observable<BtcClient> {
+  getCurrentConnectedNode<T extends BtcType>(type: T): BtcClient {
     const client = this.connectedNodes.get(type);
 
     if (client) {
-      return client.asObservable() as Observable<BtcClient>;
+      return client.getValue();
     }
 
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
-  getCurrentConnectedNode<T extends NodeType>(type: T): BtcClient {
-    const client = this.connectedNodes.get(type);
-
-    if (client) {
-      return client.getValue() as BtcClient;
-    }
-
-    throw new BadRequestException(`No node for type '${type}'`);
-  }
-
-  getNodeFromPool<T extends NodeType>(type: T): BtcClient {
+  getNodeFromPool<T extends BtcType>(type: T): BtcClient {
     const client = this.allNodes.get(type);
 
     if (client) {
-      return client as BtcClient;
+      return client;
     }
 
     throw new BadRequestException(`No node for type '${type}'`);
@@ -82,24 +87,24 @@ export class NodeService {
   // --- INIT METHODS --- //
 
   private initAllNodes(): void {
-    this.addNodeClientPair(NodeType.BTC_INPUT, Config.blockchain.default.btcInput);
-    this.addNodeClientPair(NodeType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
+    this.addNodeClientPair(BtcType.BTC_INPUT, Config.blockchain.default.btcInput);
+    this.addNodeClientPair(BtcType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
   }
 
-  private addNodeClientPair(type: NodeType, config: { active: string }): void {
+  private addNodeClientPair(type: BtcType, config: { active: string }): void {
     const client = this.createNodeClient(config.active);
     this.allNodes.set(type, client);
   }
 
-  private createNodeClient(url: string | undefined): NodeClient | null {
+  private createNodeClient(url: string | undefined): BtcClient | null {
     return url ? new BtcClient(this.http, url) : null;
   }
 
   private initConnectedNodes(): void {
-    Object.values(NodeType).forEach((type) => this.connectedNodes.set(type, this.setConnectedNode(type)));
+    Object.values(BtcType).forEach((type) => this.connectedNodes.set(type, this.setConnectedNode(type)));
   }
 
-  private setConnectedNode(type: NodeType): BehaviorSubject<NodeClient | null> {
+  private setConnectedNode(type: BtcType): BehaviorSubject<BtcClient | null> {
     const node = this.isNodeClientAvailable(type);
 
     if (node) {
@@ -112,7 +117,17 @@ export class NodeService {
 
   // --- HELPER METHODS --- //
 
-  private async checkNode(type: NodeType): Promise<NodeCheckResult> {
+  private getConnectedNode<T extends BtcType>(type: T): Observable<BtcClient> {
+    const client = this.connectedNodes.get(type);
+
+    if (client) {
+      return client.asObservable();
+    }
+
+    throw new BadRequestException(`No node for type '${type}'`);
+  }
+
+  private async checkNode(type: BtcType): Promise<BtcCheckResult> {
     const client = this.#allNodes.get(type);
 
     if (!client) {
@@ -125,7 +140,7 @@ export class NodeService {
       .catch(() => this.handleNodeCheckError(type));
   }
 
-  private handleNodeCheckSuccess(info: BlockchainInfo, type: NodeType): NodeCheckResult {
+  private handleNodeCheckSuccess(info: BlockchainInfo, type: BtcType): BtcCheckResult {
     const result = { errors: [], info };
 
     if (info.blocks < info.headers - 10) {
@@ -138,24 +153,24 @@ export class NodeService {
     return result;
   }
 
-  private handleNodeCheckError(type: NodeType): NodeCheckResult {
+  private handleNodeCheckError(type: BtcType): BtcCheckResult {
     return {
       errors: [{ message: `Failed to get ${type} node infos`, nodeType: type }],
       info: undefined,
     };
   }
 
-  private isNodeClientAvailable(type: NodeType): boolean {
+  private isNodeClientAvailable(type: BtcType): boolean {
     return !!this.#allNodes.get(type);
   }
 
   // --- GETTERS --- //
 
-  get allNodes(): Map<NodeType, NodeClient> {
+  get allNodes(): Map<BtcType, BtcClient> {
     return this.#allNodes;
   }
 
-  get connectedNodes(): Map<NodeType, BehaviorSubject<NodeClient | null>> {
+  get connectedNodes(): Map<BtcType, BehaviorSubject<BtcClient | null>> {
     return this.#connectedNodes;
   }
 }

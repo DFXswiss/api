@@ -11,7 +11,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
-import { NodeService } from '../../ain/node/node.service';
+import { BtcService } from '../../ain/node/btc.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
@@ -35,7 +35,7 @@ export class CryptoService {
     private readonly lightningService: LightningService,
     private readonly moneroService: MoneroService,
     private readonly arweaveService: ArweaveService,
-    private readonly nodeService: NodeService,
+    private readonly btcService: BtcService,
     private readonly railgunService: RailgunService,
   ) {}
 
@@ -54,7 +54,7 @@ export class CryptoService {
         return this.lightningService.getInvoiceByLnurlp(address, amount);
 
       case Blockchain.BITCOIN:
-        return this.nodeService.getPaymentRequest(address, amount, label);
+        return this.btcService.getPaymentRequest(address, amount, label);
 
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
