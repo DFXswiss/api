@@ -50,9 +50,9 @@ export class UserDataJobService {
     for (const entity of entities) {
       const signatoryResult = entity.kycSteps
         .find((k) => k.name === KycStepName.SIGNATORY_POWER && k.status === KycStepStatus.COMPLETED)
-        .getResult<SignatoryPower>();
+        .getResult<{signatoryPower: SignatoryPower}>();
 
-      await this.userDataRepo.update(...entity.setAccountOpenerAuthorization(signatoryResult));
+      await this.userDataRepo.update(...entity.setAccountOpenerAuthorization(signatoryResult.signatoryPower));
     }
   }
 
