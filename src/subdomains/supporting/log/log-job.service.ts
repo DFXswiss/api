@@ -371,8 +371,7 @@ export class LogJobService {
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity =
-        (liquidityBalance ?? 0) + (totalCustomBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+      const liquidity = (liquidityBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -534,7 +533,8 @@ export class LogJobService {
         pendingOlkyMaerkiAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
-      const totalPlus = liquidity + totalPlusPending;
+
+      const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
