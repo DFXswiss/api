@@ -40,7 +40,7 @@ export class KycAdminService {
 
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
 
-    if (kycStep.isCompleted) await this.kycService.dfxApprovalCheck(kycStep);
+    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
 
     switch (kycStep.name) {
       case KycStepName.COMMERCIAL_REGISTER:

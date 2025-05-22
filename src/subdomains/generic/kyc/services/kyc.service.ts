@@ -246,7 +246,7 @@ export class KycService {
 
         if (entity.isCompleted) {
           await this.completeIdent(entity, nationality);
-          await this.dfxApprovalCheck(entity);
+          await this.checkDfxApproval(entity);
         }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
@@ -254,7 +254,7 @@ export class KycService {
     }
   }
 
-  async dfxApprovalCheck(kycStep: KycStep): Promise<void> {
+  async checkDfxApproval(kycStep: KycStep): Promise<void> {
     const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
       (rs) => !kycStep.userData.hasCompletedStep(rs),
     );
