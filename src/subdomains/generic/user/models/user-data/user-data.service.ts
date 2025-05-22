@@ -940,7 +940,7 @@ export class UserDataService {
     await this.updateVolumes(slaveId);
 
     // activate users
-    if (master.hasActiveUser) {
+    if (master.hasActiveUser || slave.status === UserDataStatus.ACTIVE) {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {
