@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
+import { BinancePayWebhookDto } from './dto/binance.dto';
 
 interface OrderData {
   env: {
@@ -56,38 +57,6 @@ export type CertificateResponse = BinancePayResponse<
     certSerial: string;
   }[]
 >;
-
-interface PaymentInfo {
-  payMethod: string;
-  paymentInstructions: {
-    currency: string;
-    amount: number;
-    price: number;
-  }[];
-  channel: string;
-}
-
-interface WebhookData {
-  merchantTradeNo: string;
-  productType: string;
-  productName: string;
-  transactTime: number;
-  tradeType: string;
-  totalFee: number;
-  currency: string;
-  transactionId: string;
-  openUserId: string;
-  commission: number;
-  paymentInfo: PaymentInfo;
-}
-
-export interface BinancePayWebhookDto {
-  bizType: string;
-  data: string; // JSON string of WebhookData
-  bizIdStr: string;
-  bizId: number;
-  bizStatus: string;
-}
 
 @Injectable()
 export class BinancePayService {
@@ -146,40 +115,55 @@ export class BinancePayService {
     }
 
     this.certificatedExpiry = Date.now() + 5 * 60 * 1000;
+    const headers = this.getHeaders({});
     const response = await this.http.post<CertificateResponse>(
       `${this.baseUrl}/binancepay/openapi/certificates`,
       {},
-      {
-        headers: this.getHeaders({}),
-      },
+      { headers },
     );
 
     this.cert = response.data;
     return response;
   }
 
-  public async verifyWebhook(dto: BinancePayWebhookDto, headers: Record<string, string>): Promise<boolean> {
+  public async verifyWebhook(body: BinancePayWebhookDto, headers: Record<string, string>): Promise<boolean> {
     const {
       'binancepay-timestamp': timestamp,
       'binancepay-nonce': nonce,
       'binancepay-signature': signature,
       'binancepay-certificate-sn': certSN,
     } = headers;
-    console.log(headers);
-    const payload = `${timestamp}\n${nonce}\n${dto.data}\n`;
-    const decodedSignature = Buffer.from(signature, 'base64');
-    const { data } = await this.queryCertificate();
 
+    const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
+    const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
+
+    const { data } = await this.queryCertificate();
     const cert = data.find((cert) => cert.certSerial === certSN);
     if (!cert) {
       throw new Error('Certificate not found');
     }
 
-    return crypto.verify('RSA-SHA256', Buffer.from(payload), cert.certPublic, decodedSignature);
+    const verify = crypto.createVerify("SHA256");
+    verify.write(payload);
+    verify.end();
+
+    const decodedSignature = Buffer.from(signature, 'base64');
+    return verify.verify(cert.certPublic, decodedSignature);
   }
 
   async handleWebhook(dto: BinancePayWebhookDto): Promise<void> {
-    const webhookData: WebhookData = JSON.parse(dto.data);
+    const webhookData = JSON.parse(dto.data);
     console.log(webhookData);
   }
 }
+
+
+/**
+ {
+  bizType: 'PAY_REFUND',
+  data: '{"merchantTradeNo":"ff48beb8a22840c1","productType":"01","productName":"Kermit Frog - USD 2","transactTime":1747920833943,"tradeType":"OTHERS","totalFee":2.02020202,"currency":"USDT","openUserId":"00152a4d4e1be4f087735b3ae6e114c1","refundInfo":{"refundId":365252679965024256,"prepayId":"365250949097021440","orderAmount":"2.02020202","refundedAmount":"2.02020202","refundAmount":"2.02020202","remainingAttempts":9,"payerOpenId":"d1db54025d2c429c51d4c722b4cdd366","duplicateRequest":"N","refundStatus":"REFUNDED","refundCommission":"0.00000000","refundedCommission":"0.00000000"}}',
+  bizIdStr: '365250949097021440',
+  bizId: 365250949097021440,
+  bizStatus: 'REFUND_SUCCESS'
+}
+*/

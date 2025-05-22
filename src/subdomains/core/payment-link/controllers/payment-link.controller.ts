@@ -8,7 +8,8 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { BinancePayService, BinancePayWebhookDto } from 'src/integration/binance-pay/binance-pay.service';
+import { BinancePayService } from 'src/integration/binance-pay/binance-pay.service';
+import { BinancePayWebhookDto } from 'src/integration/binance-pay/dto/binance.dto';
 import { BinancePayWebhookGuard } from 'src/integration/binance-pay/guards/binance-pay-webhook.guard';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -263,7 +264,7 @@ export class PaymentLinkController {
   // --- INTEGRATION --- //
   @Post('integration/binance-pay/webhook')
   @ApiExcludeEndpoint()
-  @UseGuards(BinancePayWebhookGuard)
+  @UseGuards(BinancePayWebhookGuard) 
   async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
     this.binancePayService.handleWebhook(dto);
     return { returnCode: 'SUCCESS', returnMessage: null };
