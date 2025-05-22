@@ -147,7 +147,7 @@ export class KycStep extends IEntity {
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
-    return [KycStepStatus.IN_PROGRESS, KycStepStatus.ON_HOLD].includes(this.status);
+    return this.status === KycStepStatus.IN_PROGRESS;
   }
 
   get isInReview(): boolean {

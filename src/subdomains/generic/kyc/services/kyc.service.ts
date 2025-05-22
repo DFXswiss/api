@@ -887,7 +887,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return lastTry?.isFailed ? { nextStep: { name: nextStep, preventDirectEvaluation } } : undefined;
 
       default:
         return { nextStep: undefined };
