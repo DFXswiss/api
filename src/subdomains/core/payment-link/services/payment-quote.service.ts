@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
@@ -439,7 +439,7 @@ export class PaymentQuoteService {
         return;
       }
 
-      const client = this.blockchainRegistryService.getBitcoinClient(method, BitcoinType.BTC_OUTPUT);
+      const client = this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT);
 
       const testMempoolResults = await client.testMempoolAccept(transferInfo.hex);
 

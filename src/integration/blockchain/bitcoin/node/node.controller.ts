@@ -6,7 +6,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HttpError } from 'src/shared/services/http.service';
-import { BitcoinService, BitcoinType } from './bitcoin.service';
+import { BitcoinNodeType, BitcoinService } from './bitcoin.service';
 import { CommandDto } from './dto/command.dto';
 
 @Controller('node')
@@ -17,7 +17,7 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async rpc(@Param('node') node: BitcoinType, @Body() command: string): Promise<any> {
+  async rpc(@Param('node') node: BitcoinNodeType, @Body() command: string): Promise<any> {
     return this.bitcoinService
       .getDefaultClient(node)
       .sendRpcCommand(command)
@@ -28,7 +28,7 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async cmd(@Param('node') node: BitcoinType, @Body() dto: CommandDto): Promise<any> {
+  async cmd(@Param('node') node: BitcoinNodeType, @Body() dto: CommandDto): Promise<any> {
     const client = this.bitcoinService.getDefaultClient(node);
 
     try {
@@ -42,7 +42,7 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async waitForTx(@Param('node') node: BitcoinType, @Param('txId') txId: string): Promise<InWalletTransaction> {
+  async waitForTx(@Param('node') node: BitcoinNodeType, @Param('txId') txId: string): Promise<InWalletTransaction> {
     return this.bitcoinService.getDefaultClient(node).waitForTx(txId);
   }
 
@@ -50,7 +50,7 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async rpcForMode(@Param('node') node: BitcoinType, @Body() command: string): Promise<any> {
+  async rpcForMode(@Param('node') node: BitcoinNodeType, @Body() command: string): Promise<any> {
     return this.bitcoinService
       .getNodeFromPool(node)
       .sendRpcCommand(command)
@@ -61,7 +61,7 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async cmdForMode(@Param('node') node: BitcoinType, @Body() dto: CommandDto): Promise<any> {
+  async cmdForMode(@Param('node') node: BitcoinNodeType, @Body() dto: CommandDto): Promise<any> {
     const client = this.bitcoinService.getNodeFromPool(node);
 
     try {
@@ -75,7 +75,10 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async waitForTxForMode(@Param('node') node: BitcoinType, @Param('txId') txId: string): Promise<InWalletTransaction> {
+  async waitForTxForMode(
+    @Param('node') node: BitcoinNodeType,
+    @Param('txId') txId: string,
+  ): Promise<InWalletTransaction> {
     return this.bitcoinService.getNodeFromPool(node).waitForTx(txId);
   }
 }

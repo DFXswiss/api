@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -11,12 +11,12 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 interface NodePoolState {
-  type: BitcoinType;
+  type: BitcoinNodeType;
   nodes: NodeState[];
 }
 
 interface NodeState {
-  type: BitcoinType;
+  type: BitcoinNodeType;
   isDown: boolean;
   downSince?: Date;
   restarted?: boolean;
@@ -62,9 +62,9 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     const errors = await this.bitcoinService.checkNodes();
 
     // batch errors by pool and node and get state (up/down)
-    return Object.values(BitcoinType).map((type) => ({
+    return Object.values(BitcoinNodeType).map((type) => ({
       type,
-      nodes: Object.values(BitcoinType)
+      nodes: Object.values(BitcoinNodeType)
         .map((type) => ({
           type,
           errors: errors.filter((e) => e.nodeType === type).map((e) => e.message),
@@ -127,11 +127,11 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     }
   }
 
-  private getPoolState(state: NodesState | undefined, type: BitcoinType): NodePoolState | undefined {
+  private getPoolState(state: NodesState | undefined, type: BitcoinNodeType): NodePoolState | undefined {
     return state?.find((p) => p.type === type);
   }
 
-  private getNodeState(state: NodesState | undefined, type: BitcoinType): NodeState | undefined {
+  private getNodeState(state: NodesState | undefined, type: BitcoinNodeType): NodeState | undefined {
     return this.getNodeStateInPool(this.getPoolState(state, type));
   }
 

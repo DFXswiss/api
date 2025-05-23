@@ -7,14 +7,14 @@ import { Util } from 'src/shared/utils/util';
 import { BlockchainService } from '../../shared/util/blockchain.service';
 import { BitcoinClient } from './bitcoin-client';
 
-export enum BitcoinType {
+export enum BitcoinNodeType {
   BTC_INPUT = 'btc-inp',
   BTC_OUTPUT = 'btc-out',
 }
 
 export interface BitcoinError {
   message: string;
-  nodeType: BitcoinType;
+  nodeType: BitcoinNodeType;
 }
 
 interface BitcoinCheckResult {
@@ -26,7 +26,7 @@ interface BitcoinCheckResult {
 export class BitcoinService extends BlockchainService {
   private readonly logger = new DfxLogger(BitcoinService);
 
-  private readonly allNodes: Map<BitcoinType, BitcoinClient> = new Map();
+  private readonly allNodes: Map<BitcoinNodeType, BitcoinClient> = new Map();
 
   constructor(private readonly http: HttpService) {
     super();
@@ -34,21 +34,21 @@ export class BitcoinService extends BlockchainService {
     this.initAllNodes();
   }
 
-  getDefaultClient(type = BitcoinType.BTC_INPUT): BitcoinClient {
+  getDefaultClient(type = BitcoinNodeType.BTC_INPUT): BitcoinClient {
     return this.allNodes.get(type);
   }
 
   // --- HEALTH CHECK API --- //
 
   async checkNodes(): Promise<BitcoinError[]> {
-    return Promise.all(Object.values(BitcoinType).map((type) => this.checkNode(type))).then((errors) =>
+    return Promise.all(Object.values(BitcoinNodeType).map((type) => this.checkNode(type))).then((errors) =>
       errors.reduce((prev, curr) => prev.concat(curr), []),
     );
   }
 
   // --- PUBLIC API --- //
 
-  getNodeFromPool<T extends BitcoinType>(type: T): BitcoinClient {
+  getNodeFromPool<T extends BitcoinNodeType>(type: T): BitcoinClient {
     const client = this.allNodes.get(type);
 
     if (client) {
@@ -65,11 +65,11 @@ export class BitcoinService extends BlockchainService {
   // --- INIT METHODS --- //
 
   private initAllNodes(): void {
-    this.addNode(BitcoinType.BTC_INPUT, Config.blockchain.default.btcInput);
-    this.addNode(BitcoinType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
+    this.addNode(BitcoinNodeType.BTC_INPUT, Config.blockchain.default.btcInput);
+    this.addNode(BitcoinNodeType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
   }
 
-  private addNode(type: BitcoinType, config: { active: string }): void {
+  private addNode(type: BitcoinNodeType, config: { active: string }): void {
     const client = this.createNodeClient(config.active);
     this.allNodes.set(type, client);
   }
@@ -80,7 +80,7 @@ export class BitcoinService extends BlockchainService {
 
   // --- HELPER METHODS --- //
 
-  private async checkNode(type: BitcoinType): Promise<BitcoinCheckResult> {
+  private async checkNode(type: BitcoinNodeType): Promise<BitcoinCheckResult> {
     const client = this.allNodes.get(type);
 
     if (!client) {
@@ -93,7 +93,7 @@ export class BitcoinService extends BlockchainService {
       .catch(() => this.handleNodeCheckError(type));
   }
 
-  private handleNodeCheckSuccess(info: BlockchainInfo, type: BitcoinType): BitcoinCheckResult {
+  private handleNodeCheckSuccess(info: BlockchainInfo, type: BitcoinNodeType): BitcoinCheckResult {
     const result = { errors: [], info };
 
     if (info.blocks < info.headers - 10) {
@@ -106,7 +106,7 @@ export class BitcoinService extends BlockchainService {
     return result;
   }
 
-  private handleNodeCheckError(type: BitcoinType): BitcoinCheckResult {
+  private handleNodeCheckError(type: BitcoinNodeType): BitcoinCheckResult {
     return {
       errors: [{ message: `Failed to get ${type} node infos`, nodeType: type }],
       info: undefined,

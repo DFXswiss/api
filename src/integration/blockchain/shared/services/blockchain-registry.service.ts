@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BaseService } from '../../base/base.service';
 import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
-import { BitcoinService, BitcoinType } from '../../bitcoin/node/bitcoin.service';
+import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { MoneroClient } from '../../monero/monero-client';
@@ -37,7 +37,7 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient();
   }
 
-  getBitcoinClient(blockchain: Blockchain, type: BitcoinType): BitcoinClient {
+  getBitcoinClient(blockchain: Blockchain, type: BitcoinNodeType): BitcoinClient {
     const blockchainService = this.getService(blockchain);
     if (!(blockchainService instanceof BitcoinService))
       throw new Error(`No bitcoin client found for blockchain ${blockchain}`);

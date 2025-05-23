@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BitcoinClient, TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
@@ -16,7 +16,7 @@ export class DexBitcoinService {
     private readonly feeService: BitcoinFeeService,
     readonly bitcoinService: BitcoinService,
   ) {
-    this.client = bitcoinService.getDefaultClient(BitcoinType.BTC_OUTPUT);
+    this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
   }
 
   async sendUtxoToMany(payout: { addressTo: string; amount: number }[]): Promise<string> {

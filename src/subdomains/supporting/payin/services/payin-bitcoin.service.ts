@@ -1,7 +1,7 @@
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
@@ -14,7 +14,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
   constructor(readonly bitcoinService: BitcoinService, private readonly feeService: BitcoinFeeService) {
     super();
 
-    this.client = bitcoinService.getDefaultClient(BitcoinType.BTC_INPUT);
+    this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
   }
 
   async checkHealthOrThrow(): Promise<void> {
