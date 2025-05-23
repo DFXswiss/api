@@ -65,11 +65,11 @@ export class BitcoinService extends BlockchainService {
   // --- INIT METHODS --- //
 
   private initAllNodes(): void {
-    this.addNodeClientPair(BitcoinType.BTC_INPUT, Config.blockchain.default.btcInput);
-    this.addNodeClientPair(BitcoinType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
+    this.addNode(BitcoinType.BTC_INPUT, Config.blockchain.default.btcInput);
+    this.addNode(BitcoinType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
   }
 
-  private addNodeClientPair(type: BitcoinType, config: { active: string }): void {
+  private addNode(type: BitcoinType, config: { active: string }): void {
     const client = this.createNodeClient(config.active);
     this.allNodes.set(type, client);
   }
