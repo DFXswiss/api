@@ -157,8 +157,8 @@ export class LiquidityManagementPipelineService {
     pipeline: LiquidityManagementPipeline,
     previousOrder: LiquidityManagementOrder | null,
   ): Promise<void> {
-    const { minAmount, optAmount, currentAction } = pipeline;
-    const order = LiquidityManagementOrder.create(minAmount, optAmount, pipeline, currentAction, previousOrder?.id);
+    const { minAmount, maxAmount, currentAction } = pipeline;
+    const order = LiquidityManagementOrder.create(minAmount, maxAmount, pipeline, currentAction, previousOrder?.id);
 
     await this.orderRepo.save(order);
   }
@@ -266,8 +266,8 @@ export class LiquidityManagementPipelineService {
   }
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
-    const { id, type, optAmount, rule } = pipeline;
-    const successMessage = `${type} pipeline with target of ${optAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
+    const { id, type, maxAmount, rule } = pipeline;
+    const successMessage = `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
@@ -285,8 +285,8 @@ export class LiquidityManagementPipelineService {
     pipeline: LiquidityManagementPipeline,
     order: LiquidityManagementOrder,
   ): [string, MailRequest] {
-    const { id, type, optAmount, rule } = pipeline;
-    const errorMessage = `${type} pipeline with target of ${optAmount} ${rule.targetName} (rule ${
+    const { id, type, maxAmount, rule } = pipeline;
+    const errorMessage = `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${
       rule.id
     }) ${pipeline.status.toLowerCase()}. Pipeline ID: ${id}`;
 

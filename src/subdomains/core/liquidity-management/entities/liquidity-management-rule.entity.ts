@@ -94,7 +94,7 @@ export class LiquidityManagementRule extends IEntity {
         ? LiquidityOptimizationType.REDUNDANCY
         : null,
       minAmount: isDeficit ? deficit : redundancy,
-      optAmount: Util.round(Math.abs(this.optimal - balance.amount), 8),
+      maxAmount: Util.round(Math.abs(this.optimal - balance.amount), 8),
     };
   }
 

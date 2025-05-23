@@ -45,7 +45,7 @@ export class LiquidityManagementService {
   async buyLiquidity(
     assetId: number,
     minAmount: number,
-    optAmount: number,
+    maxAmount: number,
     targetOptimal: boolean,
   ): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
@@ -54,9 +54,13 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
     }
 
-    if (targetOptimal) optAmount = Util.round(optAmount + rule.optimal, 6);
+    if (targetOptimal) maxAmount = Util.round(maxAmount + rule.optimal, 6);
 
-    const liquidityState: LiquidityState = { action: LiquidityOptimizationType.DEFICIT, minAmount, optAmount };
+    const liquidityState: LiquidityState = {
+      action: LiquidityOptimizationType.DEFICIT,
+      minAmount,
+      maxAmount,
+    };
 
     return this.executeRule(rule, liquidityState, LiquidityOptimizationType.DEFICIT);
   }
@@ -64,7 +68,7 @@ export class LiquidityManagementService {
   async sellLiquidity(
     assetId: number,
     minAmount: number,
-    optAmount: number,
+    maxAmount: number,
     targetOptimal: boolean,
   ): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
@@ -73,12 +77,12 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
     }
 
-    if (targetOptimal) optAmount = Util.round(optAmount - rule.optimal, 6);
+    if (targetOptimal) maxAmount = Util.round(maxAmount - rule.optimal, 6);
 
     const liquidityState: LiquidityState = {
       action: LiquidityOptimizationType.REDUNDANCY,
       minAmount,
-      optAmount,
+      maxAmount,
     };
 
     return this.executeRule(rule, liquidityState, LiquidityOptimizationType.REDUNDANCY);
@@ -119,7 +123,7 @@ export class LiquidityManagementService {
         if (!this.ruleActivations.has(rule.id)) {
           this.ruleActivations.set(rule.id, new Date());
           this.logger.info(
-            `Rule ${rule.id} activated: ${result.optAmount} (min. ${result.minAmount}) ${result.action.toLowerCase()}`,
+            `Rule ${rule.id} activated: ${result.maxAmount} (min. ${result.minAmount}) ${result.action.toLowerCase()}`,
           );
         }
 
@@ -179,7 +183,7 @@ export class LiquidityManagementService {
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
     this.logger.verbose(
       `Executing liquidity management rule ${rule.id} with ${result.action.toLowerCase()} of ${
-        result.optAmount
+        result.maxAmount
       } (min. ${result.minAmount}) ${rule.targetName})`,
     );
   }

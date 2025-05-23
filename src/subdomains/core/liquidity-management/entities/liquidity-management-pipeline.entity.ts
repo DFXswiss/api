@@ -32,7 +32,7 @@ export class LiquidityManagementPipeline extends IEntity {
   minAmount?: number;
 
   @Column({ type: 'float', nullable: true })
-  optAmount?: number;
+  maxAmount?: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
@@ -55,7 +55,7 @@ export class LiquidityManagementPipeline extends IEntity {
     pipeline.ordersProcessed = 0;
     pipeline.type = verificationResult.action;
     pipeline.minAmount = verificationResult.minAmount;
-    pipeline.optAmount = verificationResult.optAmount;
+    pipeline.maxAmount = verificationResult.maxAmount;
 
     return pipeline;
   }

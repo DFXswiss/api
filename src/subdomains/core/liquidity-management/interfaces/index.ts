@@ -25,5 +25,5 @@ export interface LiquidityActionIntegration {
 export interface LiquidityState {
   action: LiquidityOptimizationType | null;
   minAmount: number;
-  optAmount: number;
+  maxAmount: number;
 }

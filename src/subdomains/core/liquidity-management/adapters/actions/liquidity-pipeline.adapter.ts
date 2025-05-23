@@ -70,9 +70,9 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
       throw new Error(`Error (${relevantOrder?.errorMessage}) of previous order ${relevantOrder.id} is invalid`);
 
     const minAmount = +minRequested - +balance;
-    const optAmount = +maxRequested - +balance;
+    const maxAmount = +maxRequested - +balance;
 
-    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, minAmount, optAmount, true);
+    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, minAmount, maxAmount, true);
     return pipeline.id.toString();
   }
 
