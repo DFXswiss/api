@@ -24,9 +24,9 @@ export class LiquidityManagementPipelineController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async buyLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
-    const { assetId, amount, targetOptimal } = dto;
+    const { assetId, minAmount, maxAmount, targetOptimal } = dto;
 
-    return this.lmService.buyLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
+    return this.lmService.buyLiquidity(assetId, minAmount, maxAmount ?? minAmount, targetOptimal).then((p) => p.id);
   }
 
   @Post('sell')
@@ -34,9 +34,9 @@ export class LiquidityManagementPipelineController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sellLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
-    const { assetId, amount, targetOptimal } = dto;
+    const { assetId, minAmount, maxAmount, targetOptimal } = dto;
 
-    return this.lmService.sellLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
+    return this.lmService.sellLiquidity(assetId, minAmount, maxAmount ?? minAmount, targetOptimal).then((p) => p.id);
   }
 
   @Get(':id/status')

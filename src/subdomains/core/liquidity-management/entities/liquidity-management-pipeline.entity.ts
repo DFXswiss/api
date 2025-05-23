@@ -29,7 +29,10 @@ export class LiquidityManagementPipeline extends IEntity {
   type: LiquidityOptimizationType;
 
   @Column({ type: 'float', nullable: true })
-  targetAmount?: number;
+  minAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  maxAmount?: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
@@ -50,8 +53,9 @@ export class LiquidityManagementPipeline extends IEntity {
     pipeline.status = LiquidityManagementPipelineStatus.CREATED;
     pipeline.rule = rule;
     pipeline.ordersProcessed = 0;
-    pipeline.type = this.getPipelineType(verificationResult);
-    pipeline.targetAmount = verificationResult.deficit || verificationResult.redundancy;
+    pipeline.type = verificationResult.action;
+    pipeline.minAmount = verificationResult.minAmount;
+    pipeline.maxAmount = verificationResult.maxAmount;
 
     return pipeline;
   }
@@ -100,17 +104,5 @@ export class LiquidityManagementPipeline extends IEntity {
     }
 
     return this;
-  }
-
-  //*** HELPER METHODS ***//
-
-  private static getPipelineType(verificationResult: LiquidityState): LiquidityOptimizationType {
-    const { deficit, redundancy } = verificationResult;
-
-    if (!deficit && !redundancy) {
-      throw new Error('Cannot create pipeline for optimal rule. No liquidity deficit or redundancy found');
-    }
-
-    return deficit ? LiquidityOptimizationType.DEFICIT : LiquidityOptimizationType.REDUNDANCY;
   }
 }

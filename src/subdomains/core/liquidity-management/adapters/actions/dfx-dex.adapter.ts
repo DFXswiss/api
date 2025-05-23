@@ -73,7 +73,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: asset },
       },
-      amount,
+      maxAmount: amount,
       id: correlationId,
     } = order;
 
@@ -99,7 +99,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: asset },
       },
-      amount,
+      maxAmount: amount,
       id: correlationId,
     } = order;
 
@@ -117,7 +117,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const { address } = this.parseWithdrawParams(order.action.paramMap);
-    const { amount } = order;
+    const { maxAmount: amount } = order;
 
     const request = {
       destinationAddress: address,
@@ -156,7 +156,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const exchange = this.exchangeRegistry.get(system);
 
     const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
-    const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
+    const deposit = deposits.find((d) => d.amount === order.maxAmount && d.timestamp > order.created.getTime());
 
     const isComplete = deposit && deposit.status === 'ok';
     if (isComplete) {
