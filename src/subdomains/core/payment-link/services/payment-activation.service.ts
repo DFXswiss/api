@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { BinancePayService } from 'src/integration/c2b-payment-link/services/binance-pay.service';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -37,7 +37,7 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
     private readonly cryptoService: CryptoService,
-    private readonly binancePayService: BinancePayService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -192,7 +192,7 @@ export class PaymentActivationService implements OnModuleInit {
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
       case Blockchain.BINANCE_PAY:
-        return this.createBinancePayRequest(payment, transferInfo, quote);
+        return this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
@@ -285,44 +285,6 @@ export class PaymentActivationService implements OnModuleInit {
     });
 
     return this.paymentActivationRepo.save(newPaymentActivation);
-  }
-
-  private async createBinancePayRequest(
-    payment: PaymentLinkPayment,
-    transferInfo: TransferInfo,
-    quote: PaymentQuote,
-  ): Promise<{ paymentRequest: string; paymentHash?: string }> {
-    const orderDetails: any = {
-      env: {
-        terminalType: 'OTHERS',
-      },
-      merchantTradeNo: quote.uniqueId.replace('plq_', ''),
-      orderAmount: transferInfo.amount,
-      currency: transferInfo.asset,
-      description: payment.memo,
-      goodsDetails: [
-        {
-          goodsType: '01',
-          goodsCategory: 'D000',
-          referenceGoodsId: '01',
-          goodsName: payment.memo,
-          goodsDetail: payment.memo,
-        },
-      ],
-    };
-
-    const { binancePayMerchantId, binancePaySubMerchantId } = payment.link.configObj;
-    if (binancePayMerchantId) {
-      orderDetails.merchantId = binancePayMerchantId;
-    } else {
-      orderDetails.merchant = {
-        subMerchantId: binancePaySubMerchantId,
-      };
-    }
-
-    const { data } = await this.binancePayService.createOrder(orderDetails);
-
-    return { paymentRequest: data.deeplink };
   }
 
   private async getAssetByInfo(transferInfo: TransferInfo): Promise<Asset> {

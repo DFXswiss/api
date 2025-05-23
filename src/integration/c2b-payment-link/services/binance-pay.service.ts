@@ -2,11 +2,15 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { BinancePayHeaders, BinancePayWebhookDto, CertificateResponse, ChannelPartnerOrderData, DirectMerchantOrderData, OrderResponse } from '../dto/binance.dto';
-
+import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
+import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
+import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { BinancePayHeaders, BinancePayWebhookDto, CertificateResponse, OrderResponse } from '../dto/binance.dto';
+import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
+import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
-export class BinancePayService {
+export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
   private readonly baseUrl = 'https://bpay.binanceapi.com';
   private readonly apiKey: string;
   private readonly secretKey: string;
@@ -41,12 +45,57 @@ export class BinancePayService {
     };
   }
 
-  async createOrder(orderData: DirectMerchantOrderData | ChannelPartnerOrderData): Promise<OrderResponse> {
+  async createOrder(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<OrderResult> {
+    const orderDetails: any = {
+      env: {
+        terminalType: 'OTHERS',
+      },
+      merchantTradeNo: quote.uniqueId.replace('plq_', ''),
+      orderAmount: transferInfo.amount,
+      currency: transferInfo.asset,
+      description: payment.memo,
+      goodsDetails: [
+        {
+          goodsType: '01',
+          goodsCategory: 'D000',
+          referenceGoodsId: '01',
+          goodsName: payment.memo,
+          goodsDetail: payment.memo,
+        },
+      ],
+    };
+
+    const { binancePayMerchantId, binancePaySubMerchantId } = payment.link.configObj;
+    if (binancePayMerchantId) {
+      orderDetails.merchantId = binancePayMerchantId;
+    } else {
+      orderDetails.merchant = {
+        subMerchantId: binancePaySubMerchantId,
+      };
+    }
+
     try {
-      const response = await this.http.post<OrderResponse>(`${this.baseUrl}/binancepay/openapi/v3/order`, orderData, {
-        headers: this.getHeaders(orderData),
-      });
-      return response;
+      const response = await this.http.post<OrderResponse>(
+        `${this.baseUrl}/binancepay/openapi/v3/order`,
+        orderDetails,
+        {
+          headers: this.getHeaders(orderDetails),
+        },
+      );
+
+      const {
+        data: { deeplink, qrcodeLink, prepayId },
+      } = response;
+
+      return {
+        providerOrderId: prepayId,
+        paymentRequest: qrcodeLink,
+        metadata: response.data,
+      };
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -73,7 +122,7 @@ export class BinancePayService {
     return response;
   }
 
-  public async verifyWebhook(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
+  public async verifySignature(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
     const { timestamp, nonce, signature, certSN } = headers;
     const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
@@ -84,7 +133,7 @@ export class BinancePayService {
       throw new Error('Certificate not found');
     }
 
-    const verify = crypto.createVerify("SHA256");
+    const verify = crypto.createVerify('SHA256');
     verify.write(payload);
     verify.end();
 
@@ -92,19 +141,13 @@ export class BinancePayService {
     return verify.verify(cert.certPublic, decodedSignature);
   }
 
-  async handleWebhook(dto: BinancePayWebhookDto): Promise<void> {
-    const webhookData = JSON.parse(dto.data);
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult> {
+    const { bizIdStr } = dto;
 
+    return {
+      providerOrderId: bizIdStr,
+      status: C2BPaymentStatus.COMPLETED,
+      metadata: dto,
+    };
   }
 }
-
-
-/**
- {
-  bizType: 'PAY_REFUND',
-  data: '{"merchantTradeNo":"ff48beb8a22840c1","productType":"01","productName":"Kermit Frog - USD 2","transactTime":1747920833943,"tradeType":"OTHERS","totalFee":2.02020202,"currency":"USDT","openUserId":"00152a4d4e1be4f087735b3ae6e114c1","refundInfo":{"refundId":365252679965024256,"prepayId":"365250949097021440","orderAmount":"2.02020202","refundedAmount":"2.02020202","refundAmount":"2.02020202","remainingAttempts":9,"payerOpenId":"d1db54025d2c429c51d4c722b4cdd366","duplicateRequest":"N","refundStatus":"REFUNDED","refundCommission":"0.00000000","refundedCommission":"0.00000000"}}',
-  bizIdStr: '365250949097021440',
-  bizId: 365250949097021440,
-  bizStatus: 'REFUND_SUCCESS'
-}
-*/
