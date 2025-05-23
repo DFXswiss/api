@@ -6,20 +6,20 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HttpError } from 'src/shared/services/http.service';
+import { BitcoinNodeType, BitcoinService } from './bitcoin.service';
 import { CommandDto } from './dto/command.dto';
-import { NodeService, NodeType } from './node.service';
 
 @Controller('node')
 export class NodeController {
-  constructor(private readonly nodeService: NodeService) {}
+  constructor(private readonly bitcoinService: BitcoinService) {}
 
   @Post(':node/rpc')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async rpc(@Param('node') node: NodeType, @Body() command: string): Promise<any> {
-    return this.nodeService
-      .getCurrentConnectedNode(node)
+  async rpc(@Param('node') node: BitcoinNodeType, @Body() command: string): Promise<any> {
+    return this.bitcoinService
+      .getDefaultClient(node)
       .sendRpcCommand(command)
       .catch((error: HttpError) => error.response?.data);
   }
@@ -28,8 +28,8 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async cmd(@Param('node') node: NodeType, @Body() dto: CommandDto): Promise<any> {
-    const client = this.nodeService.getCurrentConnectedNode(node);
+  async cmd(@Param('node') node: BitcoinNodeType, @Body() dto: CommandDto): Promise<any> {
+    const client = this.bitcoinService.getDefaultClient(node);
 
     try {
       return await client.sendCliCommand(dto.command, dto.noAutoUnlock);
@@ -42,16 +42,16 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async waitForTx(@Param('node') node: NodeType, @Param('txId') txId: string): Promise<InWalletTransaction> {
-    return this.nodeService.getCurrentConnectedNode(node).waitForTx(txId);
+  async waitForTx(@Param('node') node: BitcoinNodeType, @Param('txId') txId: string): Promise<InWalletTransaction> {
+    return this.bitcoinService.getDefaultClient(node).waitForTx(txId);
   }
 
   @Post(':node/:mode/rpc')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async rpcForMode(@Param('node') node: NodeType, @Body() command: string): Promise<any> {
-    return this.nodeService
+  async rpcForMode(@Param('node') node: BitcoinNodeType, @Body() command: string): Promise<any> {
+    return this.bitcoinService
       .getNodeFromPool(node)
       .sendRpcCommand(command)
       .catch((error: HttpError) => error.response?.data);
@@ -61,8 +61,8 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async cmdForMode(@Param('node') node: NodeType, @Body() dto: CommandDto): Promise<any> {
-    const client = this.nodeService.getNodeFromPool(node);
+  async cmdForMode(@Param('node') node: BitcoinNodeType, @Body() dto: CommandDto): Promise<any> {
+    const client = this.bitcoinService.getNodeFromPool(node);
 
     try {
       return await client.sendCliCommand(dto.command, dto.noAutoUnlock);
@@ -75,7 +75,10 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async waitForTxForMode(@Param('node') node: NodeType, @Param('txId') txId: string): Promise<InWalletTransaction> {
-    return this.nodeService.getNodeFromPool(node).waitForTx(txId);
+  async waitForTxForMode(
+    @Param('node') node: BitcoinNodeType,
+    @Param('txId') txId: string,
+  ): Promise<InWalletTransaction> {
+    return this.bitcoinService.getNodeFromPool(node).waitForTx(txId);
   }
 }
