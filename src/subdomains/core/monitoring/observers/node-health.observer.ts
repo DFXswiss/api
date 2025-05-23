@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { BtcService, BtcType } from 'src/integration/blockchain/ain/node/btc.service';
+import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -11,12 +11,12 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 interface NodePoolState {
-  type: BtcType;
+  type: BitcoinType;
   nodes: NodeState[];
 }
 
 interface NodeState {
-  type: BtcType;
+  type: BitcoinType;
   isDown: boolean;
   downSince?: Date;
   restarted?: boolean;
@@ -32,7 +32,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
 
   constructor(
     readonly monitoringService: MonitoringService,
-    private readonly btcService: BtcService,
+    private readonly bitcoinService: BitcoinService,
     private readonly notificationService: NotificationService,
   ) {
     super(monitoringService, 'node', 'health');
@@ -59,17 +59,17 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   }
 
   private async getState(previousState: NodesState): Promise<NodesState> {
-    const errors = await this.btcService.checkNodes();
+    const errors = await this.bitcoinService.checkNodes();
 
     // batch errors by pool and node and get state (up/down)
-    return Object.values(BtcType).map((type) => ({
+    return Object.values(BitcoinType).map((type) => ({
       type,
-      nodes: Object.values(BtcType)
+      nodes: Object.values(BitcoinType)
         .map((type) => ({
           type,
           errors: errors.filter((e) => e.nodeType === type).map((e) => e.message),
         }))
-        .filter((n) => this.btcService.allNodes.get(n.type))
+        .filter((n) => this.bitcoinService.getDefaultClient(n.type))
         .map((n) => ({
           ...this.getNodeState(previousState, n.type),
           ...n,
@@ -127,11 +127,11 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     }
   }
 
-  private getPoolState(state: NodesState | undefined, type: BtcType): NodePoolState | undefined {
+  private getPoolState(state: NodesState | undefined, type: BitcoinType): NodePoolState | undefined {
     return state?.find((p) => p.type === type);
   }
 
-  private getNodeState(state: NodesState | undefined, type: BtcType): NodeState | undefined {
+  private getNodeState(state: NodesState | undefined, type: BitcoinType): NodeState | undefined {
     return this.getNodeStateInPool(this.getPoolState(state, type));
   }
 

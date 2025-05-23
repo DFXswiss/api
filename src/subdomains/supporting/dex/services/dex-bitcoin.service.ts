@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { BtcClient, TransactionHistory } from 'src/integration/blockchain/ain/node/btc-client';
-import { BtcService, BtcType } from 'src/integration/blockchain/ain/node/btc.service';
-import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
+import { BitcoinClient, TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
@@ -9,14 +9,14 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 
 @Injectable()
 export class DexBitcoinService {
-  private readonly client: BtcClient;
+  private readonly client: BitcoinClient;
 
   constructor(
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
-    private readonly feeService: BtcFeeService,
-    readonly btcService: BtcService,
+    private readonly feeService: BitcoinFeeService,
+    readonly bitcoinService: BitcoinService,
   ) {
-    this.client = btcService.getDefaultClient(BtcType.BTC_OUTPUT);
+    this.client = bitcoinService.getDefaultClient(BitcoinType.BTC_OUTPUT);
   }
 
   async sendUtxoToMany(payout: { addressTo: string; amount: number }[]): Promise<string> {
@@ -41,7 +41,7 @@ export class DexBitcoinService {
     return this.client.getRecentHistory(txCount);
   }
 
-  protected getClient(): BtcClient {
+  protected getClient(): BitcoinClient {
     return this.client;
   }
 

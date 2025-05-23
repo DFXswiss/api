@@ -1,7 +1,7 @@
 import { Currency } from '@uniswap/sdk-core';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
-import { EvmSignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
+import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
 
 export abstract class BlockchainClient {
   abstract getNativeCoinBalance(): Promise<number>;
@@ -10,5 +10,5 @@ export abstract class BlockchainClient {
   abstract getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]>;
   abstract isTxComplete(txHash: string, confirmations?: number): Promise<boolean>;
   abstract getToken(asset: Asset): Promise<Currency>;
-  abstract sendSignedTransaction(tx: string): Promise<EvmSignedTransactionResponse>;
+  abstract sendSignedTransaction(tx: string): Promise<SignedTransactionResponse>;
 }

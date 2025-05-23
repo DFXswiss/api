@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { BitcoinUTXO } from 'src/integration/blockchain/ain/node/dto/btc-transaction.dto';
+import { BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';

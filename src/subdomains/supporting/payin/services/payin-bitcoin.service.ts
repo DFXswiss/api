@@ -1,20 +1,20 @@
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { BtcService, BtcType } from 'src/integration/blockchain/ain/node/btc.service';
-import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/ain/node/dto/btc-transaction.dto';
-import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
+import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
+import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 
 @Injectable()
 export class PayInBitcoinService extends PayInBitcoinBasedService {
-  private readonly client: BtcClient;
+  private readonly client: BitcoinClient;
 
-  constructor(readonly btcService: BtcService, private readonly feeService: BtcFeeService) {
+  constructor(readonly bitcoinService: BitcoinService, private readonly feeService: BitcoinFeeService) {
     super();
 
-    this.client = btcService.getDefaultClient(BtcType.BTC_INPUT);
+    this.client = bitcoinService.getDefaultClient(BitcoinType.BTC_INPUT);
   }
 
   async checkHealthOrThrow(): Promise<void> {

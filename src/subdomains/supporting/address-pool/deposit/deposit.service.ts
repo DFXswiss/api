@@ -3,8 +3,8 @@ import { BadRequestException, Injectable, InternalServerErrorException } from '@
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { BtcService, BtcType } from 'src/integration/blockchain/ain/node/btc.service';
+import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinService, BitcoinType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -23,18 +23,18 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @Injectable()
 export class DepositService {
-  private readonly btcClient: BtcClient;
+  private readonly bitcoinClient: BitcoinClient;
   private readonly lightningClient: LightningClient;
   private readonly moneroClient: MoneroClient;
 
   constructor(
     private readonly depositRepo: DepositRepository,
     private readonly alchemyWebhookService: AlchemyWebhookService,
-    btcService: BtcService,
+    bitcoinService: BitcoinService,
     lightningService: LightningService,
     moneroService: MoneroService,
   ) {
-    this.btcClient = btcService.getDefaultClient(BtcType.BTC_INPUT);
+    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinType.BTC_INPUT);
     this.lightningClient = lightningService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
   }
@@ -82,7 +82,7 @@ export class DepositService {
   }
 
   private async createBitcoinDeposits(blockchain: Blockchain, count: number): Promise<void> {
-    const client = this.btcClient;
+    const client = this.bitcoinClient;
     const label = Util.isoDate(new Date());
     const type = AddressType.P2SH_SEGWIT;
 

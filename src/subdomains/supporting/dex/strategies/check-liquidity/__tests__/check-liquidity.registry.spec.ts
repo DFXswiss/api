@@ -1,6 +1,6 @@
 import { mock } from 'jest-mock-extended';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { BtcService } from 'src/integration/blockchain/ain/node/btc.service';
+import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -32,7 +32,7 @@ import { PolygonCoinStrategy } from '../impl/polygon-coin.strategy';
 import { PolygonTokenStrategy } from '../impl/polygon-token.strategy';
 
 describe('CheckLiquidityStrategies', () => {
-  let btcService: BtcService;
+  let bitcoinService: BitcoinService;
 
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
@@ -53,8 +53,8 @@ describe('CheckLiquidityStrategies', () => {
   let register: CheckLiquidityStrategyRegistryWrapper;
 
   beforeEach(() => {
-    btcService = mock<BtcService>();
-    jest.spyOn(btcService, 'getDefaultClient').mockImplementation(() => new BtcClient(null, null));
+    bitcoinService = mock<BitcoinService>();
+    jest.spyOn(bitcoinService, 'getDefaultClient').mockImplementation(() => new BitcoinClient(null, null));
 
     arbitrumCoin = new ArbitrumCoinStrategy(mock<AssetService>(), mock<DexArbitrumService>());
     arbitrumToken = new ArbitrumTokenStrategy(mock<AssetService>(), mock<DexArbitrumService>());

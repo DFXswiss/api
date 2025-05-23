@@ -28,7 +28,7 @@ type AddressInfoOuterArray = AddressInfoInnerArray[];
 type AddressInfoInnerArray = AddressInfoArray[];
 type AddressInfoArray = [string, number, string];
 
-export class BtcClient extends NodeClient {
+export class BitcoinClient extends NodeClient {
   async send(
     addressTo: string,
     txId: string,
