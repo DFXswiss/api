@@ -44,6 +44,7 @@ export class C2BPaymentLinkService {
   async handleWebhook(provider: C2BPaymentProvider, payload: any) {
     const clientProvider = this.getProvider(provider);
     const webhookResult = await clientProvider.handleWebhook(payload);
+    if (!webhookResult) return;
 
     const webhookNotification = await this.webhookNotificationsRepository.create({
       provider,

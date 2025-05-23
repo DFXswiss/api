@@ -141,12 +141,29 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     return verify.verify(cert.certPublic, decodedSignature);
   }
 
+  private getStatus(status: string): C2BPaymentStatus {
+    switch (status) {
+      case 'PAY_SUCCESS':
+        return C2BPaymentStatus.COMPLETED;
+      case 'REFUND_SUCCESS':
+        return C2BPaymentStatus.REFUNDED;
+      case 'PAY_CLOSED':
+        return C2BPaymentStatus.FAILED;
+    }
+  }
+
+  private isSupportedBizType(bizType: string): boolean {
+    return bizType === 'PAY' || bizType === 'PAY_REFUND';
+  }
+
   async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult> {
-    const { bizIdStr } = dto;
+    const { bizType, bizIdStr, bizStatus } = dto;
+
+    if (!this.isSupportedBizType(bizType) || !this.getStatus(bizStatus)) return;
 
     return {
       providerOrderId: bizIdStr,
-      status: C2BPaymentStatus.COMPLETED,
+      status: this.getStatus(bizStatus),
       metadata: dto,
     };
   }
