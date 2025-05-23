@@ -261,7 +261,9 @@ export class KycService {
 
     if (
       (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name)) ||
-      (missingCompletedSteps.length === 1 && missingCompletedSteps[0] === KycStepName.DFX_APPROVAL)
+      (missingCompletedSteps.length === 1 &&
+        missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
+        kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
       const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
       await this.kycStepRepo.update(...approvalStep.manualReview());
