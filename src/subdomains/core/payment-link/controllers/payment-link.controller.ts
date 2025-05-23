@@ -8,9 +8,9 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { BinancePayService } from 'src/integration/binance-pay/binance-pay.service';
-import { BinancePayWebhookDto } from 'src/integration/binance-pay/dto/binance.dto';
-import { BinancePayWebhookGuard } from 'src/integration/binance-pay/guards/binance-pay-webhook.guard';
+import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
+import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
+import { BinancePayService } from 'src/integration/c2b-payment-link/services/binance-pay.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';

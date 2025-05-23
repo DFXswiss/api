@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { BinancePayService } from 'src/integration/binance-pay/binance-pay.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { BinancePayService } from 'src/integration/c2b-payment-link/services/binance-pay.service';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';

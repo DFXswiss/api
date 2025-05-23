@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BinancePayModule } from 'src/integration/binance-pay/binance-pay.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { C2BPaymentLinkModule } from 'src/integration/c2b-payment-link/c2b-payment-link.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
@@ -25,7 +25,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     LightningModule,
     PricingModule,
     PayoutModule,
-    BinancePayModule,
+    C2BPaymentLinkModule,
   ],
   controllers: [],
   providers: [

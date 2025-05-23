@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BinancePayModule } from 'src/integration/binance-pay/binance-pay.module';
+import { C2BPaymentLinkModule } from 'src/integration/c2b-payment-link/c2b-payment-link.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
@@ -11,7 +11,6 @@ import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
 import { PaymentCronService } from './services/payment-cron.service';
 import { PaymentLinkService } from './services/payment-link.service';
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([PaymentLink]),
@@ -19,7 +18,7 @@ import { PaymentLinkService } from './services/payment-link.service';
     SharedModule,
     SellCryptoModule,
     PaymentLinkPaymentModule,
-    BinancePayModule,
+    C2BPaymentLinkModule,
   ],
   controllers: [PaymentLinkController, PaymentLinkShortController],
   providers: [PaymentLinkRepository, PaymentLinkService, PaymentCronService, PaymentLinkController, PaymentLinkGateway],

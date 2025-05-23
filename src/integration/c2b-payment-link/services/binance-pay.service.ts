@@ -2,61 +2,8 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { BinancePayWebhookDto } from './dto/binance.dto';
+import { BinancePayHeaders, BinancePayWebhookDto, CertificateResponse, ChannelPartnerOrderData, DirectMerchantOrderData, OrderResponse } from '../dto/binance.dto';
 
-interface OrderData {
-  env: {
-    terminalType: string;
-  };
-  merchantTradeNo: string;
-  orderAmount: number;
-  currency: string;
-  description: string;
-  goodsDetails: {
-    goodsType: string;
-    goodsCategory: string;
-    referenceGoodsId: string;
-    goodsName: string;
-    goodsDetail: string;
-  }[];
-}
-
-export interface DirectMerchantOrderData extends OrderData {
-  merchantId: string;
-}
-
-export interface ChannelPartnerOrderData extends OrderData {
-  merchant: {
-    subMerchantId: string;
-  };
-}
-
-export interface BinancePayResponse<T> {
-  status: 'SUCCESS' | 'FAILED';
-  code: string;
-  data?: T;
-  errorMessage?: string;
-}
-
-export type OrderResponse = BinancePayResponse<{
-  prepayId: string;
-  terminalType: string;
-  expireTime: number;
-  qrcodeLink: string;
-  qrContent: string;
-  checkoutUrl: string;
-  deeplink: string;
-  universalUrl: string;
-  totalFee: number;
-  currency: string;
-}>;
-
-export type CertificateResponse = BinancePayResponse<
-  {
-    certPublic: string;
-    certSerial: string;
-  }[]
->;
 
 @Injectable()
 export class BinancePayService {
@@ -126,14 +73,8 @@ export class BinancePayService {
     return response;
   }
 
-  public async verifyWebhook(body: BinancePayWebhookDto, headers: Record<string, string>): Promise<boolean> {
-    const {
-      'binancepay-timestamp': timestamp,
-      'binancepay-nonce': nonce,
-      'binancepay-signature': signature,
-      'binancepay-certificate-sn': certSN,
-    } = headers;
-
+  public async verifyWebhook(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
+    const { timestamp, nonce, signature, certSN } = headers;
     const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
 
@@ -153,7 +94,7 @@ export class BinancePayService {
 
   async handleWebhook(dto: BinancePayWebhookDto): Promise<void> {
     const webhookData = JSON.parse(dto.data);
-    console.log(webhookData);
+
   }
 }
 
