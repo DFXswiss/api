@@ -88,12 +88,12 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       );
 
       const {
-        data: { deeplink, qrcodeLink, prepayId },
+        data: { deeplink, prepayId },
       } = response;
 
       return {
         providerOrderId: prepayId,
-        paymentRequest: qrcodeLink,
+        paymentRequest: deeplink,
         metadata: response.data,
       };
     } catch (error) {
