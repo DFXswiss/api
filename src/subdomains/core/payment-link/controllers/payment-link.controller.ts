@@ -8,6 +8,10 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
+import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
+import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
+import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -39,6 +43,7 @@ export class PaymentLinkController {
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
   @Get()
@@ -255,6 +260,15 @@ export class PaymentLinkController {
     @Body() dto: UpdatePaymentLinkInternalDto,
   ): Promise<PaymentLink> {
     return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
+  }
+
+  // --- INTEGRATION --- //
+  @Post('integration/binance-pay/webhook')
+  @ApiExcludeEndpoint()
+  @UseGuards(BinancePayWebhookGuard)
+  async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
+    this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
+    return { returnCode: 'SUCCESS', returnMessage: null };
   }
 
   // --- HELPER METHODS --- //

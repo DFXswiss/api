@@ -137,6 +137,13 @@ export class PaymentQuoteService {
     });
   }
 
+  async getQuoteByUniqueId(uniqueId: string): Promise<PaymentQuote | null> {
+    return this.paymentQuoteRepo.findOne({
+      where: { uniqueId: Equal(uniqueId) },
+      relations: { payment: { link: { route: { user: { userData: true } } } } },
+    });
+  }
+
   async cancelAllForPayment(paymentId: number): Promise<void> {
     const actualQuotes = await this.paymentQuoteRepo.find({
       where: { payment: { id: paymentId }, status: PaymentQuoteStatus.ACTUAL },
@@ -241,6 +248,17 @@ export class PaymentQuoteService {
       available: true,
     };
 
+    if (blockchain === Blockchain.BINANCE_PAY) {
+      const { binancePayMerchantId, binancePaySubMerchantId } = payment.link.configObj;
+      if (!binancePayMerchantId && !binancePaySubMerchantId) {
+        return {
+          ...transferAmount,
+          assets: [],
+          available: false,
+        };
+      }
+    }
+
     if (minFee != null) {
       for (const asset of assets) {
         const transferAmountAsset = await this.getTransferAmountAsset(
@@ -258,6 +276,7 @@ export class PaymentQuoteService {
 
   private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
     switch (blockchain) {
+      case Blockchain.BINANCE_PAY:
       case Blockchain.LIGHTNING:
         return 0;
       case Blockchain.ETHEREUM:
