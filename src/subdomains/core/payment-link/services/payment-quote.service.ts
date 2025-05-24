@@ -137,6 +137,13 @@ export class PaymentQuoteService {
     });
   }
 
+  async getQuoteByUniqueId(uniqueId: string): Promise<PaymentQuote | null> {
+    return this.paymentQuoteRepo.findOne({
+      where: { uniqueId: Equal(uniqueId) },
+      relations: { payment: { link: { route: { user: { userData: true } } } } },
+    });
+  }
+
   async cancelAllForPayment(paymentId: number): Promise<void> {
     const actualQuotes = await this.paymentQuoteRepo.find({
       where: { payment: { id: paymentId }, status: PaymentQuoteStatus.ACTUAL },

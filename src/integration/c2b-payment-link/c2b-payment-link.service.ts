@@ -57,6 +57,7 @@ export class C2BPaymentLinkService {
       where: {
         providerOrderId: webhookResult.providerOrderId,
       },
+      relations: { quote: true },
     });
 
     if (!c2bPaymentOrder) {
@@ -65,5 +66,7 @@ export class C2BPaymentLinkService {
 
     c2bPaymentOrder.status = webhookResult.status;
     await this.c2bPaymentOrderRepository.save(c2bPaymentOrder);
+
+    return { webhookResult, quoteUniqueId: c2bPaymentOrder.quote.uniqueId };
   }
 }
