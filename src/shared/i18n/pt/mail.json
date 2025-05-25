@@ -231,7 +231,23 @@
             "message": "We have noticed that you have not completed your verification."
         },
         "retry": "Please try it again with the following URL:<br>[url:{urlText}]",
-        "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]"
+        "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]",
+        "step_names": {
+            "Ident": "",
+            "PersonalData": "",
+            "NationalityData": "",
+            "LegalEntity": "",
+            "OwnerDirectory": "",
+            "CommercialRegister": "",
+            "SignatoryPower": "",
+            "Authority": "",
+            "BeneficialOwner": "",
+            "OperationalActivity": "",
+            "FinancialData": "",
+            "AdditionalDocuments": "",
+            "ResidencePermit": "",
+            "DfxApproval": ""
+        }
     },
     "account_merge": {
         "request": {

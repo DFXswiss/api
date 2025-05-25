@@ -231,7 +231,23 @@
             "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
         },
         "retry": "Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]",
-        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]"
+        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
+        "step_names": {
+            "Ident": "Identifikation",
+            "PersonalData": "Persönliche Daten",
+            "NationalityData": "Nationalität",
+            "LegalEntity": "Juristische Person",
+            "OwnerDirectory": "Inhaberverzeichnis",
+            "CommercialRegister": "Handelsregister",
+            "SignatoryPower": "Unterschriftsberechtigung",
+            "Authority": "Vollmacht",
+            "BeneficialOwner": "Wirtschaftlich Berechtigter",
+            "OperationalActivity": "Operative Tätigkeit",
+            "FinancialData": "Zusätzliche Daten",
+            "AdditionalDocuments": "Zusätzliche Dokumente",
+            "ResidencePermit": "Aufenthaltsbewilligung",
+            "DfxApproval": "DFX-Genehmigung"
+        }
     },
     "account_merge": {
         "request": {

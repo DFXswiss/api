@@ -231,7 +231,23 @@
             "message": "Abbiamo notato che non hai completato la tua verifica."
         },
         "retry": "Riprovare con il seguente URL:<br>[url:{urlText}]",
-        "next_step": "Per procedere alla verifica, cliccare sulla voce di menu in alto a destra del sito web di DFX-Services<br> e poi su \"KYC\"<br> e cliccare sul pulsante \"Continua\" o utilizzare il seguente link:<br>[url:{urlText}]"
+        "next_step": "Per procedere alla verifica, cliccare sulla voce di menu in alto a destra del sito web di DFX-Services<br> e poi su \"KYC\"<br> e cliccare sul pulsante \"Continua\" o utilizzare il seguente link:<br>[url:{urlText}]",
+        "step_names": {
+            "Ident": "Identificazione",
+            "PersonalData": "Dati personali",
+            "NationalityData": "Nazionalità",
+            "LegalEntity": "Persona giuridica",
+            "OwnerDirectory": "Elenco dei proprietari",
+            "CommercialRegister": "Registro commerciale",
+            "SignatoryPower": "Potere di firma",
+            "Authority": "Procura",
+            "BeneficialOwner": "Titolare effettivo",
+            "OperationalActivity": "Attività operativa",
+            "FinancialData": "Dati aggiuntivi",
+            "AdditionalDocuments": "Documenti aggiuntivi",
+            "ResidencePermit": "Permesso di soggiorno",
+            "DfxApproval": "Approvazione DFX"
+        }
     },
     "account_merge": {
         "request": {
