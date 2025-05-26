@@ -6,8 +6,16 @@ import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
-import { BinancePayHeaders, BinancePayWebhookDto, CertificateResponse, OrderResponse } from '../dto/binance.dto';
-import { IPaymentLinkProvider, OrderData, WebhookResult } from '../share/IPaymentLinkProvider';
+import {
+  BinancePayHeaders,
+  BinancePayWebhookDto,
+  CertificateResponse,
+  ChannelPartnerOrderData,
+  OrderData,
+  OrderResponse,
+  SubMerchantOrderData,
+} from '../dto/binance.dto';
+import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
 import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
@@ -46,8 +54,12 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     };
   }
 
-  async createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<OrderData> {
-    const orderDetails: any = {
+  async createOrder(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<OrderResult> {
+    const orderDetails: OrderData = {
       env: {
         terminalType: 'OTHERS',
       },
@@ -68,9 +80,9 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
 
     const { binancePayMerchantId, binancePaySubMerchantId } = payment.link.configObj;
     if (binancePayMerchantId) {
-      orderDetails.merchantId = binancePayMerchantId;
+      (orderDetails as ChannelPartnerOrderData).merchantId = binancePayMerchantId;
     } else {
-      orderDetails.merchant = {
+      (orderDetails as SubMerchantOrderData).merchant = {
         subMerchantId: binancePaySubMerchantId,
       };
     }

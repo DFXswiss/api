@@ -30,11 +30,11 @@ export class C2BPaymentLinkService {
 
   async createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote) {
     const clientProvider = this.getProvider(transferInfo.method as C2BPaymentProvider);
-    return await clientProvider.createOrder(payment, transferInfo, quote);
+    return clientProvider.createOrder(payment, transferInfo, quote);
   }
 
   async handleWebhook(provider: C2BPaymentProvider, payload: any) {
     const clientProvider = this.getProvider(provider);
-    return await clientProvider.handleWebhook(payload);
+    return clientProvider.handleWebhook(payload);
   }
 }

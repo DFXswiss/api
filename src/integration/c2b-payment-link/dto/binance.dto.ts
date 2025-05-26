@@ -56,14 +56,14 @@ export interface OrderData {
     }[];
 }
 
-export interface DirectMerchantOrderData extends OrderData {
-    merchantId: string;
+export interface ChannelPartnerOrderData extends OrderData {
+  merchantId: string;
 }
 
-export interface ChannelPartnerOrderData extends OrderData {
-    merchant: {
-        subMerchantId: string;
-    };
+export interface SubMerchantOrderData extends OrderData {
+  merchant: {
+    subMerchantId: string;
+  };
 }
 
 export interface BinancePayResponse<T> {

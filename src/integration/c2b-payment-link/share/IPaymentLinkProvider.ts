@@ -3,7 +3,7 @@ import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/pa
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { C2BPaymentStatus } from './PaymentStatus';
 
-export interface OrderData {
+export interface OrderResult {
   providerOrderId: string;
   paymentRequest: string;
   metadata?: Record<string, any>;
@@ -16,7 +16,7 @@ export interface WebhookResult {
 }
 
 export interface IPaymentLinkProvider<WebhookDto> {
-  createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<OrderData>;
+  createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<OrderResult>;
   verifySignature(payload: WebhookDto, headers: any): Promise<boolean>;
   handleWebhook(payload: WebhookDto): Promise<WebhookResult | undefined>;
 }
