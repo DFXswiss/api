@@ -192,7 +192,9 @@ export class PaymentActivationService implements OnModuleInit {
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
       case Blockchain.BINANCE_PAY:
-        return this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
+        const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
+        await this.paymentQuoteService.saveTransaction(quote, transferInfo.method as Blockchain, order.providerOrderId);
+        return order;
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);

@@ -240,17 +240,25 @@ export class PaymentLinkPaymentService {
     return { txId: quote.txId };
   }
 
-  async handleWebhook(provider: C2BPaymentProvider, dto: BinancePayWebhookDto) {
+  async handleWebhook(provider: C2BPaymentProvider | Blockchain, dto: BinancePayWebhookDto) {
     const result = await this.c2bPaymentLinkService.handleWebhook(provider, dto);
     if (!result) return;
 
-    const { webhookResult, quoteUniqueId } = result;
-    if (webhookResult.status === C2BPaymentStatus.COMPLETED) {
-      const quote = await this.paymentQuoteService.getQuoteByUniqueId(quoteUniqueId);
-      if (!quote) throw new Error(`Quote not found by id ${quoteUniqueId}`);
+    const { status, providerOrderId } = result;
+    if (status === C2BPaymentStatus.COMPLETED) {
+      const quote = await this.paymentQuoteService.getQuoteByTxId(provider as Blockchain, providerOrderId, [
+        PaymentQuoteStatus.ACTUAL,
+      ]);
+      if (!quote) throw new Error(`Quote not found by id ${providerOrderId}`);
 
       await this.paymentQuoteService.saveFinallyConfirmed(quote);
-      await this.handleQuoteChange(quote.payment, quote);
+
+      const payment = await this.paymentLinkPaymentRepo.findOne({
+        where: { id: quote.payment.id },
+        relations: { link: { route: { user: { userData: true } } } },
+      });
+
+      await this.handleQuoteChange(payment, quote);
     }
   }
 
