@@ -3,20 +3,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { NodeService } from '../../node/node.service';
+import { BitcoinService } from '../../node/bitcoin.service';
 
 describe('CryptoService', () => {
   let service: CryptoService;
 
+  let blockchainRegistryService: BlockchainRegistryService;
   let lightningService: LightningService;
   let moneroService: MoneroService;
   let arweaveService: ArweaveService;
-  let nodeService: NodeService;
+  let bitcoinService: BitcoinService;
   let railgunService: RailgunService;
   let solanaService: SolanaService;
 
@@ -25,16 +27,17 @@ describe('CryptoService', () => {
     moneroService = createMock<MoneroService>();
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
-    nodeService = createMock<NodeService>();
-    solanaService = createMock<SolanaService>();
+    bitcoinService = createMock<BitcoinService>();
+    blockchainRegistryService = createMock<BlockchainRegistryService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CryptoService,
+        { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
         { provide: LightningService, useValue: lightningService },
         { provide: MoneroService, useValue: moneroService },
         { provide: ArweaveService, useValue: arweaveService },
-        { provide: NodeService, useValue: nodeService },
+        { provide: BitcoinService, useValue: bitcoinService },
         { provide: RailgunService, useValue: railgunService },
         { provide: SolanaService, useValue: solanaService },
         TestUtil.provideConfig(),

@@ -308,7 +308,7 @@ export class PaymentLinkService {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
     const { status, label, webhookUrl, config } = dto;
-    const { name, address, phone, mail, website } = config.recipient ?? {};
+    const { name, address, phone, mail, website } = config?.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
     const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };

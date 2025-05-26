@@ -32,47 +32,51 @@ export class UpdatePaymentLinkDto {
 export class UpdatePaymentLinkInternalDto {
   @IsOptional()
   @IsString()
-  externalId: string;
+  externalId?: string;
 
   @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
-  street: string;
+  street?: string;
 
   @IsOptional()
   @IsString()
-  houseNumber: string;
+  houseNumber?: string;
 
   @IsOptional()
   @IsString()
-  zip: string;
+  zip?: string;
 
   @IsOptional()
   @IsString()
-  city: string;
+  city?: string;
 
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  country: Country;
+  country?: Country;
 
   @IsOptional()
   @IsString()
-  phone: string;
+  phone?: string;
 
   @IsOptional()
   @IsString()
-  mail: string;
+  mail?: string;
 
   @IsOptional()
   @IsString()
-  website: string;
+  website?: string;
 
   @IsOptional()
   @IsString()
-  config: string;
+  config?: string;
+
+  @IsOptional()
+  @IsString()
+  label?: string;
 }

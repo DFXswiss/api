@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -21,14 +21,12 @@ interface NodeBalanceData {
 export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
   protected readonly logger = new DfxLogger(NodeBalanceObserver);
 
-  private btcInpClient: BtcClient;
+  private readonly bitcoinClient: BitcoinClient;
 
-  constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
+  constructor(monitoringService: MonitoringService, readonly bitcoinService: BitcoinService) {
     super(monitoringService, 'node', 'balance');
 
-    nodeService
-      .getConnectedNode<NodeType.BTC_INPUT>(NodeType.BTC_INPUT)
-      .subscribe((client) => (this.btcInpClient = client));
+    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
@@ -45,7 +43,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
     return {
       balance: {
         bitcoin: {
-          input: (await this.btcInpClient?.getBalance()) ?? new BigNumber(0),
+          input: (await this.bitcoinClient?.getBalance()) ?? new BigNumber(0),
         },
       },
     };

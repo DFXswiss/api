@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { RailgunModule } from '../railgun/railgun.module';
@@ -24,7 +24,7 @@ import { SolanaModule } from './solana/solana.module';
   providers: [EvmDecimalsService, EvmGasPriceService, CryptoService, BlockchainRegistryService],
   imports: [
     SharedModule,
-    AinModule,
+    BitcoinModule,
     BscModule,
     EthereumModule,
     OptimismModule,
@@ -41,7 +41,7 @@ import { SolanaModule } from './solana/solana.module';
     SolanaModule,
   ],
   exports: [
-    AinModule,
+    BitcoinModule,
     BscModule,
     EthereumModule,
     OptimismModule,

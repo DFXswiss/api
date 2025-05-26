@@ -8,7 +8,10 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { SpecialExternalAccount } from '../../../payment/entities/special-external-account.entity';
+import {
+  SpecialExternalAccount,
+  SpecialExternalAccountType,
+} from '../../../payment/entities/special-external-account.entity';
 import { Transaction } from '../../../payment/entities/transaction.entity';
 import { BankTxRepeat } from '../../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../../bank-tx-return/bank-tx-return.entity';
@@ -248,9 +251,28 @@ export class BankTx extends IEntity {
     return this.chargeAmountChf;
   }
 
+  get txInfoName(): string {
+    if (
+      this.remittanceInfo === this.txInfo ||
+      this.txInfo.includes(this.name) ||
+      this.ultimateName ||
+      this.creditDebitIndicator === BankTxIndicator.DEBIT
+    )
+      return undefined;
+
+    return this.txInfo
+      .replace(/Übertrag/g, '')
+      .replace(/Gutschrift/g, '')
+      .replace(/Bankenclearing-Vergütung/g, '')
+      .replace(/Storno PAIN-Auftrag/g, '')
+      .replace(/PAIN-Auftrag/g, '')
+      .replace(/Postgiro/g, '')
+      .trim();
+  }
+
   completeName(multiAccountName?: string): string {
     const regex = multiAccountName ? new RegExp(`${multiAccountName}|,`, 'g') : /[,]/g;
-    return [this.name, this.ultimateName]
+    return [this.name, this.ultimateName, this.txInfoName]
       .filter((n) => n && ![multiAccountName, 'Schaltereinzahlung'].includes(n))
       .map((n) =>
         n
@@ -264,7 +286,13 @@ export class BankTx extends IEntity {
   bankDataName(multiAccounts: SpecialExternalAccount[]): string | undefined {
     if (Util.isSameName(this.name, this.ultimateName)) return this.name.replace(/[,]/g, '').trim();
 
-    const multiAccount = multiAccounts.find((m) => m.value === this.iban);
+    const multiAccount = multiAccounts.find(
+      (m) =>
+        (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN && m.value === this.iban) ||
+        (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME &&
+          (this.name?.includes(m.value) || this.ultimateName?.includes(m.value))),
+    );
+
     return this.completeName(multiAccount?.name);
   }
 

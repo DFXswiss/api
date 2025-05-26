@@ -222,8 +222,6 @@ export class UserDataService {
 
     Object.assign(userData, dto);
 
-    await this.userDataRepo.save(userData);
-
     if (
       [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) &&
       !userData.organization
@@ -235,6 +233,7 @@ export class UserDataService {
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
+        country: dto.organizationCountry,
       });
     } else if (userData.organization) {
       await this.organizationService.updateOrganizationInternal(userData.organization, {
@@ -244,8 +243,11 @@ export class UserDataService {
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
+        country: dto.organizationCountry,
       });
     }
+
+    await this.userDataRepo.save(userData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -397,7 +399,7 @@ export class UserDataService {
         location: update.organizationLocation,
         houseNumber: update.organizationHouseNumber,
         zip: update.organizationZip,
-        country: update.organizationCountry,
+        country: organizationCountry,
       };
 
       update.organization = !userData.organization
@@ -697,7 +699,7 @@ export class UserDataService {
     if (dto.verifiedName) {
       const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccounts();
       if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
-        throw new BadRequestException('VerifiedName includes a multiAccountIban');
+        throw new BadRequestException('VerifiedName includes a multiAccount');
     }
 
     if (dto.kycFileId) {
@@ -938,7 +940,7 @@ export class UserDataService {
     await this.updateVolumes(slaveId);
 
     // activate users
-    if (master.hasActiveUser) {
+    if (master.hasActiveUser || slave.status === UserDataStatus.ACTIVE) {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {

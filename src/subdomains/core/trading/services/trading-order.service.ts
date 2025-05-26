@@ -198,19 +198,6 @@ export class TradingOrderService implements OnModuleInit {
 
     const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
     this.logger.verbose(message);
-
-    // send mail
-    const mailRequest: MailRequest = {
-      type: MailType.ERROR_MONITORING,
-      context: MailContext.DEX,
-      input: {
-        subject: 'Trading order SUCCESS',
-        errors: [message],
-        isLiqMail: true,
-      },
-    };
-
-    await this.notificationService.sendMail(mailRequest);
   }
 
   private async handleOrderFail(process: string, order: TradingOrder, e: Error): Promise<void> {
