@@ -1,3 +1,4 @@
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity } from 'typeorm';
 import { IEntity } from '../entity';
@@ -51,6 +52,9 @@ export class Country extends IEntity {
 
   @Column({ default: true })
   checkoutEnable: boolean;
+
+  @Column({ default: AmlRule.DEFAULT })
+  amlRule: AmlRule;
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {
