@@ -747,7 +747,7 @@ export class TransactionHelper implements OnModuleInit {
 
     // KYC checks
     const amlRuleError = AmlHelperService.amlRuleQuoteCheck(
-      [from.amlRuleFrom, to.amlRuleTo, user?.userData.nationality.amlRule],
+      [from.amlRuleFrom, to.amlRuleTo, user?.userData.nationality?.amlRule],
       user,
       paymentMethodIn,
     );
