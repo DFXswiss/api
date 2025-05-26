@@ -379,7 +379,7 @@ export class PaymentQuoteService {
       const client = this.blockchainRegistryService.getEvmClient(method);
 
       // handle TX ID
-      if (transferInfo.tx) {
+      if (transferInfo.tx && !transferInfo.hex) {
         const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
         for (let i = 0; i < tryCount; i++) {
