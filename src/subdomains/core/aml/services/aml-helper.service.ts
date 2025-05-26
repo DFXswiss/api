@@ -213,10 +213,10 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     amountInChf: number,
     last7dCheckoutVolume: number,
-  ): AmlError[] | undefined {
+  ): AmlError[] {
     switch (amlRule) {
       case AmlRule.DEFAULT:
-        return undefined;
+        return [];
 
       case AmlRule.RULE_1:
         if (
@@ -298,7 +298,7 @@ export class AmlHelperService {
         break;
     }
 
-    return undefined;
+    return [];
   }
 
   static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
