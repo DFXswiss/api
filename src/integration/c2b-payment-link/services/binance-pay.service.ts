@@ -54,6 +54,12 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     };
   }
 
+  public isAvailable(paymentLink: PaymentLinkPayment): boolean {
+    return Boolean(
+      paymentLink.link.configObj.binancePayMerchantId || paymentLink.link.configObj.binancePaySubMerchantId,
+    );
+  }
+
   async createOrder(
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,

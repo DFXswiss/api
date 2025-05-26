@@ -19,6 +19,24 @@ export class C2BPaymentLinkService {
     }
   }
 
+  static mapBlockchainToProvider(blockchain: Blockchain): C2BPaymentProvider {
+    switch (blockchain) {
+      case Blockchain.BINANCE_PAY:
+        return C2BPaymentProvider.BINANCE_PAY;
+      default:
+        throw new Error(`Blockchain ${blockchain} not supported`);
+    }
+  }
+
+  static isC2BProvider(blockchain: Blockchain): boolean {
+    try {
+      C2BPaymentLinkService.mapBlockchainToProvider(blockchain);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   getProvider(provider: C2BPaymentProvider) {
     switch (provider) {
       case C2BPaymentProvider.BINANCE_PAY:
@@ -36,5 +54,10 @@ export class C2BPaymentLinkService {
   async handleWebhook(provider: C2BPaymentProvider, payload: any) {
     const clientProvider = this.getProvider(provider);
     return clientProvider.handleWebhook(payload);
+  }
+
+  isAvailable(blockchain: Blockchain, paymentLink: PaymentLinkPayment): boolean {
+    const clientProvider = this.getProvider(C2BPaymentLinkService.mapBlockchainToProvider(blockchain));
+    return clientProvider.isAvailable(paymentLink);
   }
 }
