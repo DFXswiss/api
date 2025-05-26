@@ -15,12 +15,6 @@ export class BinancePayWebhookGuard implements CanActivate {
       'binancepay-certificate-sn': certSN,
     } = request.headers;
 
-    const isValid = await this.binancePayService.verifySignature(request.body, { timestamp, nonce, signature, certSN });
-
-    if (!isValid) {
-      return false;
-    }
-
-    return true;
+    return this.binancePayService.verifySignature(request.body, { timestamp, nonce, signature, certSN });
   }
 }

@@ -263,11 +263,11 @@ export class PaymentLinkController {
   }
 
   // --- INTEGRATION --- //
-  @Post('integration/binance-pay/webhook')
+  @Post('integration/binance/webhook')
   @ApiExcludeEndpoint()
   @UseGuards(BinancePayWebhookGuard)
   async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
-    this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
+    void this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
     return { returnCode: 'SUCCESS', returnMessage: null };
   }
 

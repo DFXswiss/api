@@ -193,7 +193,7 @@ export class PaymentActivationService implements OnModuleInit {
 
       case Blockchain.BINANCE_PAY:
         const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
-        await this.paymentQuoteService.saveTransaction(quote, transferInfo.method as Blockchain, order.providerOrderId);
+        await this.paymentQuoteService.saveTransaction(quote, transferInfo.method, order.providerOrderId);
         return order;
 
       default:

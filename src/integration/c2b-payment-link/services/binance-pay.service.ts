@@ -2,11 +2,12 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { BinancePayHeaders, BinancePayWebhookDto, CertificateResponse, OrderResponse } from '../dto/binance.dto';
-import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
+import { IPaymentLinkProvider, OrderData, WebhookResult } from '../share/IPaymentLinkProvider';
 import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
@@ -17,7 +18,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   private certificatedExpiry: number;
   private cert: CertificateResponse['data'];
 
-  constructor(private http: HttpService) {
+  constructor(private readonly http: HttpService) {
     this.apiKey = Config.payment.binancePayPublic;
     this.secretKey = Config.payment.binancePaySecret;
     this.certificatedExpiry = 0;
@@ -45,11 +46,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     };
   }
 
-  async createOrder(
-    payment: PaymentLinkPayment,
-    transferInfo: TransferInfo,
-    quote: PaymentQuote,
-  ): Promise<OrderResult> {
+  async createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<OrderData> {
     const orderDetails: any = {
       env: {
         terminalType: 'OTHERS',
@@ -129,16 +126,10 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
 
     const { data } = await this.queryCertificate();
     const cert = data.find((cert) => cert.certSerial === certSN);
-    if (!cert) {
-      throw new Error('Certificate not found');
-    }
+    if (!cert) throw new Error('Certificate not found');
 
-    const verify = crypto.createVerify('SHA256');
-    verify.write(payload);
-    verify.end();
-
-    const decodedSignature = Buffer.from(signature, 'base64');
-    return verify.verify(cert.certPublic, decodedSignature);
+    const decodedSignature = Buffer.from(signature, 'base64').toString('base64');
+    return Util.verifySign(payload, cert.certPublic, decodedSignature, 'sha256', 'base64');
   }
 
   private getStatus(status: string): C2BPaymentStatus {
@@ -156,9 +147,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     return bizType === 'PAY' || bizType === 'PAY_REFUND';
   }
 
-  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult> {
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
     const { bizType, bizIdStr, bizStatus } = dto;
-
     if (!this.isSupportedBizType(bizType) || !this.getStatus(bizStatus)) return;
 
     return {

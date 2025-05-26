@@ -49,7 +49,6 @@ export class PaymentRequestMapper {
   private static toBinancePayPayment(method: Blockchain, paymentActivation: PaymentActivation): any {
     return {
       expiryDate: paymentActivation.expiryDate,
-      blockchain: method,
       uri: paymentActivation.paymentRequest,
       hint: `Pay in the Binance app by following the deep link ${paymentActivation.paymentRequest}.`,
     };

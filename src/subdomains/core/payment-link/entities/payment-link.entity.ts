@@ -72,6 +72,9 @@ export class PaymentLink extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   config?: string; // PaymentLinkConfig
 
+  @Column({ nullable: true })
+  registrationNumber?: string; // Registration number/Company tax ID
+
   // --- ENTITY METHODS --- //
   get metaId(): string {
     return this.externalId ?? `${this.id}`;
