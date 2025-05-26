@@ -302,53 +302,51 @@ export class AmlHelperService {
   }
 
   static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
+    if (!user) return undefined;
+
     if (
       amlRules.includes(AmlRule.RULE_2) &&
-      user?.status === UserStatus.NA &&
-      user?.userData.kycLevel < KycLevel.LEVEL_30
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_30
     )
       return QuoteError.KYC_REQUIRED;
 
     if (
       amlRules.includes(AmlRule.RULE_3) &&
-      user?.status === UserStatus.NA &&
-      user?.userData.kycLevel < KycLevel.LEVEL_50
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_50
     )
       return QuoteError.KYC_REQUIRED;
 
     if (
       amlRules.includes(AmlRule.RULE_6) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      user?.status === UserStatus.NA &&
-      user?.userData.kycLevel < KycLevel.LEVEL_30
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_30
     )
       return QuoteError.KYC_REQUIRED;
 
     if (
       amlRules.includes(AmlRule.RULE_7) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      user?.status === UserStatus.NA &&
-      user?.userData.kycLevel < KycLevel.LEVEL_50
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_50
     )
       return QuoteError.KYC_REQUIRED;
 
     if (
       amlRules.includes(AmlRule.RULE_9) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user?.status !== UserStatus.NA || user?.userData.kycLevel < KycLevel.LEVEL_30)
+      (user.status !== UserStatus.NA || user.userData.kycLevel < KycLevel.LEVEL_30)
     )
-      return user?.userData.kycLevel < KycLevel.LEVEL_30
-        ? QuoteError.KYC_REQUIRED
-        : QuoteError.BANK_TRANSACTION_MISSING;
+      return user.userData.kycLevel < KycLevel.LEVEL_30 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
 
     if (
       amlRules.includes(AmlRule.RULE_10) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user?.status !== UserStatus.NA || user?.userData.kycLevel < KycLevel.LEVEL_50)
+      (user.status !== UserStatus.NA || user.userData.kycLevel < KycLevel.LEVEL_50)
     )
-      return user?.userData.kycLevel < KycLevel.LEVEL_50
-        ? QuoteError.KYC_REQUIRED
-        : QuoteError.BANK_TRANSACTION_MISSING;
+      return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
   }
 
   static getAmlResult(
