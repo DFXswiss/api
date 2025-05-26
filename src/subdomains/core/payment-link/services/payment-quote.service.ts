@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
@@ -358,7 +359,7 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.BITCOIN:
-          await this.doBitcoinHexPayment(transferInfo, quote);
+          await this.doBitcoinHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
         default:
@@ -378,7 +379,7 @@ export class PaymentQuoteService {
       const client = this.blockchainRegistryService.getEvmClient(method);
 
       // handle TX ID
-      if (transferInfo.tx) {
+      if (transferInfo.tx && !transferInfo.hex) {
         const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
         for (let i = 0; i < tryCount; i++) {
@@ -426,7 +427,11 @@ export class PaymentQuoteService {
     }
   }
 
-  private async doBitcoinHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+  private async doBitcoinHexPayment(
+    method: Blockchain,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<void> {
     try {
       const transferAmount = quote.getTransferAmount(Blockchain.BITCOIN);
       if (!transferAmount) {
@@ -434,7 +439,9 @@ export class PaymentQuoteService {
         return;
       }
 
-      const testMempoolResults = await this.payoutBitcoinService.testMempoolAccept(transferInfo.hex);
+      const client = this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT);
+
+      const testMempoolResults = await client.testMempoolAccept(transferInfo.hex);
 
       if (testMempoolResults?.length !== 1) {
         quote.txFailed('Wrong number of mempool results received');
@@ -456,8 +463,11 @@ export class PaymentQuoteService {
         return;
       }
 
-      const txId = await this.payoutBitcoinService.sendRawTransaction(transferInfo.hex);
-      txId ? quote.txInMempool(txId) : quote.txFailed('Transaction failed');
+      const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
+
+      transactionResponse.error
+        ? quote.txFailed(transactionResponse.error.message)
+        : quote.txInMempool(transactionResponse.hash);
     } catch (e) {
       quote.txFailed(e.message);
     }

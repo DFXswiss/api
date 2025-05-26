@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 
 @Injectable()
-export class BtcFeeService {
+export class BitcoinFeeService {
   private readonly btcFeeUrl = 'https://mempool.space/api/v1/fees/recommended';
 
   constructor(private readonly http: HttpService) {}

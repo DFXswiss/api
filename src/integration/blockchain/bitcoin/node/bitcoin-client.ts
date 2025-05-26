@@ -1,4 +1,8 @@
+import { Currency } from '@uniswap/sdk-core';
 import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
+import { BitcoinSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
 import { NodeClient, NodeCommand } from './node-client';
 
 export interface TransactionHistory {
@@ -20,7 +24,11 @@ export interface TestMempoolResult {
   'reject-reason': string;
 }
 
-export class BtcClient extends NodeClient {
+type AddressInfoOuterArray = AddressInfoInnerArray[];
+type AddressInfoInnerArray = AddressInfoArray[];
+type AddressInfoArray = [string, number, string];
+
+export class BitcoinClient extends NodeClient {
   async send(
     addressTo: string,
     txId: string,
@@ -77,8 +85,15 @@ export class BtcClient extends NodeClient {
     );
   }
 
-  async sendRawTransaction(hex: string): Promise<string> {
-    return this.callNode<string>((c) => c.call(NodeCommand.SEND_RAW_TRANSACTION, [hex, null], 'number'), true);
+  async sendSignedTransaction(hex: string): Promise<BitcoinSignedTransactionResponse> {
+    return this.callNode<string>((c) => c.call(NodeCommand.SEND_RAW_TRANSACTION, [hex, null], 'number'), true)
+      .then((r) => ({ hash: r }))
+      .catch((e) => ({
+        error: {
+          code: e.code,
+          message: e.message,
+        },
+      }));
   }
 
   async getRecentHistory(txCount = 100): Promise<TransactionHistory[]> {
@@ -88,5 +103,32 @@ export class BtcClient extends NodeClient {
   async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
     const transaction = await this.getTx(txId);
     return transaction.blockhash && transaction.confirmations > minConfirmations;
+  }
+
+  async getNativeCoinBalance(): Promise<number> {
+    return this.getBalance().then((r) => r.toNumber());
+  }
+
+  // Note: This method only works for all addresses of our wallet
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    const outer = await this.callNode<AddressInfoOuterArray>(
+      (c) => c.call(NodeCommand.LIST_ADDRESS_GROUPINGS, [], 'number'),
+      true,
+    );
+
+    return outer.find((o) => o.find((i) => i[0] === address))?.map((i) => i[1])[0] ?? 0;
+  }
+
+  // --- UNIMPLEMENTED METHODS --- //
+  async getToken(_: Asset): Promise<Currency> {
+    throw new Error('Bitcoin has no token');
+  }
+
+  async getTokenBalance(_: Asset, __?: string): Promise<number> {
+    throw new Error('Bitcoin has no token');
+  }
+
+  async getTokenBalances(_: Asset[], __?: string): Promise<BlockchainTokenBalance[]> {
+    throw new Error('Bitcoin has no token');
   }
 }

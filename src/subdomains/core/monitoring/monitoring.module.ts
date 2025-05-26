@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
@@ -31,7 +31,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
   imports: [
     TypeOrmModule.forFeature([SystemStateSnapshot]),
     SharedModule,
-    AinModule,
+    BitcoinModule,
     UserModule,
     NotificationModule,
     BankModule,
