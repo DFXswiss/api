@@ -37,7 +37,7 @@ export class UserMailV2 extends Mail {
 
     super({
       ...params,
-      template: wallet?.name === 'onchainlabs' ? 'onChainLabs' : 'userV2',
+      template: wallet?.name === 'onchainlabs' ? 'onChainLabs' : 'user-v2',
       templateParams: { ...defaultParams, ...params },
     });
   }
