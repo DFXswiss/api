@@ -98,7 +98,6 @@ export class SellService {
 
   validateLightningRoute(route: Sell): void {
     if (!route) throw new NotFoundException('Sell route not found');
-    if (!route.active) throw new BadRequestException('Requested route is not active');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
   }
