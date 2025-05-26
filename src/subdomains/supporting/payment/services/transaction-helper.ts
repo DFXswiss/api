@@ -746,11 +746,16 @@ export class TransactionHelper implements OnModuleInit {
       return QuoteError.NATIONALITY_NOT_ALLOWED;
 
     // KYC checks
-    if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
-      return QuoteError.KYC_REQUIRED;
+    const assetAmlRuleError = AmlHelperService.amlRuleQuoteCheck(
+      [from.amlRuleFrom, to.amlRuleTo],
+      user,
+      paymentMethodIn,
+    );
+    if (assetAmlRuleError) return assetAmlRuleError;
 
-    if (isBuy && AmlHelperService.amlRuleUserCheck(user?.wallet.amlRuleList, user, paymentMethodIn))
-      return QuoteError.KYC_REQUIRED;
+    const walletAmlRuleError =
+      isBuy && AmlHelperService.amlRuleQuoteCheck(user?.wallet.amlRuleList, user, paymentMethodIn);
+    if (walletAmlRuleError) return walletAmlRuleError;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
       return QuoteError.KYC_REQUIRED;
