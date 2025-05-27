@@ -67,6 +67,15 @@ export class PaymentLink extends IEntity {
   mail?: string;
 
   @Column({ length: 256, nullable: true })
+  regionManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeOwner?: string;
+
+  @Column({ length: 256, nullable: true })
   website?: string;
 
   @Column({ length: 'MAX', nullable: true })
