@@ -263,7 +263,15 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    return this.checkTradeCompletion(order, tradeAsset, asset);
+    const isComplete = await this.checkTradeCompletion(order, tradeAsset, asset);
+    if (isComplete) {
+      const trade = await this.exchangeService.getTrade(order.correlationId, tradeAsset, asset);
+
+      order.inputAmount = trade.cost;
+      order.outputAmount = trade.amount;
+    }
+
+    return isComplete;
   }
 
   private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -271,20 +279,20 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    return this.checkTradeCompletion(order, asset, tradeAsset);
+    const isComplete = await this.checkTradeCompletion(order, asset, tradeAsset);
+    if (isComplete) {
+      const trade = await this.exchangeService.getTrade(order.correlationId, asset, tradeAsset);
+
+      order.inputAmount = trade.amount;
+      order.outputAmount = trade.cost;
+    }
+
+    return isComplete;
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     try {
-      const isComplete = await this.exchangeService.checkTrade(order.correlationId, from, to);
-      if (isComplete) {
-        const trade = await this.exchangeService.getTrade(order.correlationId, from, to);
-
-        order.inputAmount = trade.cost;
-        order.outputAmount = trade.amount;
-      }
-
-      return isComplete;
+      return await this.exchangeService.checkTrade(order.correlationId, from, to);
     } catch (e) {
       if (e instanceof TradeChangedException) {
         order.correlationId = e.id;
