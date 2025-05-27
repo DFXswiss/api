@@ -66,7 +66,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
     const [_, balance, minRequested, maxRequested] =
       /\(balance: (.*), min. requested: (.*), max. requested: (.*)\)/.exec(relevantOrder?.errorMessage ?? '') ?? [];
 
-    if (!balance || !minRequested || maxRequested)
+    if (!balance || !minRequested || !maxRequested)
       throw new Error(`Error (${relevantOrder?.errorMessage}) of previous order ${relevantOrder.id} is invalid`);
 
     const minAmount = +minRequested - +balance;
