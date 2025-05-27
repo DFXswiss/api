@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
@@ -8,6 +21,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -18,6 +32,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { GenerateOcpStickersDto } from '../dto/generate-ocp-stickers.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
@@ -255,6 +270,23 @@ export class PaymentLinkController {
     @Body() dto: UpdatePaymentLinkInternalDto,
   ): Promise<PaymentLink> {
     return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
+  }
+
+  @Get('stickers')
+  @ApiOkResponse({ type: StreamableFile })
+  async generateOcpStickers(
+    @Query() dto: GenerateOcpStickersDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const externalIds = dto.externalIds.split(',').map((id) => id.trim());
+    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(dto.route, externalIds);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="ocp-stickers.pdf"',
+    });
+
+    return new StreamableFile(pdfBuffer);
   }
 
   // --- HELPER METHODS --- //
