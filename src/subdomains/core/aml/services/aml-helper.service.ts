@@ -337,14 +337,14 @@ export class AmlHelperService {
     if (
       amlRules.includes(AmlRule.RULE_9) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user.status !== UserStatus.NA || user.userData.kycLevel < KycLevel.LEVEL_30)
+      (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_30)
     )
       return user.userData.kycLevel < KycLevel.LEVEL_30 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
 
     if (
       amlRules.includes(AmlRule.RULE_10) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user.status !== UserStatus.NA || user.userData.kycLevel < KycLevel.LEVEL_50)
+      (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_50)
     )
       return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
   }
