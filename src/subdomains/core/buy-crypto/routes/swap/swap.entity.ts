@@ -18,6 +18,7 @@ export const SwapInputBlockchains: Blockchain[] = [
   Blockchain.POLYGON,
   Blockchain.BINANCE_SMART_CHAIN,
   Blockchain.BASE,
+  Blockchain.GNOSIS,
 ];
 
 @ChildEntity('Crypto')

@@ -36,6 +36,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
+  [Blockchain.GNOSIS]: 'https://gnosisscan.io',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -54,6 +55,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
+  [Blockchain.GNOSIS]: 'tx',
 };
 
 function assetPaths(asset: Asset): string | undefined {
@@ -74,6 +76,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.BASE:
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
+    case Blockchain.GNOSIS:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
   }
 }
@@ -96,6 +99,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.LIQUID:
     case Blockchain.ARWEAVE:
     case Blockchain.CARDANO:
+    case Blockchain.GNOSIS:
       return 'address';
   }
 }

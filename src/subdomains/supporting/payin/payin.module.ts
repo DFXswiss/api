@@ -19,6 +19,7 @@ import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInGnosisService } from './services/payin-gnosis.service';
 import { PayInLightningService } from './services/payin-lightning.service';
 import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
@@ -45,6 +46,8 @@ import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
+import { GnosisCoinStrategy as GnosisCoinStrategyS } from './strategies/send/impl/gnosis-coin.strategy';
+import { GnosisTokenStrategy as GnosisTokenStrategyS } from './strategies/send/impl/gnosis-token.strategy';
 import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
@@ -82,6 +85,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayInOptimismService,
     PayInPolygonService,
     PayInBaseService,
+    PayInGnosisService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     BitcoinStrategyR,
@@ -108,6 +112,8 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     BaseStrategyR,
     BaseCoinStrategyS,
     BaseTokenStrategyS,
+    GnosisCoinStrategyS,
+    GnosisTokenStrategyS,
   ],
   exports: [PayInService],
 })

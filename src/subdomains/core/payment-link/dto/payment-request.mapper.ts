@@ -15,6 +15,7 @@ export class PaymentRequestMapper {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
       case Blockchain.MONERO:
       case Blockchain.BITCOIN:

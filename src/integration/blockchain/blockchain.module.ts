@@ -11,6 +11,7 @@ import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
+import { GnosisModule } from './gnosis/gnosis.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
@@ -30,6 +31,7 @@ import { CryptoService } from './shared/services/crypto.service';
     ArbitrumModule,
     PolygonModule,
     BaseModule,
+    GnosisModule,
     LightningModule,
     MoneroModule,
     FrankencoinModule,
@@ -46,6 +48,7 @@ import { CryptoService } from './shared/services/crypto.service';
     ArbitrumModule,
     PolygonModule,
     BaseModule,
+    GnosisModule,
     LightningModule,
     MoneroModule,
     FrankencoinModule,

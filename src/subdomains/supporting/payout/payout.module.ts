@@ -14,6 +14,7 @@ import { PayoutBaseService } from './services/payout-base.service';
 import { PayoutBitcoinService } from './services/payout-bitcoin.service';
 import { PayoutBscService } from './services/payout-bsc.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
+import { PayoutGnosisService } from './services/payout-gnosis.service';
 import { PayoutLightningService } from './services/payout-lightning.service';
 import { PayoutLogService } from './services/payout-log.service';
 import { PayoutMoneroService } from './services/payout-monero.service';
@@ -30,6 +31,8 @@ import { BscCoinStrategy as BscCoinStrategyPO } from './strategies/payout/impl/b
 import { BscTokenStrategy as BscTokenStrategyPO } from './strategies/payout/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPO } from './strategies/payout/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPO } from './strategies/payout/impl/ethereum-token.strategy';
+import { GnosisCoinStrategy as GnosisCoinStrategyPO } from './strategies/payout/impl/gnosis-coin.strategy';
+import { GnosisTokenStrategy as GnosisTokenStrategyPO } from './strategies/payout/impl/gnosis-token.strategy';
 import { LightningStrategy as LightningStrategyPO } from './strategies/payout/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyPO } from './strategies/payout/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyPO } from './strategies/payout/impl/optimism-coin.strategy';
@@ -42,6 +45,7 @@ import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.
 import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
+import { GnosisStrategy as GnosisStrategyPR } from './strategies/prepare/impl/gnosis.strategy';
 import { LightningStrategy as LightningStrategyPR } from './strategies/prepare/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyPR } from './strategies/prepare/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/impl/optimism.strategy';
@@ -69,6 +73,7 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     PayoutOptimismService,
     PayoutPolygonService,
     PayoutBaseService,
+    PayoutGnosisService,
     PayoutEthereumService,
     PayoutBscService,
     PayoutStrategyRegistry,
@@ -97,6 +102,9 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     BaseStrategyPR,
     BaseCoinStrategyPO,
     BaseTokenStrategyPO,
+    GnosisStrategyPR,
+    GnosisCoinStrategyPO,
+    GnosisTokenStrategyPO,
   ],
   exports: [PayoutService, PayoutMoneroService, PayoutBitcoinService],
 })
