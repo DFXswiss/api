@@ -63,14 +63,16 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
       if (!relevantOrder) throw new Error(`Previous order ${index + 1} not found`);
     }
 
-    const [_, balance, requested] = /\(balance: (.*), requested: (.*)\)/.exec(relevantOrder?.errorMessage ?? '') ?? [];
+    const [_, balance, minRequested, maxRequested] =
+      /\(balance: (.*), min. requested: (.*), max. requested: (.*)\)/.exec(relevantOrder?.errorMessage ?? '') ?? [];
 
-    if (!balance || !requested)
+    if (!balance || !minRequested || !maxRequested)
       throw new Error(`Error (${relevantOrder?.errorMessage}) of previous order ${relevantOrder.id} is invalid`);
 
-    const amount = +requested - +balance;
+    const minAmount = +minRequested - +balance;
+    const maxAmount = +maxRequested - +balance;
 
-    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, amount, true);
+    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, minAmount, maxAmount, true);
     return pipeline.id.toString();
   }
 
@@ -94,7 +96,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
         });
 
         throw new OrderNotProcessableException(
-          `Triggered pipeline ${pipeline.id} failed with error: ${failedOrder.errorMessage}`,
+          `Triggered pipeline ${pipeline.id} (rule ${pipeline.rule.id}) failed with error: ${failedOrder.errorMessage}`,
         );
     }
   }

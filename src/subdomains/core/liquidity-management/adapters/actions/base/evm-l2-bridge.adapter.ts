@@ -88,7 +88,8 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: l2Asset },
       },
-      amount,
+      minAmount,
+      maxAmount,
     } = order;
 
     const { type, name } = l2Asset;
@@ -105,10 +106,12 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       type === AssetType.COIN
         ? await this.l1Client.getNativeCoinBalance()
         : await this.l1Client.getTokenBalance(l1Asset);
-    if (l1Liquidity < amount)
+    if (l1Liquidity < minAmount)
       throw new OrderNotProcessableException(
-        `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, requested: ${amount})`,
+        `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
+
+    const amount = Math.min(maxAmount, l1Liquidity);
 
     order.inputAmount = amount;
     order.inputAsset = l1Asset.name;
@@ -140,7 +143,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: l2Asset },
       },
-      amount,
+      maxAmount: amount,
     } = order;
 
     const { type, name } = l2Asset;
