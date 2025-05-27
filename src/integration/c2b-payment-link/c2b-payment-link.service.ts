@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
+import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
 import { BinancePayService } from './services/binance-pay.service';
@@ -59,5 +60,10 @@ export class C2BPaymentLinkService {
   isAvailable(blockchain: Blockchain, paymentLink: PaymentLinkPayment): boolean {
     const clientProvider = this.getProvider(C2BPaymentLinkService.mapBlockchainToProvider(blockchain));
     return clientProvider.isAvailable(paymentLink);
+  }
+
+  enrollPaymentLink(paymentLink: PaymentLink, provider: C2BPaymentProvider): Promise<Record<string, string>> {
+    const clientProvider = this.getProvider(provider);
+    return clientProvider.enrollPaymentLink(paymentLink);
   }
 }

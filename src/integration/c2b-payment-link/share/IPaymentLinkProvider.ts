@@ -1,5 +1,6 @@
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
+import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { C2BPaymentStatus } from './PaymentStatus';
 
@@ -20,4 +21,5 @@ export interface IPaymentLinkProvider<WebhookDto> {
   verifySignature(payload: WebhookDto, headers: any): Promise<boolean>;
   handleWebhook(payload: WebhookDto): Promise<WebhookResult | undefined>;
   isAvailable(paymentLink: PaymentLinkPayment): boolean;
+  enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>>;
 }

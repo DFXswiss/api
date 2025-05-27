@@ -99,3 +99,45 @@ export interface BinancePayHeaders {
     signature: string;
     certSN: string;
 }
+
+export interface AddSubMerchantResponse {
+  status: string;
+  code: string;
+  data: {
+    subMerchantId: number;
+  };
+}
+
+export enum BinancePayTerminalType {
+  WEB = 'WEB',
+  APP = 'APP',
+  WAP = 'WAP',
+  MINI_PROGRAM = 'MINI_PROGRAM',
+  PAYMENT_LINK = 'PAYMENT_LINK',
+  OTHER = 'OTHER',
+}
+
+export enum GoodsType {
+  TangibleGoods = '01',
+  VirtualGoods = '02',
+}
+
+export enum GoodsCategory {
+  ElectronicsComputers = '0000',
+  BooksMusicMovies = '1000',
+  HomeGardenTools = '2000',
+  ClothesShoesBags = '3000',
+  ToysKidsBaby = '4000',
+  AutomotiveAccessories = '5000',
+  GameRecharge = '6000',
+  EntertainmentCollection = '7000',
+  Jewelry = '8000',
+  DomesticService = '9000',
+  BeautyCare = 'A000',
+  Pharmacy = 'B000',
+  SportsOutdoors = 'C000',
+  FoodGroceryHealthProducts = 'D000',
+  PetSupplies = 'E000',
+  IndustryScience = 'F000',
+  Others = 'Z000',
+}

@@ -5,8 +5,10 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
+import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import {
+  AddSubMerchantResponse,
   BinancePayHeaders,
   BinancePayWebhookDto,
   CertificateResponse,
@@ -58,6 +60,32 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     return Boolean(
       paymentLink.link.configObj.binancePayMerchantId || paymentLink.link.configObj.binancePaySubMerchantId,
     );
+  }
+
+  public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
+    const subMerchantData = {
+      merchantName: paymentLink.name,
+      storeType: 1,
+      merchantMcc: '1042',
+      country: paymentLink.country?.symbol,
+      siteUrl: paymentLink.website,
+      address: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
+      registrationNumber: paymentLink.registrationNumber,
+      registrationCountry: paymentLink.country?.symbol,
+      registrationAddress: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
+    };
+
+    try {
+      const response = await this.http.post<AddSubMerchantResponse>(
+        `${this.baseUrl}/binancepay/openapi/submerchant/add`,
+        subMerchantData,
+        { headers: this.getHeaders(subMerchantData) },
+      );
+
+      return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
+    } catch (error) {
+      throw error.response?.data || error;
+    }
   }
 
   async createOrder(
@@ -139,7 +167,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
 
   public async verifySignature(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
     const { timestamp, nonce, signature, certSN } = headers;
-    const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
+    const webhookData = JSON.stringify({ ...body, bizId: +body.bizIdStr });
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
 
     const { data } = await this.queryCertificate();
