@@ -33,7 +33,6 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { GenerateOcpStickersDto } from '../dto/generate-ocp-stickers.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
@@ -274,13 +273,17 @@ export class PaymentLinkController {
   }
 
   @Get('stickers')
+  @ApiExcludeEndpoint()
   @ApiOkResponse({ type: StreamableFile })
+  @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
+  @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: true })
   async generateOcpStickers(
-    @Query() dto: GenerateOcpStickersDto,
+    @Query('route') route: string,
+    @Query('externalIds') externalIds: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const externalIds = dto.externalIds.split(',').map((id) => id.trim());
-    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(dto.route, externalIds);
+    const externalIdArray = externalIds.split(',').map((id) => id.trim());
+    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray);
 
     res.set({
       'Content-Type': 'application/pdf',

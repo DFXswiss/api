@@ -518,7 +518,6 @@ export class PaymentLinkService {
           });
 
           // Add OCP Logo
-
           pdf.image(
             ocpLogoBuffer,
             x + pngWidth + qrPadding - borderWidth / 2 + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
