@@ -442,6 +442,10 @@ export class PaymentLinkService {
     const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
     const stickerBuffer = readFileSync(stickerPath);
 
+    // OCP Logo
+    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp-logo.png');
+    const ocpLogoBuffer = readFileSync(ocpLogoPath);
+
     const qrPadding = 5;
     const borderWidth = 2.7;
     const borderColor = '#2130EE'; // #2130EE
@@ -511,6 +515,18 @@ export class PaymentLinkService {
             width: qrWidth - qrPadding * 2,
             height: stickerHeight - qrPadding * 2,
           });
+
+          // Add OCP Logo
+          const ocpLogoSize = 35;
+          pdf.image(
+            ocpLogoBuffer,
+            x + pngWidth + qrPadding + (qrWidth - ocpLogoSize) / 2,
+            y + qrPadding + (stickerHeight - ocpLogoSize) / 2,
+            {
+              width: ocpLogoSize,
+              height: ocpLogoSize,
+            },
+          );
 
           // Add External ID
           pdf.fontSize(4).font('Helvetica');
