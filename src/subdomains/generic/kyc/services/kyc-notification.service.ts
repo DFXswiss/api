@@ -27,10 +27,10 @@ export class KycNotificationService {
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.KYC_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
-    await this.kycReminder();
+    await this.kycStepReminder();
   }
 
-  private async kycReminder(): Promise<void> {
+  private async kycStepReminder(): Promise<void> {
     const entities = await this.kycStepRepo.find({
       where: {
         reminderSentDate: IsNull(),
@@ -92,7 +92,7 @@ export class KycNotificationService {
     }
   }
 
-  async identFailed(userData: UserData, reason: string): Promise<void> {
+  async kycStepFailed(userData: UserData, stepName: string, reason: string): Promise<void> {
     try {
       if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
@@ -102,28 +102,21 @@ export class KycNotificationService {
             userData,
             wallet: userData.wallet,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
-            salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
+            salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation`, params: { stepName } },
             suffix: [
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
-                params: {
-                  reason,
-                },
+                params: { stepName, reason },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.KYC}.retry`,
-                params: {
-                  url: userData.kycUrl,
-                  urlText: userData.kycUrl,
-                },
+                params: { url: userData.kycUrl, urlText: userData.kycUrl },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.button`,
-                params: {
-                  url: userData.kycUrl,
-                },
+                params: { url: userData.kycUrl },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],

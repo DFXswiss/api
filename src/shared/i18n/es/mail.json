@@ -206,9 +206,9 @@
             "message": "Su verificación está completa."
         },
         "failed": {
-            "title": "Tu identificación ha fallado",
-            "salutation": "Tu identificación ha fallado",
-            "message": "Su identificación falló por la siguiente razón:<br>{reason}",
+            "title": "Error en la verificación",
+            "salutation": "Su verificación ({stepName}) ha fallado",
+            "message": "La verificación ({stepName}) ha fallado por el siguiente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Su cuenta está fusionada",
                 "user_data_blocked": "Error desconocido",

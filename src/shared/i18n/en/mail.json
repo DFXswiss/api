@@ -206,9 +206,9 @@
             "message": "Your verification is complete."
         },
         "failed": {
-            "title": "Identification failed",
-            "salutation": "Your identification has failed",
-            "message": "Your identification failed for the following reason:<br>{reason}",
+            "title": "Verification failed",
+            "salutation": "Your verification ({stepName}) has failed",
+            "message": "Your verification ({stepName}) failed for the following reason:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Your account is merged",
                 "user_data_blocked": "Unknown error",

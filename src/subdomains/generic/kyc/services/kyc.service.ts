@@ -138,7 +138,11 @@ export class KycService {
 
       await this.createStepLog(user, step);
 
-      await this.kycNotificationService.identFailed(user, 'Identification session has expired');
+      await this.kycNotificationService.kycStepFailed(
+        user,
+        this.getMailStepName(identStep.name, identStep.userData.language.symbol),
+        'Identification session has expired',
+      );
     }
   }
 
@@ -216,8 +220,9 @@ export class KycService {
         } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
           await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
           if (errors.length === 1) {
-            await this.kycNotificationService.identFailed(
+            await this.kycNotificationService.kycStepFailed(
               entity.userData,
+              this.getMailStepName(entity.name, entity.userData.language.symbol),
               this.getMailFailedReason(comment, entity.userData.language.symbol),
             );
             continue;
@@ -328,6 +333,13 @@ export class KycService {
           )}</li>`,
       )
       .join('')}</ul>`;
+  }
+
+  public getMailStepName(kycStepName: KycStepName, language: string): string {
+    return this.mailFactory.translate(
+      MailFactory.parseMailKey(MailTranslationKey.KYC_STEP_NAMES, kycStepName),
+      language,
+    );
   }
 
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
@@ -638,7 +650,11 @@ export class KycService {
     switch (result) {
       case IdentShortResult.CANCEL:
         await this.kycStepRepo.update(...kycStep.pause(dto));
-        await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
+        await this.kycNotificationService.kycStepFailed(
+          user,
+          this.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
+          this.getIdentReason(type, reason),
+        );
         break;
 
       case IdentShortResult.ABORT:
@@ -669,7 +685,11 @@ export class KycService {
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
         );
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.identFailed(user, this.getIdentReason(type, reason));
+        await this.kycNotificationService.kycStepFailed(
+          user,
+          this.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
+          this.getIdentReason(type, reason),
+        );
 
         break;
 

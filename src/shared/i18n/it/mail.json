@@ -206,9 +206,9 @@
             "message": "La verifica è stata completata."
         },
         "failed": {
-            "title": "La tua identificazione non è riuscita",
-            "salutation": "La tua identificazione non è riuscita",
-            "message": "L'identificazione non è riuscita per il seguente motivo:<br>{reason}",
+            "title": "Verifica fallita",
+            "salutation": "La verifica ({stepName}) è fallita",
+            "message": "La verifica ({stepName}) non è riuscita per il seguente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Il vostro account è stato unito",
                 "user_data_blocked": "Errore sconosciuto",
