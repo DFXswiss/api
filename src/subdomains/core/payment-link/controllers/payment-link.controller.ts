@@ -27,6 +27,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
@@ -283,7 +284,7 @@ export class PaymentLinkController {
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename="ocp-stickers.pdf"',
+      'Content-Disposition': `attachment; filename="DFX_OCP_stickers_${Util.filenameDate()}.pdf"`,
     });
 
     return new StreamableFile(pdfBuffer);

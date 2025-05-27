@@ -446,13 +446,14 @@ export class PaymentLinkService {
     const ocpLogoPath = join(process.cwd(), 'assets', 'ocp-logo.png');
     const ocpLogoBuffer = readFileSync(ocpLogoPath);
 
-    const qrPadding = 5;
+    const qrPadding = 10;
     const borderWidth = 2.7;
     const borderColor = '#2130EE'; // #2130EE
     const cols = 2;
     const rows = 6;
     const margin = 30;
     const stickerSpacing = 20;
+    const ocpLogoSize = 35;
 
     const imgAspect = 1;
     const ratioSum = imgAspect + 1;
@@ -500,7 +501,7 @@ export class PaymentLinkService {
           const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
           const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
             width: 100,
-            margin: 1,
+            margin: 0,
           });
           const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
 
@@ -517,11 +518,11 @@ export class PaymentLinkService {
           });
 
           // Add OCP Logo
-          const ocpLogoSize = 35;
+
           pdf.image(
             ocpLogoBuffer,
-            x + pngWidth + qrPadding + (qrWidth - ocpLogoSize) / 2,
-            y + qrPadding + (stickerHeight - ocpLogoSize) / 2,
+            x + pngWidth + qrPadding - borderWidth / 2 + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
+            y + qrPadding + (stickerHeight - qrPadding * 2 - ocpLogoSize) / 2,
             {
               width: ocpLogoSize,
               height: ocpLogoSize,
@@ -532,7 +533,7 @@ export class PaymentLinkService {
           pdf.fontSize(4).font('Helvetica');
           const textWidth = pdf.widthOfString(externalId);
           const textX = x + pngWidth - textWidth - 5;
-          const textY = y + stickerHeight - 8;
+          const textY = y + stickerHeight - 7;
           pdf.text(externalId, textX, textY);
 
           // Add Border
