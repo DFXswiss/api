@@ -500,7 +500,7 @@ export class PaymentLinkService {
           const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
           const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
           const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-            width: 100,
+            width: 400,
             margin: 0,
           });
           const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
