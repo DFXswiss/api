@@ -15,6 +15,7 @@ export enum AmlError {
   INSTANT_NOT_ALLOWED = 'InstantNotAllowed',
   CRYPTO_CRYPTO_NOT_ALLOWED = 'CryptoCryptoNotAllowed',
   ABROAD_CHF_NOT_ALLOWED = 'AbroadChfNotAllowed',
+  USER_NOT_ACTIVE = 'UserNotActive',
   USER_BLOCKED = 'UserBlocked',
   USER_DELETED = 'UserDeleted',
   USER_DATA_BLOCKED = 'UserDataBlocked',
@@ -95,6 +96,11 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.CHF_ABROAD_TX,
+  },
+  [AmlError.USER_NOT_ACTIVE]: {
+    type: AmlErrorType.MULTI,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
   [AmlError.USER_BLOCKED]: {
     type: AmlErrorType.CRUCIAL,

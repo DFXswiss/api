@@ -15,6 +15,7 @@ export enum Blockchain {
   DEFICHAIN = 'DeFiChain',
   RAILGUN = 'Railgun',
   BINANCE_PAY = 'BinancePay',
+  SOLANA = 'Solana',
 }
 
 export const PaymentLinkBlockchain = {

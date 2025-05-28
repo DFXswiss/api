@@ -70,6 +70,18 @@ export class UpdatePaymentLinkInternalDto {
 
   @IsOptional()
   @IsString()
+  regionManager?: string;
+
+  @IsOptional()
+  @IsString()
+  storeManager?: string;
+
+  @IsOptional()
+  @IsString()
+  storeOwner?: string;
+
+  @IsOptional()
+  @IsString()
   website?: string;
 
   @IsOptional()

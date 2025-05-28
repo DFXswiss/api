@@ -146,15 +146,9 @@ export class UserDataController {
 
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="DFX_export_${this.formatDate()}.zip"`,
+      'Content-Disposition': `attachment; filename="DFX_export_${Util.filenameDate()}.zip"`,
     });
 
     return new StreamableFile(zipContent);
-  }
-
-  // --- HELPER METHODS --- //
-
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
   }
 }

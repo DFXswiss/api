@@ -1,9 +1,12 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -50,7 +53,9 @@ export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
+  private sol: Asset;
   private chf: Fiat;
+
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
@@ -66,9 +71,11 @@ export class TransactionHelper implements OnModuleInit {
     private readonly walletService: WalletService,
     private readonly transactionService: TransactionService,
     private readonly buyService: BuyService,
+    private readonly assetService: AssetService,
   ) {}
 
   onModuleInit() {
+    void this.assetService.getAssetByUniqueName('SOL').then((a) => (this.sol = a));
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
     void this.updateCache();
   }
@@ -286,6 +293,9 @@ export class TransactionHelper implements OnModuleInit {
       this.getNetworkStartFee(to, allowExpiredPrice, user),
     ]);
 
+    if (user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
+      fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
+
     // get specs (CHF)
     const specs = this.getMinSpecs(from, to);
 
@@ -341,6 +351,16 @@ export class TransactionHelper implements OnModuleInit {
       isValid: error == null,
       error,
     };
+  }
+
+  private async getSolanaCreateTokenAccountFee(user: User, asset: Asset): Promise<number> {
+    const solanaService = this.blockchainRegistryService.getService(asset.blockchain) as SolanaService;
+
+    const fee = await solanaService.getCreateTokenAccountFee(user.address, asset);
+    if (!fee) return 0;
+
+    const price = await this.pricingService.getPrice(this.sol, this.chf, true);
+    return price.convert(fee);
   }
 
   async getVolumeChfSince(
@@ -746,11 +766,16 @@ export class TransactionHelper implements OnModuleInit {
       return QuoteError.NATIONALITY_NOT_ALLOWED;
 
     // KYC checks
-    if (AmlHelperService.amlRuleUserCheck([from.amlRuleFrom, to.amlRuleTo], user, paymentMethodIn))
-      return QuoteError.KYC_REQUIRED;
+    const amlRuleError = AmlHelperService.amlRuleQuoteCheck(
+      [from.amlRuleFrom, to.amlRuleTo, user?.userData.nationality?.amlRule],
+      user,
+      paymentMethodIn,
+    );
+    if (amlRuleError) return amlRuleError;
 
-    if (isBuy && AmlHelperService.amlRuleUserCheck(user?.wallet.amlRuleList, user, paymentMethodIn))
-      return QuoteError.KYC_REQUIRED;
+    const walletAmlRuleError =
+      isBuy && AmlHelperService.amlRuleQuoteCheck(user?.wallet.amlRuleList, user, paymentMethodIn);
+    if (walletAmlRuleError) return walletAmlRuleError;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
       return QuoteError.KYC_REQUIRED;

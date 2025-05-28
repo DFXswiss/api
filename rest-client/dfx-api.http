@@ -166,7 +166,7 @@ Authorization: Bearer {{authToken}}
 
 {
   "assetId": 308,
-  "amount": 100,
+  "minAmount": 100,
   "targetOptimal": false
 }
 
@@ -180,7 +180,7 @@ Authorization: Bearer {{authToken}}
 
 {
   "assetId": 290,
-  "amount": 0.05,
+  "minAmount": 0.05,
   "targetOptimal": false
 }
 

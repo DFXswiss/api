@@ -32,9 +32,10 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { IsNull, Like, Not } from 'typeorm';
+import { FindOneOptions, In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
@@ -77,8 +78,8 @@ export class SellService {
     return sell;
   }
 
-  async getById(id: number): Promise<Sell> {
-    return this.sellRepo.findOne({ where: { id }, relations: { user: { userData: true } } });
+  async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
+    return this.sellRepo.findOne({ where: { id }, relations: { user: { userData: true } }, ...options });
   }
 
   async getLatest(userId: number): Promise<Sell | null> {
@@ -89,23 +90,25 @@ export class SellService {
     });
   }
 
-  async getByLabel(userId: number, label: string): Promise<Sell> {
+  async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
     return this.sellRepo.findOne({
       where: { route: { label }, user: { id: userId } },
       relations: { user: { userData: true } },
+      ...options,
     });
   }
 
   validateLightningRoute(route: Sell): void {
     if (!route) throw new NotFoundException('Sell route not found');
-    if (!route.active) throw new BadRequestException('Requested route is not active');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
   }
 
-  async getPaymentRoute(idOrLabel: string): Promise<Sell> {
+  async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<Sell>): Promise<Sell> {
     const isRouteId = !isNaN(+idOrLabel);
-    const sellRoute = isRouteId ? await this.getById(+idOrLabel) : await this.getByLabel(undefined, idOrLabel);
+    const sellRoute = isRouteId
+      ? await this.getById(+idOrLabel, options)
+      : await this.getByLabel(undefined, idOrLabel, options);
 
     try {
       this.validateLightningRoute(sellRoute);
@@ -114,6 +117,16 @@ export class SellService {
       throw new NotFoundException(`Payment route not found`);
     }
     return sellRoute;
+  }
+
+  async getPaymentLinksByRoute(routeIdOrLabel: string, externalIds?: string[]): Promise<PaymentLink[]> {
+    const route = await this.getPaymentRoute(routeIdOrLabel, {
+      relations: { paymentLinks: true },
+      where: { paymentLinks: { externalId: externalIds?.length ? In(externalIds) : undefined } },
+      order: { paymentLinks: { created: 'ASC' } },
+    });
+
+    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.externalId, l])).values());
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {

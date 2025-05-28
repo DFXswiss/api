@@ -32,6 +32,8 @@ export enum FileSubType {
   TX_AUDIT = 'TxAudit',
   ONBOARDING_REPORT = 'OnboardingReport',
   PRE_ONBOARDING_REPORT = 'PreOnboardingReport',
+  OPERATIONAL_ACTIVITY_REPORT = 'OperationalActivityReport',
+  BENEFICIAL_OWNER_REPORT = 'BeneficialOwnerReport',
   FORM_A = 'FormA',
   FORM_K = 'FormK',
   CUSTOMER_PROFILE = 'CustomerProfile',

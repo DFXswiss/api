@@ -740,6 +740,8 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
+  AmlReason.KYC_DATA_NEEDED,
+  AmlReason.BANK_TX_NEEDED,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

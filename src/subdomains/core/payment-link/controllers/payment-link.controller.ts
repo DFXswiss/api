@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
@@ -8,6 +21,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
 import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
@@ -17,6 +31,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
@@ -262,6 +277,27 @@ export class PaymentLinkController {
     return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
   }
 
+  @Get('stickers')
+  @ApiExcludeEndpoint()
+  @ApiOkResponse({ type: StreamableFile })
+  @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
+  @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: true })
+  async generateOcpStickers(
+    @Query('route') route: string,
+    @Query('externalIds') externalIds: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const externalIdArray = externalIds.split(',').map((id) => id.trim());
+    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="DFX_OCP_stickers_${Util.filenameDate()}.pdf"`,
+    });
+
+    return new StreamableFile(pdfBuffer);
+  }
+
   // --- INTEGRATION --- //
   @Post('integration/binance/webhook')
   @ApiExcludeEndpoint()
@@ -278,6 +314,7 @@ export class PaymentLinkController {
   async activateBinancePay(@Param('id') id: string): Promise<void> {
     await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.BINANCE_PAY);
   }
+  
 
   // --- HELPER METHODS --- //
 

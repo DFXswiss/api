@@ -34,16 +34,18 @@ export class PaymentQuoteService {
 
   static readonly PREFIX_UNIQUE_ID = 'plq';
 
-  private readonly transferAmountOrder: Blockchain[] = [
+  private readonly transferAmountBlockchainOrder: Blockchain[] = [
     Blockchain.LIGHTNING,
-    Blockchain.ETHEREUM,
     Blockchain.POLYGON,
     Blockchain.ARBITRUM,
     Blockchain.OPTIMISM,
     Blockchain.BASE,
+    Blockchain.ETHEREUM,
     Blockchain.MONERO,
     Blockchain.BITCOIN,
   ];
+
+  private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
 
   constructor(
     private readonly paymentQuoteRepo: PaymentQuoteRepository,
@@ -288,13 +290,25 @@ export class PaymentQuoteService {
 
     const availableAssets = paymentAssets
       .filter((a) => blockchains.includes(a.blockchain))
-      .sort((a, b) => this.getBlockchainSortOrder(a.blockchain) - this.getBlockchainSortOrder(b.blockchain));
+      .sort((a, b) => {
+        const sortOrderA = this.getBlockchainSortOrder(a.blockchain);
+        const sortOrderB = this.getBlockchainSortOrder(b.blockchain);
+
+        if (sortOrderA === sortOrderB) return this.getAssetSortOrder(a) - this.getAssetSortOrder(b);
+
+        return sortOrderA - sortOrderB;
+      });
 
     return Util.groupBy<Asset, Blockchain>(availableAssets, 'blockchain');
   }
 
   private getBlockchainSortOrder(blockchain: Blockchain): number {
-    const index = this.transferAmountOrder.indexOf(blockchain);
+    const index = this.transferAmountBlockchainOrder.indexOf(blockchain);
+    return index < 0 ? Infinity : index;
+  }
+
+  private getAssetSortOrder(asset: Asset): number {
+    const index = this.transferAmountAssetOrder.indexOf(asset.name);
     return index < 0 ? Infinity : index;
   }
 
@@ -389,7 +403,7 @@ export class PaymentQuoteService {
       const client = this.blockchainRegistryService.getEvmClient(method);
 
       // handle TX ID
-      if (transferInfo.tx) {
+      if (transferInfo.tx && !transferInfo.hex) {
         const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
         for (let i = 0; i < tryCount; i++) {

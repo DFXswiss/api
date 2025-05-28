@@ -88,7 +88,8 @@
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
                 "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
                 "test_only": "Test",
-                "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction"
+                "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction",
+                "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -182,6 +183,15 @@
                 "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line4": "Il n'est pas nécessaire de procéder à une vérification complète, il suffit d'indiquer son nom et son adresse.",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "bank_tx_needed": {
+                "title": "Transaction bancaire requise",
+                "salutation": "Une transaction bancaire est nécessaire pour compléter votre transaction en cours",
+                "line1": "Malheureusement, nous avons besoin d'une transaction bancaire de votre part pour pouvoir exécuter votre transaction.",
+                "line2": "Vous pouvez acheter quelque chose via le site web de DFX Services en tant que transaction bancaire.",
+                "line3": "Une fois cette transaction reçue et payée, la transaction en cours sera également payée automatiquement.",
+                "line4": "Cela signifie qu'une seule transaction à partir de votre compte bancaire est nécessaire.",
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
