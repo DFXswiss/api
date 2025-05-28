@@ -18,10 +18,10 @@ interface BaseTransactionReceipt extends ethers.providers.TransactionReceipt {
 export class BaseClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(BaseClient);
 
-  private l1Provider: ethers.providers.JsonRpcProvider;
-  private l1Wallet: ethers.Wallet;
+  private readonly l1Provider: ethers.providers.JsonRpcProvider;
+  private readonly l1Wallet: ethers.Wallet;
 
-  private crossChainMessenger: CrossChainMessenger;
+  private readonly crossChainMessenger: CrossChainMessenger;
 
   constructor(params: EvmClientParams) {
     super(params);

@@ -5,6 +5,7 @@ import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
+import { GnosisService } from '../../gnosis/gnosis.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
@@ -23,6 +24,7 @@ export class BlockchainRegistryService {
     private readonly optimismService: OptimismService,
     private readonly polygonService: PolygonService,
     private readonly baseService: BaseService,
+    private readonly gnosisService: GnosisService,
     private readonly moneroService: MoneroService,
     private readonly bitcoinService: BitcoinService,
   ) {}
@@ -58,6 +60,8 @@ export class BlockchainRegistryService {
         return this.polygonService;
       case Blockchain.BASE:
         return this.baseService;
+      case Blockchain.GNOSIS:
+        return this.gnosisService;
       case Blockchain.MONERO:
         return this.moneroService;
       case Blockchain.BITCOIN:
@@ -78,6 +82,8 @@ export class BlockchainRegistryService {
         return this.polygonService.getDefaultClient();
       case Blockchain.BASE:
         return this.baseService.getDefaultClient();
+      case Blockchain.GNOSIS:
+        return this.gnosisService.getDefaultClient();
 
       default:
         throw new Error(`No l2 client found for blockchain ${blockchain}`);

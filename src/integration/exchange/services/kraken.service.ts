@@ -25,6 +25,7 @@ export class KrakenService extends ExchangeService {
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
+    Gnosis: undefined,
   };
 
   constructor() {

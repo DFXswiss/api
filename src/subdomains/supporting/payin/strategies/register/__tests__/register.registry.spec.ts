@@ -6,6 +6,7 @@ import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
+import { PayInGnosisService } from '../../../services/payin-gnosis.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
@@ -16,6 +17,7 @@ import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registr
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
+import { GnosisStrategy } from '../impl/gnosis.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
@@ -31,6 +33,7 @@ describe('RegisterStrategyRegistry', () => {
   let optimismStrategy: OptimismStrategy;
   let polygonStrategy: PolygonStrategy;
   let baseStrategy: BaseStrategy;
+  let gnosisStrategy: GnosisStrategy;
 
   let registry: RegisterStrategyRegistryWrapper;
 
@@ -53,6 +56,8 @@ describe('RegisterStrategyRegistry', () => {
 
     baseStrategy = new BaseStrategy(mock<PayInBaseService>());
 
+    gnosisStrategy = new GnosisStrategy(mock<PayInGnosisService>());
+
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,
       lightningStrategy,
@@ -63,6 +68,7 @@ describe('RegisterStrategyRegistry', () => {
       optimismStrategy,
       polygonStrategy,
       baseStrategy,
+      gnosisStrategy,
     );
   });
 
@@ -124,6 +130,12 @@ describe('RegisterStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BaseStrategy);
       });
 
+      it('gets GNOSIS strategy for GNOSIS', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.GNOSIS }));
+
+        expect(strategy).toBeInstanceOf(GnosisStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getRegisterStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -146,6 +158,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     optimismStrategy: OptimismStrategy,
     polygonStrategy: PolygonStrategy,
     baseStrategy: BaseStrategy,
+    gnosisStrategy: GnosisStrategy,
   ) {
     super();
 
@@ -158,5 +171,6 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.add(Blockchain.OPTIMISM, optimismStrategy);
     this.add(Blockchain.POLYGON, polygonStrategy);
     this.add(Blockchain.BASE, baseStrategy);
+    this.add(Blockchain.GNOSIS, gnosisStrategy);
   }
 }

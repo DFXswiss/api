@@ -31,6 +31,7 @@ export class EvmUtil {
     [Blockchain.OPTIMISM, this.blockchainConfig.optimism.optimismChainId],
     [Blockchain.POLYGON, this.blockchainConfig.polygon.polygonChainId],
     [Blockchain.BASE, this.blockchainConfig.base.baseChainId],
+    [Blockchain.GNOSIS, this.blockchainConfig.gnosis.gnosisChainId],
     [Blockchain.BINANCE_SMART_CHAIN, this.blockchainConfig.bsc.bscChainId],
   ]);
 

@@ -28,6 +28,7 @@ export class CryptoService {
     Blockchain.OPTIMISM,
     Blockchain.POLYGON,
     Blockchain.BASE,
+    Blockchain.GNOSIS,
     Blockchain.HAQQ,
   ];
 
@@ -61,6 +62,7 @@ export class CryptoService {
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
         return EvmUtil.getPaymentRequest(address, asset, amount);
@@ -92,6 +94,7 @@ export class CryptoService {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
         return UserAddressType.EVM;
 

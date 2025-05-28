@@ -10,6 +10,7 @@ import { PayoutBaseService } from '../../../services/payout-base.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { PayoutBscService } from '../../../services/payout-bsc.service';
 import { PayoutEthereumService } from '../../../services/payout-ethereum.service';
+import { PayoutGnosisService } from '../../../services/payout-gnosis.service';
 import { PayoutMoneroService } from '../../../services/payout-monero.service';
 import { PayoutOptimismService } from '../../../services/payout-optimism.service';
 import { PayoutPolygonService } from '../../../services/payout-polygon.service';
@@ -23,6 +24,8 @@ import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
+import { GnosisCoinStrategy } from '../impl/gnosis-coin.strategy';
+import { GnosisTokenStrategy } from '../impl/gnosis-token.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
@@ -44,6 +47,8 @@ describe('PayoutStrategyRegistry', () => {
   let polygonToken: PolygonTokenStrategy;
   let baseCoin: BaseCoinStrategy;
   let baseToken: BaseTokenStrategy;
+  let gnosisCoin: GnosisCoinStrategy;
+  let gnosisToken: GnosisTokenStrategy;
 
   let registry: PayoutStrategyRegistryWrapper;
 
@@ -105,6 +110,16 @@ describe('PayoutStrategyRegistry', () => {
     );
     baseCoin = new BaseCoinStrategy(mock<PayoutBaseService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
     baseToken = new BaseTokenStrategy(mock<PayoutBaseService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    gnosisCoin = new GnosisCoinStrategy(
+      mock<PayoutGnosisService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    gnosisToken = new GnosisTokenStrategy(
+      mock<PayoutGnosisService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
 
     registry = new PayoutStrategyRegistryWrapper(
       arbitrumCoin,
@@ -121,6 +136,8 @@ describe('PayoutStrategyRegistry', () => {
       polygonToken,
       baseCoin,
       baseToken,
+      gnosisCoin,
+      gnosisToken,
     );
   });
 
@@ -238,6 +255,22 @@ describe('PayoutStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BaseTokenStrategy);
       });
 
+      it('gets GNOSIS_COIN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.GNOSIS, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(GnosisCoinStrategy);
+      });
+
+      it('gets GNOSIS_TOKEN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.GNOSIS, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(GnosisTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPayoutStrategy(
@@ -267,6 +300,8 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     polygonToken: PolygonTokenStrategy,
     baseCoin: BaseCoinStrategy,
     baseToken: BaseTokenStrategy,
+    gnosisCoin: GnosisCoinStrategy,
+    gnosisToken: GnosisTokenStrategy,
   ) {
     super();
 
@@ -284,5 +319,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
+    this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.COIN }, gnosisCoin);
+    this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.TOKEN }, gnosisToken);
   }
 }

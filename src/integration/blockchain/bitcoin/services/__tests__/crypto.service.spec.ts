@@ -76,6 +76,7 @@ describe('CryptoService', () => {
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,
       Blockchain.BASE,
+      Blockchain.GNOSIS,
       Blockchain.HAQQ,
     ]);
   });
