@@ -63,11 +63,15 @@ export class LimitRequestService {
 
     const update = this.limitRequestRepo.create(dto);
 
-    if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
-      await this.supportIssueRepo.update(entity.supportIssue.id, {
-        state: SupportIssueState.COMPLETED,
-      });
-      if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
+    if (dto.decision !== entity.decision) {
+      if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request decision already final');
+
+      if (LimitRequestFinal(dto.decision)) {
+        await this.supportIssueRepo.update(entity.supportIssue.id, {
+          state: SupportIssueState.COMPLETED,
+        });
+        if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
+      }
     }
 
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {

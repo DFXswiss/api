@@ -112,7 +112,8 @@ export class TradingOrderService implements OnModuleInit {
       // order liquidity
       try {
         const deficitAmount = Util.round(order.amountIn - availableAmount, 8);
-        await this.liquidityService.buyLiquidity(order.assetIn.id, deficitAmount, true);
+        const minDeficitAmount = Util.round(minAmount - availableAmount, 8);
+        await this.liquidityService.buyLiquidity(order.assetIn.id, minDeficitAmount, deficitAmount, true);
       } catch (e) {
         if (!e.message?.includes(LiquidityManagementRuleStatus.PROCESSING))
           throw new Error(

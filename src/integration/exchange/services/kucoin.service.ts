@@ -25,6 +25,7 @@ export class KucoinService extends ExchangeService {
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
+    Solana: undefined,
   };
 
   constructor() {

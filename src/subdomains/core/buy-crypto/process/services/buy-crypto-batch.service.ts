@@ -361,7 +361,7 @@ export class BuyCryptoBatchService {
       // order liquidity
       try {
         const asset = oa;
-        const pipeline = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
+        const pipeline = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, targetDeficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
 
         if (Config.exchangeRateFromLiquidityOrder.includes(asset.name))

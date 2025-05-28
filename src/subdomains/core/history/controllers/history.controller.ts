@@ -114,14 +114,8 @@ export class HistoryController {
 
     res.set({
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="DFX_history_${this.formatDate()}.csv"`,
+      'Content-Disposition': `attachment; filename="DFX_history_${Util.filenameDate()}.csv"`,
     });
     return csvFile;
-  }
-
-  // --- HELPER METHODS --- //
-
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
   }
 }
