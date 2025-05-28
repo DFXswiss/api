@@ -278,7 +278,7 @@ export class TransactionHelper implements OnModuleInit {
       user,
       wallet,
       paymentMethodIn,
-      paymentMethodIn,
+      paymentMethodOut,
       bankIn,
       bankOut,
       from,
