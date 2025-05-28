@@ -459,9 +459,7 @@ export class TransactionController {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 
-    return {
-      pdfData: await this.swissQrService.createTxStatement(txStatementDetails),
-    };
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
   }
 
   @Put(':id/receipt')
@@ -479,9 +477,7 @@ export class TransactionController {
       throw new Error('PDF receipt is only available for CHF and EUR transactions');
     }
 
-    return {
-      pdfData: await this.swissQrService.createTxStatement(txStatementDetails),
-    };
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
   }
 
   // --- HELPER METHODS --- //
@@ -489,10 +485,10 @@ export class TransactionController {
   private async getTransactionDto(
     tx: Transaction | TransactionRequest,
     detailed = false,
-  ): Promise<UnassignedTransactionDto | TransactionDto> {
+  ): Promise<UnassignedTransactionDto | TransactionDto | undefined> {
     return tx instanceof Transaction
-      ? await this.txToTransactionDto(tx, detailed)
-      : await this.waitingTxRequestToTransactionDto(tx, detailed);
+      ? this.txToTransactionDto(tx, detailed)
+      : this.waitingTxRequestToTransactionDto(tx, detailed);
   }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
@@ -552,7 +548,9 @@ export class TransactionController {
     userDataId: number,
     query: TransactionFilter,
   ): Promise<TransactionDetailDto[] | UnassignedTransactionDto[]> {
-    const txList = await this.transactionService.getTransactionsForAccount(userDataId, query.from, query.to);
+    const txList = await this.transactionService
+      .getTransactionsForAccount(userDataId, query.from, query.to)
+      .then((l) => l.filter((tx) => tx.targetEntity));
     const waitingTxRequestList = await this.transactionRequestService.getWaitingTransactionRequest(
       userDataId,
       query.from,
@@ -560,15 +558,9 @@ export class TransactionController {
     );
 
     // map to DTO
-    return [
-      ...(await Util.asyncMap(txList, async (tx) => {
-        if (!tx.targetEntity) return undefined;
-        return this.getTransactionDto(tx, true);
-      }).then((list) => list.filter((dto) => dto))),
-      ...(await Util.asyncMap(waitingTxRequestList, async (txRequest) => {
-        return this.getTransactionDto(txRequest, true);
-      }).then((list) => list.filter((dto) => dto))),
-    ];
+    return Util.asyncMap([...txList, ...waitingTxRequestList], (tx) => this.getTransactionDto(tx, true)).then((l) =>
+      l.filter((tx) => tx),
+    );
   }
 
   private async getTransaction(

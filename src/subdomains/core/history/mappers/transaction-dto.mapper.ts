@@ -309,20 +309,8 @@ export class TransactionDtoMapper {
 
   // Fees
   private static mapFees(entity: BuyCryptoExtended | BuyFiatExtended | TransactionRequestExtended): FeeDto {
-    if (entity instanceof TransactionRequestExtended) {
-      if (entity.rate == null) return null;
-
-      return {
-        rate: entity.rate,
-        bank: 0,
-        fixed: 0,
-        min: 0,
-        network: entity.networkFee,
-        dfx: entity.dfxFee,
-        total: entity.totalFee,
-        networkStart: 0,
-      };
-    }
+    // TODO wait for guaranteed prices PR
+    if (entity instanceof TransactionRequestExtended) return null;
 
     if (entity.percentFee == null) return null;
 
