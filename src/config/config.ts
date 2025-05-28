@@ -125,8 +125,9 @@ export class Configuration {
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
+  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{32,44}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -138,8 +139,9 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '[a-f0-9]{84}';
@@ -530,6 +532,7 @@ export class Configuration {
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
@@ -543,7 +546,7 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['BinancePay', 'KuCoinPay'],
+    manualMethods: ['BinancePay', 'KuCoinPay', 'BitcoinOnChainTaprootAsset'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
@@ -697,6 +700,18 @@ export class Configuration {
       walletAddress: process.env.MONERO_WALLET_ADDRESS,
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
+    solana: {
+      solanaWalletSeed: process.env.SOLANA_WALLET_SEED,
+      solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
+      solanaApiKey: process.env.TATUM_API_KEY,
+      transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 100),
+      createTokenAccountFee: 0.00203928,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.solana.solanaWalletSeed,
+        index: accountIndex,
+      }),
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
@@ -824,6 +839,11 @@ export class Configuration {
   alchemy = {
     apiKey: process.env.ALCHEMY_API_KEY,
     authToken: process.env.ALCHEMY_AUTH_TOKEN,
+  };
+
+  tatum = {
+    apiKey: process.env.TATUM_API_KEY,
+    hmacKey: process.env.TATUM_HMAC_KEY,
   };
 
   request = {

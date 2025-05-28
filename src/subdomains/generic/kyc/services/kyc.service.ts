@@ -244,10 +244,29 @@ export class KycService {
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
 
-        if (entity.isCompleted) await this.completeIdent(entity, nationality);
+        if (entity.isCompleted) {
+          await this.completeIdent(entity, nationality);
+          await this.checkDfxApproval(entity);
+        }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
+    }
+  }
+
+  async checkDfxApproval(kycStep: KycStep): Promise<void> {
+    const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
+      (rs) => !kycStep.userData.hasCompletedStep(rs),
+    );
+
+    if (
+      (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name)) ||
+      (missingCompletedSteps.length === 1 &&
+        missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
+        kycStep.name !== KycStepName.DFX_APPROVAL)
+    ) {
+      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
+      await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
@@ -390,7 +409,7 @@ export class KycService {
     kycHash: string,
     stepId: number,
     data: Partial<UserData>,
-    requiresInternalReview: boolean,
+    reviewStatus: KycStepStatus,
   ): Promise<KycStepBase> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -402,7 +421,7 @@ export class KycService {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
 
-    return this.updateKycStepAndLog(kycStep, user, data, requiresInternalReview);
+    return this.updateKycStepAndLog(kycStep, user, data, reviewStatus);
   }
 
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
@@ -435,14 +454,14 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    return this.updateKycStepAndLog(kycStep, user, data);
+    return this.updateKycStepAndLog(kycStep, user, data, KycStepStatus.MANUAL_REVIEW);
   }
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    return this.updateKycStepAndLog(kycStep, user, data);
+    return this.updateKycStepAndLog(kycStep, user, data, KycStepStatus.MANUAL_REVIEW);
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
@@ -461,7 +480,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.internalReview(url));
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -548,9 +567,9 @@ export class KycService {
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
-    requiresInternalReview = false,
+    reviewStatus: KycStepStatus,
   ): Promise<KycStepBase> {
-    await this.kycStepRepo.update(...(requiresInternalReview ? kycStep.internalReview(data) : kycStep.complete(data)));
+    await this.kycStepRepo.update(...kycStep.update(reviewStatus, data));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -870,7 +889,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return lastTry && !lastTry.isFailed ? undefined : { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
         return { nextStep: undefined };

@@ -60,10 +60,11 @@ export class PaymentQuote extends IEntity {
     return this;
   }
 
-  txReceived(blockchain: Blockchain, tx: string): this {
+  txReceived(blockchain: Blockchain, tx?: string, txId?: string): this {
     this.status = PaymentQuoteStatus.TX_RECEIVED;
     this.txBlockchain = blockchain;
     this.tx = tx;
+    this.txId = txId;
 
     return this;
   }

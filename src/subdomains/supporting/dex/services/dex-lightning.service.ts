@@ -8,7 +8,7 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 
 @Injectable()
 export class DexLightningService {
-  private lightningClient: LightningClient;
+  private readonly lightningClient: LightningClient;
 
   constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, lightningService: LightningService) {
     this.lightningClient = lightningService.getDefaultClient();

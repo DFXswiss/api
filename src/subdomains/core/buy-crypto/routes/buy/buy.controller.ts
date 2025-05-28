@@ -59,14 +59,14 @@ export class BuyController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
     return this.buyService.getUserBuys(jwt.user).then((l) => this.toDtoList(jwt.user, l));
   }
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse({ type: BuyDto })
   async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
     return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
@@ -74,7 +74,7 @@ export class BuyController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
@@ -140,7 +140,7 @@ export class BuyController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -151,7 +151,7 @@ export class BuyController {
 
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
@@ -200,7 +200,7 @@ export class BuyController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiExcludeEndpoint()
   async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.user, +id, dto).then((b) => this.toDto(jwt.user, b));
@@ -208,7 +208,7 @@ export class BuyController {
 
   @Get(':id/history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
     return this.buyCryptoService.getBuyHistory(jwt.user, +id);

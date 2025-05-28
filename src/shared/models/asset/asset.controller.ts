@@ -45,7 +45,7 @@ export class AssetController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateAsset(@Param('id') id: string, @Body() dto: UpdateAssetDto): Promise<Asset> {
     return this.assetService.updateAsset(+id, dto);
   }

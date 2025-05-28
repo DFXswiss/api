@@ -56,6 +56,7 @@ export enum TransactionReason {
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
   KYC_DATA_NEEDED = 'KycDataNeeded',
+  BANK_TX_NEEDED = 'BankTxNeeded',
 }
 
 export const KycRequiredReason = [
@@ -100,6 +101,7 @@ export const TransactionReasonMapper: {
   [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
   [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
   [AmlReason.KYC_DATA_NEEDED]: TransactionReason.KYC_DATA_NEEDED,
+  [AmlReason.BANK_TX_NEEDED]: TransactionReason.BANK_TX_NEEDED,
 };
 
 export class UnassignedTransactionDto {

@@ -88,7 +88,8 @@
                 "video_ident_needed": "Usted debe completar su KYC con la identificación de vídeo para la transacción",
                 "missing_liquidity": "DFX no pudo negociar la cantidad requerida de tokens en el plazo especificado",
                 "test_only": "Prueba",
-                "kyc_data_needed": "Sus datos KYC son necesarios para la transacción"
+                "kyc_data_needed": "Sus datos KYC son necesarios para la transacción",
+                "bank_tx_needed": "Para poder realizar esta operación es necesaria una transacción bancaria"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -182,6 +183,15 @@
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line4": "No es necesario que se identifique completamente, basta con que introduzca su nombre y dirección.",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "bank_tx_needed": {
+                "title": "Transacción bancaria requerida",
+                "salutation": "Se requiere una transacción bancaria para completar su transacción pendiente",
+                "line1": "Lamentablemente, necesitamos una transacción bancaria suya para poder ejecutar su transacción.",
+                "line2": "Puede comprar algo a través del sitio web de DFX Services como una transacción bancaria.",
+                "line3": "Una vez recibida y pagada esta transacción, la transacción pendiente también se pagará automáticamente.",
+                "line4": "Esto significa que sólo se requiere una transacción de su cuenta bancaria.",
+                "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",

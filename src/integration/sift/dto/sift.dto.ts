@@ -1028,6 +1028,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.MISSING_LIQUIDITY]: DeclineCategory.OTHER,
   [AmlReason.TEST_ONLY]: DeclineCategory.OTHER,
   [AmlReason.KYC_DATA_NEEDED]: DeclineCategory.OTHER,
+  [AmlReason.BANK_TX_NEEDED]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

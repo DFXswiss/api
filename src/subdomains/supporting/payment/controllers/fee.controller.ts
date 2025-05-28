@@ -16,7 +16,7 @@ export class FeeController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async createFee(@Body() dto: CreateFeeDto): Promise<Fee> {
     return this.feeService.createFee(dto);

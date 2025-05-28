@@ -60,6 +60,7 @@ export class LimitRequestService {
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
     const entity = await this.limitRequestRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('LimitRequest not found');
+    if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
     const update = this.limitRequestRepo.create(dto);
 
@@ -76,7 +77,7 @@ export class LimitRequestService {
       ...update,
     });
 
-    return this.limitRequestRepo.save({ ...update, ...Util.removeNullFields(entity) });
+    return this.limitRequestRepo.save({ ...entity, ...Util.removeNullFields(update) });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

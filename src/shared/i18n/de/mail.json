@@ -88,7 +88,8 @@
                 "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen",
                 "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln",
                 "test_only": "Test",
-                "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt"
+                "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
+                "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -181,6 +182,15 @@
                 "line2": "Klicke daher den nachfolgenden Link und führe mindestens die ersten Schritte aus, bis du deinen Namen und deine Adresse eingegeben hast:<br>[url:{urlText}]",
                 "line3": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line4": "Du musst dich nicht zwingend komplett verifizieren, es reicht aus, dass du deinen Namen und deine Adresse einträgst.",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "bank_tx_needed": {
+                "title": "Bank Transaktion erforderlich",
+                "salutation": "Es ist eine Bank Transaktion erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Leider brauchen wir um deine Transaktion ausführen zu können noch eine Banktransaktion von dir.",
+                "line2": "Du kannst über die DFX-Services Webseite etwas kaufen als Banktransaktion.",
+                "line3": "Nachdem diese Transaktion bei uns angekommen ist und ausgezahlt wurde, wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt werden.",
+                "line4": "Es ist also nur eine Transaktion von deinem Bankkonto erforderlich.",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },

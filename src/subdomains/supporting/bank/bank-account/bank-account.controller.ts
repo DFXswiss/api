@@ -25,7 +25,7 @@ export class BankAccountController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
     return this.bankDataService.getValidBankDatasForUser(jwt.account).then((l) => this.toDtoList(l));
@@ -33,7 +33,7 @@ export class BankAccountController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiCreatedResponse({ type: BankAccountDto })
   async createBankAccount(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBankAccountDto): Promise<BankAccountDto> {
     return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => this.toDto(b));
@@ -41,7 +41,7 @@ export class BankAccountController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: BankAccountDto })
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,
@@ -54,7 +54,7 @@ export class BankAccountController {
   // --- IBAN --- //
   @Post('iban')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async addBankAccountIban(@Body() dto: CreateBankAccountInternalDto): Promise<BankAccount> {
     return this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
@@ -62,9 +62,7 @@ export class BankAccountController {
 
   // --- DTO --- //
   private toDtoList(bankDatas: BankData[]): BankAccountDto[] {
-    const uniqueActiveBankDatas = Array.from(
-      new Map(bankDatas.filter((b) => b.active).map((item) => [item.iban, item])).values(),
-    );
+    const uniqueActiveBankDatas = Array.from(new Map(bankDatas.map((item) => [item.iban, item])).values());
     return uniqueActiveBankDatas.map((b) => this.toDto(b));
   }
 
@@ -74,6 +72,8 @@ export class BankAccountController {
       iban: bankData.iban.split(';')[0],
       label: bankData.label,
       preferredCurrency: bankData.preferredCurrency ? FiatDtoMapper.toDto(bankData.preferredCurrency) : null,
+      default: bankData.default,
+      active: bankData.active,
     };
   }
 }

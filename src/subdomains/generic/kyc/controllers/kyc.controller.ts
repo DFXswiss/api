@@ -61,6 +61,7 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
+import { KycStepStatus } from '../enums/kyc.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -82,7 +83,7 @@ export class KycController {
   // --- 2FA --- //
   @Get('2fa')
   @ApiOkResponse({ description: '2FA active' })
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> {
     return this.tfaService.check(jwt.account, ip, level);
   }
@@ -197,7 +198,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycLegalEntityData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, false);
+    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.COMPLETED);
   }
 
   @Put('data/owner/:id')
@@ -220,7 +221,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycNationalityData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, true);
+    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.INTERNAL_REVIEW);
   }
 
   @Put('data/commercial/:id')
@@ -267,7 +268,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, true);
+    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.MANUAL_REVIEW);
   }
 
   @Put('data/beneficial/:id')

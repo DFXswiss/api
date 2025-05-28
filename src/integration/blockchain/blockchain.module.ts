@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { RailgunModule } from '../railgun/railgun.module';
@@ -18,12 +18,13 @@ import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { EvmGasPriceService } from './shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
+import { SolanaModule } from './solana/solana.module';
 
 @Module({
   providers: [EvmDecimalsService, EvmGasPriceService, CryptoService, BlockchainRegistryService],
   imports: [
     SharedModule,
-    AinModule,
+    BitcoinModule,
     BscModule,
     EthereumModule,
     OptimismModule,
@@ -37,9 +38,10 @@ import { CryptoService } from './shared/services/crypto.service';
     Ebel2xModule,
     ArweaveModule,
     RailgunModule,
+    SolanaModule,
   ],
   exports: [
-    AinModule,
+    BitcoinModule,
     BscModule,
     EthereumModule,
     OptimismModule,
@@ -52,6 +54,7 @@ import { CryptoService } from './shared/services/crypto.service';
     DEuroModule,
     Ebel2xModule,
     RailgunModule,
+    SolanaModule,
     EvmGasPriceService,
     CryptoService,
     BlockchainRegistryService,

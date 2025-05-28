@@ -61,6 +61,10 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`${query.name}-${query.blockchain}-${query.type}`, query);
   }
 
+  async getCustodyAssetByName(name: string): Promise<Asset> {
+    return this.assetRepo.findOneCachedBy(`${name}`, { name });
+  }
+
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
@@ -172,6 +176,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'XMR',
       blockchain: Blockchain.MONERO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getSolanaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'SOL',
+      blockchain: Blockchain.SOLANA,
       type: AssetType.COIN,
     });
   }

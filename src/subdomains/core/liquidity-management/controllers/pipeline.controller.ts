@@ -22,27 +22,27 @@ export class LiquidityManagementPipelineController {
   @Post('buy')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async buyLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
-    const { assetId, amount, targetOptimal } = dto;
+    const { assetId, minAmount, maxAmount, targetOptimal } = dto;
 
-    return this.lmService.buyLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
+    return this.lmService.buyLiquidity(assetId, minAmount, maxAmount ?? minAmount, targetOptimal).then((p) => p.id);
   }
 
   @Post('sell')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sellLiquidity(@Body() dto: LiquidityManagementRequestDto): Promise<PipelineId> {
-    const { assetId, amount, targetOptimal } = dto;
+    const { assetId, minAmount, maxAmount, targetOptimal } = dto;
 
-    return this.lmService.sellLiquidity(assetId, amount, targetOptimal).then((p) => p.id);
+    return this.lmService.sellLiquidity(assetId, minAmount, maxAmount ?? minAmount, targetOptimal).then((p) => p.id);
   }
 
   @Get(':id/status')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getPipelineStatus(@Param('id') id: number): Promise<LiquidityManagementPipelineStatus> {
     return this.pipelineService.getPipelineStatus(id);
   }
@@ -50,7 +50,7 @@ export class LiquidityManagementPipelineController {
   @Get('in-progress')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getProcessingPipelines(): Promise<LiquidityManagementPipeline[]> {
     return this.pipelineService.getProcessingPipelines();
   }
@@ -58,7 +58,7 @@ export class LiquidityManagementPipelineController {
   @Get('stopped')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getStoppedPipelines(): Promise<LiquidityManagementPipeline[]> {
     return this.pipelineService.getStoppedPipelines();
   }

@@ -26,7 +26,7 @@ export class RouteController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse({ type: RouteDto })
   @ApiExcludeEndpoint()
   async getAllRoutes(@GetJwt() jwt: JwtPayload): Promise<RouteDto> {
@@ -37,11 +37,10 @@ export class RouteController {
     ]).then(([buy, sell, swap]) => ({ buy, sell, swap, crypto: swap }));
   }
 
-
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateRoute(@Param('id') id: string, @Body() dto: UpdateRouteDto): Promise<Route> {
     return this.routeService.updateRoute(+id, dto);
   }

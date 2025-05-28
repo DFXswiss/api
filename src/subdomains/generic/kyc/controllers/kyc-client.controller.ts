@@ -17,7 +17,7 @@ export class KycClientController {
 
   @Get('users')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycClientDataDto, isArray: true })
   async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycClientDataDto[]> {
     return this.kycClientService.getAllKycData(jwt.user);
@@ -25,7 +25,7 @@ export class KycClientController {
 
   @Get('payments')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
   async getAllPayments(
     @GetJwt() jwt: JwtPayload,
@@ -41,7 +41,7 @@ export class KycClientController {
 
   @Get('users/:id/documents')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycReportDto, isArray: true })
   async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycReportDto[]> {
     return this.kycClientService.getKycFiles(id, jwt.user);
@@ -49,7 +49,7 @@ export class KycClientController {
 
   @Get('users/:id/documents/:type')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: Buffer })
   async getKycFile(
     @GetJwt() jwt: JwtPayload,
@@ -61,7 +61,7 @@ export class KycClientController {
 
   @Get('users/:id/payments')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
   async getUserPayments(
     @GetJwt() jwt: JwtPayload,
