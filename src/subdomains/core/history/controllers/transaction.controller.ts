@@ -522,10 +522,6 @@ export class TransactionController {
     return tx;
   }
 
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
-  }
-
   private cacheCsv(csvFile: StreamableFile): string {
     const fileKey = Util.randomId().toString();
     this.files[fileKey] = csvFile;
@@ -536,7 +532,7 @@ export class TransactionController {
   private setCsvResult(res: Response, exportType: ExportType) {
     res.set({
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="DFX_${exportType}_history_${this.formatDate()}.csv"`,
+      'Content-Disposition': `attachment; filename="DFX_${exportType}_history_${Util.filenameDate()}.csv"`,
     });
   }
 
