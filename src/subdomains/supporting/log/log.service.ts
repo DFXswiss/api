@@ -52,7 +52,7 @@ export class LogService {
   async getBankLogs(batchIds: string[]): Promise<Log[]> {
     const query = this.logRepo
       .createQueryBuilder('log')
-      .where('subsystem = UploadBank')
+      .where('subsystem = :subsystem', { subsystem: 'UploadBank' })
       .andWhere('severity = :severity', { severity: LogSeverity.INFO });
 
     query.andWhere(
