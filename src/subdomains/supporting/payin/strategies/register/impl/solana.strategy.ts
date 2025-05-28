@@ -98,13 +98,15 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
     const isNativeTransaction = dto.type === 'native';
 
     return {
-      senderAddresses: dto.counterAddresses[0],
+      senderAddresses: dto.counterAddresses.join(','),
       receiverAddress: BlockchainAddress.create(dto.address, this.blockchain),
       txId: dto.txId,
       txType: this.getTxType(dto.address),
       blockHeight: dto.blockNumber,
       amount: Number(dto.amount),
-      asset: isNativeTransaction ? null : this.getTransactionAsset(supportedAssets, dto.asset) ?? null,
+      asset: isNativeTransaction
+        ? this.getTransactionCoin(supportedAssets)
+        : this.getTransactionAsset(supportedAssets, dto.asset),
     };
   }
 
@@ -112,9 +114,13 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
     return Util.equalsIgnoreCase(this.solanaPaymentDepositAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
   }
 
+  private getTransactionCoin(supportedAssets: Asset[]): Asset | undefined {
+    return supportedAssets.find((a) => a.type === AssetType.COIN);
+  }
+
   private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
     return chainId
       ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
-      : supportedAssets.find((a) => a.type === AssetType.COIN);
+      : this.getTransactionCoin(supportedAssets);
   }
 }
