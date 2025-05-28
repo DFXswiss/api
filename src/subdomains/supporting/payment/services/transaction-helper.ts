@@ -203,22 +203,20 @@ export class TransactionHelper implements OnModuleInit {
     user: User,
   ): Promise<InternalFeeDto & FeeDto> {
     // get fee
-    const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(
-        user,
-        undefined,
-        paymentMethodIn,
-        paymentMethodOut,
-        bankIn,
-        bankOut,
-        from,
-        to,
-        inputAmountChf,
-        [],
-        false,
-      ),
-      this.getNetworkStartFee(to, false, user),
-    ]);
+    const [fee, networkStartFee] = await this.getAllFees(
+      user,
+      undefined,
+      paymentMethodIn,
+      paymentMethodOut,
+      bankIn,
+      bankOut,
+      from,
+      to,
+      inputAmountChf,
+      [],
+      false,
+      false,
+    );
 
     // get specs
     const minSpecs = this.getMinSpecs(from, to);
@@ -276,25 +274,20 @@ export class TransactionHelper implements OnModuleInit {
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
 
     // get fee
-    const [fee, networkStartFee] = await Promise.all([
-      this.getTxFee(
-        user,
-        wallet,
-        paymentMethodIn,
-        paymentMethodOut,
-        bankIn,
-        bankOut,
-        from,
-        to,
-        txAmountChf,
-        specialCodes,
-        true,
-      ),
-      this.getNetworkStartFee(to, allowExpiredPrice, user),
-    ]);
-
-    if (user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
-      fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
+    const [fee, networkStartFee] = await this.getAllFees(
+      user,
+      wallet,
+      paymentMethodIn,
+      paymentMethodIn,
+      bankIn,
+      bankOut,
+      from,
+      to,
+      txAmountChf,
+      specialCodes,
+      allowExpiredPrice,
+      true,
+    );
 
     // get specs (CHF)
     const specs = this.getMinSpecs(from, to);
@@ -351,16 +344,6 @@ export class TransactionHelper implements OnModuleInit {
       isValid: error == null,
       error,
     };
-  }
-
-  private async getSolanaCreateTokenAccountFee(user: User, asset: Asset): Promise<number> {
-    const solanaService = this.blockchainRegistryService.getService(asset.blockchain) as SolanaService;
-
-    const fee = await solanaService.getCreateTokenAccountFee(user.address, asset);
-    if (!fee) return 0;
-
-    const price = await this.pricingService.getPrice(this.sol, this.chf, true);
-    return price.convert(fee);
   }
 
   async getVolumeChfSince(
@@ -529,6 +512,43 @@ export class TransactionHelper implements OnModuleInit {
     return refundEntity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(refundEntity.inputAsset));
   }
 
+  private async getAllFees(
+    user: User | undefined,
+    wallet: Wallet | undefined,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
+    bankIn: CardBankName | IbanBankName,
+    bankOut: CardBankName | IbanBankName,
+    from: Active,
+    to: Active,
+    txAmountChf: number,
+    specialCodes: string[],
+    allowExpiredPrice: boolean,
+    allowCachedBlockchainFee: boolean,
+  ): Promise<[InternalFeeDto, number]> {
+    const [fee, networkStartFee] = await Promise.all([
+      this.getTxFee(
+        user,
+        wallet,
+        paymentMethodIn,
+        paymentMethodOut,
+        bankIn,
+        bankOut,
+        from,
+        to,
+        txAmountChf,
+        specialCodes,
+        allowCachedBlockchainFee,
+      ),
+      this.getNetworkStartFee(to, allowExpiredPrice, user),
+    ]);
+
+    if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
+      fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
+
+    return [fee, networkStartFee];
+  }
+
   private async getNetworkStartFee(to: Active, allowExpiredPrice: boolean, user?: User): Promise<number> {
     if (
       allowExpiredPrice ||
@@ -551,6 +571,16 @@ export class TransactionHelper implements OnModuleInit {
       this.logger.error(`Failed to get network start fee for user ${user.id} on ${to.blockchain}:`, e);
       return 0;
     }
+  }
+
+  private async getSolanaCreateTokenAccountFee(user: User, asset: Asset): Promise<number> {
+    const solanaService = this.blockchainRegistryService.getService(asset.blockchain) as SolanaService;
+
+    const fee = await solanaService.getCreateTokenAccountFee(user.address, asset);
+    if (!fee) return 0;
+
+    const price = await this.pricingService.getPrice(this.sol, this.chf, true);
+    return price.convert(fee);
   }
 
   private async getTxFee(

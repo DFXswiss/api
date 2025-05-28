@@ -30,9 +30,11 @@ async function bootstrap() {
 
   app.use(morgan('dev'));
   app.use(helmet());
-  app.use(cors({
-    exposedHeaders: ['content-disposition']
-  }));
+  app.use(
+    cors({
+      exposedHeaders: ['content-disposition'],
+    }),
+  );
 
   app.use('/v2/kyc/ident/sumsub', raw({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/alchemy/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
