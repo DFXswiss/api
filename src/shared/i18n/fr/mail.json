@@ -206,9 +206,9 @@
             "message": "Votre vérification est terminée."
         },
         "failed": {
-            "title": "La vérification a échoué",
-            "salutation": "Votre vérification ({stepName}) a échoué",
-            "message": "Votre vérification ({stepName}) a échoué pour la raison suivante:<br>{reason}",
+            "title": "Problème de vérification",
+            "salutation": "Il y a eu un problème avec votre vérification",
+            "message": "L'étape '{stepName}' n'a pas pu être achevée pour la raison suivante:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Votre compte est fusionné",
                 "user_data_blocked": "Erreur inconnue",

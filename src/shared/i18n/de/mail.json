@@ -206,9 +206,9 @@
             "message": "Deine Verifikation ist abgeschlossen."
         },
         "failed": {
-            "title": "Verifikation fehlgeschlagen",
-            "salutation": "Deine Verifikation ({stepName}) ist fehlgeschlagen",
-            "message": "Deine Verifikation ({stepName}) ist aus folgendem Grund fehlgeschlagen:<br>{reason}",
+            "title": "Problem bei Verifizierung",
+            "salutation": "Es gab ein Problem bei deiner Verifizierung",
+            "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Dein Account wurde gemerged",
                 "user_data_blocked": "Unbekannter Fehler",

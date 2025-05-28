@@ -206,9 +206,9 @@
             "message": "La verifica è stata completata."
         },
         "failed": {
-            "title": "Verifica fallita",
-            "salutation": "La verifica ({stepName}) è fallita",
-            "message": "La verifica ({stepName}) non è riuscita per il seguente motivo:<br>{reason}",
+            "title": "Problema di verifica",
+            "salutation": "Si è verificato un problema con la verifica",
+            "message": "Il passo '{stepName}' non ha potuto essere completato per il seguente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Il vostro account è stato unito",
                 "user_data_blocked": "Errore sconosciuto",
