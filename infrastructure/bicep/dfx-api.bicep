@@ -112,6 +112,14 @@ param baseSwapContractAddress string
 param baseQuoteContractAddress string
 param baseChainId string
 
+param gnosisWalletAddress string
+@secure()
+param gnosisWalletPrivateKey string
+param gnosisGatewayUrl string
+param gnosisSwapContractAddress string
+param gnosisQuoteContractAddress string
+param gnosisChainId string
+
 param bscWalletAddress string
 @secure()
 param bscWalletPrivateKey string
@@ -832,6 +840,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BASE_CHAIN_ID'
           value: baseChainId
+        }
+        {
+          name: 'GNOSIS_WALLET_ADDRESS'
+          value: gnosisWalletAddress
+        }
+        {
+          name: 'GNOSIS_WALLET_PRIVATE_KEY'
+          value: gnosisWalletPrivateKey
+        }
+        {
+          name: 'GNOSIS_GATEWAY_URL'
+          value: gnosisGatewayUrl
+        }
+        {
+          name: 'GNOSIS_SWAP_CONTRACT_ADDRESS'
+          value: gnosisSwapContractAddress
+        }
+        {
+          name: 'GNOSIS_QUOTE_CONTRACT_ADDRESS'
+          value: gnosisQuoteContractAddress
+        }
+        {
+          name: 'GNOSIS_CHAIN_ID'
+          value: gnosisChainId
         }
         {
           name: 'BSC_WALLET_ADDRESS'
