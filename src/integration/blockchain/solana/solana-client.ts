@@ -299,6 +299,7 @@ export class SolanaClient extends BlockchainClient {
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const amount = 10 / Solana.LAMPORTS_PER_SOL;
     const transaction = await this.createNativeCoinTransaction(this.wallet, this.randomReceiverAddress, amount);
+    this.wallet.signTransaction(transaction);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
     const feeInLamports = response.value;
@@ -309,6 +310,7 @@ export class SolanaClient extends BlockchainClient {
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
     const amount = 10 / Solana.LAMPORTS_PER_SOL;
     const transaction = await this.createTokenTransaction(this.wallet, token, this.randomReceiverAddress, amount);
+    this.wallet.signTransaction(transaction);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
     const feeInLamports = response.value;
