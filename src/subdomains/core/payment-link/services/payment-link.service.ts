@@ -436,7 +436,9 @@ export class PaymentLinkService {
   }
 
   async generateOcpStickersPdf(routeIdOrLabel: string, externalIds: string[]): Promise<Buffer> {
-    const paymentLinks = await this.sellService.getPaymentLinksByRoute(routeIdOrLabel, externalIds);
+    const paymentLinksFromDb = await this.sellService.getPaymentLinksByRoute(routeIdOrLabel, externalIds);
+    const paymentLinksMap = new Map(paymentLinksFromDb.map((link) => [link.externalId, link]));
+    const paymentLinks = externalIds.map((id) => paymentLinksMap.get(id)).filter(Boolean);
 
     // Blue OCP Image
     const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');

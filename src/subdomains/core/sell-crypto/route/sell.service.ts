@@ -123,17 +123,10 @@ export class SellService {
     const route = await this.getPaymentRoute(routeIdOrLabel, {
       relations: { paymentLinks: true },
       where: { paymentLinks: { externalId: externalIds?.length ? In(externalIds) : undefined } },
+      order: { paymentLinks: { created: 'ASC' } },
     });
 
-    const latestLinksMap = (route.paymentLinks || []).reduce((map, link) => {
-      const existing = map.get(link.externalId);
-      if (!existing || link.created > existing.created) {
-        map.set(link.externalId, link);
-      }
-      return map;
-    }, new Map<string, PaymentLink>());
-
-    return Array.from(latestLinksMap.values());
+    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.externalId, l])).values());
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {
