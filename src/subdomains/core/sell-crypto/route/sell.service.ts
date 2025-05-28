@@ -7,6 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -79,7 +80,8 @@ export class SellService {
   }
 
   async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
-    return this.sellRepo.findOne({ where: { id }, relations: { user: { userData: true } }, ...options });
+    const defaultOptions = { where: { id }, relations: { user: { userData: true } } };
+    return this.sellRepo.findOne(merge(defaultOptions, options));
   }
 
   async getLatest(userId: number): Promise<Sell | null> {
@@ -91,11 +93,11 @@ export class SellService {
   }
 
   async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
-    return this.sellRepo.findOne({
+    const defaultOptions = {
       where: { route: { label }, user: { id: userId } },
       relations: { user: { userData: true } },
-      ...options,
-    });
+    };
+    return this.sellRepo.findOne(merge(defaultOptions, options));
   }
 
   validateLightningRoute(route: Sell): void {
@@ -128,7 +130,6 @@ export class SellService {
 
     return Array.from(new Map((route.paymentLinks || []).map((l) => [l.externalId, l])).values());
   }
-
   async getSellByKey(key: string, value: any): Promise<Sell> {
     return this.sellRepo
       .createQueryBuilder('sell')
