@@ -1,5 +1,5 @@
 export abstract class StrategyRegistry<K, S> {
-  private registry: Map<string, S> = new Map();
+  private readonly registry: Map<string, S> = new Map();
 
   add(key: K, strategy: S) {
     this.registry.set(this.getKey(key), strategy);
