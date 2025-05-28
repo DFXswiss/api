@@ -9,12 +9,21 @@ import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-l
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import {
   AddSubMerchantResponse,
+  BinanceBizType,
   BinancePayHeaders,
+  BinancePayStatus,
+  BinancePayTerminalType,
   BinancePayWebhookDto,
+  BinanceRefundStatus,
   CertificateResponse,
   ChannelPartnerOrderData,
+  GoodsCategory,
+  GoodsType,
+  MerchantMCC,
   OrderData,
   OrderResponse,
+  ResponseStatus,
+  StoreType,
   SubMerchantOrderData,
 } from '../dto/binance.dto';
 import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
@@ -65,8 +74,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
     const subMerchantData = {
       merchantName: paymentLink.name,
-      storeType: 1,
-      merchantMcc: '1042',
+      storeType: StoreType.PHYSICAL,
+      merchantMcc: MerchantMCC.RetailTradeOthers,
       country: paymentLink.country?.symbol,
       siteUrl: paymentLink.website,
       address: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
@@ -95,7 +104,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   ): Promise<OrderResult> {
     const orderDetails: OrderData = {
       env: {
-        terminalType: 'OTHERS',
+        terminalType: BinancePayTerminalType.OTHER,
       },
       merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
@@ -103,8 +112,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       description: payment.memo,
       goodsDetails: [
         {
-          goodsType: '01',
-          goodsCategory: 'D000',
+          goodsType: GoodsType.TangibleGoods,
+          goodsCategory: GoodsCategory.FoodGroceryHealthProducts,
           referenceGoodsId: '01',
           goodsName: payment.memo,
           goodsDetail: payment.memo,
@@ -147,7 +156,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   async queryCertificate(): Promise<CertificateResponse> {
     if (this.certificatedExpiry > Date.now()) {
       return {
-        status: 'SUCCESS',
+        status: ResponseStatus.SUCCESS,
         code: '000000',
         data: this.cert,
       };
@@ -180,17 +189,17 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
 
   private getStatus(status: string): C2BPaymentStatus {
     switch (status) {
-      case 'PAY_SUCCESS':
+      case BinancePayStatus.PAY_SUCCESS:
         return C2BPaymentStatus.COMPLETED;
-      case 'REFUND_SUCCESS':
+      case BinanceRefundStatus.REFUND_SUCCESS:
         return C2BPaymentStatus.REFUNDED;
-      case 'PAY_CLOSED':
+      case BinancePayStatus.PAY_CLOSED:
         return C2BPaymentStatus.FAILED;
     }
   }
 
   private isSupportedBizType(bizType: string): boolean {
-    return bizType === 'PAY' || bizType === 'PAY_REFUND';
+    return bizType === BinanceBizType.PAY || bizType === BinanceBizType.PAY_REFUND;
   }
 
   async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
