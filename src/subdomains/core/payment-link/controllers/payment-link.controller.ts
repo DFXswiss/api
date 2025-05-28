@@ -311,10 +311,10 @@ export class PaymentLinkController {
 
   @Post('integration/binance/activate/:id')
   @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async activateBinancePay(@Param('id') id: string): Promise<void> {
     await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.BINANCE_PAY);
   }
-  
 
   // --- HELPER METHODS --- //
 
