@@ -41,11 +41,13 @@ export class KycAdminService {
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
 
     if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
-    if (kycStep.isFailed && kycStep.name !== KycStepName.IDENT && kycStep.comment)
+    if (kycStep.isFailed && kycStep.comment)
       await this.kycNotificationService.kycStepFailed(
         kycStep.userData,
         this.kycService.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
-        kycStep.comment,
+        kycStep.name === KycStepName.IDENT
+          ? this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol)
+          : kycStep.comment,
       );
 
     switch (kycStep.name) {
@@ -55,12 +57,6 @@ export class KycAdminService {
 
       case KycStepName.IDENT:
         if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
-        if (kycStep.isFailed)
-          await this.kycNotificationService.kycStepFailed(
-            kycStep.userData,
-            this.kycService.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
-            this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol),
-          );
         break;
 
       case KycStepName.DFX_APPROVAL:
