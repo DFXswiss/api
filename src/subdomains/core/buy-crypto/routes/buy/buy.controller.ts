@@ -185,7 +185,7 @@ export class BuyController {
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse()
   async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
