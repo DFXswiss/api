@@ -13,7 +13,7 @@ export abstract class SolanaStrategy extends SendStrategy {
     super();
   }
 
-  protected abstract sendTransfer(payIn: CryptoInput): Promise<string>;
+  protected abstract sendTransfer(payIn: CryptoInput, type: SendType): Promise<string>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     for (const payIn of payIns) {
@@ -28,7 +28,7 @@ export abstract class SolanaStrategy extends SendStrategy {
 
         CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
 
-        const outTxId = await this.sendTransfer(payIn);
+        const outTxId = await this.sendTransfer(payIn, type);
         await this.updatePayInWithSendData(payIn, type, outTxId);
 
         await this.payInRepo.save(payIn);
