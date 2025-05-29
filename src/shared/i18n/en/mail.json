@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your wallet address",
-                "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]"
+                "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]",
+                "transaction_button": "Click the button below for more details about your reimbursement:<br>[url:click here]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
@@ -194,19 +195,12 @@
                 "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             }
         },
-        "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",
-        "blockchain": "Blockchain",
-        "bank_account": "Bank Account",
-        "remittance_info": "Purpose of the payment",
-        "transaction_id": "Transaction-ID",
-        "wallet_address": "Wallet address",
-        "reimbursed": "Reimbursed"
+        "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]"
     },
     "referral": {
         "title": "Payout Referral Rewards",
         "salutation": "Your referral rewards have been paid out",
-        "output_amount": "Amount",
-        "payment_link": "Here you can find the transaction ID for your referral payout: [url:Link]",
+        "transaction_button": "Click the button below for more details about your referral reward:<br>[url:click here]",
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
     "kyc": {

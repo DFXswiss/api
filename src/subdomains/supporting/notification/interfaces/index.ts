@@ -2,6 +2,7 @@ import { ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail
 import { MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput } from '../entities/mail/personal-mail';
 import { MailRequestUserInput } from '../entities/mail/user-mail';
+import { MailRequestUserInputV2 } from '../entities/mail/user-mail-v2';
 import { NotificationOptions } from '../entities/notification.entity';
 import { MailContext, MailType } from '../enums';
 
@@ -12,6 +13,7 @@ export interface MailRequest {
     | MailRequestGenericInput
     | ErrorMonitoringMailInput
     | MailRequestUserInput
+    | MailRequestUserInputV2
     | MailRequestPersonalInput
     | MailRequestInternalInput;
   correlationId?: string;
@@ -23,12 +25,17 @@ export interface MailAffix {
     link: string;
     text: string;
     textSuffix?: string;
+    button: string;
   };
   mail?: {
     address: string;
     textSuffix?: string;
+    button: string;
   };
   style?: string;
+  marginTop?: string;
+  marginBottom?: string;
+  underline?: string;
   text: string;
 }
 
@@ -36,6 +43,10 @@ export enum MailParamKey {
   STYLE = 'style',
   VALUE = 'value',
   URL = 'url',
+  BUTTON = 'button',
+  UNDERLINE = 'underline',
+  MARGIN_TOP = 'marginTop',
+  MARGIN_BOTTOM = 'marginBottom',
 }
 
 export type TranslationParams = { [key in MailParamKey]?: string } | Record<string, string>;

@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Los fondos han sido reembolsados",
                 "salutation": "Tus fondos han sido reembolsados a la dirección de tu billetera",
-                "payment_link": "Aquí encontrará el identificador<br>de su reembolso: [url:Link]"
+                "payment_link": "Aquí encontrará el identificador<br>de su reembolso: [url:Link]",
+                "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su reembolso:<br>[url:haga clic aquí]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
@@ -194,19 +195,12 @@
                 "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
             }
         },
-        "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",
-        "blockchain": "Blockchain",
-        "bank_account": "Cuenta bancaria",
-        "remittance_info": "Uso bancario",
-        "transaction_id": "Identificador de la transacción",
-        "wallet_address": "Dirección de la billetera",
-        "reimbursed": "Reembolsados"
+        "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]"
     },
     "referral": {
         "title": "Pago de Recompensas por Referidos",
         "salutation": "Tus recompensas por referidos han sido pagadas",
-        "output_amount": "Cantidad",
-        "payment_link": "Aquí puedes encontrar la ID de la transacción del pago de referidos: [url:Link]",
+        "transaction_button": "Haga clic en el siguiente botón para obtener más información sobre su recompensa por recomendación:<br>[url:haga clic aquí]",
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
     },
     "kyc": {
