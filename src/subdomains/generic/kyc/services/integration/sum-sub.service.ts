@@ -49,6 +49,7 @@ export class SumsubService {
     return [
       await this.getPdfMedia(webhook.applicantId, webhook.applicantType, kycStep.transactionId),
       ...(await this.getDocumentMedia(webhook.applicantId, kycStep.transactionId)),
+      ...(await this.getVideoMedia(webhook.applicantId, kycStep.transactionId)),
     ];
   }
 
