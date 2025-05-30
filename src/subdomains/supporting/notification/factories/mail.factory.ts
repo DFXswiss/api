@@ -25,6 +25,7 @@ export enum MailTranslationKey {
   FIAT_CHARGEBACK = 'mail.payment.chargeback.fiat',
   REFERRAL = 'mail.referral',
   KYC = 'mail.kyc',
+  KYC_STEP_NAMES = 'mail.kyc.step_names',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
   KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',

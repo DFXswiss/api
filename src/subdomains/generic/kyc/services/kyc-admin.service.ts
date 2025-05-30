@@ -38,9 +38,17 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
-    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
+    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
 
     if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
+    if (kycStep.isFailed && kycStep.comment)
+      await this.kycNotificationService.kycStepFailed(
+        kycStep.userData,
+        this.kycService.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
+        kycStep.name === KycStepName.IDENT
+          ? this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol)
+          : kycStep.comment,
+      );
 
     switch (kycStep.name) {
       case KycStepName.COMMERCIAL_REGISTER:
@@ -49,12 +57,6 @@ export class KycAdminService {
 
       case KycStepName.IDENT:
         if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
-        if (kycStep.isFailed)
-          await this.kycNotificationService.identFailed(
-            kycStep.userData,
-            this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol),
-          );
-
         break;
 
       case KycStepName.DFX_APPROVAL:

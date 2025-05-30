@@ -210,9 +210,9 @@
             "message": "La verifica è stata completata."
         },
         "failed": {
-            "title": "La tua identificazione non è riuscita",
-            "salutation": "La tua identificazione non è riuscita",
-            "message": "L'identificazione non è riuscita per il seguente motivo:<br>{reason}",
+            "title": "Problema di verifica",
+            "salutation": "Si è verificato un problema con la verifica",
+            "message": "Il passo '{stepName}' non ha potuto essere completato per il seguente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Il vostro account è stato unito",
                 "user_data_blocked": "Errore sconosciuto",
@@ -235,7 +235,23 @@
             "message": "Abbiamo notato che non hai completato la tua verifica."
         },
         "retry": "Riprovare con il seguente URL:<br>[url:{urlText}]",
-        "next_step": "Per procedere alla verifica, cliccare sulla voce di menu in alto a destra del sito web di DFX-Services<br> e poi su \"KYC\"<br> e cliccare sul pulsante \"Continua\" o utilizzare il seguente link:<br>[url:{urlText}]"
+        "next_step": "Per procedere alla verifica, cliccare sulla voce di menu in alto a destra del sito web di DFX-Services<br> e poi su \"KYC\"<br> e cliccare sul pulsante \"Continua\" o utilizzare il seguente link:<br>[url:{urlText}]",
+        "step_names": {
+            "ident": "Identificazione",
+            "personal_data": "Dati personali",
+            "nationality_data": "Nazionalità",
+            "legal_entity": "Persona giuridica",
+            "owner_directory": "Elenco dei proprietari",
+            "commercial_register": "Registro commerciale",
+            "signatory_power": "Potere di firma",
+            "authority": "Procura",
+            "beneficial_owner": "Titolare effettivo",
+            "operational_activity": "Attività operativa",
+            "financial_data": "Dati aggiuntivi",
+            "additional_documents": "Documenti aggiuntivi",
+            "residence_permit": "Permesso di soggiorno",
+            "dfx_approval": "Approvazione DFX"
+        }
     },
     "account_merge": {
         "request": {

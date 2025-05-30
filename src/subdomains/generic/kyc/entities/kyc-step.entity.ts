@@ -174,10 +174,16 @@ export class KycStep extends IEntity {
     return this.isInReview || this.isCompleted;
   }
 
-  update(status: KycStepStatus, result?: KycStepResult, sequenceNumber?: number): UpdateResult<KycStep> {
+  update(
+    status: KycStepStatus,
+    result?: KycStepResult,
+    comment?: string,
+    sequenceNumber?: number,
+  ): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
+      comment,
       sequenceNumber,
     };
 
