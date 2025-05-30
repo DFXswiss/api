@@ -9,6 +9,10 @@ import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
+import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
+import { C2BPaymentStatus } from 'src/integration/c2b-payment-link/share/PaymentStatus';
+import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
@@ -47,6 +51,7 @@ export class PaymentLinkPaymentService {
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly paymentActivationService: PaymentActivationService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
   getDeviceActivationObservable(): Observable<PaymentDevice> {
@@ -233,6 +238,26 @@ export class PaymentLinkPaymentService {
     if (quote.status === PaymentQuoteStatus.TX_FAILED) throw new ServiceUnavailableException(quote.errorMessage);
 
     return { txId: quote.txId };
+  }
+
+  async handleWebhook(provider: C2BPaymentProvider, dto: BinancePayWebhookDto) {
+    const result = await this.c2bPaymentLinkService.handleWebhook(provider, dto);
+    if (result?.status !== C2BPaymentStatus.COMPLETED) return;
+
+    const quote = await this.paymentQuoteService.getQuoteByTxId(
+      C2BPaymentLinkService.mapProviderToBlockchain(provider),
+      result.providerOrderId,
+      [PaymentQuoteStatus.ACTUAL],
+    );
+    if (!quote) throw new Error(`Quote not found by id ${result.providerOrderId}`);
+
+    const payment = await this.paymentLinkPaymentRepo.findOne({
+      where: { id: quote.payment.id },
+      relations: { link: { route: { user: { userData: true } } } },
+    });
+    
+    await this.paymentQuoteService.saveFinallyConfirmed(quote);
+    await this.handleQuoteChange(payment, quote);
   }
 
   // --- HANDLE INPUTS --- //

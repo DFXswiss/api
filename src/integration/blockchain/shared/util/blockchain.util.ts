@@ -37,6 +37,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
+  [Blockchain.BINANCE_PAY]: undefined,
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -56,6 +57,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
+  [Blockchain.BINANCE_PAY]: undefined,
 };
 
 function assetPaths(asset: Asset): string | undefined {

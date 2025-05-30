@@ -5,6 +5,8 @@ import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
+import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/utils/util';
@@ -35,6 +37,7 @@ export class PaymentLinkService {
     private readonly userDataService: UserDataService,
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
   async getOrThrow(
@@ -371,6 +374,17 @@ export class PaymentLinkService {
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
 
     await this.userDataService.updatePaymentLinksConfig(userData, dto);
+  }
+
+  async activateC2BPaymentLink(paymentLinkUniqueId: string, provider: C2BPaymentProvider): Promise<void> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { uniqueId: paymentLinkUniqueId },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
+
+    const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
+    await this.updateUserPaymentLinksConfig(paymentLink.route.userData.id, { ...ids});
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {

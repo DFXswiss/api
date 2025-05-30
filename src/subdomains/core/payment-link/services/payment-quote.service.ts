@@ -5,6 +5,7 @@ import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -54,6 +55,7 @@ export class PaymentQuoteService {
     private readonly evmGasPriceService: EvmGasPriceService,
     private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
   // --- JOBS --- //
@@ -255,11 +257,19 @@ export class PaymentQuoteService {
       }
     }
 
+    if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
+      if (!this.c2bPaymentLinkService.isAvailable(blockchain, payment)) {
+        transferAmount.available = false;
+        transferAmount.assets = [];
+      }
+    }
+
     return transferAmount;
   }
 
   private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
     switch (blockchain) {
+      case Blockchain.BINANCE_PAY:
       case Blockchain.LIGHTNING:
         return 0;
       case Blockchain.ETHEREUM:
