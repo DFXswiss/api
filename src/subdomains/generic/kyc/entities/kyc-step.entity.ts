@@ -406,6 +406,10 @@ export class KycStep extends IEntity {
     return this.type === KycStepType.SUMSUB_AUTO || this.type === KycStepType.SUMSUB_VIDEO;
   }
 
+  get isSumsubVideo(): boolean {
+    return this.type === KycStepType.SUMSUB_VIDEO;
+  }
+
   get isManual(): boolean {
     return this.type === KycStepType.MANUAL;
   }
