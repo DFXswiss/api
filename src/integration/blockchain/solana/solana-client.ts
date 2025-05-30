@@ -305,7 +305,7 @@ export class SolanaClient extends BlockchainClient {
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
     const feeInLamports = response.value + Config.blockchain.solana.transactionPriorityRate;
 
-    return SolanaUtil.fromLamportAmount(feeInLamports);
+    return SolanaUtil.fromLamportAmount(Math.floor(feeInLamports * 1.2));
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
@@ -316,7 +316,7 @@ export class SolanaClient extends BlockchainClient {
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
     const feeInLamports = response.value + Config.blockchain.solana.transactionPriorityRate;
 
-    return SolanaUtil.fromLamportAmount(feeInLamports);
+    return SolanaUtil.fromLamportAmount(Math.floor(feeInLamports * 1.2));
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
