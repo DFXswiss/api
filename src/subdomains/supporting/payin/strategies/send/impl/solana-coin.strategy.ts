@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { SolanaUtil } from 'src/integration/blockchain/solana/SolanaUtil';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -34,16 +36,25 @@ export class SolanaCoinStrategy extends SolanaStrategy {
     return BlockchainAddress.create(this.payInSolanaService.getWalletAddress(), this.blockchain);
   }
 
-  protected async sendTransfer(payIn: CryptoInput, type: SendType): Promise<string> {
+  protected async getFeeAmount(_payIn: CryptoInput): Promise<number> {
+    return this.payInSolanaService.getCurrentGasCostForCoinTransaction();
+  }
+
+  protected async sendTransfer(payIn: CryptoInput, type: SendType, feeAmount: number): Promise<string> {
     const account = Config.blockchain.solana.walletAccount(payIn.route.deposit.accountIndex);
 
-    const amount = type === SendType.FORWARD ? await this.calcSendingAmount(payIn.sendingAmount) : payIn.sendingAmount;
+    const amount =
+      type === SendType.FORWARD
+        ? await this.calcSendingAmount(account, payIn.sendingAmount, feeAmount)
+        : payIn.sendingAmount;
 
     return this.payInSolanaService.sendNativeCoin(account, payIn.destinationAddress.address, amount);
   }
 
-  private async calcSendingAmount(sendingAmount: number): Promise<number> {
-    const gasCost = await this.payInSolanaService.getCurrentGasCostForCoinTransaction();
-    return sendingAmount - gasCost;
+  private async calcSendingAmount(account: WalletAccount, sendingAmount: number, feeAmount: number): Promise<number> {
+    const wallet = SolanaUtil.createWallet(account);
+    const balance = await this.payInSolanaService.getNativeCoinBalanceForAddress(wallet.address);
+
+    return Math.min(sendingAmount, balance - Config.blockchain.solana.createTokenAccountFee) - feeAmount;
   }
 }
