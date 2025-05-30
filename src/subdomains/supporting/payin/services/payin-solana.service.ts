@@ -19,12 +19,20 @@ export class PayInSolanaService {
     return this.client.getWalletAddress();
   }
 
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    return this.client.getCurrentGasCostForCoinTransaction();
+  }
+
   async sendNativeCoin(account: WalletAccount, addressTo: string, amount: number): Promise<string> {
     return this.client.sendNativeCoinFromAccount(account, addressTo, amount);
   }
 
   async sendNativeCoinFromDex(addressTo: string, amount: number): Promise<string> {
     return this.client.sendNativeCoinFromDex(addressTo, amount);
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    return this.client.getCurrentGasCostForTokenTransaction(token);
   }
 
   async sendToken(account: WalletAccount, addressTo: string, token: Asset, amount: number): Promise<string> {

@@ -7,6 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
+import { SendType } from './base/send.strategy';
 import { SolanaStrategy } from './base/solana.strategy';
 
 @Injectable()
@@ -33,7 +34,7 @@ export class SolanaTokenStrategy extends SolanaStrategy {
     return BlockchainAddress.create(this.payInSolanaService.getWalletAddress(), this.blockchain);
   }
 
-  protected async sendTransfer(payIn: CryptoInput): Promise<string> {
+  protected async sendTransfer(payIn: CryptoInput, _type: SendType): Promise<string> {
     const account = Config.blockchain.solana.walletAccount(payIn.route.deposit.accountIndex);
 
     return this.payInSolanaService.sendToken(
