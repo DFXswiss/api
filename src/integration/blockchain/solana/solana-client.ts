@@ -292,7 +292,8 @@ export class SolanaClient extends BlockchainClient {
   }
 
   private calculatePriorityFee(): Solana.TransactionInstruction {
-    const priorityRate = Config.blockchain.solana.transactionPriorityRate;
+    const priorityRate = Config.blockchain.solana.transactionPriorityRate * 100;
+
     return Solana.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityRate });
   }
 
@@ -302,7 +303,7 @@ export class SolanaClient extends BlockchainClient {
     this.wallet.signTransaction(transaction);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
-    const feeInLamports = response.value;
+    const feeInLamports = response.value + Config.blockchain.solana.transactionPriorityRate;
 
     return SolanaUtil.fromLamportAmount(feeInLamports);
   }
@@ -313,7 +314,7 @@ export class SolanaClient extends BlockchainClient {
     this.wallet.signTransaction(transaction);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
-    const feeInLamports = response.value;
+    const feeInLamports = response.value + Config.blockchain.solana.transactionPriorityRate;
 
     return SolanaUtil.fromLamportAmount(feeInLamports);
   }
