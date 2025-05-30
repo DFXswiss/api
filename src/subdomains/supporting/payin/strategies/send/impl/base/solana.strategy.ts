@@ -1,5 +1,10 @@
+import { Config } from 'src/config/config';
 import { LogLevel } from 'src/shared/services/dfx-logger';
-import { CryptoInput, PayInConfirmationType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInConfirmationType,
+  PayInStatus,
+} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInSolanaService } from 'src/subdomains/supporting/payin/services/payin-solana.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
@@ -13,6 +18,8 @@ export abstract class SolanaStrategy extends SendStrategy {
     super();
   }
 
+  protected abstract checkPreparation(payIn: CryptoInput): Promise<boolean>;
+  protected abstract prepareSend(payIn: CryptoInput, estimatedNativeFee: number): Promise<void>;
   protected abstract sendTransfer(payIn: CryptoInput, type: SendType): Promise<string>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
@@ -20,18 +27,42 @@ export abstract class SolanaStrategy extends SendStrategy {
       try {
         this.designateSend(payIn, type);
 
-        const { feeInputAsset: fee, maxFeeInputAsset: maxFee } = await this.getEstimatedForwardFee(
-          payIn.asset,
-          payIn.amount,
-          payIn.destinationAddress.address,
-        );
+        if (payIn.status === PayInStatus.PREPARING) {
+          const isReady = await this.checkPreparation(payIn);
 
-        CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          if (isReady) {
+            payIn.status = PayInStatus.PREPARED;
+          } else {
+            continue;
+          }
+        }
 
-        const outTxId = await this.sendTransfer(payIn, type);
-        await this.updatePayInWithSendData(payIn, type, outTxId);
+        if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payIn.status)) {
+          const { feeNativeAsset, feeInputAsset, maxFeeInputAsset } = await this.getEstimatedForwardFee(
+            payIn.asset,
+            payIn.amount,
+            payIn.destinationAddress.address,
+          );
 
-        await this.payInRepo.save(payIn);
+          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+
+          /**
+           * @note
+           * setting to some default minimal amount in case estimated fees go very low.
+           */
+          const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.solana.minimalPreparationFee);
+
+          await this.prepareSend(payIn, effectivePreparationFee);
+
+          continue;
+        }
+
+        if (payIn.status === PayInStatus.PREPARED) {
+          const outTxId = await this.sendTransfer(payIn, type);
+          await this.updatePayInWithSendData(payIn, type, outTxId, payIn.forwardFeeAmount);
+
+          await this.payInRepo.save(payIn);
+        }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;
 
@@ -63,5 +94,9 @@ export abstract class SolanaStrategy extends SendStrategy {
         this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
       }
     }
+  }
+
+  protected topUpCoin(payIn: CryptoInput, amount: number): Promise<string> {
+    return this.payInSolanaService.sendNativeCoinFromDex(payIn.address.address, amount);
   }
 }

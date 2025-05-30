@@ -30,6 +30,25 @@ export class SolanaTokenStrategy extends SolanaStrategy {
     return true;
   }
 
+  protected async checkPreparation(payIn: CryptoInput): Promise<boolean> {
+    return this.payInSolanaService.checkTransactionCompletion(payIn.prepareTxId, 0);
+  }
+
+  protected async prepareSend(payIn: CryptoInput, nativeFee: number): Promise<void> {
+    const prepareTxId = await this.topUpCoin(payIn, nativeFee);
+
+    const feeAmount = nativeFee;
+    const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
+    const feeAmountChf = feeAmount
+      ? await this.pricingService
+          .getPrice(feeAsset, this.chf, true)
+          .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+      : null;
+
+    payIn.preparing(prepareTxId, feeAmount, feeAmountChf);
+    await this.payInRepo.save(payIn);
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(this.payInSolanaService.getWalletAddress(), this.blockchain);
   }

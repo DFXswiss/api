@@ -19,6 +19,10 @@ export class PayInSolanaService {
     return this.client.getWalletAddress();
   }
 
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    return this.client.getNativeCoinBalanceForAddress(address);
+  }
+
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     return this.client.getCurrentGasCostForCoinTransaction();
   }
