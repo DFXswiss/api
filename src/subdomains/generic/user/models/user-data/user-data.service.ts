@@ -879,6 +879,7 @@ export class UserDataService {
             ? KycStepStatus.CANCELED
             : undefined,
           undefined,
+          undefined,
           kycStep.sequenceNumber + sequenceNumberOffset,
         ),
       );

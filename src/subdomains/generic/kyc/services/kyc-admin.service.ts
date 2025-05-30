@@ -38,7 +38,7 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
-    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
+    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
 
     if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
     if (kycStep.isFailed && kycStep.comment)
