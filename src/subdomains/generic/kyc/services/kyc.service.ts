@@ -1208,6 +1208,10 @@ export class KycService {
       ? await this.sumsubService.getDocuments(kycStep)
       : await this.identService.getDocuments(kycStep);
 
+    if (kycStep.isSumsubVideo) {
+      documents.push(...(await this.sumsubService.getMedia(kycStep)));
+    }
+
     const missingDocuments = documents.filter(
       (d) =>
         !userFiles.some(

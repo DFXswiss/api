@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an deine Wallet-Adresse zurückerstattet",
-                "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]"
+                "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]",
+                "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Rückzahlung:<br>[url:Klick hier]"
             },
             "introduction": "Grund, warum wir zurückerstattet haben:<br>{reason}",
             "reasons": {
@@ -88,7 +89,8 @@
                 "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen",
                 "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln",
                 "test_only": "Test",
-                "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt"
+                "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
+                "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -182,21 +184,23 @@
                 "line3": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line4": "Du musst dich nicht zwingend komplett verifizieren, es reicht aus, dass du deinen Namen und deine Adresse einträgst.",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "bank_tx_needed": {
+                "title": "Bank Transaktion erforderlich",
+                "salutation": "Es ist eine Bank Transaktion erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Leider brauchen wir um deine Transaktion ausführen zu können noch eine Banktransaktion von dir.",
+                "line2": "Du kannst über die DFX-Services Webseite etwas kaufen als Banktransaktion.",
+                "line3": "Nachdem diese Transaktion bei uns angekommen ist und ausgezahlt wurde, wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt werden.",
+                "line4": "Es ist also nur eine Transaktion von deinem Bankkonto erforderlich.",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
-        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
-        "blockchain": "Blockchain",
-        "bank_account": "Bank Konto",
-        "remittance_info": "Verwendungszweck",
-        "transaction_id": "Transaktions-ID",
-        "wallet_address": "Wallet-Adresse",
-        "reimbursed": "Erstattet"
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"
     },
     "referral": {
         "title": "Auszahlung Referral Rewards",
         "salutation": "Deine RefCode Rewards wurden ausgezahlt",
-        "output_amount": "Betrag",
-        "payment_link": "Dies ist die Transaktions-ID: [url:Link]",
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deinem Referral Reward:<br>[url:Klick hier]",
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {

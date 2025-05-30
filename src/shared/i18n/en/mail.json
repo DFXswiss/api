@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your wallet address",
-                "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]"
+                "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]",
+                "transaction_button": "Click the button below for more details about your reimbursement:<br>[url:click here]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
@@ -88,7 +89,8 @@
                 "video_ident_needed": "You must complete your KYC with Video-Ident for the transaction",
                 "missing_liquidity": "DFX was unable to trade the required amount of tokens within the specified time",
                 "test_only": "Test",
-                "kyc_data_needed": "Your KYC data is required for the transaction"
+                "kyc_data_needed": "Your KYC data is required for the transaction",
+                "bank_tx_needed": "A bank transaction is required before this transaction can be carried out"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -182,21 +184,23 @@
                 "line3": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line4": "You do not have to verify yourself completely, it is sufficient to enter your name and address.",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
+            },
+            "bank_tx_needed": {
+                "title": "Bank transaction required",
+                "salutation": "A bank transaction is required to complete your pending transaction",
+                "line1": "Unfortunately, we need a bank transaction from you to be able to execute your transaction.",
+                "line2": "You can buy something via the DFX Services website as a bank transaction.",
+                "line3": "After this transaction has been received and paid out, the pending transaction will also be paid out automatically.",
+                "line4": "This means that only one transaction from your bank account is required.",
+                "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
             }
         },
-        "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",
-        "blockchain": "Blockchain",
-        "bank_account": "Bank Account",
-        "remittance_info": "Purpose of the payment",
-        "transaction_id": "Transaction-ID",
-        "wallet_address": "Wallet address",
-        "reimbursed": "Reimbursed"
+        "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]"
     },
     "referral": {
         "title": "Payout Referral Rewards",
         "salutation": "Your referral rewards have been paid out",
-        "output_amount": "Amount",
-        "payment_link": "Here you can find the transaction ID for your referral payout: [url:Link]",
+        "transaction_button": "Click the button below for more details about your referral reward:<br>[url:click here]",
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
     "kyc": {

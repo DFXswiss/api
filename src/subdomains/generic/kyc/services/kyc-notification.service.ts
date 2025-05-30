@@ -53,29 +53,24 @@ export class KycNotificationService {
 
         if (recipientMail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.KYC_REMINDER,
             input: {
               userData: entity.userData,
               wallet: entity.userData.wallet,
               title: `${MailTranslationKey.KYC_REMINDER}.title`,
               salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
-              suffix: [
+              texts: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_REMINDER}.message` },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
                   key: `${MailTranslationKey.KYC}.next_step`,
-                  params: {
-                    url: entity.userData.kycUrl,
-                    urlText: entity.userData.kycUrl,
-                  },
+                  params: { url: entity.userData.kycUrl, urlText: entity.userData.kycUrl },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.button`,
-                  params: {
-                    url: entity.userData.kycUrl,
-                  },
+                  params: { url: entity.userData.kycUrl, button: 'true' },
                 },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
@@ -96,14 +91,14 @@ export class KycNotificationService {
     try {
       if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context: MailContext.KYC_FAILED,
           input: {
             userData,
             wallet: userData.wallet,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation`, params: { stepName } },
-            suffix: [
+            texts: [
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
@@ -116,7 +111,7 @@ export class KycNotificationService {
               },
               {
                 key: `${MailTranslationKey.GENERAL}.button`,
-                params: { url: userData.kycUrl },
+                params: { url: userData.kycUrl, button: 'true' },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],
@@ -139,14 +134,14 @@ export class KycNotificationService {
       if (newLevel === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
         if (userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.KYC_CHANGED,
             input: {
               userData,
               wallet: userData.wallet,
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,
               salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
-              suffix: [
+              texts: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
                 { key: MailKey.DFX_TEAM_CLOSING },

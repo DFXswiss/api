@@ -1,4 +1,13 @@
-import { BadRequestException, Body, Controller, Headers, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  InternalServerErrorException,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -24,14 +33,21 @@ export class AlchemyController {
   @Post('addressWebhook')
   @ApiExcludeEndpoint()
   async addressWebhook(@Headers('X-Alchemy-Signature') alchemySignature: string, @Req() req: Request): Promise<void> {
-    const dto = JSON.parse(req.body) as AlchemyWebhookDto;
+    try {
+      const dto = JSON.parse(req.body) as AlchemyWebhookDto;
 
-    if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto.webhookId, req.body)) {
-      this.logger.warn(`Received Alchemy webhook with invalid signature '${alchemySignature}': ${JSON.stringify(dto)}`);
-      throw new BadRequestException('Invalid signature');
+      if (!this.alchemyWebhookService.isValidWebhookSignature(alchemySignature, dto.webhookId, req.body)) {
+        this.logger.warn(`Received Alchemy webhook with invalid signature '${alchemySignature}': ${req.body}`);
+        throw new BadRequestException('Invalid signature');
+      }
+
+      return this.alchemyWebhookService.processAddressWebhook(dto);
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+
+      this.logger.error('addressWebhook failed:', e);
+      throw new InternalServerErrorException('addressWebhook failed');
     }
-
-    return this.alchemyWebhookService.processAddressWebhook(dto);
   }
 
   @Post('syncTransactions')

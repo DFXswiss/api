@@ -73,7 +73,7 @@ export class PayInService {
       if (!exists) {
         payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
 
-        if (payIn.isPayment) await this.fetchPayment(payIn);
+        if (payIn.isPayment && payIn.status !== PayInStatus.FAILED) await this.fetchPayment(payIn);
 
         await this.payInRepository.save(payIn);
 

@@ -14,7 +14,10 @@ export class LiquidityManagementOrder extends IEntity {
   status: LiquidityManagementOrderStatus;
 
   @Column({ type: 'float', nullable: true })
-  amount?: number;
+  minAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  maxAmount: number;
 
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
@@ -51,7 +54,8 @@ export class LiquidityManagementOrder extends IEntity {
   //*** FACTORY ***//
 
   static create(
-    amount: number,
+    minAmount: number,
+    maxAmount: number,
     pipeline: LiquidityManagementPipeline,
     action: LiquidityManagementAction,
     previousOrderId: number,
@@ -59,7 +63,8 @@ export class LiquidityManagementOrder extends IEntity {
     const order = new LiquidityManagementOrder();
 
     order.status = LiquidityManagementOrderStatus.CREATED;
-    order.amount = amount;
+    order.minAmount = minAmount;
+    order.maxAmount = maxAmount;
     order.pipeline = pipeline;
     order.action = action;
     order.previousOrderId = previousOrderId;

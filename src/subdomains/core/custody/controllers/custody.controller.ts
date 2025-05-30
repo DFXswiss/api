@@ -1,6 +1,6 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeController, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -25,6 +25,7 @@ export class CustodyController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: CustodyBalanceDto })
   async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
     return this.service.getUserCustodyBalance(jwt.account);
   }
@@ -32,6 +33,7 @@ export class CustodyController {
   @Get('history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: CustodyHistoryDto })
   async getUserCustodyHistory(@GetJwt() jwt: JwtPayload): Promise<CustodyHistoryDto> {
     return this.service.getUserCustodyHistory(jwt.account);
   }
@@ -39,6 +41,7 @@ export class CustodyController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiCreatedResponse({ type: CustodyAuthDto })
   async createCustodyAccount(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: CreateCustodyAccountDto,
@@ -50,6 +53,7 @@ export class CustodyController {
   @Post('order')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
+  @ApiCreatedResponse({ type: CustodyOrderDto })
   async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
     return this.custodyOrderService.createOrder(jwt, dto);
   }
@@ -57,6 +61,7 @@ export class CustodyController {
   @Post('order/:id/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
+  @ApiCreatedResponse()
   async confirmOrder(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.custodyOrderService.confirmOrder(jwt.user, +id);
   }

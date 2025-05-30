@@ -6,7 +6,7 @@ import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service
 import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
-import { EvmSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
@@ -77,7 +77,7 @@ export class MoneroClient extends BlockchainClient {
     throw new Error('Monero has no token');
   }
 
-  async sendSignedTransaction(_: string): Promise<EvmSignedTransactionResponse> {
+  async sendSignedTransaction(_: string): Promise<SignedTransactionResponse> {
     throw new Error('Method not implemented');
   }
 

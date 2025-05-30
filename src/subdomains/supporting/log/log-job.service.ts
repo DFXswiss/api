@@ -201,24 +201,21 @@ export class LogJobService {
     );
 
     // deposit address balance
-    const paymentAssets = assets.filter(
-      (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.BITCOIN].includes(a.blockchain),
-    );
+    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
     const depositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
 
-        const balances: BlockchainTokenBalance[] =
-          e === Blockchain.MONERO
-            ? [{ owner: undefined, contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
-            : await this.getCustomBalances(client, a, [
-                EvmUtil.createWallet({
-                  seed: Config.payment.evmSeed,
-                  index: 0,
-                }).address,
-              ]).then((b) => b.flat());
+        const balances: BlockchainTokenBalance[] = [Blockchain.MONERO, Blockchain.BITCOIN].includes(e)
+          ? [{ owner: undefined, contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
+          : await this.getCustomBalances(client, a, [
+              EvmUtil.createWallet({
+                seed: Config.payment.evmSeed,
+                index: 0,
+              }).address,
+            ]).then((b) => b.flat());
         return { blockchain: e, balances };
       }),
     );
@@ -375,11 +372,11 @@ export class LogJobService {
 
       const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
       );
       const bridgeOrder = pendingBridgeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
       );
 

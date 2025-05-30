@@ -155,7 +155,7 @@ export class TfaService {
 
       if (userData.mail)
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context,
           input: {
             userData: userData,
@@ -164,7 +164,7 @@ export class TfaService {
             salutation: {
               key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,
             },
-            suffix: [
+            texts: [
               {
                 key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
                 params: { code },
