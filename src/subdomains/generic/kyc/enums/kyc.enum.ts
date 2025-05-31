@@ -31,6 +31,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
     Config.kyc.residencePermitCountries.includes(userData.nationality?.symbol) ? KycStepName.RESIDENCE_PERMIT : null,
+    userData.legalEntity === LegalEntity.ASSOCIATION ? KycStepName.ASSOCIATION_STATUTES : null,
     KycStepName.DFX_APPROVAL,
   ]
     .flat()

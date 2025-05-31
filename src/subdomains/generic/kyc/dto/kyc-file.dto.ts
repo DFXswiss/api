@@ -15,6 +15,7 @@ export enum FileType {
   STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
   RESIDENCE_PERMIT = 'ResidencePermit',
+  ASSOCIATION_STATUTES = 'AssociationStatutes',
   ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   AUTHORITY = 'Authority',
 }

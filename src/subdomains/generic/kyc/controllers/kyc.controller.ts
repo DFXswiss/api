@@ -248,6 +248,18 @@ export class KycController {
     return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
   }
 
+  @Put('data/association/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateAssociationStatutesData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('association-statutes', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.ASSOCIATION_STATUTES);
+  }
+
   @Put('data/additional/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)

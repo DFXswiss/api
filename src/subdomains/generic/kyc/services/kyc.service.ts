@@ -832,9 +832,6 @@ export class KycService {
     const preventDirectEvaluation = lastTry != null;
 
     switch (nextStep) {
-      case KycStepName.CONTACT_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.PERSONAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
@@ -843,19 +840,16 @@ export class KycService {
       case KycStepName.OWNER_DIRECTORY:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
+      case KycStepName.CONTACT_DATA:
       case KycStepName.COMMERCIAL_REGISTER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.SIGNATORY_POWER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.BENEFICIAL_OWNER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.OPERATIONAL_ACTIVITY:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.AUTHORITY:
+      case KycStepName.FINANCIAL_DATA:
+      case KycStepName.ADDITIONAL_DOCUMENTS:
+      case KycStepName.RESIDENCE_PERMIT:
+      case KycStepName.ASSOCIATION_STATUTES:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
@@ -898,15 +892,6 @@ export class KycService {
             preventDirectEvaluation,
           },
         };
-
-      case KycStepName.FINANCIAL_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
-      case KycStepName.ADDITIONAL_DOCUMENTS:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
-      case KycStepName.RESIDENCE_PERMIT:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
         return lastTry && !lastTry.isFailed ? undefined : { nextStep: { name: nextStep, preventDirectEvaluation } };
