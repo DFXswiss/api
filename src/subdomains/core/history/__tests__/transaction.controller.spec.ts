@@ -14,9 +14,9 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
-import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
@@ -44,7 +44,7 @@ describe('TransactionController', () => {
   let transactionUtilService: TransactionUtilService;
   let userDataService: UserDataService;
   let bankTxReturnService: BankTxReturnService;
-  let specialExternalAccountService: SpecialExternalAccountService;
+  let transactionRequestService: TransactionRequestService;
   let bankService: BankService;
   let transactionHelper: TransactionHelper;
   let swissQrService: SwissQRService;
@@ -63,7 +63,7 @@ describe('TransactionController', () => {
     transactionUtilService = createMock<TransactionUtilService>();
     userDataService = createMock<UserDataService>();
     bankTxReturnService = createMock<BankTxReturnService>();
-    specialExternalAccountService = createMock<SpecialExternalAccountService>();
+    transactionRequestService = createMock<TransactionRequestService>();
     bankService = createMock<BankService>();
     transactionHelper = createMock<TransactionHelper>();
     swissQrService = createMock<SwissQRService>();
@@ -85,7 +85,7 @@ describe('TransactionController', () => {
         { provide: TransactionUtilService, useValue: transactionUtilService },
         { provide: UserDataService, useValue: userDataService },
         { provide: BankTxReturnService, useValue: bankTxReturnService },
-        { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
+        { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: BankService, useValue: bankService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: SwissQRService, useValue: swissQrService },
@@ -117,7 +117,6 @@ describe('TransactionController', () => {
       }),
     );
 
-    jest.spyOn(specialExternalAccountService, 'getMultiAccountIbans').mockResolvedValue([]);
     jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
     jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(createDefaultBank());
 

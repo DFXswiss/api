@@ -28,6 +28,7 @@ export enum TransactionState {
   RETURN_PENDING = 'ReturnPending',
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
+  WAITING_FOR_PAYMENT = 'WaitingForPayment',
 }
 
 export enum TransactionReason {
@@ -104,8 +105,8 @@ export const TransactionReasonMapper: {
 };
 
 export class UnassignedTransactionDto {
-  @ApiProperty()
-  id: number;
+  @ApiPropertyOptional()
+  id?: number;
 
   @ApiProperty({ description: 'UID of the transaction' })
   uid: string;

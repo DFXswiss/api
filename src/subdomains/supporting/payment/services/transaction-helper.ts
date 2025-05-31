@@ -53,7 +53,6 @@ export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
-  private sol: Asset;
   private chf: Fiat;
 
   private transactionSpecifications: TransactionSpecification[];
@@ -75,7 +74,6 @@ export class TransactionHelper implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.assetService.getAssetByUniqueName('SOL').then((a) => (this.sol = a));
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
     void this.updateCache();
   }
@@ -579,7 +577,9 @@ export class TransactionHelper implements OnModuleInit {
     const fee = await solanaService.getCreateTokenAccountFee(user.address, asset);
     if (!fee) return 0;
 
-    const price = await this.pricingService.getPrice(this.sol, this.chf, true);
+    const solanaCoin = await this.assetService.getSolanaCoin();
+
+    const price = await this.pricingService.getPrice(solanaCoin, this.chf, true);
     return price.convert(fee);
   }
 

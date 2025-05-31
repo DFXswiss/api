@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -46,28 +44,18 @@ export class RefRewardNotificationService {
 
         if (recipientMail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.REF_REWARD,
             input: {
               userData: entity.user.userData,
               wallet: entity.user.wallet,
               title: `${MailTranslationKey.REFERRAL}.title`,
               salutation: { key: `${MailTranslationKey.REFERRAL}.salutation` },
-              table: {
-                [`${MailTranslationKey.REFERRAL}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.targetBlockchain,
-                [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.targetAddress),
-                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
-                  ? Util.blankStart(entity.txId)
-                  : null,
-              },
-              suffix: [
-                entity.isLightningTransaction
-                  ? null
-                  : {
-                      key: `${MailTranslationKey.REFERRAL}.payment_link`,
-                      params: { url: txExplorerUrl(entity.targetBlockchain, entity.txId) },
-                    },
+              texts: [
+                {
+                  key: `${MailTranslationKey.REFERRAL}.transaction_button`,
+                  params: { url: entity.transaction.url, button: 'true' },
+                },
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: `${MailTranslationKey.REFERRAL}.dfx_ambassador` },
                 { key: MailKey.DFX_TEAM_CLOSING },

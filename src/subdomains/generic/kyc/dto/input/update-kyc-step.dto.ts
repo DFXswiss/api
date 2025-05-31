@@ -9,4 +9,8 @@ export class UpdateKycStepDto {
   @IsOptional()
   @IsString()
   result?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }

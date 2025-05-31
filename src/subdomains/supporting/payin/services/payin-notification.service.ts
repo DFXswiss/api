@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -35,37 +33,27 @@ export class PayInNotificationService {
         returnTxId: Not(IsNull()),
         action: PayInAction.RETURN,
       },
-      relations: { route: { user: { userData: true, wallet: true } } },
+      relations: { transaction: { user: { wallet: true }, userData: true }, route: true },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
 
     for (const entity of entities) {
       try {
-        if (entity.route.user.userData.mail) {
+        if (entity.transaction.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.CRYPTO_INPUT_RETURN,
             input: {
-              userData: entity.route.user.userData,
-              wallet: entity.route.user.wallet,
+              userData: entity.transaction.userData,
+              wallet: entity.transaction.user.wallet,
               title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
-              table: {
-                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.amount} ${entity.asset.name}`,
-                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.asset.blockchain,
-                [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.route.user.address),
-                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningInput
-                  ? Util.blankStart(entity.returnTxId)
-                  : null,
-              },
-              suffix: [
-                !entity.isLightningInput
-                  ? {
-                      key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.payment_link`,
-                      params: { url: txExplorerUrl(entity.asset.blockchain, entity.returnTxId) },
-                    }
-                  : null,
+              texts: [
+                {
+                  key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.transaction_button`,
+                  params: { url: entity.transaction.url, button: 'true' },
+                },
                 {
                   key: `${MailTranslationKey.CHARGEBACK}.introduction`,
                   params: {
