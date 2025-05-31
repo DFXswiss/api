@@ -849,7 +849,7 @@ export class KycService {
       case KycStepName.FINANCIAL_DATA:
       case KycStepName.ADDITIONAL_DOCUMENTS:
       case KycStepName.RESIDENCE_PERMIT:
-      case KycStepName.ASSOCIATION_STATUTES:
+      case KycStepName.STATUTES:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
