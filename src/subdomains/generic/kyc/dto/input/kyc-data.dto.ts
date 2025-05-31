@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { plainToInstance, Transform, Type } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -115,13 +115,6 @@ export class KycInputDataDto extends KycPersonalData {
   mail: string;
 }
 
-export class KycLegalEntityData {
-  @ApiProperty({ enum: LegalEntity })
-  @IsNotEmpty()
-  @IsEnum(LegalEntity)
-  legalEntity: LegalEntity;
-}
-
 export class KycSignatoryPowerData {
   @ApiProperty({ enum: SignatoryPower })
   @IsNotEmpty()
@@ -201,6 +194,13 @@ export class KycFileData {
   @IsString()
   @Transform(Util.sanitize)
   fileName: string;
+}
+
+export class KycCommercialLegalEntityData extends KycFileData {
+  @ApiProperty({ enum: LegalEntity })
+  @IsNotEmpty()
+  @IsEnum(LegalEntity)
+  legalEntity: LegalEntity;
 }
 
 export class KycManualIdentData {
