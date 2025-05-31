@@ -13,5 +13,6 @@ export enum KycStepName {
   FINANCIAL_DATA = 'FinancialData',
   ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   RESIDENCE_PERMIT = 'ResidencePermit',
+  STATUTES = 'Statutes',
   DFX_APPROVAL = 'DfxApproval',
 }
