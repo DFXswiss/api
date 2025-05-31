@@ -43,9 +43,9 @@ import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
   KycBeneficialData,
+  KycCommercialLegalEntityData,
   KycContactData,
   KycFileData,
-  KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
   KycOperationalData,
@@ -190,17 +190,6 @@ export class KycController {
     return this.kycService.updatePersonalData(code, +id, data);
   }
 
-  @Put('data/legal/:id')
-  @ApiOkResponse({ type: KycStepBase })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async updateLegalEntityData(
-    @Headers(CodeHeaderName) code: string,
-    @Param('id') id: string,
-    @Body() data: KycLegalEntityData,
-  ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.COMPLETED);
-  }
-
   @Put('data/owner/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -230,10 +219,10 @@ export class KycController {
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @Body() data: KycCommercialLegalEntityData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('commercial-register', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+    return this.kycService.updateCommercialLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
   @Put('data/residence/:id')
