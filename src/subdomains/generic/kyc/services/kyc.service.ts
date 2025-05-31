@@ -177,6 +177,7 @@ export class KycService {
           await this.kycStepRepo.update(...entity.manualReview(comment));
         } else {
           await this.kycStepRepo.update(...entity.complete());
+          await this.checkDfxApproval(entity);
         }
 
         await this.createStepLog(entity.userData, entity);
