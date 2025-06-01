@@ -17,7 +17,7 @@ import {
   SolanaTransactionDto,
 } from './dto/solana.dto';
 import { SolanaWallet } from './solana-wallet';
-import { SolanaUtil } from './SolanaUtil';
+import { SolanaUtil } from './solana.util';
 
 const INSTRUCTION_TYPES = ['create', 'closeAccount', 'transfer', 'transferchecked'];
 const TOKEN_PROGRAM_IDS = [
