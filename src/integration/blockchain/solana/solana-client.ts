@@ -17,7 +17,7 @@ import {
   SolanaTransactionDto,
 } from './dto/solana.dto';
 import { SolanaWallet } from './solana-wallet';
-import { SolanaUtil } from './SolanaUtil';
+import { SolanaUtil } from './solana.util';
 
 const INSTRUCTION_TYPES = ['create', 'closeAccount', 'transfer', 'transferchecked'];
 const TOKEN_PROGRAM_IDS = [
@@ -292,7 +292,8 @@ export class SolanaClient extends BlockchainClient {
   }
 
   private calculatePriorityFee(): Solana.TransactionInstruction {
-    const priorityRate = Config.blockchain.solana.transactionPriorityRate;
+    const priorityRate = Config.blockchain.solana.transactionPriorityRate * 100;
+
     return Solana.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityRate });
   }
 
@@ -302,9 +303,9 @@ export class SolanaClient extends BlockchainClient {
     this.wallet.signTransaction(transaction);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
-    const feeInLamports = response.value;
+    const feeInLamports = response.value + Config.blockchain.solana.transactionPriorityRate;
 
-    return SolanaUtil.fromLamportAmount(feeInLamports);
+    return SolanaUtil.fromLamportAmount(Math.floor(feeInLamports * 1.2));
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
@@ -313,9 +314,9 @@ export class SolanaClient extends BlockchainClient {
     this.wallet.signTransaction(transaction);
 
     const response = await this.connection.getFeeForMessage(transaction.compileMessage(), 'confirmed');
-    const feeInLamports = response.value;
+    const feeInLamports = response.value + Config.blockchain.solana.transactionPriorityRate;
 
-    return SolanaUtil.fromLamportAmount(feeInLamports);
+    return SolanaUtil.fromLamportAmount(Math.floor(feeInLamports * 1.2));
   }
 
   async getTxActualFee(txHash: string): Promise<number> {

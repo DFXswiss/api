@@ -25,6 +25,7 @@ export class BitpandaService extends ExchangeService {
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
+    BinancePay: undefined,
     Solana: undefined,
   };
 

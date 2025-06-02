@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { C2BPaymentLinkModule } from 'src/integration/c2b-payment-link/c2b-payment-link.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
@@ -18,6 +19,7 @@ import { PaymentLinkService } from './services/payment-link.service';
     SharedModule,
     SellCryptoModule,
     PaymentLinkPaymentModule,
+    C2BPaymentLinkModule,
   ],
   controllers: [PaymentLinkController, PaymentLinkShortController],
   providers: [PaymentLinkRepository, PaymentLinkService, PaymentCronService, PaymentLinkController, PaymentLinkGateway],

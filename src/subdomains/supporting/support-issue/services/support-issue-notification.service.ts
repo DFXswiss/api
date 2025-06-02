@@ -16,14 +16,14 @@ export class SupportIssueNotificationService {
     try {
       if (entity.userData.mail && !DisabledProcess(Process.SUPPORT_MESSAGE_MAIL))
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context: MailContext.SUPPORT_MESSAGE,
           input: {
             userData: entity.userData,
             wallet: entity.userData.wallet,
             title: `${MailTranslationKey.SUPPORT_MESSAGE}.title`,
             salutation: { key: `${MailTranslationKey.SUPPORT_MESSAGE}.salutation` },
-            prefix: [
+            texts: [
               {
                 key: `${MailTranslationKey.SUPPORT_MESSAGE}.message`,
                 params: { url: entity.issue.url, urlText: entity.issue.url },

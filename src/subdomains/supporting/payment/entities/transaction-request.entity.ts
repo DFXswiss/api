@@ -14,10 +14,19 @@ export enum TransactionRequestType {
   SWAP = 'Swap',
 }
 
+export enum TransactionRequestStatus {
+  CREATED = 'Created',
+  WAITING_FOR_PAYMENT = 'WaitingForPayment',
+  COMPLETED = 'Completed',
+}
+
 @Entity()
 export class TransactionRequest extends IEntity {
   @Column()
   type: TransactionRequestType;
+
+  @Column({ length: 256, default: TransactionRequestStatus.CREATED })
+  status: TransactionRequestStatus;
 
   @Column({ length: 256, unique: true })
   uid: string;
@@ -76,6 +85,7 @@ export class TransactionRequest extends IEntity {
   @Column({ default: false })
   exactPrice: boolean;
 
+  // TODO: remove and replace with entity method isComplete
   @Column({ default: false })
   isComplete: boolean;
 

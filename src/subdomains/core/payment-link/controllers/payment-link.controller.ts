@@ -22,11 +22,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
+import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
+import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -49,6 +53,7 @@ import { PaymentLinkService } from '../services/payment-link.service';
 @ApiTags('Payment Link')
 @Controller('paymentLink')
 export class PaymentLinkController {
+  private readonly logger = new DfxLogger(PaymentLinkController);
   constructor(
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
@@ -291,6 +296,24 @@ export class PaymentLinkController {
     });
 
     return new StreamableFile(pdfBuffer);
+  }
+
+  // --- INTEGRATION --- //
+  @Post('integration/binance/webhook')
+  @ApiExcludeEndpoint()
+  @UseGuards(BinancePayWebhookGuard)
+  async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
+    void this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto).catch((error) => {
+      this.logger.error('Error handling Binance Pay webhook', error);
+    });
+    return { returnCode: 'SUCCESS', returnMessage: null };
+  }
+
+  @Post('integration/binance/activate/:id')
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async activateBinancePay(@Param('id') id: string): Promise<void> {
+    await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.BINANCE_PAY);
   }
 
   // --- HELPER METHODS --- //

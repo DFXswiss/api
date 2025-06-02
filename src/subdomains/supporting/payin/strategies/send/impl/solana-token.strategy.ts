@@ -7,6 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
+import { SendType } from './base/send.strategy';
 import { SolanaStrategy } from './base/solana.strategy';
 
 @Injectable()
@@ -29,11 +30,32 @@ export class SolanaTokenStrategy extends SolanaStrategy {
     return true;
   }
 
+  protected async checkPreparation(payIn: CryptoInput): Promise<boolean> {
+    return this.payInSolanaService.checkTransactionCompletion(payIn.prepareTxId, 0);
+  }
+
+  protected async prepareSend(payIn: CryptoInput, nativeFee: number): Promise<void> {
+    const createTokenFee = await this.payInSolanaService.getCreateTokenAccountFee(payIn.address.address, payIn.asset);
+
+    const feeAmount = nativeFee + createTokenFee;
+    const prepareTxId = await this.topUpCoin(payIn, feeAmount);
+
+    const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
+    const feeAmountChf = feeAmount
+      ? await this.pricingService
+          .getPrice(feeAsset, this.chf, true)
+          .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+      : null;
+
+    payIn.preparing(prepareTxId, feeAmount, feeAmountChf);
+    await this.payInRepo.save(payIn);
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(this.payInSolanaService.getWalletAddress(), this.blockchain);
   }
 
-  protected async sendTransfer(payIn: CryptoInput): Promise<string> {
+  protected async sendTransfer(payIn: CryptoInput, _type: SendType): Promise<string> {
     const account = Config.blockchain.solana.walletAccount(payIn.route.deposit.accountIndex);
 
     return this.payInSolanaService.sendToken(
