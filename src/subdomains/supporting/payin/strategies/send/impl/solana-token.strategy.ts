@@ -35,10 +35,7 @@ export class SolanaTokenStrategy extends SolanaStrategy {
   }
 
   protected async prepareSend(payIn: CryptoInput, nativeFee: number): Promise<void> {
-    const createTokenFee = await this.payInSolanaService.getCreateTokenAccountFee(
-      payIn.destinationAddress.address,
-      payIn.asset,
-    );
+    const createTokenFee = await this.payInSolanaService.getCreateTokenAccountFee(payIn.address.address, payIn.asset);
 
     const feeAmount = nativeFee + createTokenFee;
     const prepareTxId = await this.topUpCoin(payIn, feeAmount);
