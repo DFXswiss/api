@@ -63,7 +63,7 @@ export enum BinancePayTerminalType {
   WAP = 'WAP',
   MINI_PROGRAM = 'MINI_PROGRAM',
   PAYMENT_LINK = 'PAYMENT_LINK',
-  OTHER = 'OTHER',
+  OTHERS = 'OTHERS',
 }
 
 export interface OrderData {
