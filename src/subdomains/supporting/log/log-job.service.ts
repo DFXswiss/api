@@ -216,13 +216,19 @@ export class LogJobService {
         const balances: BlockchainTokenBalance[] = [
           {
             owner: targetAddress,
-            contractAddress: coin.chainId,
+            contractAddress: `${coin.id}`,
             balance: await client.getNativeCoinBalanceForAddress(targetAddress),
           },
         ];
 
         if (![Blockchain.MONERO, Blockchain.BITCOIN].includes(e))
-          balances.push(...(await this.getCustomBalances(client, a, [targetAddress]).then((b) => b.flat())));
+          balances.push(
+            ...(await this.getCustomBalances(
+              client,
+              a.filter((asset) => asset.type !== AssetType.COIN),
+              [targetAddress],
+            ).then((b) => b.flat())),
+          );
 
         return { blockchain: e, balances };
       }),
@@ -368,8 +374,7 @@ export class LogJobService {
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances?.reduce(
           (sum, result) =>
-            sum +
-            (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+            sum + (result.contractAddress === curr.chainId || `${curr.id}` === curr.chainId ? result.balance : 0),
           0,
         );
 
