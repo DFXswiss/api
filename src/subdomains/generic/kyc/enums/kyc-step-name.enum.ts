@@ -3,7 +3,7 @@ export enum KycStepName {
   PERSONAL_DATA = 'PersonalData',
   NATIONALITY_DATA = 'NationalityData',
   OWNER_DIRECTORY = 'OwnerDirectory',
-  COMMERCIAL_REGISTER = 'CommercialRegister',
+  LEGAL_ENTITY = 'LegalEntity',
   SIGNATORY_POWER = 'SignatoryPower',
   AUTHORITY = 'Authority',
   BENEFICIAL_OWNER = 'BeneficialOwner',
