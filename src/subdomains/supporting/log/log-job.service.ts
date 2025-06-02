@@ -203,7 +203,8 @@ export class LogJobService {
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
     const paymentAssets = assets.filter(
-      (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO].includes(a.blockchain),
+      (a) =>
+        a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO, Blockchain.BINANCE_PAY].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
