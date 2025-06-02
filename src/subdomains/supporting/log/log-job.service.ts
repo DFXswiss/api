@@ -201,7 +201,7 @@ export class LogJobService {
       }),
     );
 
-    // deposit address balance (Monero filtered because all in one address)
+    // payment deposit address balance (Monero/Lightning have no separated balance)
     const paymentAssets = assets.filter(
       (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO].includes(a.blockchain),
     );
