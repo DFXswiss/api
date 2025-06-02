@@ -28,6 +28,7 @@ export const PaymentLinkBlockchain = {
   POLYGON: Blockchain.POLYGON,
   BITCOIN: Blockchain.BITCOIN,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
+  SOLANA: Blockchain.SOLANA,
 } as const;
 
 export type PaymentLinkBlockchain = (typeof PaymentLinkBlockchain)[keyof typeof PaymentLinkBlockchain];

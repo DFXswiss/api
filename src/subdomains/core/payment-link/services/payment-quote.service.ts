@@ -43,6 +43,7 @@ export class PaymentQuoteService {
     Blockchain.ETHEREUM,
     Blockchain.MONERO,
     Blockchain.BITCOIN,
+    Blockchain.SOLANA,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
