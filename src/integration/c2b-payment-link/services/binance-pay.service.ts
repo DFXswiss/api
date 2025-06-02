@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
@@ -31,6 +32,8 @@ import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
 export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
+  private readonly logger = new DfxLogger(BinancePayService);
+
   private readonly baseUrl = 'https://bpay.binanceapi.com';
   private readonly apiKey: string;
   private readonly secretKey: string;
@@ -84,13 +87,18 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       registrationAddress: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
     };
 
-    const response = await this.http.post<AddSubMerchantResponse>(
-      `${this.baseUrl}/binancepay/openapi/submerchant/add`,
-      subMerchantData,
-      { headers: this.getHeaders(subMerchantData) },
-    );
+    try {
+      const response = await this.http.post<AddSubMerchantResponse>(
+        `${this.baseUrl}/binancepay/openapi/submerchant/add`,
+        subMerchantData,
+        { headers: this.getHeaders(subMerchantData) },
+      );
 
-    return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
+      return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
+    } catch (e) {
+      this.logger.info('Failed to enroll payment link for Binance Pay:', e);
+      throw new ServiceUnavailableException(`Failed to enroll payment link: ${e.message}`);
+    }
   }
 
   async createOrder(
