@@ -591,7 +591,14 @@ export class LogJobService {
         priceChf: curr.approxPriceChf,
         plusBalance: {
           total: this.getJsonValue(totalPlus, amountType(curr), true),
-          liquidity: this.getJsonValue(liquidity, amountType(curr)),
+          liquidity: liquidity
+            ? {
+                total: this.getJsonValue(liquidity, amountType(curr), true),
+                liquidityBalance: this.getJsonValue(liquidityBalance, amountType(curr)),
+                paymentDepositBalance: this.getJsonValue(depositBalance, amountType(curr)),
+                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr)),
+              }
+            : undefined,
           custom: totalCustomBalance
             ? {
                 total: this.getJsonValue(totalCustomBalance, amountType(curr), true),
