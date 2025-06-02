@@ -108,7 +108,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   ): Promise<OrderResult> {
     const orderDetails: OrderData = {
       env: {
-        terminalType: BinancePayTerminalType.OTHER,
+        terminalType: BinancePayTerminalType.OTHERS,
       },
       merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
