@@ -116,6 +116,7 @@ export class PayInService {
     return this.payInRepository.findBy({
       status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
       isConfirmed: true,
+      txType: Not(PayInType.PAYMENT),
     });
   }
 

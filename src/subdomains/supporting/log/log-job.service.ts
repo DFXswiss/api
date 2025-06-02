@@ -201,9 +201,7 @@ export class LogJobService {
       }),
     );
 
-    // deposit address balance
-
-    // Monero filtered because all in one address
+    // deposit address balance (Monero filtered because all in one address)
     const paymentAssets = assets.filter(
       (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO].includes(a.blockchain),
     );
@@ -380,10 +378,9 @@ export class LogJobService {
       // plus
       const liquidity = (liquidityBalance ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
-      const cryptoInput =
-        curr.blockchain === Blockchain.MONERO
-          ? 0
-          : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
+        ? 0
+        : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
