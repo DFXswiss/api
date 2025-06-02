@@ -213,7 +213,7 @@ export class KycController {
     return this.kycService.updateKycStep(code, +id, data, KycStepStatus.INTERNAL_REVIEW);
   }
 
-  @Put('data/commercial/:id')
+  @Put('data/legal/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateCommercialRegisterData(
