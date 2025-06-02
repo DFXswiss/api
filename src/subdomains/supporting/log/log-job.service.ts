@@ -595,7 +595,7 @@ export class LogJobService {
             ? {
                 total: this.getJsonValue(liquidity, amountType(curr), true),
                 liquidityBalance: this.getJsonValue(liquidityBalance, amountType(curr)),
-                paymentDepositBalance: this.getJsonValue(depositBalance, amountType(curr)),
+                paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
                 manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr)),
               }
             : undefined,
