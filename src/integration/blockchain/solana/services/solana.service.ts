@@ -41,6 +41,10 @@ export class SolanaService extends BlockchainService {
     return this.client.getBlockHeight();
   }
 
+  async getMinimumBalanceForRentExemption(): Promise<number> {
+    return this.client.getMinimumBalanceForRentExemption();
+  }
+
   async getNativeCoinBalance(): Promise<number> {
     return this.client.getNativeCoinBalance();
   }

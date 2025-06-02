@@ -54,6 +54,11 @@ export class SolanaClient extends BlockchainClient {
     return this.connection.getBlockHeight();
   }
 
+  async getMinimumBalanceForRentExemption(): Promise<number> {
+    const minimumBalance = await this.connection.getMinimumBalanceForRentExemption(0);
+    return SolanaUtil.fromLamportAmount(minimumBalance);
+  }
+
   async getNativeCoinBalance(): Promise<number> {
     return this.getNativeCoinBalanceForAddress(this.getWalletAddress());
   }
