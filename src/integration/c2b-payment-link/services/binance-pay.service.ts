@@ -91,13 +91,15 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       const response = await this.http.post<AddSubMerchantResponse>(
         `${this.baseUrl}/binancepay/openapi/submerchant/add`,
         subMerchantData,
-        { headers: this.getHeaders(subMerchantData) },
+        {
+          headers: this.getHeaders(subMerchantData),
+        },
       );
-
       return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
-    } catch (e) {
-      this.logger.info('Failed to enroll payment link for Binance Pay:', e);
-      throw new ServiceUnavailableException(`Failed to enroll payment link: ${e.message}`);
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `Failed to enroll payment link: ${error.response?.data?.errorMessage || JSON.stringify(error)}`,
+      );
     }
   }
 
@@ -153,7 +155,9 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
         metadata: response.data,
       };
     } catch (error) {
-      throw error.response?.data || error;
+      throw new ServiceUnavailableException(
+        `Failed to create order: ${error.response?.data?.errorMessage || JSON.stringify(error)}`,
+      );
     }
   }
 
