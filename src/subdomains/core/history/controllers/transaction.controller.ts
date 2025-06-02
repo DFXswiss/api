@@ -483,12 +483,11 @@ export class TransactionController {
   // --- HELPER METHODS --- //
 
   private async getTransactionDto(
-    tx: Transaction | TransactionRequest,
+    tx: Transaction | TransactionRequest | undefined,
     detailed = false,
   ): Promise<UnassignedTransactionDto | TransactionDto | undefined> {
-    return tx instanceof Transaction
-      ? this.txToTransactionDto(tx, detailed)
-      : this.waitingTxRequestToTransactionDto(tx, detailed);
+    if (tx instanceof Transaction) return this.txToTransactionDto(tx, detailed);
+    if (tx instanceof TransactionRequest) return this.waitingTxRequestToTransactionDto(tx, detailed);
   }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {

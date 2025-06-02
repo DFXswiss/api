@@ -708,6 +708,7 @@ export class Configuration {
       solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
       solanaApiKey: process.env.TATUM_API_KEY,
       transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 1),
+      minimalCoinAccountRent: 0.00089088,
       createTokenAccountFee: 0.00203928,
       minimalPreparationFee: 0.00000001,
 

@@ -84,17 +84,13 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       registrationAddress: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
     };
 
-    try {
-      const response = await this.http.post<AddSubMerchantResponse>(
-        `${this.baseUrl}/binancepay/openapi/submerchant/add`,
-        subMerchantData,
-        { headers: this.getHeaders(subMerchantData) },
-      );
+    const response = await this.http.post<AddSubMerchantResponse>(
+      `${this.baseUrl}/binancepay/openapi/submerchant/add`,
+      subMerchantData,
+      { headers: this.getHeaders(subMerchantData) },
+    );
 
-      return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
-    } catch (error) {
-      throw error.response?.data || error;
-    }
+    return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
   }
 
   async createOrder(
