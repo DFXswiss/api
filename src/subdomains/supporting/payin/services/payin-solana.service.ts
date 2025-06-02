@@ -14,10 +14,6 @@ export class PayInSolanaService {
     return this.solanaService.getWalletAddress();
   }
 
-  async getMinimumBalanceForRentExemption(): Promise<number> {
-    return this.solanaService.getMinimumBalanceForRentExemption();
-  }
-
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
     return this.solanaService.getNativeCoinBalanceForAddress(address);
   }
