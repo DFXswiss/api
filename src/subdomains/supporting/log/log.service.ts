@@ -59,9 +59,9 @@ export class LogService {
       new Brackets((query) =>
         batchIds.forEach((id, index) => {
           if (index === 0) {
-            query.where(`log.message LIKE '%${id}%'`);
+            query.where('log.message LIKE :message', { message: `%${id}%` });
           } else {
-            query.orWhere(`log.message LIKE '%${id}%'`);
+            query.orWhere('log.message LIKE :message', { message: `%${id}%` });
           }
         }),
       ),
