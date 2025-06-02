@@ -5,6 +5,7 @@ import { MoneroService } from 'src/integration/blockchain/monero/services/monero
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -13,12 +14,13 @@ import { BitcoinService } from '../../node/bitcoin.service';
 describe('CryptoService', () => {
   let service: CryptoService;
 
+  let blockchainRegistryService: BlockchainRegistryService;
   let lightningService: LightningService;
   let moneroService: MoneroService;
   let arweaveService: ArweaveService;
   let bitcoinService: BitcoinService;
   let railgunService: RailgunService;
-  let blockchainRegistryService: BlockchainRegistryService;
+  let solanaService: SolanaService;
 
   beforeEach(async () => {
     lightningService = createMock<LightningService>();
@@ -31,12 +33,13 @@ describe('CryptoService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CryptoService,
+        { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
         { provide: LightningService, useValue: lightningService },
         { provide: MoneroService, useValue: moneroService },
         { provide: ArweaveService, useValue: arweaveService },
         { provide: BitcoinService, useValue: bitcoinService },
         { provide: RailgunService, useValue: railgunService },
-        { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
+        { provide: SolanaService, useValue: solanaService },
         TestUtil.provideConfig(),
       ],
     }).compile();

@@ -28,6 +28,7 @@ export enum TransactionState {
   RETURN_PENDING = 'ReturnPending',
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
+  WAITING_FOR_PAYMENT = 'WaitingForPayment',
 }
 
 export enum TransactionReason {
@@ -55,6 +56,7 @@ export enum TransactionReason {
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
   KYC_DATA_NEEDED = 'KycDataNeeded',
+  BANK_TX_NEEDED = 'BankTxNeeded',
 }
 
 export const KycRequiredReason = [
@@ -99,11 +101,12 @@ export const TransactionReasonMapper: {
   [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
   [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
   [AmlReason.KYC_DATA_NEEDED]: TransactionReason.KYC_DATA_NEEDED,
+  [AmlReason.BANK_TX_NEEDED]: TransactionReason.BANK_TX_NEEDED,
 };
 
 export class UnassignedTransactionDto {
-  @ApiProperty()
-  id: number;
+  @ApiPropertyOptional()
+  id?: number;
 
   @ApiProperty({ description: 'UID of the transaction' })
   uid: string;

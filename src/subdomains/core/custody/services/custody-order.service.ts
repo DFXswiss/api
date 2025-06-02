@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -32,8 +32,10 @@ export class CustodyOrderService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly custodyService: CustodyService,
+    @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,

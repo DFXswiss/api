@@ -21,6 +21,9 @@ export class PaymentRequestMapper {
       case Blockchain.BITCOIN:
         return this.toPaymentLinkEvmPayment(paymentActivation.method, paymentActivation);
 
+      case Blockchain.BINANCE_PAY:
+        return this.toBinancePayPayment(paymentActivation.method, paymentActivation);
+
       default:
         throw new BadRequestException(`Invalid method ${paymentActivation?.method}`);
     }
@@ -41,6 +44,14 @@ export class PaymentRequestMapper {
       blockchain: method,
       uri: paymentActivation.paymentRequest,
       hint: `Use this data to create a transaction and sign it. Send the signed transaction back as HEX via the endpoint ${infoUrl}. We check the transferred HEX and broadcast the transaction to the blockchain.`,
+    };
+  }
+
+  private static toBinancePayPayment(method: Blockchain, paymentActivation: PaymentActivation): any {
+    return {
+      expiryDate: paymentActivation.expiryDate,
+      uri: paymentActivation.paymentRequest,
+      hint: `Pay in the Binance app by following the deep link ${paymentActivation.paymentRequest}.`,
     };
   }
 }

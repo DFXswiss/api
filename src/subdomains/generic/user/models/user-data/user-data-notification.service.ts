@@ -30,14 +30,14 @@ export class UserDataNotificationService {
       if (master.mail) {
         for (const user of slave.users) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.ADDED_ADDRESS,
             input: {
               userData: master,
               wallet: master.wallet,
               title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
               salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
-              prefix: [
+              texts: [
                 { key: MailKey.SPACE, params: { value: '3' } },
                 {
                   key: `${MailTranslationKey.GENERAL}.welcome`,
@@ -49,8 +49,8 @@ export class UserDataNotificationService {
                   params: { userAddress: Util.blankStart(user.address) },
                 },
                 { key: MailKey.SPACE, params: { value: '4' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
               ],
-              suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
             },
           });
         }
@@ -69,14 +69,14 @@ export class UserDataNotificationService {
     try {
       if (master.mail)
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context: MailContext.CHANGED_MAIL,
           input: {
             userData: master,
             wallet: master.wallet,
             title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
-            prefix: [
+            texts: [
               { key: MailKey.SPACE, params: { value: '3' } },
               {
                 key: `${MailTranslationKey.GENERAL}.welcome`,
@@ -88,20 +88,20 @@ export class UserDataNotificationService {
                 params: { userMail: Util.blankMail(slave.mail) },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
             ],
-            suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
           },
         });
 
       await this.notificationService.sendMail({
-        type: MailType.USER,
+        type: MailType.USER_V2,
         context: MailContext.CHANGED_MAIL,
         input: {
           userData: slave,
           wallet: slave.wallet,
           title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
           salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
-          prefix: [
+          texts: [
             { key: MailKey.SPACE, params: { value: '3' } },
             {
               key: `${MailTranslationKey.GENERAL}.welcome`,
@@ -113,8 +113,8 @@ export class UserDataNotificationService {
               params: { userMail: Util.blankMail(slave.mail) },
             },
             { key: MailKey.SPACE, params: { value: '4' } },
+            { key: MailKey.DFX_TEAM_CLOSING },
           ],
-          suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
         },
       });
     } catch (e) {

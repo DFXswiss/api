@@ -45,6 +45,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { BankDataService } from '../bank-data/bank-data.service';
+import { OrganizationDto } from '../organization/dto/organization.dto';
 import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
@@ -222,29 +223,28 @@ export class UserDataService {
 
     Object.assign(userData, dto);
 
-    if (
-      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) &&
-      !userData.organization
-    ) {
-      userData.organization = await this.organizationService.createOrganization({
-        ...dto,
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType)) {
+      const organizationData: OrganizationDto = {
         name: dto.organizationName,
         street: dto.organizationStreet,
         location: dto.organizationLocation,
         houseNumber: dto.organizationHouseNumber,
         zip: dto.organizationZip,
         country: dto.organizationCountry,
-      });
-    } else if (userData.organization) {
-      await this.organizationService.updateOrganizationInternal(userData.organization, {
-        ...dto,
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-        country: dto.organizationCountry,
-      });
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      };
+
+      if (!userData.organization) {
+        userData.organization = await this.organizationService.createOrganization(organizationData);
+      } else if (userData.organization) {
+        await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
+      }
     }
 
     await this.userDataRepo.save(userData);
@@ -878,6 +878,7 @@ export class UserDataService {
           ].includes(kycStep.status)
             ? KycStepStatus.CANCELED
             : undefined,
+          undefined,
           undefined,
           kycStep.sequenceNumber + sequenceNumberOffset,
         ),

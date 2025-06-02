@@ -20,6 +20,7 @@ import { PayoutLogService } from './services/payout-log.service';
 import { PayoutMoneroService } from './services/payout-monero.service';
 import { PayoutOptimismService } from './services/payout-optimism.service';
 import { PayoutPolygonService } from './services/payout-polygon.service';
+import { PayoutSolanaService } from './services/payout-solana.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
@@ -39,6 +40,8 @@ import { OptimismCoinStrategy as OptimismCoinStrategyPO } from './strategies/pay
 import { OptimismTokenStrategy as OptimismTokenStrategyPO } from './strategies/payout/impl/optimism-token.strategy';
 import { PolygonCoinStrategy as PolygonCoinStrategyPO } from './strategies/payout/impl/polygon-coin.strategy';
 import { PolygonTokenStrategy as PolygonTokenStrategyPO } from './strategies/payout/impl/polygon-token.strategy';
+import { SolanaCoinStrategy as SolanaCoinStrategyPO } from './strategies/payout/impl/solana-coin.strategy';
+import { SolanaTokenStrategy as SolanaTokenStrategyPO } from './strategies/payout/impl/solana-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
@@ -50,6 +53,7 @@ import { LightningStrategy as LightningStrategyPR } from './strategies/prepare/i
 import { MoneroStrategy as MoneroStrategyPR } from './strategies/prepare/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/impl/optimism.strategy';
 import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/polygon.strategy';
+import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/solana.strategy';
 
 @Module({
   imports: [
@@ -76,6 +80,7 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     PayoutGnosisService,
     PayoutEthereumService,
     PayoutBscService,
+    PayoutSolanaService,
     PayoutStrategyRegistry,
     PrepareStrategyRegistry,
     BitcoinStrategyPR,
@@ -102,6 +107,9 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     BaseStrategyPR,
     BaseCoinStrategyPO,
     BaseTokenStrategyPO,
+    SolanaStrategyPR,
+    SolanaCoinStrategyPO,
+    SolanaTokenStrategyPO,
     GnosisStrategyPR,
     GnosisCoinStrategyPO,
     GnosisTokenStrategyPO,

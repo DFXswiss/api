@@ -10,10 +10,14 @@ import { MoneroService } from 'src/integration/blockchain/monero/services/monero
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhook.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
@@ -26,17 +30,21 @@ export class DepositService {
   private readonly bitcoinClient: BitcoinClient;
   private readonly lightningClient: LightningClient;
   private readonly moneroClient: MoneroClient;
+  private readonly solanaClient: SolanaClient;
 
   constructor(
     private readonly depositRepo: DepositRepository,
     private readonly alchemyWebhookService: AlchemyWebhookService,
+    private readonly tatumWebhookService: TatumWebhookService,
     bitcoinService: BitcoinService,
     lightningService: LightningService,
     moneroService: MoneroService,
+    solanaService: SolanaService,
   ) {
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
     this.lightningClient = lightningService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
+    this.solanaClient = solanaService.getDefaultClient();
   }
 
   async getDeposit(id: number): Promise<Deposit> {
@@ -76,6 +84,8 @@ export class DepositService {
       return this.createLightningDeposits(blockchain, count);
     } else if (blockchain === Blockchain.MONERO) {
       return this.createMoneroDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.SOLANA) {
+      return this.createSolanaDeposits(blockchain, count);
     }
 
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
@@ -184,5 +194,23 @@ export class DepositService {
       const deposit = Deposit.create(moneroAddress.address, [blockchain], moneroAddress.address_index);
       await this.depositRepo.save(deposit);
     }
+  }
+
+  private async createSolanaDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const addresses: string[] = [];
+
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+
+      const wallet = SolanaUtil.createWallet(Config.blockchain.solana.walletAccount(accountIndex));
+      const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
+      await this.depositRepo.save(deposit);
+
+      addresses.push(deposit.address);
+    }
+
+    await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.SOLANA, addresses: addresses });
   }
 }

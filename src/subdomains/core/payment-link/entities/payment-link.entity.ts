@@ -67,10 +67,22 @@ export class PaymentLink extends IEntity {
   mail?: string;
 
   @Column({ length: 256, nullable: true })
+  regionManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeOwner?: string;
+
+  @Column({ length: 256, nullable: true })
   website?: string;
 
   @Column({ length: 'MAX', nullable: true })
   config?: string; // PaymentLinkConfig
+
+  @Column({ nullable: true })
+  registrationNumber?: string; // Registration number/Company tax ID
 
   // --- ENTITY METHODS --- //
   get metaId(): string {

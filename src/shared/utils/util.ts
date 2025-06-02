@@ -316,6 +316,10 @@ export class Util {
     return date.toISOString().split('.')[0].split('T')[1].replace(/:/g, '-');
   }
 
+  static filenameDate(date = new Date()): string {
+    return this.isoDateTime(date).split('-').join('');
+  }
+
   static firstDayOfMonth(date = new Date()): Date {
     return new Date(date.getFullYear(), date.getMonth(), 1);
   }

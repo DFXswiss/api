@@ -119,6 +119,9 @@
     "paymentEvmSeed": {
       "value": "xxx"
     },
+    "paymentSolanaSeed": {
+      "value": "xxx"
+    },
     "paymentMoneroAddress": {
       "value": "xxx"
     },
@@ -280,6 +283,15 @@
     },
     "moneroRpcCertificate": {
       "value": "xxx"
+    },
+    "solanaWalletSeed": {
+      "value": "xxx"
+    },
+    "solanaGatewayUrl": {
+      "value": "https://solana-mainnet.gateway.tatum.io"
+    },
+    "solanaTransactionPriorityRate": {
+      "value": "100"
     },
     "zchfGraphUrl": {
       "value": "https://ponder.frankencoin.3dotshub.com"
@@ -495,6 +507,12 @@
       "value": "xxx"
     },
     "alchemyAuthToken": {
+      "value": "xxx"
+    },
+    "tatumApiKey": {
+      "value": "xxx"
+    },
+    "tatumHmacKey": {
       "value": "xxx"
     },
     "customBalanceAssets": {

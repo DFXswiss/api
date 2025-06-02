@@ -50,4 +50,8 @@ export class Swap extends DepositRoute {
   get userData(): UserData {
     return this.user.userData;
   }
+
+  get targetAccount(): string {
+    return this.user.address;
+  }
 }

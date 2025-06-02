@@ -21,4 +21,7 @@ export interface PaymentLinkConfig {
   payoutFrequency?: PayoutFrequency;
   ep2ReportContainer?: string;
   requiresExplicitPayoutRoute?: boolean;
+  // binance pay related
+  binancePayMerchantId?: string;
+  binancePaySubMerchantId?: string;
 }
