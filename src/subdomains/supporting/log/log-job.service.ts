@@ -210,18 +210,18 @@ export class LogJobService {
         const client = this.blockchainRegistryService.getClient(e);
 
         const targetAddress = this.getPaymentDepositAddress(e);
+        const coin = a.find((asset) => asset.type === AssetType.COIN);
+        const balances: BlockchainTokenBalance[] = [
+          {
+            owner: targetAddress,
+            contractAddress: coin.chainId,
+            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+          },
+        ];
 
-        const balances: BlockchainTokenBalance[] = [Blockchain.MONERO, Blockchain.BITCOIN, Blockchain.SOLANA].includes(
-          e,
-        )
-          ? [
-              {
-                owner: undefined,
-                contractAddress: undefined,
-                balance: await client.getNativeCoinBalanceForAddress(targetAddress),
-              },
-            ]
-          : await this.getCustomBalances(client, a, [targetAddress]).then((b) => b.flat());
+        if (![Blockchain.MONERO, Blockchain.BITCOIN].includes(e))
+          balances.push(...(await this.getCustomBalances(client, a, [targetAddress]).then((b) => b.flat())));
+
         return { blockchain: e, balances };
       }),
     );
