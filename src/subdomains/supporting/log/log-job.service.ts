@@ -202,10 +202,14 @@ export class LogJobService {
     );
 
     // deposit address balance
-    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
+
+    // Monero filtered because all in one address
+    const paymentAssets = assets.filter(
+      (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO].includes(a.blockchain),
+    );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
-    const depositBalances = await Promise.all(
+    const paymentDepositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
 
@@ -362,7 +366,7 @@ export class LogJobService {
 
       const totalCustomBalance = customAddressBalances && Util.sumObjValue(customAddressBalances, 'balance');
 
-      const depositBalance = depositBalances
+      const paymentDepositBalance = paymentDepositBalances
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances?.reduce(
           (sum, result) =>
@@ -374,9 +378,12 @@ export class LogJobService {
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+      const liquidity = (liquidityBalance ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
-      const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const cryptoInput =
+        curr.blockchain === Blockchain.MONERO
+          ? 0
+          : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
