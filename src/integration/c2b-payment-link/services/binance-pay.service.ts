@@ -184,7 +184,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
 
   public async verifySignature(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
     const { timestamp, nonce, signature, certSN } = headers;
-    const webhookData = JSON.stringify({ ...body, bizId: +body.bizIdStr });
+    const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
 
     const { data } = await this.queryCertificate();
