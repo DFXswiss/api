@@ -111,7 +111,7 @@ export class UserDataController {
   @Post(':id/kycFile')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
     const userData = await this.userDataService.getUserData(+id);
 
