@@ -358,15 +358,19 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+  setOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+    this.outputAmount = this.calculateOutputAmount(batchReferenceAmount, batchOutputAmount);
+    this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
+
+    return this;
+  }
+
+  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): number {
     if (batchReferenceAmount === 0) {
       throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
     }
 
-    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
-    this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
-
-    return this;
+    return Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
   }
 
   payingOut(): UpdateResult<BuyCrypto> {

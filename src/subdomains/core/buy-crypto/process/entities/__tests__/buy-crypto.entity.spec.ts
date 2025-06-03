@@ -76,7 +76,7 @@ describe('BuyCrypto', () => {
     it('throws an error if input batchReferenceAmount is zero', () => {
       const entity = createDefaultBuyCrypto();
 
-      const testCall = () => entity.calculateOutputAmount(0, 5);
+      const testCall = () => entity.setOutputAmount(0, 5);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
@@ -87,7 +87,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputAmount).toBe(undefined);
 
-      entity.calculateOutputAmount(50, 100);
+      entity.setOutputAmount(50, 100);
 
       expect(entity.outputAmount).toBe(20);
     });
@@ -97,7 +97,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputAmount).toBe(undefined);
 
-      entity.calculateOutputAmount(3, 10);
+      entity.setOutputAmount(3, 10);
 
       expect(entity.outputAmount).toBe(3.33333333);
     });
@@ -105,7 +105,7 @@ describe('BuyCrypto', () => {
     it('returns instance of BuyCrypto', () => {
       const entity = createCustomBuyCrypto({ outputReferenceAmount: 1 });
 
-      const updatedEntity = entity.calculateOutputAmount(3, 10);
+      const updatedEntity = entity.setOutputAmount(3, 10);
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });
