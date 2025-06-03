@@ -220,7 +220,7 @@ export class PaymentLinkController {
   @Put('payment/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiCreatedResponse({ type: PaymentLinkDto })
+  @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })

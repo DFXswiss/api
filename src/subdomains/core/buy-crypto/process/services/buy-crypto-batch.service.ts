@@ -358,10 +358,7 @@ export class BuyCryptoBatchService {
       const targetDeficit = Util.round(targetAmount - availableTargetAmount, 8);
       const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
-      const minTargetDeficit = batch.smallestTransaction.calculateOutputAmount(
-        batch.outputReferenceAmount,
-        batch.outputAmount,
-      );
+      const minTargetDeficit = batch.smallestTransaction.calculateOutputAmount(outputReferenceAmount, targetAmount);
 
       // order liquidity
       try {
