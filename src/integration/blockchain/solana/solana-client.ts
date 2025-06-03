@@ -190,7 +190,7 @@ export class SolanaClient extends BlockchainClient {
         Solana.SystemProgram.transfer({
           fromPubkey: wallet.publicKey,
           toPubkey: new Solana.PublicKey(toAddress),
-          lamports: Solana.LAMPORTS_PER_SOL * amount,
+          lamports: SolanaUtil.toLamportAmount(amount),
         }),
       )
       .add(this.calculatePriorityFee());
