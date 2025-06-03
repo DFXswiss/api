@@ -57,29 +57,20 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
   }
 
   private async processWebhookTransactions(dto: TatumWebhookDto): Promise<void> {
-    const fromAddresses = await this.getOwnAddresses();
+    const fromAddress = this.solanaService.getWalletAddress();
     const toAddresses = await this.getPayInAddresses();
 
-    const isNotFromOwnAddresses = dto.counterAddresses.every((ca) => !Util.includesIgnoreCase(fromAddresses, ca));
-    const isRelevantTransaction = isNotFromOwnAddresses && Util.includesIgnoreCase(toAddresses, dto.address);
+    if (Util.includesIgnoreCase(dto.counterAddresses, fromAddress)) return;
+    if (!Util.includesIgnoreCase(toAddresses, dto.address)) return;
 
-    if (isRelevantTransaction) {
-      const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
-      const payInEntry = this.mapSolanaTransaction(dto, supportedAssets);
+    const payInEntry = this.mapSolanaTransaction(dto, supportedAssets);
 
-      if (payInEntry) {
-        const log = this.createNewLogObject();
-        await this.createPayInsAndSave([payInEntry], log);
-      }
+    if (payInEntry) {
+      const log = this.createNewLogObject();
+      await this.createPayInsAndSave([payInEntry], log);
     }
-  }
-
-  private async getOwnAddresses(): Promise<string[]> {
-    const ownAddresses = [this.solanaService.getWalletAddress()];
-    ownAddresses.push(...(await this.solanaService.getAllTokenAddresses()));
-
-    return ownAddresses;
   }
 
   private async getPayInAddresses(): Promise<string[]> {
