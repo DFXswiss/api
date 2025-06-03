@@ -96,7 +96,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
 
-    const amount = Math.min(order.maxAmount, balance);
+    const amount = Util.round(Math.min(order.maxAmount, balance), 6);
 
     order.inputAmount = amount;
     order.inputAsset = token;
@@ -209,7 +209,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${sourceBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Math.min(maxAmount, sourceBalance);
+    const amount = Util.round(Math.min(maxAmount, sourceBalance), 6);
 
     order.inputAmount = amount;
     order.inputAsset = asset;
