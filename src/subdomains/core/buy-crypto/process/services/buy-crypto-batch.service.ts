@@ -359,11 +359,21 @@ export class BuyCryptoBatchService {
       const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
       const minTargetDeficit = batch.smallestTransaction.calculateOutputAmount(outputReferenceAmount, targetAmount);
+      if (!minTargetDeficit) {
+        this.logger.error(
+          `Invalid minTargetDeficit for ${oa.uniqueName} (tx reference: ${batch.smallestTransaction.outputReferenceAmount}, batch reference: ${outputReferenceAmount}, batch target: ${targetAmount})`,
+        );
+      }
 
       // order liquidity
       try {
         const asset = oa;
-        const pipeline = await this.liquidityService.buyLiquidity(asset.id, minTargetDeficit, targetDeficit, true);
+        const pipeline = await this.liquidityService.buyLiquidity(
+          asset.id,
+          minTargetDeficit || targetDeficit,
+          targetDeficit,
+          true,
+        );
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
 
         if (Config.exchangeRateFromLiquidityOrder.includes(asset.name))
