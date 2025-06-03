@@ -26,7 +26,7 @@ export class BinanceService extends ExchangeService {
     Arweave: undefined,
     Railgun: undefined,
     BinancePay: undefined,
-    Solana: undefined,
+    Solana: 'SOL',
   };
 
   constructor() {
