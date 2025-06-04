@@ -34,6 +34,7 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { getFinancialQuestions } from '../config/financial-questions';
 import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import {
   IdNowReason,
@@ -54,7 +55,7 @@ import {
   KycPersonalData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { KycError } from '../dto/kyc-error.enum';
+import { KycFinancialDataError, KycIdentError } from '../dto/kyc-error.enum';
 import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
@@ -150,6 +151,7 @@ export class KycService {
   async reviewKycSteps(): Promise<void> {
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();
+    await this.reviewFinancialData();
   }
 
   async reviewNationalityStep(): Promise<void> {
@@ -171,7 +173,7 @@ export class KycService {
         const errors = this.getNationalityErrors(entity, nationality);
         const comment = errors.join(';');
 
-        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+        if (errors.includes(KycIdentError.USER_DATA_BLOCKED) || errors.includes(KycIdentError.USER_DATA_MERGED)) {
           await this.kycStepRepo.update(...entity.ignored(comment));
         } else if (errors.length > 0) {
           await this.kycStepRepo.update(...entity.manualReview(comment));
@@ -211,14 +213,14 @@ export class KycService {
         const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality);
         const comment = errors.join(';');
 
-        if (errors.includes(KycError.REVERSED_NAMES)) {
+        if (errors.includes(KycIdentError.REVERSED_NAMES)) {
           await this.userDataService.updateUserDataInternal(entity.userData, {
             firstname: entity.userData.surname,
             surname: entity.userData.firstname,
           });
           continue;
-        } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
-          await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
+        } else if (errors.includes(KycIdentError.NATIONALITY_NOT_MATCHING)) {
+          await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycIdentError.NATIONALITY_NOT_MATCHING));
           if (errors.length === 1) {
             await this.kycNotificationService.kycStepFailed(
               entity.userData,
@@ -229,10 +231,10 @@ export class KycService {
           }
         }
 
-        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+        if (errors.includes(KycIdentError.USER_DATA_BLOCKED) || errors.includes(KycIdentError.USER_DATA_MERGED)) {
           entity.ignored(comment);
         } else if (
-          errors.includes(KycError.VERIFIED_NAME_MISSING) &&
+          errors.includes(KycIdentError.VERIFIED_NAME_MISSING) &&
           errors.length === 1 &&
           entity.userData.accountType === AccountType.PERSONAL
         ) {
@@ -255,6 +257,44 @@ export class KycService {
         }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
+      }
+    }
+  }
+
+  async reviewFinancialData(): Promise<void> {
+    if (DisabledProcess(Process.KYC_FINANCIAL_REVIEW)) return;
+
+    const entities = await this.kycStepRepo.find({
+      where: {
+        name: KycStepName.FINANCIAL_DATA,
+        status: KycStepStatus.INTERNAL_REVIEW,
+      },
+      relations: { userData: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        const errors = this.getFinancialDataErrors(entity);
+        const comment = errors.join(';');
+
+        if (errors.includes(KycFinancialDataError.MISSING_QUESTION)) {
+          // send mail
+          await this.kycStepRepo.update(entity.id, { status: KycStepStatus.IN_PROGRESS });
+          continue;
+        }
+
+        if (errors.length === 0 && !entity.isManual) {
+          entity.complete();
+        } else {
+          entity.manualReview(comment);
+        }
+
+        await this.createStepLog(entity.userData, entity);
+        await this.kycStepRepo.save(entity);
+
+        if (entity.isCompleted) await this.checkDfxApproval(entity);
+      } catch (e) {
+        this.logger.error(`Failed to auto review financialData step ${entity.id}:`, e);
       }
     }
   }
@@ -861,20 +901,20 @@ export class KycService {
       case KycStepName.IDENT:
         const identSteps = user.getStepsWith(KycStepName.IDENT);
         if (
-          identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
-          ((identSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) ||
+          identSteps.some((i) => i.comment?.split(';').includes(KycIdentError.USER_DATA_EXISTING)) ||
+          ((identSteps.some((i) => i.comment?.split(';').includes(KycIdentError.BLOCKED)) ||
             identSteps.length > Config.kyc.maxIdentTries ||
             identSteps.some((i) =>
               i
                 .getResult<SumsubResult>()
                 ?.webhook?.reviewResult?.rejectLabels?.some((l) => SumSubBlockLabels.includes(l)),
             )) &&
-            !identSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED)))
+            !identSteps.some((i) => i.comment?.split(';').includes(KycIdentError.RELEASED)))
         )
           return { nextStep: undefined };
 
         const userDataMergeRequestedStep = identSteps.find(
-          (i) => i.comment?.split(';').includes(KycError.USER_DATA_MERGE_REQUESTED) && i.sequenceNumber >= 0,
+          (i) => i.comment?.split(';').includes(KycIdentError.USER_DATA_MERGE_REQUESTED) && i.sequenceNumber >= 0,
         );
         if (userDataMergeRequestedStep) {
           const existing = await this.userDataService.getDifferentUserWithSameIdentDoc(
@@ -975,8 +1015,8 @@ export class KycService {
       return step.complete({ mail });
     } catch (e) {
       const error = (e as Error).message?.includes('account merge request sent')
-        ? KycError.USER_DATA_MERGE_REQUESTED
-        : KycError.USER_DATA_EXISTING;
+        ? KycIdentError.USER_DATA_MERGE_REQUESTED
+        : KycIdentError.USER_DATA_EXISTING;
       return step.fail({ mail }, error);
     }
   }
@@ -1025,7 +1065,7 @@ export class KycService {
         await this.kycStepRepo.update(
           ...kycStep.fail(
             undefined,
-            [kycStep.comment, mergeRequest ? KycError.USER_DATA_MERGE_REQUESTED : KycError.USER_DATA_EXISTING]
+            [kycStep.comment, mergeRequest ? KycIdentError.USER_DATA_MERGE_REQUESTED : KycIdentError.USER_DATA_EXISTING]
               .filter((c) => c)
               .join(';'),
           ),
@@ -1060,17 +1100,31 @@ export class KycService {
     this.logger.error(`Missing ident data for userData ${userData.id}`);
   }
 
-  private getStepDefaultErrors(entity: KycStep): KycError[] {
+  private getStepDefaultErrors(entity: KycStep): KycIdentError[] {
     const errors = [];
-    if (entity.userData.status === UserDataStatus.MERGED) errors.push(KycError.USER_DATA_MERGED);
-    if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(KycError.USER_DATA_BLOCKED);
+    if (entity.userData.status === UserDataStatus.MERGED) errors.push(KycIdentError.USER_DATA_MERGED);
+    if (entity.userData.isBlocked || entity.userData.isDeactivated) errors.push(KycIdentError.USER_DATA_BLOCKED);
 
     return errors;
   }
 
-  private getNationalityErrors(entity: KycStep, nationality: Country): KycError[] {
+  private getNationalityErrors(entity: KycStep, nationality: Country): KycIdentError[] {
     const errors = this.getStepDefaultErrors(entity);
-    if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+    if (!nationality.nationalityEnable) errors.push(KycIdentError.NATIONALITY_NOT_ALLOWED);
+
+    return errors;
+  }
+
+  private getFinancialDataErrors(entity: KycStep): KycFinancialDataError[] {
+    const errors: KycFinancialDataError[] = [];
+    const financialStepResult = entity.getResult<KycFinancialResponse[]>();
+
+    const questions = getFinancialQuestions(entity.userData.accountType).filter((q) => !q.key.includes('description'));
+    const riskyBusiness = financialStepResult.find((f) => f.key.includes('risky_business'));
+
+    if (!questions.every((q) => financialStepResult.find((f) => q.key === f.key)))
+      errors.push(KycFinancialDataError.MISSING_QUESTION);
+    if (riskyBusiness.value.includes('yes')) errors.push(KycFinancialDataError.RISKY_BUSINESS);
 
     return errors;
   }
@@ -1080,53 +1134,54 @@ export class KycService {
     nationalityStep: KycStep,
     data: IdentResultData,
     nationality?: Country,
-  ): KycError[] {
+  ): KycIdentError[] {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
-    if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
+    if (!Util.isSameName(identStep.userData.firstname, data.firstname))
+      errors.push(KycIdentError.FIRST_NAME_NOT_MATCHING);
     if (
       !Util.isSameName(identStep.userData.surname, data.lastname) &&
       !Util.isSameName(identStep.userData.surname, data.birthname) &&
       (data.lastname || !Util.isSameName(identStep.userData.surname, data.firstname))
     )
-      errors.push(KycError.LAST_NAME_NOT_MATCHING);
+      errors.push(KycIdentError.LAST_NAME_NOT_MATCHING);
 
     if (
       (Util.isSameName(identStep.userData.firstname, data.lastname) ||
         Util.isSameName(identStep.userData.firstname, data.birthname)) &&
       Util.isSameName(identStep.userData.surname, data.firstname) &&
-      errors.some((e) => [KycError.FIRST_NAME_NOT_MATCHING, KycError.LAST_NAME_NOT_MATCHING].includes(e))
+      errors.some((e) => [KycIdentError.FIRST_NAME_NOT_MATCHING, KycIdentError.LAST_NAME_NOT_MATCHING].includes(e))
     )
-      errors.push(KycError.REVERSED_NAMES);
+      errors.push(KycIdentError.REVERSED_NAMES);
 
     if (!nationality) {
-      errors.push(KycError.NATIONALITY_MISSING);
+      errors.push(KycIdentError.NATIONALITY_MISSING);
     } else if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id) {
-      errors.push(KycError.NATIONALITY_NOT_MATCHING);
+      errors.push(KycIdentError.NATIONALITY_NOT_MATCHING);
     }
 
-    if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
+    if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(KycIdentError.INVALID_DOCUMENT_TYPE);
 
-    if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
+    if (!data.documentNumber) errors.push(KycIdentError.IDENTIFICATION_NUMBER_MISSING);
 
-    if (!data.success) errors.push(KycError.INVALID_RESULT);
+    if (!data.success) errors.push(KycIdentError.INVALID_RESULT);
 
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
-      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry && !userCountry.dfxEnable) errors.push(KycIdentError.COUNTRY_NOT_ALLOWED);
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
-        errors.push(KycError.VERIFIED_NAME_MISSING);
+        errors.push(KycIdentError.VERIFIED_NAME_MISSING);
       } else if (identStep.userData.verifiedName) {
         if (!Util.includesSameName(identStep.userData.verifiedName, identStep.userData.firstname))
-          errors.push(KycError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
+          errors.push(KycIdentError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
         if (!Util.includesSameName(identStep.userData.verifiedName, identStep.userData.surname))
-          errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
+          errors.push(KycIdentError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
-      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycIdentError.COUNTRY_NOT_ALLOWED);
     }
 
     return errors;
