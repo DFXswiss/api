@@ -57,10 +57,13 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
   }
 
   private async processWebhookTransactions(dto: TatumWebhookDto): Promise<void> {
-    const fromAddress = this.solanaService.getWalletAddress();
+    if (!dto.counterAddresses?.length) return;
+    if (!Util.includesIgnoreCase(['native', 'token'], dto.type)) return;
+
+    const ownWalletAddress = this.solanaService.getWalletAddress();
     const toAddresses = await this.getPayInAddresses();
 
-    if (Util.includesIgnoreCase(dto.counterAddresses, fromAddress)) return;
+    if (Util.includesIgnoreCase(dto.counterAddresses, ownWalletAddress)) return;
     if (!Util.includesIgnoreCase(toAddresses, dto.address)) return;
 
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
@@ -86,7 +89,7 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
   }
 
   private mapSolanaTransaction(dto: TatumWebhookDto, supportedAssets: Asset[]): PayInEntry | undefined {
-    const isNativeTransaction = dto.type === 'native';
+    const isNativeTransaction = Util.equalsIgnoreCase('native', dto.type);
 
     return {
       senderAddresses: dto.counterAddresses.join(','),
