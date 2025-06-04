@@ -127,8 +127,16 @@ export class LogJobService {
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
           },
-          changes: changeLog,
         }),
+        valid: null,
+        category: null,
+      });
+
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'ChangesLog',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({ changes: changeLog }),
         valid: null,
         category: null,
       });
