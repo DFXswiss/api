@@ -75,6 +75,9 @@ export class PaymentLinkPaymentDto {
   @ApiPropertyOptional()
   externalId: string;
 
+  @ApiPropertyOptional()
+  note: string;
+
   @ApiProperty({ enum: PaymentLinkPaymentStatus })
   status: PaymentLinkPaymentStatus;
 
