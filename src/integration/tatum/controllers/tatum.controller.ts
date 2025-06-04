@@ -11,7 +11,7 @@ import {
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { TatumWebhookDto } from '../dto/tatum.dto';
+import { TatumWebhookPayloadMapper } from '../dto/tatum-webhook-payload.mapper';
 import { TatumWebhookService } from '../services/tatum-webhook.service';
 
 @ApiTags('Tatum')
@@ -34,7 +34,7 @@ export class TatumController {
         throw new BadRequestException('Invalid signature');
       }
 
-      const dto = JSON.parse(req.body) as TatumWebhookDto;
+      const dto = TatumWebhookPayloadMapper.payloadToWebhookDto(JSON.parse(req.body));
       this.tatumWebhookService.processAddressWebhook(dto);
     } catch (e) {
       if (e instanceof BadRequestException) throw e;
