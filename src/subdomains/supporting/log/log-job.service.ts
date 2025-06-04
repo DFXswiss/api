@@ -134,7 +134,7 @@ export class LogJobService {
 
       await this.logService.create({
         system: 'LogService',
-        subsystem: 'ChangesLog',
+        subsystem: 'FinancialChangesLog',
         severity: LogSeverity.INFO,
         message: JSON.stringify({ changes: changeLog }),
         valid: null,
