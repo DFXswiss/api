@@ -353,8 +353,6 @@ export class BuyCryptoBatchService {
 
       const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
 
-      await this.setMissingLiquidityStatus(transactions);
-
       const targetDeficit = Util.round(targetAmount - availableTargetAmount, 8);
       const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
@@ -364,6 +362,8 @@ export class BuyCryptoBatchService {
           `Invalid minTargetDeficit for ${oa.uniqueName} (tx reference: ${batch.smallestTransaction.outputReferenceAmount}, batch reference: ${outputReferenceAmount}, batch target: ${targetAmount})`,
         );
       }
+
+      await this.setMissingLiquidityStatus(transactions);
 
       // order liquidity
       try {

@@ -22,6 +22,11 @@ export class CreatePaymentLinkPaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  note: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   currency?: string;
 
   @ApiPropertyOptional()

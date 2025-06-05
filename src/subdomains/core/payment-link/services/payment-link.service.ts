@@ -136,6 +136,7 @@ export class PaymentLinkService {
       mode: PaymentLinkPaymentMode.SINGLE,
       amount: +dto.amount,
       externalId: dto.externalId,
+      note: dto.note,
       currency: dto.currency,
       expiryDate: dto.expiryDate,
     };
@@ -384,7 +385,7 @@ export class PaymentLinkService {
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
-    await this.updateUserPaymentLinksConfig(paymentLink.route.userData.id, { ...ids});
+    await this.updateUserPaymentLinksConfig(paymentLink.route.userData.id, { ...ids });
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {

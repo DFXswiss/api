@@ -169,6 +169,7 @@ export class PaymentLinkController {
       }
     }
     dto.externalId ??= dto.e;
+    dto.note ??= dto.n;
     dto.message ??= dto.m;
     dto.label ??= dto.l;
     dto.amount ??= dto.a;
