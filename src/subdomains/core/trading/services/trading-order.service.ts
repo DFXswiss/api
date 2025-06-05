@@ -201,7 +201,7 @@ export class TradingOrderService implements OnModuleInit {
       const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
       this.logger.verbose(message);
     } catch (e) {
-      this.logger.error(`Failed to complete trading order ${order.id} (rule ${order.tradingRule.id}):`, e);
+      this.logger.warn(`Failed to complete trading order ${order.id} (rule ${order.tradingRule.id}):`, e);
     }
   }
 
