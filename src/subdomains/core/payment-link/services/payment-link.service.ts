@@ -450,10 +450,13 @@ export class PaymentLinkService {
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }
 
-  async generateOcpStickersPdf(routeIdOrLabel: string, externalIds: string[]): Promise<Buffer> {
-    const paymentLinksFromDb = await this.sellService.getPaymentLinksByRoute(routeIdOrLabel, externalIds);
-    const paymentLinksMap = new Map(paymentLinksFromDb.map((link) => [link.externalId, link]));
-    const paymentLinks = externalIds.map((id) => paymentLinksMap.get(id)).filter(Boolean);
+  async generateOcpStickersPdf(routeIdOrLabel: string, externalIds?: string[], ids?: number[]): Promise<Buffer> {
+    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
+    const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
+    const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
+    const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];
+    const linksById = ids?.map((id) => linkMapById.get(id)).filter(Boolean) || [];
+    const links = [...linksByExternalId, ...linksById];
 
     // Blue OCP Image
     const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
@@ -501,12 +504,12 @@ export class PaymentLinkService {
         const startY = margin + (availH - gridH) / 2;
 
         const stickersPerPage = cols * rows;
-        for (let i = 0; i < paymentLinks.length; i++) {
+        for (let i = 0; i < links.length; i++) {
           if (i > 0 && i % stickersPerPage === 0) {
             pdf.addPage();
           }
 
-          const { externalId, uniqueId } = paymentLinks[i];
+          const { externalId, id, uniqueId } = links[i];
           const idx = i % stickersPerPage;
           const col = idx % cols;
           const row = Math.floor(idx / cols);
@@ -547,10 +550,10 @@ export class PaymentLinkService {
 
           // Add External ID
           pdf.fontSize(4).font('Helvetica');
-          const textWidth = pdf.widthOfString(externalId);
+          const textWidth = pdf.widthOfString(externalId ?? id.toString());
           const textX = x + pngWidth - textWidth - 5;
           const textY = y + stickerHeight - 7;
-          pdf.text(externalId, textX, textY);
+          pdf.text(externalId ?? id.toString(), textX, textY);
 
           // Add Border
           pdf

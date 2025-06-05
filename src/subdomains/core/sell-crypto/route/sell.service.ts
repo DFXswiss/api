@@ -122,15 +122,25 @@ export class SellService {
     return sellRoute;
   }
 
-  async getPaymentLinksByRoute(routeIdOrLabel: string, externalIds?: string[]): Promise<PaymentLink[]> {
+  async getPaymentLinksFromRoute(
+    routeIdOrLabel: string,
+    externalIds?: string[],
+    ids?: number[],
+  ): Promise<PaymentLink[]> {
     const route = await this.getPaymentRoute(routeIdOrLabel, {
       relations: { paymentLinks: true },
-      where: { paymentLinks: { externalId: externalIds?.length ? In(externalIds) : undefined } },
+      where: {
+        paymentLinks: [
+          ...(externalIds?.length ? [{ externalId: In(externalIds) }] : []),
+          ...(ids?.length ? [{ id: In(ids) }] : []),
+        ],
+      },
       order: { paymentLinks: { created: 'ASC' } },
     });
 
-    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.externalId, l])).values());
+    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
   }
+
   async getSellByKey(key: string, value: any): Promise<Sell> {
     return this.sellRepo
       .createQueryBuilder('sell')
