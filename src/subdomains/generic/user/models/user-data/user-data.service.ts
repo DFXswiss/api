@@ -344,6 +344,26 @@ export class UserDataService {
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
+    if (
+      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType ?? userData.accountType) &&
+      userData.organization
+    )
+      await this.organizationService.updateOrganizationInternal(userData.organization, {
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        country: dto.organizationCountry,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
+
     return userData;
   }
 
