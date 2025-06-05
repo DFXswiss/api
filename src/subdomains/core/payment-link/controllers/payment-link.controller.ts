@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -291,10 +292,10 @@ export class PaymentLinkController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     if (!externalIds && !ids) {
-      throw new ForbiddenException('Either externalIds or ids parameter must be provided');
+      throw new BadRequestException('Either externalIds or ids parameter must be provided');
     }
 
-    const idArray = ids?.split(',').map((id) => +id.trim());
+    const idArray = ids?.split(',').map((id) => +id);
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
     const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray);
 
