@@ -9,6 +9,7 @@ import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-paym
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -28,6 +29,7 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
+  private readonly logger = new DfxLogger(PaymentLinkService);
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
@@ -173,8 +175,21 @@ export class PaymentLinkService {
       mail: dto.config?.recipient?.mail,
       website: dto.config?.recipient?.website,
       payments: [],
+      registrationNumber: dto.registrationNumber,
+      storeType: dto.storeType,
+      merchantMcc: dto.merchantMcc,
+      goodsType: dto.goodsType,
+      goodsCategory: dto.goodsCategory,
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
+
+    const c2bIds = await this.c2bPaymentLinkService
+      .enrollPaymentLink(paymentLink, C2BPaymentProvider.BINANCE_PAY)
+      .catch((e) => {
+        this.logger.info(`Failed to enroll C2B payment link ${paymentLink.uniqueId}`, e);
+      });
+
+    if (c2bIds) paymentLink.config = JSON.stringify({ ...JSON.parse(paymentLink.config || '{}'), ...c2bIds });
 
     await this.paymentLinkRepo.save(paymentLink);
 

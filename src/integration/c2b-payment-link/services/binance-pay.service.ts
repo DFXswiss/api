@@ -20,7 +20,6 @@ import {
   ChannelPartnerOrderData,
   GoodsCategory,
   GoodsType,
-  MerchantMCC,
   OrderData,
   OrderResponse,
   ResponseStatus,
@@ -47,6 +46,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private generateSignature(timestamp: number, nonce: string, body: string): string {
+    if (!this.secretKey) throw new Error('Binance Pay service is not configured');
     const data = `${timestamp}\n${nonce}\n${body}\n`;
     return crypto.createHmac('sha512', this.secretKey).update(data).digest('hex').toUpperCase();
   }
@@ -56,6 +56,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private getHeaders(body: any): Record<string, string | number> {
+    if (!this.apiKey) throw new Error('Binance Pay service is not configured');
+
     const timestamp = Date.now();
     const nonce = this.getNonce();
     const signature = this.generateSignature(timestamp, nonce, JSON.stringify(body));
@@ -74,11 +76,33 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     );
   }
 
+  private validateEnrollmentRequiredFieldsOrThrow(paymentLink: PaymentLink): void {
+    const requiredFields: [string, any][] = [
+      ['externalId', paymentLink.externalId],
+      ['label', paymentLink.label],
+      ['merchantName', paymentLink.name],
+      ['merchantMcc', paymentLink.merchantMcc],
+      ['country', paymentLink.country?.symbol],
+      ['siteUrl', paymentLink.website],
+      ['street', paymentLink.street],
+      ['houseNumber', paymentLink.houseNumber],
+      ['zip', paymentLink.zip],
+      ['city', paymentLink.city],
+      ['registrationNumber', paymentLink.registrationNumber],
+    ];
+    const missing = requiredFields.filter(([_, value]) => !value).map(([label]) => label);
+    if (missing.length) {
+      throw new Error(`Missing required fields for Binance Pay: ${missing.join(', ')}`);
+    }
+  }
+
   public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
+    this.validateEnrollmentRequiredFieldsOrThrow(paymentLink);
+
     const subMerchantData = {
-      merchantName: paymentLink.name,
-      storeType: StoreType.PHYSICAL,
-      merchantMcc: MerchantMCC.RetailTradeOthers,
+      merchantName: `${paymentLink.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
+      storeType: paymentLink.storeType || StoreType.PHYSICAL,
+      merchantMcc: paymentLink.merchantMcc,
       country: paymentLink.country?.symbol,
       siteUrl: paymentLink.website,
       address: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
@@ -118,8 +142,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       description: payment.memo,
       goodsDetails: [
         {
-          goodsType: GoodsType.TangibleGoods,
-          goodsCategory: GoodsCategory.FoodGroceryHealthProducts,
+          goodsType: payment.link.goodsType || GoodsType.TangibleGoods, // TODO: Remove default values
+          goodsCategory: payment.link.goodsCategory || GoodsCategory.FoodGroceryHealthProducts,
           referenceGoodsId: '01',
           goodsName: payment.memo,
           goodsDetail: payment.memo,
