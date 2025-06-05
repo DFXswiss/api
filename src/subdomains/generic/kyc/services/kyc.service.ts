@@ -34,7 +34,6 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { getFinancialQuestions } from '../config/financial-questions';
 import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import {
   IdNowReason,
@@ -565,7 +564,7 @@ export class KycService {
 
     await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
-    const complete = this.financialService.isComplete(data.responses, user.accountType);
+    const complete = FinancialService.isComplete(data.responses, user.accountType);
     if (complete) {
       await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);
@@ -1119,10 +1118,9 @@ export class KycService {
     const errors: KycFinancialDataError[] = [];
     const financialStepResult = entity.getResult<KycFinancialResponse[]>();
 
-    const questions = getFinancialQuestions(entity.userData.accountType).filter((q) => !q.key.includes('description'));
     const riskyBusiness = financialStepResult.find((f) => f.key.includes('risky_business'));
 
-    if (!questions.every((q) => financialStepResult.find((f) => q.key === f.key)))
+    if (!FinancialService.isComplete(financialStepResult, entity.userData.accountType))
       errors.push(KycFinancialDataError.MISSING_QUESTION);
     if (riskyBusiness.value.includes('yes')) errors.push(KycFinancialDataError.RISKY_BUSINESS);
 
