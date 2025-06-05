@@ -285,10 +285,12 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
+  @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   async generateOcpStickers(
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
+    @Query('lang') lang: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     if (!externalIds && !ids) {
@@ -297,7 +299,7 @@ export class PaymentLinkController {
 
     const idArray = ids?.split(',').map((id) => +id);
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
-    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray);
+    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray, lang);
 
     res.set({
       'Content-Type': 'application/pdf',
