@@ -6,8 +6,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddBinancePayColumnsToPaymentLink1749126248110 {
-    name = 'AddBinancePayColumnsToPaymentLink1749126248110'
+module.exports = class AddBinancePayColumns1749183174663 {
+    name = 'AddBinancePayColumns1749183174663'
 
     async up(queryRunner) {
         await queryRunner.query(`ALTER TABLE "payment_link" ADD "storeType" int`);
