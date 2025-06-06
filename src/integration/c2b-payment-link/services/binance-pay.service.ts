@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -46,7 +46,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private generateSignature(timestamp: number, nonce: string, body: string): string {
-    if (!this.secretKey) throw new Error('Binance Pay service is not configured');
+    if (!this.secretKey) throw new ServiceUnavailableException('Binance Pay service is not configured');
     const data = `${timestamp}\n${nonce}\n${body}\n`;
     return crypto.createHmac('sha512', this.secretKey).update(data).digest('hex').toUpperCase();
   }
@@ -56,7 +56,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private getHeaders(body: any): Record<string, string | number> {
-    if (!this.apiKey) throw new Error('Binance Pay service is not configured');
+    if (!this.apiKey) throw new ServiceUnavailableException('Binance Pay service is not configured');
 
     const timestamp = Date.now();
     const nonce = this.getNonce();
@@ -70,29 +70,31 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     };
   }
 
-  public isAvailable(paymentLink: PaymentLinkPayment): boolean {
-    return Boolean(
-      paymentLink.link.configObj.binancePayMerchantId || paymentLink.link.configObj.binancePaySubMerchantId,
-    );
+  public isPaymentLinkEnrolled(paymentLink: PaymentLink): boolean {
+    try {
+      const config = JSON.parse(paymentLink.config || '{}');
+      return Boolean(config.binancePayMerchantId || config.binancePaySubMerchantId);
+    } catch (e) {
+      return false;
+    }
   }
 
   private validateEnrollmentRequiredFieldsOrThrow(paymentLink: PaymentLink): void {
-    const requiredFields: [string, any][] = [
-      ['externalId', paymentLink.externalId],
-      ['label', paymentLink.label],
-      ['merchantName', paymentLink.name],
-      ['merchantMcc', paymentLink.merchantMcc],
-      ['country', paymentLink.country?.symbol],
-      ['siteUrl', paymentLink.website],
-      ['street', paymentLink.street],
-      ['houseNumber', paymentLink.houseNumber],
-      ['zip', paymentLink.zip],
-      ['city', paymentLink.city],
-      ['registrationNumber', paymentLink.registrationNumber],
-    ];
-    const missing = requiredFields.filter(([_, value]) => !value).map(([label]) => label);
+    const missing = [
+      'externalId',
+      'label',
+      'name',
+      'merchantMcc',
+      'country',
+      'website',
+      'street',
+      'houseNumber',
+      'zip',
+      'city',
+      'registrationNumber',
+    ].filter((f) => !paymentLink[f]);
     if (missing.length) {
-      throw new Error(`Missing required fields for Binance Pay: ${missing.join(', ')}`);
+      throw new BadRequestException(`Missing required fields for Binance Pay: ${missing.join(', ')}`);
     }
   }
 

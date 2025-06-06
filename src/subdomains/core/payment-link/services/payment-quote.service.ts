@@ -259,7 +259,7 @@ export class PaymentQuoteService {
     }
 
     if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
-      if (!this.c2bPaymentLinkService.isAvailable(blockchain, payment)) {
+      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, payment.link)) {
         transferAmount.available = false;
         transferAmount.assets = [];
       }

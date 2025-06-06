@@ -57,9 +57,9 @@ export class C2BPaymentLinkService {
     return clientProvider.handleWebhook(payload);
   }
 
-  isAvailable(blockchain: Blockchain, paymentLink: PaymentLinkPayment): boolean {
+  isPaymentLinkEnrolled(blockchain: Blockchain, paymentLink: PaymentLink): boolean {
     const clientProvider = this.getProvider(C2BPaymentLinkService.mapBlockchainToProvider(blockchain));
-    return clientProvider.isAvailable(paymentLink);
+    return clientProvider.isPaymentLinkEnrolled(paymentLink);
   }
 
   enrollPaymentLink(paymentLink: PaymentLink, provider: C2BPaymentProvider): Promise<Record<string, string>> {
