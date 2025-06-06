@@ -75,10 +75,14 @@ export abstract class EvmClient extends BlockchainClient {
 
     this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
-    this.router = new AlphaRouter({
-      chainId: this.chainId,
-      provider: this.provider,
-    });
+    // Router cannot be initialized for Gnosis Chain
+    if (this.chainId !== 100) {
+      this.router = new AlphaRouter({
+        chainId: this.chainId,
+        provider: this.provider,
+      });
+    }
+
     this.swapContractAddress = params.swapContractAddress;
     this.quoteContractAddress = params.quoteContractAddress;
     this.swapFactoryAddress = params.swapFactoryAddress;
@@ -546,6 +550,8 @@ export abstract class EvmClient extends BlockchainClient {
   }
 
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {
+    if (!this.router) throw new Error(`No router initialized for chain ${this.chainId}`);
+
     const sourceToken = await this.getToken(source);
     const targetToken = await this.getToken(target);
 
