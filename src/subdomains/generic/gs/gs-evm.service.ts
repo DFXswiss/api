@@ -63,7 +63,7 @@ export class GsEvmService {
   }
 
   async sendTokenTransaction(dto: EvmTokenTransactionDto): Promise<string> {
-    const { fromAddress, toAddress, assetId, amount, feeLimit, blockchain } = dto;
+    const { fromAddress, toAddress, assetId, amount, blockchain } = dto;
     const token = await this.assetService.getAssetById(assetId);
 
     if (!token) throw new BadRequestException(`Asset ${assetId} not found`);
@@ -78,17 +78,16 @@ export class GsEvmService {
         toAddress,
         token,
         amount,
-        feeLimit,
       );
     } else if (fromAddress === client.dfxAddress) {
-      return client.sendTokenFromDex(toAddress, token, amount, feeLimit);
+      return client.sendTokenFromDex(toAddress, token, amount);
     }
 
     throw new Error('Provided source address is not known');
   }
 
   async sendCoinTransaction(dto: EvmCoinTransactionDto): Promise<string> {
-    const { fromAddress, toAddress, amount, feeLimit, blockchain } = dto;
+    const { fromAddress, toAddress, amount, blockchain } = dto;
     const client = this.blockchainRegistryService.getEvmClient(blockchain);
 
     const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
@@ -98,10 +97,9 @@ export class GsEvmService {
         Config.blockchain.evm.walletAccount(deposit.accountIndex),
         toAddress,
         amount,
-        feeLimit,
       );
     } else if (fromAddress === client.dfxAddress) {
-      return client.sendNativeCoinFromDex(toAddress, amount, feeLimit);
+      return client.sendNativeCoinFromDex(toAddress, amount);
     }
 
     throw new Error('Provided source address is not known');

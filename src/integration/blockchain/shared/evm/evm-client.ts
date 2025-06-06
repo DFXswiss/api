@@ -209,45 +209,28 @@ export abstract class EvmClient extends BlockchainClient {
     return result;
   }
 
-  async sendNativeCoinFromAccount(
-    account: WalletAccount,
-    toAddress: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
+  async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number): Promise<string> {
     const wallet = EvmUtil.createWallet(account, this.provider);
 
-    return this.sendNativeCoin(wallet, toAddress, amount, feeLimit);
+    return this.sendNativeCoin(wallet, toAddress, amount);
   }
 
-  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number, nonce?: number): Promise<string> {
-    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit, nonce);
+  async sendNativeCoinFromDex(toAddress: string, amount: number, nonce?: number): Promise<string> {
+    return this.sendNativeCoin(this.wallet, toAddress, amount, nonce);
   }
 
-  async sendTokenFromAccount(
-    account: WalletAccount,
-    toAddress: string,
-    token: Asset,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
+  async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
     const wallet = EvmUtil.createWallet(account, this.provider);
 
     const contract = new ethers.Contract(token.chainId, ERC20_ABI, wallet);
 
-    return this.sendToken(contract, wallet.address, toAddress, amount, feeLimit);
+    return this.sendToken(contract, wallet.address, toAddress, amount);
   }
 
-  async sendTokenFromDex(
-    toAddress: string,
-    token: Asset,
-    amount: number,
-    feeLimit?: number,
-    nonce?: number,
-  ): Promise<string> {
+  async sendTokenFromDex(toAddress: string, token: Asset, amount: number, nonce?: number): Promise<string> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit, nonce);
+    return this.sendToken(contract, this.dfxAddress, toAddress, amount, nonce);
   }
 
   async isPermitContract(address: string): Promise<boolean> {
@@ -695,13 +678,12 @@ export abstract class EvmClient extends BlockchainClient {
     wallet: ethers.Wallet,
     toAddress: string,
     amount: number,
-    feeLimit?: number,
     nonce?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
 
     const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
-    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
+    const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
 
@@ -732,11 +714,10 @@ export abstract class EvmClient extends BlockchainClient {
     fromAddress: string,
     toAddress: string,
     amount: number,
-    feeLimit?: number,
     nonce?: number,
   ): Promise<string> {
     const gasLimit = +(await this.getTokenGasLimitForContact(contract));
-    const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
+    const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
 
@@ -748,14 +729,6 @@ export abstract class EvmClient extends BlockchainClient {
     if (txNonce >= currentNonce) this.nonce.set(fromAddress, txNonce + 1);
 
     return tx.hash;
-  }
-
-  protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
-    const currentGasPrice = +(await this.getRecommendedGasPrice());
-    const proposedGasPrice =
-      feeLimit != null ? Util.round(+EvmUtil.toWeiAmount(feeLimit) / gasLimit, 0) : Number.MAX_VALUE;
-
-    return Math.min(currentGasPrice, proposedGasPrice);
   }
 
   protected async getNonce(address: string): Promise<number> {
