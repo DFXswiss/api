@@ -57,7 +57,7 @@ export abstract class EvmClient extends BlockchainClient {
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   readonly wallet: ethers.Wallet;
-  private readonly nonce = new Map<string, number>();
+  private readonly nonce = new Map<string, { value: number; date: Date }>();
   private readonly tokens = new AsyncCache<Token>();
   private readonly router: AlphaRouter;
   private readonly swapContractAddress: string;
@@ -208,50 +208,33 @@ export abstract class EvmClient extends BlockchainClient {
       value,
     });
 
-    if (txNonce >= currentNonce) this.nonce.set(request.from, txNonce + 1);
+    if (txNonce >= currentNonce) this.setNonce(request.from, txNonce + 1);
 
     return result;
   }
 
-  async sendNativeCoinFromAccount(
-    account: WalletAccount,
-    toAddress: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
+  async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number): Promise<string> {
     const wallet = EvmUtil.createWallet(account, this.provider);
 
-    return this.sendNativeCoin(wallet, toAddress, amount, feeLimit);
+    return this.sendNativeCoin(wallet, toAddress, amount);
   }
 
-  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number, nonce?: number): Promise<string> {
-    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit, nonce);
+  async sendNativeCoinFromDex(toAddress: string, amount: number, nonce?: number): Promise<string> {
+    return this.sendNativeCoin(this.wallet, toAddress, amount, nonce);
   }
 
-  async sendTokenFromAccount(
-    account: WalletAccount,
-    toAddress: string,
-    token: Asset,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
+  async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
     const wallet = EvmUtil.createWallet(account, this.provider);
 
     const contract = new ethers.Contract(token.chainId, ERC20_ABI, wallet);
 
-    return this.sendToken(contract, wallet.address, toAddress, amount, feeLimit);
+    return this.sendToken(contract, wallet.address, toAddress, amount);
   }
 
-  async sendTokenFromDex(
-    toAddress: string,
-    token: Asset,
-    amount: number,
-    feeLimit?: number,
-    nonce?: number,
-  ): Promise<string> {
+  async sendTokenFromDex(toAddress: string, token: Asset, amount: number, nonce?: number): Promise<string> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit, nonce);
+    return this.sendToken(contract, this.dfxAddress, toAddress, amount, nonce);
   }
 
   async isPermitContract(address: string): Promise<boolean> {
@@ -293,7 +276,7 @@ export abstract class EvmClient extends BlockchainClient {
       nonce: currentNonce,
     });
 
-    this.nonce.set(this.dfxAddress, currentNonce + 1);
+    this.setNonce(this.dfxAddress, currentNonce + 1);
 
     return result.hash;
   }
@@ -378,7 +361,7 @@ export abstract class EvmClient extends BlockchainClient {
       nonce,
     });
 
-    this.nonce.set(this.dfxAddress, nonce + 1);
+    this.setNonce(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -600,7 +583,7 @@ export abstract class EvmClient extends BlockchainClient {
       nonce,
     });
 
-    this.nonce.set(this.dfxAddress, nonce + 1);
+    this.setNonce(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -701,13 +684,12 @@ export abstract class EvmClient extends BlockchainClient {
     wallet: ethers.Wallet,
     toAddress: string,
     amount: number,
-    feeLimit?: number,
     nonce?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
 
     const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
-    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
+    const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
 
@@ -720,7 +702,7 @@ export abstract class EvmClient extends BlockchainClient {
       gasLimit,
     });
 
-    if (txNonce >= currentNonce) this.nonce.set(fromAddress, txNonce + 1);
+    if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 
     return tx.hash;
   }
@@ -738,11 +720,10 @@ export abstract class EvmClient extends BlockchainClient {
     fromAddress: string,
     toAddress: string,
     amount: number,
-    feeLimit?: number,
     nonce?: number,
   ): Promise<string> {
     const gasLimit = +(await this.getTokenGasLimitForContact(contract));
-    const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
+    const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
 
@@ -751,24 +732,21 @@ export abstract class EvmClient extends BlockchainClient {
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 
-    if (txNonce >= currentNonce) this.nonce.set(fromAddress, txNonce + 1);
+    if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 
     return tx.hash;
   }
 
-  protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
-    const currentGasPrice = +(await this.getRecommendedGasPrice());
-    const proposedGasPrice =
-      feeLimit != null ? Util.round(+EvmUtil.toWeiAmount(feeLimit) / gasLimit, 0) : Number.MAX_VALUE;
-
-    return Math.min(currentGasPrice, proposedGasPrice);
-  }
-
   protected async getNonce(address: string): Promise<number> {
+    const nonceEntry = this.nonce.get(address);
+    const cachedNonce = (nonceEntry?.date > Util.minutesBefore(10) && nonceEntry.value) || 0;
     const blockchainNonce = await this.provider.getTransactionCount(address);
-    const cachedNonce = this.nonce.get(address) ?? 0;
 
     return Math.max(blockchainNonce, cachedNonce);
+  }
+
+  protected setNonce(address: string, nonce: number): void {
+    this.nonce.set(address, { value: nonce, date: new Date() });
   }
 
   private async getHistory<T>(

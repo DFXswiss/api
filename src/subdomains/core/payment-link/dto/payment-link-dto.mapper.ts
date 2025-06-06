@@ -54,6 +54,7 @@ export class PaymentLinkDtoMapper {
       payment && {
         id: payment.id,
         externalId: payment.externalId,
+        note: payment.note,
         status: payment.status,
         amount: payment.amount,
         currency: payment.currency.name,

@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { readFileSync } from 'fs';
+import { I18nService } from 'nestjs-i18n';
 import { join } from 'path';
 import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
@@ -38,6 +39,7 @@ export class PaymentLinkService {
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
+    private readonly i18n: I18nService,
   ) {}
 
   async getOrThrow(
@@ -136,6 +138,7 @@ export class PaymentLinkService {
       mode: PaymentLinkPaymentMode.SINGLE,
       amount: +dto.amount,
       externalId: dto.externalId,
+      note: dto.note,
       currency: dto.currency,
       expiryDate: dto.expiryDate,
     };
@@ -384,7 +387,7 @@ export class PaymentLinkService {
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
-    await this.updateUserPaymentLinksConfig(paymentLink.route.userData.id, { ...ids});
+    await this.updateUserPaymentLinksConfig(paymentLink.route.userData.id, { ...ids });
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
@@ -449,10 +452,23 @@ export class PaymentLinkService {
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
   }
 
-  async generateOcpStickersPdf(routeIdOrLabel: string, externalIds: string[]): Promise<Buffer> {
-    const paymentLinksFromDb = await this.sellService.getPaymentLinksByRoute(routeIdOrLabel, externalIds);
-    const paymentLinksMap = new Map(paymentLinksFromDb.map((link) => [link.externalId, link]));
-    const paymentLinks = externalIds.map((id) => paymentLinksMap.get(id)).filter(Boolean);
+  async generateOcpStickersPdf(
+    routeIdOrLabel: string,
+    externalIds?: string[],
+    ids?: number[],
+    lang?: string,
+  ): Promise<Buffer> {
+    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
+    const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
+    const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
+    const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];
+    const linksById = ids?.map((id) => linkMapById.get(id)).filter(Boolean) || [];
+    const links = [...linksByExternalId, ...linksById];
+
+    // Translated sticker title
+    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', {
+      lang: lang?.toLowerCase() || 'en',
+    });
 
     // Blue OCP Image
     const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
@@ -500,12 +516,12 @@ export class PaymentLinkService {
         const startY = margin + (availH - gridH) / 2;
 
         const stickersPerPage = cols * rows;
-        for (let i = 0; i < paymentLinks.length; i++) {
+        for (let i = 0; i < links.length; i++) {
           if (i > 0 && i % stickersPerPage === 0) {
             pdf.addPage();
           }
 
-          const { externalId, uniqueId } = paymentLinks[i];
+          const { externalId, id, uniqueId } = links[i];
           const idx = i % stickersPerPage;
           const col = idx % cols;
           const row = Math.floor(idx / cols);
@@ -528,7 +544,7 @@ export class PaymentLinkService {
           });
 
           // Add QR-Code
-          pdf.image(qrBuffer, x + pngWidth + qrPadding - borderWidth / 2, y + qrPadding, {
+          pdf.image(qrBuffer, x + pngWidth + qrPadding, y + qrPadding, {
             width: qrWidth - qrPadding * 2,
             height: stickerHeight - qrPadding * 2,
           });
@@ -536,7 +552,7 @@ export class PaymentLinkService {
           // Add OCP Logo
           pdf.image(
             ocpLogoBuffer,
-            x + pngWidth + qrPadding - borderWidth / 2 + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
+            x + pngWidth + qrPadding + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
             y + qrPadding + (stickerHeight - qrPadding * 2 - ocpLogoSize) / 2,
             {
               width: ocpLogoSize,
@@ -544,12 +560,18 @@ export class PaymentLinkService {
             },
           );
 
+          // Add title
+          pdf.fontSize(10).font('Helvetica').fillColor('white');
+          const labelX = x + 12;
+          const labelY = y + 8;
+          pdf.text(stickerTitle, labelX, labelY);
+
           // Add External ID
-          pdf.fontSize(4).font('Helvetica');
-          const textWidth = pdf.widthOfString(externalId);
+          pdf.fontSize(4).font('Helvetica').fillColor('black');
+          const textWidth = pdf.widthOfString(externalId ?? id.toString());
           const textX = x + pngWidth - textWidth - 5;
           const textY = y + stickerHeight - 7;
-          pdf.text(externalId, textX, textY);
+          pdf.text(externalId ?? id.toString(), textX, textY);
 
           // Add Border
           pdf

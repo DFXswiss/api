@@ -127,8 +127,16 @@ export class LogJobService {
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
           },
-          changes: changeLog,
         }),
+        valid: null,
+        category: null,
+      });
+
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'FinancialChangesLog',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({ changes: changeLog }),
         valid: null,
         category: null,
       });
@@ -203,7 +211,8 @@ export class LogJobService {
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
     const paymentAssets = assets.filter(
-      (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO].includes(a.blockchain),
+      (a) =>
+        a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO, Blockchain.BINANCE_PAY].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 

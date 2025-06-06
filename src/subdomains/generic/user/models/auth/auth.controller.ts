@@ -115,7 +115,7 @@ export class AuthController {
   }
 
   @Get('challenge')
-  @ApiCreatedResponse({ type: ChallengeDto })
+  @ApiOkResponse({ type: ChallengeDto })
   companyChallenge(@Query('address') address: string): Promise<ChallengeDto> {
     return this.authService.getCompanyChallenge(address);
   }

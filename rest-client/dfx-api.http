@@ -389,3 +389,13 @@ Authorization: Bearer {{authToken}}
 
 PUT {{url}}/v1/custody/admin/user/324748/balance?assetId=337
 Authorization: Bearer {{authToken}}
+
+### 
+
+// PAYMENT
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/paymentLink/integration/binance/activate/xxx
+Authorization: Bearer {{authToken}}
+

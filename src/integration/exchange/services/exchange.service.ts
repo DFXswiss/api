@@ -279,7 +279,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const { amount: amountPrecision } = await this.getPrecision(pair);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
 
-    const orderAmount = Util.roundToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+    const orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
 
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 

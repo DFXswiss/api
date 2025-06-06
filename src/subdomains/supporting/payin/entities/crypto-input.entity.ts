@@ -277,7 +277,7 @@ export class CryptoInput extends IEntity {
 
   returnMail(): UpdateResult<CryptoInput> {
     const update: Partial<CryptoInput> = {
-      recipientMail: this.route.user.userData.mail,
+      recipientMail: this.transaction.userData.mail,
       mailReturnSendDate: new Date(),
     };
 

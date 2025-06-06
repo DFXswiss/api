@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -169,6 +170,7 @@ export class PaymentLinkController {
       }
     }
     dto.externalId ??= dto.e;
+    dto.note ??= dto.n;
     dto.message ??= dto.m;
     dto.label ??= dto.l;
     dto.amount ??= dto.a;
@@ -220,7 +222,7 @@ export class PaymentLinkController {
   @Put('payment/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiCreatedResponse({ type: PaymentLinkDto })
+  @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
@@ -281,14 +283,23 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: StreamableFile })
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
-  @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: true })
+  @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
+  @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
+  @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   async generateOcpStickers(
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
+    @Query('ids') ids: string,
+    @Query('lang') lang: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const externalIdArray = externalIds.split(',').map((id) => id.trim());
-    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray);
+    if (!externalIds && !ids) {
+      throw new BadRequestException('Either externalIds or ids parameter must be provided');
+    }
+
+    const idArray = ids?.split(',').map((id) => +id);
+    const externalIdArray = externalIds?.split(',').map((id) => id.trim());
+    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray, lang);
 
     res.set({
       'Content-Type': 'application/pdf',

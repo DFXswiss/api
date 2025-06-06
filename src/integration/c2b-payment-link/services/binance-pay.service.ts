@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
@@ -31,6 +32,8 @@ import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
 export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
+  private readonly logger = new DfxLogger(BinancePayService);
+
   private readonly baseUrl = 'https://bpay.binanceapi.com';
   private readonly apiKey: string;
   private readonly secretKey: string;
@@ -84,13 +87,20 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       registrationAddress: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
     };
 
-    const response = await this.http.post<AddSubMerchantResponse>(
-      `${this.baseUrl}/binancepay/openapi/submerchant/add`,
-      subMerchantData,
-      { headers: this.getHeaders(subMerchantData) },
-    );
-
-    return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
+    try {
+      const response = await this.http.post<AddSubMerchantResponse>(
+        `${this.baseUrl}/binancepay/openapi/submerchant/add`,
+        subMerchantData,
+        {
+          headers: this.getHeaders(subMerchantData),
+        },
+      );
+      return { binancePaySubMerchantId: response.data.subMerchantId.toString() };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `Failed to enroll payment link: ${error.response?.data?.errorMessage || JSON.stringify(error)}`,
+      );
+    }
   }
 
   async createOrder(
@@ -100,7 +110,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   ): Promise<OrderResult> {
     const orderDetails: OrderData = {
       env: {
-        terminalType: BinancePayTerminalType.OTHER,
+        terminalType: BinancePayTerminalType.OTHERS,
       },
       merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
@@ -145,7 +155,9 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
         metadata: response.data,
       };
     } catch (error) {
-      throw error.response?.data || error;
+      throw new ServiceUnavailableException(
+        `Failed to create order: ${error.response?.data?.errorMessage || JSON.stringify(error)}`,
+      );
     }
   }
 
@@ -172,7 +184,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
 
   public async verifySignature(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
     const { timestamp, nonce, signature, certSN } = headers;
-    const webhookData = JSON.stringify({ ...body, bizId: +body.bizIdStr });
+    const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
 
     const { data } = await this.queryCertificate();

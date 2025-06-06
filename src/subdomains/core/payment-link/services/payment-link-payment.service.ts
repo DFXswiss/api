@@ -167,6 +167,7 @@ export class PaymentLinkPaymentService {
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
       externalId: dto.externalId,
+      note: dto.note,
       expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
@@ -255,7 +256,7 @@ export class PaymentLinkPaymentService {
       where: { id: quote.payment.id },
       relations: { link: { route: { user: { userData: true } } } },
     });
-    
+
     await this.paymentQuoteService.saveFinallyConfirmed(quote);
     await this.handleQuoteChange(payment, quote);
   }

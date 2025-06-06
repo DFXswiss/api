@@ -51,7 +51,7 @@ export class BuyCryptoNotificationService {
       type: MailType.ERROR_MONITORING,
       context: MailContext.BUY_CRYPTO,
       input: {
-        subject: `Buy Crypto Error - missing liquidity for ${outputAssetName}/${blockchain}.`,
+        subject: `Buy Crypto Error - missing liquidity for ${blockchain}/${outputAssetName}.`,
         errors: messages,
         isLiqMail: true,
       },

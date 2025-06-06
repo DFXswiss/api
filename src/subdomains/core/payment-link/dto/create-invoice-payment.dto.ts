@@ -55,6 +55,15 @@ export class CreateInvoicePaymentDto {
   @IsString()
   l?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @IsOptional()
+  @IsString()
+  n?: string;
+
   @ApiProperty()
   @IsNotEmpty()
   @IsString()

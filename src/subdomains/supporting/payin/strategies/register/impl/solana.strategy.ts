@@ -57,29 +57,23 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
   }
 
   private async processWebhookTransactions(dto: TatumWebhookDto): Promise<void> {
-    const fromAddresses = await this.getOwnAddresses();
+    if (!dto.counterAddresses?.length) return;
+    if (!Util.includesIgnoreCase(['native', 'token'], dto.type)) return;
+
+    const ownWalletAddress = this.solanaService.getWalletAddress();
     const toAddresses = await this.getPayInAddresses();
 
-    const isNotFromOwnAddresses = dto.counterAddresses.every((ca) => !Util.includesIgnoreCase(fromAddresses, ca));
-    const isRelevantTransaction = isNotFromOwnAddresses && Util.includesIgnoreCase(toAddresses, dto.address);
+    if (Util.includesIgnoreCase(dto.counterAddresses, ownWalletAddress)) return;
+    if (!Util.includesIgnoreCase(toAddresses, dto.address)) return;
 
-    if (isRelevantTransaction) {
-      const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
-      const payInEntry = this.mapSolanaTransaction(dto, supportedAssets);
+    const payInEntry = this.mapSolanaTransaction(dto, supportedAssets);
 
-      if (payInEntry) {
-        const log = this.createNewLogObject();
-        await this.createPayInsAndSave([payInEntry], log);
-      }
+    if (payInEntry) {
+      const log = this.createNewLogObject();
+      await this.createPayInsAndSave([payInEntry], log);
     }
-  }
-
-  private async getOwnAddresses(): Promise<string[]> {
-    const ownAddresses = [this.solanaService.getWalletAddress()];
-    ownAddresses.push(...(await this.solanaService.getAllTokenAddresses()));
-
-    return ownAddresses;
   }
 
   private async getPayInAddresses(): Promise<string[]> {
@@ -95,7 +89,7 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
   }
 
   private mapSolanaTransaction(dto: TatumWebhookDto, supportedAssets: Asset[]): PayInEntry | undefined {
-    const isNativeTransaction = dto.type === 'native';
+    const isNativeTransaction = Util.equalsIgnoreCase('native', dto.type);
 
     return {
       senderAddresses: dto.counterAddresses.join(','),
