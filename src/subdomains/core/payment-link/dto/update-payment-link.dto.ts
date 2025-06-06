@@ -93,27 +93,22 @@ export class UpdatePaymentLinkInternalDto {
   @IsString()
   label?: string;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   registrationNumber?: string;
 
-  @ApiPropertyOptional({ enum: StoreType })
   @IsOptional()
   @IsEnum(StoreType)
   storeType?: StoreType;
 
-  @ApiPropertyOptional({ enum: MerchantMCC })
   @IsOptional()
   @IsEnum(MerchantMCC)
   merchantMcc?: MerchantMCC;
 
-  @ApiPropertyOptional({ enum: GoodsType })
   @IsOptional()
   @IsEnum(GoodsType)
   goodsType?: GoodsType;
 
-  @ApiPropertyOptional({ enum: GoodsCategory })
   @IsOptional()
   @IsEnum(GoodsCategory)
   goodsCategory?: GoodsCategory;

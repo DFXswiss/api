@@ -73,7 +73,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   public isPaymentLinkEnrolled(paymentLink: PaymentLink): boolean {
     // Method 1: check local payment link config
     try {
-      const config = JSON.parse(paymentLink.config || '{}');
+      const config = paymentLink.linkConfigObj;
       return Boolean(config.binancePayMerchantId || config.binancePaySubMerchantId);
     } catch (e) {}
 

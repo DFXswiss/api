@@ -167,8 +167,8 @@ export class PaymentLinkService {
       return await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
     } catch (e) {
       e instanceof BadRequestException
-        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment ${e.message}`)
-        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}`, e);
+        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`)
+        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
     }
   }
 
@@ -203,7 +203,7 @@ export class PaymentLinkService {
     });
 
     const c2bIds = await this.tryEnrollC2BPaymentLink(paymentLink, C2BPaymentProvider.BINANCE_PAY);
-    if (c2bIds) paymentLink.config = JSON.stringify({ ...JSON.parse(paymentLink.config || '{}'), ...c2bIds });
+    if (c2bIds) paymentLink.config = this.getMergedConfig(paymentLink, c2bIds);
 
     await this.paymentLinkRepo.save(paymentLink);
 
@@ -419,7 +419,7 @@ export class PaymentLinkService {
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
-    const config = this.getMergedConfig(paymentLink, { ...JSON.parse(paymentLink.config || '{}'), ...ids });
+    const config = this.getMergedConfig(paymentLink, ids);
     await this.paymentLinkRepo.update(paymentLink.id, { config });
   }
 
@@ -429,7 +429,12 @@ export class PaymentLinkService {
         Object.assign(paymentLink, dto),
         C2BPaymentProvider.BINANCE_PAY,
       );
-      if (c2bIds) dto.config = this.getMergedConfig(paymentLink, { ...JSON.parse(dto.config || '{}'), ...c2bIds });
+
+      if (c2bIds) {
+        const incomingNewConfig = JSON.parse(dto.config || '{}');
+        const configsWithKeys = { ...incomingNewConfig, ...c2bIds };
+        dto.config = this.getMergedConfig(paymentLink, configsWithKeys);
+      }
     }
 
     await this.paymentLinkRepo.update(paymentLink.id, dto);
