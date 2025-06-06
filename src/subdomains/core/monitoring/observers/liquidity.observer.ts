@@ -8,10 +8,11 @@ import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { In, LessThan } from 'typeorm';
-import { TradingOrderStatus } from '../../trading/enums';
+import { TradingOrderStatus, TradingRuleStatus } from '../../trading/enums';
 
 interface LiquidityData {
   stuckTradingOrderCount: number;
+  stuckTradingRuleCount: number;
   safetyModeActive: boolean;
 }
 
@@ -43,6 +44,10 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
       stuckTradingOrderCount: await this.repos.tradingOrder.countBy({
         status: In([TradingOrderStatus.CREATED, TradingOrderStatus.IN_PROGRESS]),
         created: LessThan(Util.minutesBefore(15)),
+      }),
+      stuckTradingRuleCount: await this.repos.tradingRule.countBy({
+        status: In([TradingRuleStatus.PAUSED, TradingRuleStatus.PROCESSING]),
+        updated: LessThan(Util.minutesBefore(30)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
     };
