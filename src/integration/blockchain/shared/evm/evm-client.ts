@@ -57,7 +57,7 @@ export abstract class EvmClient extends BlockchainClient {
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   readonly wallet: ethers.Wallet;
-  private readonly nonce = new Map<string, number>();
+  private readonly nonce = new Map<string, { value: number; date: Date }>();
   private readonly tokens = new AsyncCache<Token>();
   private readonly router: AlphaRouter;
   private readonly swapContractAddress: string;
@@ -204,7 +204,7 @@ export abstract class EvmClient extends BlockchainClient {
       value,
     });
 
-    if (txNonce >= currentNonce) this.nonce.set(request.from, txNonce + 1);
+    if (txNonce >= currentNonce) this.setNonce(request.from, txNonce + 1);
 
     return result;
   }
@@ -272,7 +272,7 @@ export abstract class EvmClient extends BlockchainClient {
       nonce: currentNonce,
     });
 
-    this.nonce.set(this.dfxAddress, currentNonce + 1);
+    this.setNonce(this.dfxAddress, currentNonce + 1);
 
     return result.hash;
   }
@@ -357,7 +357,7 @@ export abstract class EvmClient extends BlockchainClient {
       nonce,
     });
 
-    this.nonce.set(this.dfxAddress, nonce + 1);
+    this.setNonce(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -577,7 +577,7 @@ export abstract class EvmClient extends BlockchainClient {
       nonce,
     });
 
-    this.nonce.set(this.dfxAddress, nonce + 1);
+    this.setNonce(this.dfxAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -696,7 +696,7 @@ export abstract class EvmClient extends BlockchainClient {
       gasLimit,
     });
 
-    if (txNonce >= currentNonce) this.nonce.set(fromAddress, txNonce + 1);
+    if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 
     return tx.hash;
   }
@@ -726,16 +726,21 @@ export abstract class EvmClient extends BlockchainClient {
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 
-    if (txNonce >= currentNonce) this.nonce.set(fromAddress, txNonce + 1);
+    if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 
     return tx.hash;
   }
 
   protected async getNonce(address: string): Promise<number> {
+    const nonceEntry = this.nonce.get(address);
+    const cachedNonce = (nonceEntry?.date > Util.minutesBefore(10) && nonceEntry.value) || 0;
     const blockchainNonce = await this.provider.getTransactionCount(address);
-    const cachedNonce = this.nonce.get(address) ?? 0;
 
     return Math.max(blockchainNonce, cachedNonce);
+  }
+
+  protected setNonce(address: string, nonce: number): void {
+    this.nonce.set(address, { value: nonce, date: new Date() });
   }
 
   private async getHistory<T>(
