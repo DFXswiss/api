@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { I18nService } from 'nestjs-i18n';
 import { join } from 'path';
@@ -10,6 +16,7 @@ import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-paym
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -29,6 +36,7 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
+  private readonly logger = new DfxLogger(PaymentLinkService);
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
@@ -153,6 +161,19 @@ export class PaymentLinkService {
     return this.createForRoute(route, paymentLinkDto);
   }
 
+  private async tryEnrollC2BPaymentLink(
+    paymentLink: PaymentLink,
+    provider: C2BPaymentProvider,
+  ): Promise<Record<string, string> | undefined> {
+    try {
+      return await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
+    } catch (e) {
+      e instanceof BadRequestException
+        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`)
+        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+    }
+  }
+
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const country = dto.config?.recipient?.address?.country
       ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
@@ -175,8 +196,16 @@ export class PaymentLinkService {
       mail: dto.config?.recipient?.mail,
       website: dto.config?.recipient?.website,
       payments: [],
+      registrationNumber: dto.config?.recipient?.registrationNumber,
+      storeType: dto.config?.recipient?.storeType,
+      merchantMcc: dto.config?.recipient?.merchantMcc,
+      goodsType: dto.config?.recipient?.goodsType,
+      goodsCategory: dto.config?.recipient?.goodsCategory,
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
+
+    const c2bIds = await this.tryEnrollC2BPaymentLink(paymentLink, C2BPaymentProvider.BINANCE_PAY);
+    if (c2bIds) paymentLink.config = this.getMergedConfig(paymentLink, c2bIds);
 
     await this.paymentLinkRepo.save(paymentLink);
 
@@ -309,6 +338,12 @@ export class PaymentLinkService {
     };
   }
 
+  private getMergedConfig(paymentLink: PaymentLink, config: UpdatePaymentLinkConfigDto): string | null {
+    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
+    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
+    return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
+  }
+
   async update(
     userId: number,
     dto: UpdatePaymentLinkDto,
@@ -322,10 +357,6 @@ export class PaymentLinkService {
     const { name, address, phone, mail, website } = config?.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
 
-    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
-    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
-    const configString = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
-
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
       label,
@@ -338,7 +369,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
-      config: configString,
+      config: this.getMergedConfig(paymentLink, config),
     };
 
     if (country === null) {
@@ -354,7 +385,10 @@ export class PaymentLinkService {
   }
 
   async updatePaymentLinkAdmin(id: number, dto: UpdatePaymentLinkInternalDto): Promise<PaymentLink> {
-    const entity = await this.paymentLinkRepo.findOneBy({ id });
+    const entity = await this.paymentLinkRepo.findOne({
+      where: { id },
+      relations: { route: { user: { userData: true } } },
+    });
     if (!entity) throw new NotFoundException('PaymentLink not found');
 
     if (dto.country) {
@@ -387,10 +421,24 @@ export class PaymentLinkService {
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
-    await this.updateUserPaymentLinksConfig(paymentLink.route.userData.id, { ...ids });
+    const config = this.getMergedConfig(paymentLink, ids);
+    await this.paymentLinkRepo.update(paymentLink.id, { config });
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
+    if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(Blockchain.BINANCE_PAY, paymentLink)) {
+      const c2bIds = await this.tryEnrollC2BPaymentLink(
+        Object.assign(paymentLink, dto),
+        C2BPaymentProvider.BINANCE_PAY,
+      );
+
+      if (c2bIds) {
+        const incomingNewConfig = JSON.parse(dto.config || '{}');
+        const configsWithKeys = { ...incomingNewConfig, ...c2bIds };
+        dto.config = this.getMergedConfig(paymentLink, configsWithKeys);
+      }
+    }
+
     await this.paymentLinkRepo.update(paymentLink.id, dto);
 
     return Object.assign(paymentLink, dto);

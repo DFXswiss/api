@@ -20,6 +20,6 @@ export interface IPaymentLinkProvider<WebhookDto> {
   createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<OrderResult>;
   verifySignature(payload: WebhookDto, headers: any): Promise<boolean>;
   handleWebhook(payload: WebhookDto): Promise<WebhookResult | undefined>;
-  isAvailable(paymentLink: PaymentLinkPayment): boolean;
+  isPaymentLinkEnrolled(paymentLink: PaymentLink): boolean;
   enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>>;
 }
