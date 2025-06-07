@@ -15,14 +15,14 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
-    userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
+    [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
+      ? KycStepName.LEGAL_ENTITY
+      : null,
     userData.accountType === AccountType.ORGANIZATION &&
     !(userData.legalEntity === LegalEntity.GMBH && userData.organizationCountry?.symbol === 'CH')
       ? KycStepName.OWNER_DIRECTORY
       : null,
-    [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
-      ? KycStepName.COMMERCIAL_REGISTER
-      : null,
+
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     userData.accountType === AccountType.ORGANIZATION
