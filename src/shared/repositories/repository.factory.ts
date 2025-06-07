@@ -5,6 +5,7 @@ import { PaymentQuoteRepository } from 'src/subdomains/core/payment-link/reposit
 import { RefRewardRepository } from 'src/subdomains/core/referral/reward/ref-reward.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { TradingOrderRepository } from 'src/subdomains/core/trading/repositories/trading-order.respository';
+import { TradingRuleRepository } from 'src/subdomains/core/trading/repositories/trading-rule.respository';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
@@ -32,6 +33,7 @@ export class RepositoryFactory {
   public readonly refReward: RefRewardRepository;
   public readonly exchangeTx: ExchangeTxRepository;
   public readonly tradingOrder: TradingOrderRepository;
+  public readonly tradingRule: TradingRuleRepository;
   public readonly paymentQuote: PaymentQuoteRepository;
 
   constructor(manager: EntityManager) {
@@ -49,6 +51,7 @@ export class RepositoryFactory {
     this.refReward = new RefRewardRepository(manager);
     this.exchangeTx = new ExchangeTxRepository(manager);
     this.tradingOrder = new TradingOrderRepository(manager);
+    this.tradingRule = new TradingRuleRepository(manager);
     this.paymentQuote = new PaymentQuoteRepository(manager);
   }
 }

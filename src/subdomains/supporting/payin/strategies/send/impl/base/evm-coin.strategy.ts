@@ -40,6 +40,6 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     // subtract fee for forwarding
     const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 1.00001, 12) : groupAmount;
 
-    return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount, estimatedNativeFee);
+    return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount);
   }
 }

@@ -667,6 +667,15 @@ export class Configuration {
       swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
+    gnosis: {
+      gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
+      gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
+      gnosisGatewayUrl: process.env.GNOSIS_GATEWAY_URL,
+      gnosisApiKey: process.env.ALCHEMY_API_KEY,
+      gnosisChainId: +process.env.GNOSIS_CHAIN_ID,
+      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
+    },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,

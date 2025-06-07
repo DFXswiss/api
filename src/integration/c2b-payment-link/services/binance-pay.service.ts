@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -20,7 +20,6 @@ import {
   ChannelPartnerOrderData,
   GoodsCategory,
   GoodsType,
-  MerchantMCC,
   OrderData,
   OrderResponse,
   ResponseStatus,
@@ -47,6 +46,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private generateSignature(timestamp: number, nonce: string, body: string): string {
+    if (!this.secretKey) throw new ServiceUnavailableException('Binance Pay service is not configured');
     const data = `${timestamp}\n${nonce}\n${body}\n`;
     return crypto.createHmac('sha512', this.secretKey).update(data).digest('hex').toUpperCase();
   }
@@ -56,6 +56,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private getHeaders(body: any): Record<string, string | number> {
+    if (!this.apiKey) throw new ServiceUnavailableException('Binance Pay service is not configured');
+
     const timestamp = Date.now();
     const nonce = this.getNonce();
     const signature = this.generateSignature(timestamp, nonce, JSON.stringify(body));
@@ -68,17 +70,49 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     };
   }
 
-  public isAvailable(paymentLink: PaymentLinkPayment): boolean {
-    return Boolean(
-      paymentLink.link.configObj.binancePayMerchantId || paymentLink.link.configObj.binancePaySubMerchantId,
-    );
+  public isPaymentLinkEnrolled(paymentLink: PaymentLink): boolean {
+    // Method 1: check local payment link config
+    try {
+      const config = paymentLink.linkConfigObj;
+      return Boolean(config.binancePayMerchantId || config.binancePaySubMerchantId);
+    } catch (e) {}
+
+    // Method 2: check configObj if available
+    try {
+      const config = paymentLink.configObj;
+      return Boolean(config.binancePayMerchantId || config.binancePaySubMerchantId);
+    } catch (e) {}
+
+    // No keys are available
+    return false;
+  }
+
+  private validateEnrollmentRequiredFieldsOrThrow(paymentLink: PaymentLink): void {
+    const missing = [
+      'externalId',
+      'label',
+      'name',
+      'merchantMcc',
+      'country',
+      'website',
+      'street',
+      'houseNumber',
+      'zip',
+      'city',
+      'registrationNumber',
+    ].filter((f) => !paymentLink[f]);
+    if (missing.length) {
+      throw new BadRequestException(`Missing required fields for Binance Pay: ${missing.join(', ')}`);
+    }
   }
 
   public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
+    this.validateEnrollmentRequiredFieldsOrThrow(paymentLink);
+
     const subMerchantData = {
-      merchantName: paymentLink.name,
-      storeType: StoreType.PHYSICAL,
-      merchantMcc: MerchantMCC.RetailTradeOthers,
+      merchantName: `${paymentLink.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
+      storeType: paymentLink.storeType || StoreType.PHYSICAL,
+      merchantMcc: paymentLink.merchantMcc,
       country: paymentLink.country?.symbol,
       siteUrl: paymentLink.website,
       address: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
@@ -118,8 +152,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       description: payment.memo,
       goodsDetails: [
         {
-          goodsType: GoodsType.TangibleGoods,
-          goodsCategory: GoodsCategory.FoodGroceryHealthProducts,
+          goodsType: payment.link.goodsType || GoodsType.TangibleGoods, // TODO: Remove default values
+          goodsCategory: payment.link.goodsCategory || GoodsCategory.FoodGroceryHealthProducts,
           referenceGoodsId: '01',
           goodsName: payment.memo,
           goodsDetail: payment.memo,

@@ -10,11 +10,11 @@ export abstract class PayoutEvmService {
   }
 
   async sendNativeCoin(address: string, amount: number, nonce?: number): Promise<string> {
-    return this.client.sendNativeCoinFromDex(address, amount, undefined, nonce);
+    return this.client.sendNativeCoinFromDex(address, amount, nonce);
   }
 
   async sendToken(address: string, tokenName: Asset, amount: number, nonce?: number): Promise<string> {
-    return this.client.sendTokenFromDex(address, tokenName, amount, undefined, nonce);
+    return this.client.sendTokenFromDex(address, tokenName, amount, nonce);
   }
 
   async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {

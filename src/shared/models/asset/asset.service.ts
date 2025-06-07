@@ -156,6 +156,14 @@ export class AssetService {
     });
   }
 
+  async getGnosisCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'xDAI',
+      blockchain: Blockchain.GNOSIS,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBtcCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'BTC',

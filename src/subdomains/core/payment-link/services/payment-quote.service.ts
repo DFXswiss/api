@@ -40,6 +40,7 @@ export class PaymentQuoteService {
     Blockchain.ARBITRUM,
     Blockchain.OPTIMISM,
     Blockchain.BASE,
+    Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
     Blockchain.MONERO,
     Blockchain.BITCOIN,
@@ -259,7 +260,7 @@ export class PaymentQuoteService {
     }
 
     if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
-      if (!this.c2bPaymentLinkService.isAvailable(blockchain, payment)) {
+      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, payment.link)) {
         transferAmount.available = false;
         transferAmount.assets = [];
       }
@@ -277,6 +278,7 @@ export class PaymentQuoteService {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
         return this.evmGasPriceService.getGasPrice(blockchain);
       case Blockchain.MONERO:
@@ -375,6 +377,7 @@ export class PaymentQuoteService {
         case Blockchain.ARBITRUM:
         case Blockchain.OPTIMISM:
         case Blockchain.BASE:
+        case Blockchain.GNOSIS:
         case Blockchain.POLYGON:
           await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;

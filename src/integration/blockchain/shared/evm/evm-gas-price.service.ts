@@ -24,6 +24,7 @@ export class EvmGasPriceService implements OnModuleInit {
     Blockchain.OPTIMISM,
     Blockchain.BASE,
     Blockchain.POLYGON,
+    Blockchain.GNOSIS,
   ];
 
   private gasPriceCache: Map<Blockchain, EvmGasPriceCacheData>;

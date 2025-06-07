@@ -353,27 +353,17 @@ export class BuyCryptoBatchService {
 
       const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
 
-      const targetDeficit = Util.round(targetAmount - availableTargetAmount, 8);
-      const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
+      const minTargetAmount = batch.smallestTransaction.calculateOutputAmount(outputReferenceAmount, targetAmount);
 
-      const minTargetDeficit = batch.smallestTransaction.calculateOutputAmount(outputReferenceAmount, targetAmount);
-      if (!minTargetDeficit) {
-        this.logger.error(
-          `Invalid minTargetDeficit for ${oa.uniqueName} (tx reference: ${batch.smallestTransaction.outputReferenceAmount}, batch reference: ${outputReferenceAmount}, batch target: ${targetAmount})`,
-        );
-      }
+      const minDeficit = Util.round(minTargetAmount - availableTargetAmount, 8);
+      const deficit = Util.round(targetAmount - availableTargetAmount, 8);
 
       await this.setMissingLiquidityStatus(transactions);
 
       // order liquidity
       try {
         const asset = oa;
-        const pipeline = await this.liquidityService.buyLiquidity(
-          asset.id,
-          minTargetDeficit || targetDeficit,
-          targetDeficit,
-          true,
-        );
+        const pipeline = await this.liquidityService.buyLiquidity(asset.id, minDeficit, deficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
 
         if (Config.exchangeRateFromLiquidityOrder.includes(asset.name))
@@ -389,12 +379,13 @@ export class BuyCryptoBatchService {
           const maxPurchasableTargetAmountMessage =
             maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
 
+          const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
           const maxPurchasableReferenceAmountMessage =
             maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
 
           const messages = [
             `${error.message} Details:`,
-            `Target: ${targetDeficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
+            `Target: ${deficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
             `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
             `Liquidity management order failed: ${e.message}`,
           ];

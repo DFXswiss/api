@@ -24,9 +24,9 @@ import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(ArbitrumClient);
 
-  #l1Provider: ethers.providers.JsonRpcProvider;
-  #l1Wallet: ethers.Wallet;
-  #l2Network: L2Network;
+  private readonly l1Provider: ethers.providers.JsonRpcProvider;
+  private readonly l1Wallet: ethers.Wallet;
+  private l2Network: L2Network;
 
   constructor(params: EvmClientParams) {
     super(params);
@@ -34,18 +34,18 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
 
-    this.#l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
-    this.#l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.#l1Provider);
+    this.l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
+    this.l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.l1Provider);
 
     void this.initL2Network();
   }
 
   async depositCoinOnDex(amount: number): Promise<string> {
-    const ethBridger = new EthBridger(this.#l2Network);
+    const ethBridger = new EthBridger(this.l2Network);
 
     const depositTx = await ethBridger.deposit({
       amount: EvmUtil.toWeiAmount(amount),
-      l1Signer: this.#l1Wallet,
+      l1Signer: this.l1Wallet,
       l2Provider: this.provider,
     } as EthDepositParams);
 
@@ -53,23 +53,23 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async withdrawCoinOnDex(amount: number): Promise<string> {
-    const ethBridger = new EthBridger(this.#l2Network);
+    const ethBridger = new EthBridger(this.l2Network);
 
     const withdrawTx = await ethBridger.withdraw({
       amount: EvmUtil.toWeiAmount(amount),
       l2Signer: this.wallet,
       from: this.wallet.address,
-      destinationAddress: this.#l1Wallet.address,
+      destinationAddress: this.l1Wallet.address,
     });
 
     return withdrawTx.hash;
   }
 
   async approveBridge(l1Token: Asset, _l2Token: Asset): Promise<string> {
-    const erc20Bridge = new Erc20Bridger(this.#l2Network);
+    const erc20Bridge = new Erc20Bridger(this.l2Network);
 
     const approveTx = await erc20Bridge.approveToken({
-      l1Signer: this.#l1Wallet,
+      l1Signer: this.l1Wallet,
       erc20L1Address: l1Token.chainId,
     });
 
@@ -77,12 +77,12 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async depositTokenOnDex(l1Token: Asset, _l2Token: Asset, amount: number): Promise<string> {
-    const erc20Bridge = new Erc20Bridger(this.#l2Network);
+    const erc20Bridge = new Erc20Bridger(this.l2Network);
 
     const depositTx = await erc20Bridge.deposit({
       amount: EvmUtil.toWeiAmount(amount, l1Token.decimals),
       erc20L1Address: l1Token.chainId,
-      l1Signer: this.#l1Wallet,
+      l1Signer: this.l1Wallet,
       l2Provider: this.provider,
     });
 
@@ -90,11 +90,11 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async withdrawTokenOnDex(l1Token: Asset, _l2Token: Asset, amount: number): Promise<string> {
-    const erc20Bridge = new Erc20Bridger(this.#l2Network);
+    const erc20Bridge = new Erc20Bridger(this.l2Network);
 
     const withdrawTx = await erc20Bridge.withdraw({
       amount: EvmUtil.toWeiAmount(amount, l1Token.decimals),
-      destinationAddress: this.#l1Wallet.address,
+      destinationAddress: this.l1Wallet.address,
       erc20l1Address: l1Token.chainId,
       l2Signer: this.wallet,
     });
@@ -104,7 +104,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL2BridgeCompletion(l1TxId: string, asset: Asset): Promise<boolean> {
     try {
-      const txReceipt = await Util.timeout(this.#l1Provider.getTransactionReceipt(l1TxId), 10000);
+      const txReceipt = await Util.timeout(this.l1Provider.getTransactionReceipt(l1TxId), 10000);
       const l1TxReceipt =
         asset.type === AssetType.COIN
           ? new L1EthDepositTransactionReceipt(txReceipt)
@@ -122,7 +122,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     try {
       const txReceipt = await Util.timeout(this.provider.getTransactionReceipt(l2TxId), 10000);
       const l2TxReceipt = new L2TransactionReceipt(txReceipt);
-      const l2ToL1Messages = await Util.timeout(l2TxReceipt.getL2ToL1Messages(this.#l1Wallet), 10000);
+      const l2ToL1Messages = await Util.timeout(l2TxReceipt.getL2ToL1Messages(this.l1Wallet), 10000);
 
       const status = await l2ToL1Messages[0].status(this.provider);
 
@@ -140,13 +140,13 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   private async initL2Network() {
     try {
-      this.#l2Network = await getL2Network(this.provider);
+      this.l2Network = await getL2Network(this.provider);
     } catch (e) {
       this.logger.error('Error while trying to get L2 network for Arbitrum client:', e);
     }
   }
 
   private getERC20ContractForDexL1(chainId: string): Contract {
-    return new ethers.Contract(chainId, ERC20_ABI, this.#l1Wallet);
+    return new ethers.Contract(chainId, ERC20_ABI, this.l1Wallet);
   }
 }

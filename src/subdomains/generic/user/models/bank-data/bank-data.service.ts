@@ -7,6 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
@@ -53,7 +54,7 @@ export class BankDataService {
         { ...search, approved: false },
         { ...search, approved: IsNull() },
       ],
-      relations: { userData: true },
+      relations: { userData: { kycSteps: true } },
     });
 
     for (const entity of entities) {
@@ -72,8 +73,13 @@ export class BankDataService {
       if (entity.type === BankDataType.USER) return;
 
       if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
-        await this.nameCheckService.closeAndRefreshRiskStatus(entity);
-        await this.bankDataRepo.update(entity.id, { comment: 'Pass' });
+        if (
+          entity.userData.accountType !== AccountType.PERSONAL &&
+          entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
+        ) {
+          await this.nameCheckService.closeAndRefreshRiskStatus(entity);
+          await this.bankDataRepo.update(entity.id, { comment: 'Pass' });
+        }
 
         return;
       }
