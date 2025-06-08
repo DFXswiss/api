@@ -344,26 +344,6 @@ export class UserDataService {
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
-    if (
-      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType ?? userData.accountType) &&
-      userData.organization
-    )
-      await this.organizationService.updateOrganizationInternal(userData.organization, {
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-        country: dto.organizationCountry,
-        allBeneficialOwnersName: dto.allBeneficialOwnersName,
-        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
-        accountOpenerAuthorization: dto.accountOpenerAuthorization,
-        complexOrgStructure: dto.complexOrgStructure,
-        accountOpener: dto.accountOpener,
-        legalEntity: dto.legalEntity,
-        signatoryPower: dto.signatoryPower,
-      });
-
     return userData;
   }
 
@@ -382,12 +362,6 @@ export class UserDataService {
       zip: transliterate(data.address.zip),
       country: data.address.country,
       phone: data.phone,
-      organizationName: data.organizationName,
-      organizationStreet: data.organizationAddress?.street,
-      organizationHouseNumber: data.organizationAddress?.houseNumber,
-      organizationLocation: data.organizationAddress?.city,
-      organizationZip: data.organizationAddress?.zip,
-      organizationCountry: data.organizationAddress?.country,
     };
 
     const isPersonalAccount =
@@ -396,7 +370,7 @@ export class UserDataService {
     // check countries
     const [country, organizationCountry] = await Promise.all([
       this.countryService.getCountry(update.country?.id ?? userData.country?.id),
-      this.countryService.getCountry(update.organizationCountry?.id ?? userData.organizationCountry?.id),
+      this.countryService.getCountry(update.organization.country?.id ?? userData.organization.country?.id),
     ]);
     if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
     if (
@@ -406,20 +380,20 @@ export class UserDataService {
       throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
 
     if (isPersonalAccount) {
-      update.organizationName = null;
-      update.organizationStreet = null;
-      update.organizationHouseNumber = null;
-      update.organizationLocation = null;
-      update.organizationZip = null;
-      update.organizationCountry = null;
+      update.organization.name = null;
+      update.organization.street = null;
+      update.organization.houseNumber = null;
+      update.organization.location = null;
+      update.organization.zip = null;
+      update.organization.country = null;
     } else {
       const organizationData = {
-        name: update.organizationName,
-        street: update.organizationStreet,
-        location: update.organizationLocation,
-        houseNumber: update.organizationHouseNumber,
-        zip: update.organizationZip,
-        country: organizationCountry,
+        name: data.organizationName,
+        street: data.organizationAddress?.street,
+        location: data.organizationAddress?.city,
+        houseNumber: data.organizationAddress?.houseNumber,
+        zip: data.organizationAddress?.zip,
+        countryId: data.organizationAddress?.country?.id,
       };
 
       update.organization = !userData.organization
@@ -692,8 +666,8 @@ export class UserDataService {
     }
 
     if (dto.organizationCountryId) {
-      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
-      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
+      userData.organization.country = await this.countryService.getCountry(dto.organizationCountryId);
+      if (!userData.organization.country) throw new BadRequestException('Country not found');
     }
 
     if (dto.verifiedCountry) {
@@ -712,8 +686,8 @@ export class UserDataService {
     }
 
     if (dto.accountOpener) {
-      userData.accountOpener = await this.userDataRepo.findOneBy({ id: dto.accountOpener.id });
-      if (!userData.accountOpener) throw new BadRequestException('AccountOpener not found');
+      userData.organization.accountOpener = await this.userDataRepo.findOneBy({ id: dto.accountOpener.id });
+      if (!userData.organization.accountOpener) throw new BadRequestException('AccountOpener not found');
     }
 
     if (dto.verifiedName) {
