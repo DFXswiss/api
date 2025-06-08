@@ -428,7 +428,7 @@ export class KycService {
     data: KycLegalEntityData | KycNationalityData | KycSignatoryPowerData,
     reviewStatus: KycStepStatus,
   ): Promise<KycStepBase> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     if (data instanceof KycNationalityData) {
