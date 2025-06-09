@@ -6,8 +6,6 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 
 @Injectable()
 export class JwtOrPaymentLinkKeyGuard implements CanActivate {
-  constructor() {}
-
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const key = request.query['key'];
