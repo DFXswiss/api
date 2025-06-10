@@ -504,7 +504,7 @@ export class PaymentLinkService {
     routeIdOrLabel: string,
     externalIds?: string[],
     ids?: number[],
-    lang?: string,
+    lang = 'en',
   ): Promise<Buffer> {
     const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
     const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
@@ -514,9 +514,7 @@ export class PaymentLinkService {
     const links = [...linksByExternalId, ...linksById];
 
     // Translated sticker title
-    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', {
-      lang: lang?.toLowerCase() || 'en',
-    });
+    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', { lang: lang.toLowerCase() });
 
     // Blue OCP Image
     const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
