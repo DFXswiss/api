@@ -384,7 +384,7 @@ export class KycStep extends IEntity {
 
   get identDocumentId(): string {
     const data = this.resultData;
-    return data ? `${this.userData.organizationName?.split(' ')?.join('') ?? ''}${data.documentNumber}` : undefined;
+    return data ? `${this.userData.organization.name?.split(' ')?.join('') ?? ''}${data.documentNumber}` : undefined;
   }
 
   get isValidCreatingBankData(): boolean {

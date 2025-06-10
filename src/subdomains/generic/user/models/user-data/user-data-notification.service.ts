@@ -41,7 +41,7 @@ export class UserDataNotificationService {
                 { key: MailKey.SPACE, params: { value: '3' } },
                 {
                   key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: master.organizationName ?? master.firstname },
+                  params: { name: master.organization.name ?? master.firstname },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
@@ -80,7 +80,7 @@ export class UserDataNotificationService {
               { key: MailKey.SPACE, params: { value: '3' } },
               {
                 key: `${MailTranslationKey.GENERAL}.welcome`,
-                params: { name: master.organizationName ?? master.firstname },
+                params: { name: master.organization.name ?? master.firstname },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
@@ -105,7 +105,7 @@ export class UserDataNotificationService {
             { key: MailKey.SPACE, params: { value: '3' } },
             {
               key: `${MailTranslationKey.GENERAL}.welcome`,
-              params: { name: slave.organizationName ?? slave.firstname },
+              params: { name: slave.organization.name ?? slave.firstname },
             },
             { key: MailKey.SPACE, params: { value: '2' } },
             {

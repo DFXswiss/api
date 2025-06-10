@@ -18,8 +18,8 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
-import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
+import { Column, Entity, Generated, Index, ManyToOne, OneToMany } from 'typeorm';
+import { Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
@@ -165,45 +165,8 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
 
-  // --- ORGANIZATION DATA --- //
-  // TODO remove after sync
-  @Column({ length: 256, nullable: true })
-  organizationName?: string;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  organizationStreet?: string;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  organizationHouseNumber?: string;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  organizationLocation?: string;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  organizationZip?: string;
-
-  // TODO remove
-  @ManyToOne(() => Country, { eager: true })
-  organizationCountry: Country;
-
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  allBeneficialOwnersName?: string;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  allBeneficialOwnersDomicile?: string;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  accountOpenerAuthorization?: AccountOpenerAuthorization;
 
   @Column({ length: 256, nullable: true })
   phone?: string;
@@ -216,23 +179,11 @@ export class UserData extends IEntity {
 
   // --- KYC --- //
 
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  legalEntity?: LegalEntity;
-
-  // TODO remove
-  @Column({ length: 256, nullable: true })
-  signatoryPower?: SignatoryPower;
-
   @Column({ nullable: true })
   highRisk?: boolean;
 
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
-
-  // TODO remove
-  @Column({ nullable: true })
-  complexOrgStructure?: boolean;
 
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
@@ -368,11 +319,6 @@ export class UserData extends IEntity {
   @OneToMany(() => Transaction, (tx) => tx.userData)
   transactions: Transaction[];
 
-  // TODO remove
-  @ManyToOne(() => UserData, { nullable: true })
-  @JoinColumn()
-  accountOpener?: UserData;
-
   @ManyToOne(() => Organization, { nullable: true, eager: true })
   organization: Organization;
 
@@ -403,19 +349,6 @@ export class UserData extends IEntity {
       this.id,
       { blackSquadRecipientMail: this.blackSquadRecipientMail, blackSquadMailSendDate: this.blackSquadMailSendDate },
     ];
-  }
-
-  setAccountOpenerAuthorization(signatoryPower: SignatoryPower): UpdateResult<UserData> {
-    const update: Partial<UserData> = {
-      accountOpenerAuthorization:
-        signatoryPower === SignatoryPower.SINGLE
-          ? AccountOpenerAuthorization.SINGLE_SIGNATURE
-          : AccountOpenerAuthorization.AUTHORIZATION,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
   }
 
   deactivateUserData(): UpdateResult<UserData> {
@@ -577,7 +510,7 @@ export class UserData extends IEntity {
   }
 
   get completeName(): string {
-    return this.organizationName ?? this.naturalPersonName;
+    return this.organization.name ?? this.naturalPersonName;
   }
 
   get naturalPersonName(): string {
@@ -599,11 +532,11 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
+          street: this.organization.street,
+          houseNumber: this.organization.houseNumber,
+          city: this.organization.location,
+          zip: this.organization.zip,
+          country: this.organization.country,
         }
       : {
           street: this.street,
