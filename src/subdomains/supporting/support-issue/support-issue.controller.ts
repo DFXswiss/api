@@ -70,7 +70,7 @@ export class SupportIssueController {
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
   ): Promise<SupportMessageDto> {
-    return [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role)
+    return [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt.role)
       ? this.supportIssueService.createMessageSupport(+id, dto)
       : this.supportIssueService.createMessage(id, dto, jwt?.account);
   }
