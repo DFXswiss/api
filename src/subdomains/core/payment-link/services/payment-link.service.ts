@@ -479,7 +479,6 @@ export class PaymentLinkService {
       return this.create(route.user.id, {
         externalId: externalLinkId,
         payment: dto.amount !== 0 ? dto : undefined,
-        config: { accessKeys: [key] },
       });
     }
 
