@@ -185,6 +185,7 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
         return this.createPaymentRequest(this.evmDepositAddress, transferInfo);
 

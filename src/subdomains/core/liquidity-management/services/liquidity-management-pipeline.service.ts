@@ -187,7 +187,7 @@ export class LiquidityManagementPipelineService {
 
         hasFinishedOrders = true;
 
-        this.logger.warn(`Error in starting new liquidity order ${order.id}:`, e);
+        this.logger.info(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
 
@@ -260,7 +260,7 @@ export class LiquidityManagementPipelineService {
 
     const [errorMessage, mailRequest] = this.generateFailMessage(pipeline, order);
 
-    this.logger.warn(errorMessage);
+    this.logger.info(errorMessage);
 
     if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
   }

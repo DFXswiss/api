@@ -31,5 +31,6 @@ export class TestExchangeService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     Solana: undefined,
+    Gnosis: undefined,
   };
 }

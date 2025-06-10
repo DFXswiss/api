@@ -8,6 +8,7 @@ import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
+import { PayInGnosisService } from '../../../services/payin-gnosis.service';
 import { PayInLightningService } from '../../../services/payin-lightning.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
@@ -22,6 +23,8 @@ import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
+import { GnosisCoinStrategy } from '../impl/gnosis-coin.strategy';
+import { GnosisTokenStrategy } from '../impl/gnosis-token.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
@@ -45,6 +48,8 @@ describe('SendStrategyRegistry', () => {
   let polygonToken: PolygonTokenStrategy;
   let baseCoin: BaseCoinStrategy;
   let baseToken: BaseTokenStrategy;
+  let gnosisCoin: GnosisCoinStrategy;
+  let gnosisToken: GnosisTokenStrategy;
 
   let registry: SendStrategyRegistryWrapper;
 
@@ -73,6 +78,9 @@ describe('SendStrategyRegistry', () => {
     baseCoin = new BaseCoinStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
     baseToken = new BaseTokenStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
 
+    gnosisCoin = new GnosisCoinStrategy(mock<PayInGnosisService>(), mock<PayInRepository>());
+    gnosisToken = new GnosisTokenStrategy(mock<PayInGnosisService>(), mock<PayInRepository>());
+
     registry = new SendStrategyRegistryWrapper(
       bitcoin,
       lightning,
@@ -89,6 +97,8 @@ describe('SendStrategyRegistry', () => {
       polygonToken,
       baseCoin,
       baseToken,
+      gnosisCoin,
+      gnosisToken,
     );
   });
 
@@ -214,6 +224,22 @@ describe('SendStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BaseTokenStrategy);
       });
 
+      it('gets GNOSIS_COIN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.GNOSIS, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(GnosisCoinStrategy);
+      });
+
+      it('gets GNOSIS_TOKEN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.GNOSIS, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(GnosisTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getSendStrategy(
@@ -244,6 +270,8 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     polygonToken: PolygonTokenStrategy,
     baseCoin: BaseCoinStrategy,
     baseToken: BaseTokenStrategy,
+    gnosisCoin: GnosisCoinStrategy,
+    gnosisToken: GnosisTokenStrategy,
   ) {
     super();
 
@@ -263,5 +291,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
+    this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.COIN }, gnosisCoin);
+    this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.TOKEN }, gnosisToken);
   }
 }

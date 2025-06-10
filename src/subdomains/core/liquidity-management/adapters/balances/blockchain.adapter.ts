@@ -103,6 +103,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.ARBITRUM:
         case Blockchain.POLYGON:
         case Blockchain.BASE:
+        case Blockchain.GNOSIS:
         case Blockchain.BINANCE_SMART_CHAIN:
           await this.updateEvmBalance(assets);
           break;

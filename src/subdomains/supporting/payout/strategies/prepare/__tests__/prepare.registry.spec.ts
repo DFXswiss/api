@@ -9,6 +9,7 @@ import { PrepareStrategyRegistry } from '../impl/base/prepare.strategy-registry'
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
+import { GnosisStrategy } from '../impl/gnosis.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
@@ -24,6 +25,7 @@ describe('PrepareStrategyRegistry', () => {
   let optimismStrategy: OptimismStrategy;
   let polygonStrategy: PolygonStrategy;
   let baseStrategy: BaseStrategy;
+  let gnosisStrategy: GnosisStrategy;
 
   let registry: PrepareStrategyRegistryWrapper;
 
@@ -38,6 +40,7 @@ describe('PrepareStrategyRegistry', () => {
     optimismStrategy = new OptimismStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     polygonStrategy = new PolygonStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     baseStrategy = new BaseStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    gnosisStrategy = new GnosisStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PrepareStrategyRegistryWrapper(
       bitcoinStrategy,
@@ -49,6 +52,7 @@ describe('PrepareStrategyRegistry', () => {
       optimismStrategy,
       polygonStrategy,
       baseStrategy,
+      gnosisStrategy,
     );
   });
 
@@ -108,6 +112,12 @@ describe('PrepareStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BaseStrategy);
       });
 
+      it('gets GNOSIS strategy for GNOSIS', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.GNOSIS }));
+
+        expect(strategy).toBeInstanceOf(GnosisStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPrepareStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -130,6 +140,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     optimismStrategy: OptimismStrategy,
     polygonStrategy: PolygonStrategy,
     baseStrategy: BaseStrategy,
+    gnosisStrategy: GnosisStrategy,
   ) {
     super();
 
@@ -142,5 +153,6 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.OPTIMISM, optimismStrategy);
     this.add(Blockchain.POLYGON, polygonStrategy);
     this.add(Blockchain.BASE, baseStrategy);
+    this.add(Blockchain.GNOSIS, gnosisStrategy);
   }
 }

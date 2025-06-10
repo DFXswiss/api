@@ -6,6 +6,7 @@ import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { DexBaseService } from '../../../services/dex-base.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
+import { DexGnosisService } from '../../../services/dex-gnosis.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
@@ -18,6 +19,8 @@ import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
+import { GnosisCoinStrategy } from '../impl/gnosis-coin.strategy';
+import { GnosisTokenStrategy } from '../impl/gnosis-token.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
@@ -39,6 +42,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let polygonToken: PolygonTokenStrategy;
   let baseCoin: BaseCoinStrategy;
   let baseToken: BaseTokenStrategy;
+  let gnosisCoin: GnosisCoinStrategy;
+  let gnosisToken: GnosisTokenStrategy;
 
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
@@ -63,6 +68,9 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
     baseCoin = new BaseCoinStrategy(mock<DexBaseService>());
     baseToken = new BaseTokenStrategy(mock<DexBaseService>());
 
+    gnosisCoin = new GnosisCoinStrategy(mock<DexGnosisService>());
+    gnosisToken = new GnosisTokenStrategy(mock<DexGnosisService>());
+
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
       arbitrumCoin,
       arbitrumToken,
@@ -78,6 +86,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       polygonToken,
       baseCoin,
       baseToken,
+      gnosisCoin,
+      gnosisToken,
     );
   });
 
@@ -195,6 +205,22 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BaseTokenStrategy);
       });
 
+      it('gets GNOSIS_COIN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.GNOSIS, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(GnosisCoinStrategy);
+      });
+
+      it('gets GNOSIS_TOKEN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.GNOSIS, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(GnosisTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const strategy = registry.getPurchaseLiquidityStrategy(
           createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
@@ -230,6 +256,8 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     polygonToken: PolygonTokenStrategy,
     baseCoin: BaseCoinStrategy,
     baseToken: BaseTokenStrategy,
+    gnosisCoin: GnosisCoinStrategy,
+    gnosisToken: GnosisTokenStrategy,
   ) {
     super();
 
@@ -247,5 +275,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
+    this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.COIN }, gnosisCoin);
+    this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.TOKEN }, gnosisToken);
   }
 }
