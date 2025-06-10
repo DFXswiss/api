@@ -75,8 +75,7 @@ export abstract class EvmClient extends BlockchainClient {
 
     this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
-    // Router cannot be initialized for Gnosis Chain
-    if (this.chainId !== 100) {
+    if (params.swapContractAddress) {
       this.router = new AlphaRouter({
         chainId: this.chainId,
         provider: this.provider,
