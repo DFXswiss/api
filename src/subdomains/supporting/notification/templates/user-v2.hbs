@@ -268,6 +268,12 @@
                                                 {{#if this.underline}} <u>{{{this.text}}}</u> {{else}} {{{this.text}}} {{/if}}
 
                                                 {{#if this.url}}
+                                                    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-family: arial, helvetica, sans-serif;">
+                                                        <tr>
+                                                            <td style="padding-top: 10px;"></td>
+                                                        </tr>
+                                                    </table>
+
                                                     {{#if this.url.button}}<!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->{{/if}}
                                                     {{#if this.url.button}}<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href='{{this.url.link}}' style="height:32px; v-text-anchor:middle; width:200px;" arcsize="12.5%"  stroke="f" fillcolor="#f5516c"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->{{/if}}
                                                     {{#if this.url.button}}<a href='{{this.url.link}}' target="_blank" class="v-button btn" style="color: #FFFFFF;text-decoration: none;">{{else}}<a href='{{this.url.link}}' target="_blank" style="color: #FFFFFF;">{{/if}}
