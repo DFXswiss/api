@@ -74,7 +74,7 @@ export class BankDataService {
 
       if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
         if (
-          entity.userData.accountType !== AccountType.PERSONAL &&
+          entity.userData.accountType === AccountType.PERSONAL ||
           entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
