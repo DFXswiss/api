@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, ValidateNested } from 'class-validator';
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
@@ -36,21 +36,6 @@ export class UpdatePaymentLinkConfigDto {
   @IsOptional()
   @IsNumber()
   paymentTimeout?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  binancePayMerchantId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  binancePaySubMerchantId?: string;
-
-  @IsOptional()
-  @IsString({ each: true })
-  @IsArray()
-  accessKeys?: string[];
 }
 
 export class PaymentLinkConfigDto extends UpdatePaymentLinkConfigDto {

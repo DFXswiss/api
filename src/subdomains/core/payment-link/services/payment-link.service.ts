@@ -499,7 +499,7 @@ export class PaymentLinkService {
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
-  async matchPaymentLinkByAccessKey(
+  async getPaymentLinkByAccessKey(
     key: string,
     externalLinkId?: string,
     externalPaymentId?: string,
@@ -524,7 +524,7 @@ export class PaymentLinkService {
   }
 
   async waitForPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
@@ -532,7 +532,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = userId
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.matchPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
@@ -543,7 +543,7 @@ export class PaymentLinkService {
   }
 
   async confirmPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
@@ -551,7 +551,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = userId
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.matchPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
     const payment = paymentLink.payments[0];
     if (!payment) throw new NotFoundException('Payment not found');
