@@ -1,5 +1,13 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { AddressActivityResponse, AddressActivityWebhook, Alchemy, Network, Webhook, WebhookType } from 'alchemy-sdk';
+import {
+  AddressActivityResponse,
+  AddressActivityWebhook,
+  Alchemy,
+  GetAddressesOptions,
+  Network,
+  Webhook,
+  WebhookType,
+} from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
 import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -40,8 +48,8 @@ export class AlchemyWebhookService implements OnModuleInit {
     return this.alchemy.notify.getAllWebhooks().then((r) => r.webhooks);
   }
 
-  async getWebhookAddresses(webhookId: string): Promise<AddressActivityResponse> {
-    return this.alchemy.notify.getAddresses(webhookId);
+  async getWebhookAddresses(webhookId: string, options?: GetAddressesOptions): Promise<AddressActivityResponse> {
+    return this.alchemy.notify.getAddresses(webhookId, options);
   }
 
   isValidWebhookSignature(alchemySignature: string, webhookId: string, rawBody: any): boolean {
