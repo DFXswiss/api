@@ -7,6 +7,6 @@ import { DexEvmService } from './base/dex-evm.service';
 @Injectable()
 export class DexGnosisService extends DexEvmService {
   constructor(liquidityOrderRepo: LiquidityOrderRepository, gnosisService: GnosisService) {
-    super(liquidityOrderRepo, gnosisService, 'ETH', Blockchain.GNOSIS);
+    super(liquidityOrderRepo, gnosisService, 'xDAI', Blockchain.GNOSIS);
   }
 }

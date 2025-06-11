@@ -24,4 +24,6 @@ export interface PaymentLinkConfig {
   // binance pay related
   binancePayMerchantId?: string;
   binancePaySubMerchantId?: string;
+  // access key related
+  accessKeys?: string[];
 }
