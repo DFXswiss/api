@@ -87,7 +87,7 @@ export class AlchemyWebhookService implements OnModuleInit {
     url: string,
     addresses: string[],
   ): Promise<AddressActivityWebhook> {
-    const createWebhookAddresses = addresses.splice(0, 1000);
+    const createWebhookAddresses = addresses.splice(0, 500);
 
     const addressActivityWebhook = await this.alchemy.notify.createWebhook(url, WebhookType.ADDRESS_ACTIVITY, {
       addresses: createWebhookAddresses,
@@ -108,7 +108,7 @@ export class AlchemyWebhookService implements OnModuleInit {
         this.alchemy.notify.updateWebhook(webhookId, {
           addAddresses: batch,
         }),
-      1000,
+      500,
     );
   }
 
