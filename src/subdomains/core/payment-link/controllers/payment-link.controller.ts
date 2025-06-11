@@ -230,7 +230,7 @@ export class PaymentLinkController {
     @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .waitForPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId, key)
+      .waitForPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -250,7 +250,7 @@ export class PaymentLinkController {
     @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .confirmPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId, key)
+      .confirmPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
