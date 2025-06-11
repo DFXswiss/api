@@ -475,17 +475,17 @@ export class PaymentLinkService {
     const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
     if (!hasAccessKey) throw new UnauthorizedException('Invalid access key');
 
-    if (!existingPaymentLink) {
-      return this.create(route.user.id, {
-        externalId: externalLinkId,
-        payment: dto.amount !== 0 ? dto : undefined,
-      });
+    if (existingPaymentLink) {
+      if (dto.amount !== 0)
+        existingPaymentLink.payments = [await this.paymentLinkPaymentService.createPayment(existingPaymentLink, dto)];
+
+      return existingPaymentLink;
     }
 
-    if (dto.amount !== 0)
-      existingPaymentLink.payments = [await this.paymentLinkPaymentService.createPayment(existingPaymentLink, dto)];
-
-    return existingPaymentLink;
+    return this.create(route.user.id, {
+      externalId: externalLinkId,
+      payment: dto.amount !== 0 ? dto : undefined,
+    });
   }
 
   async cancelPayment(
