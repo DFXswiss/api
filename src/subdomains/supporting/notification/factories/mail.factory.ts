@@ -2,13 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
-import { MailContextType, MailContextTypeMapper, MailType } from '../enums';
+import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
 export enum MailTranslationKey {
@@ -165,12 +166,7 @@ export class MailFactory {
     const { correlationId, options, context } = request;
     const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
 
-    const mailContextType = MailContextTypeMapper[context];
-    if (
-      mailContextType &&
-      (wallet.mailConfigObject.includes(mailContextType) || wallet.mailConfigObject.includes(MailContextType.ALL))
-    )
-      return undefined;
+    if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
     const lang = userData.language.symbol.toLowerCase();
 
@@ -192,12 +188,7 @@ export class MailFactory {
       request.input as MailRequestPersonalInput;
     const { correlationId, options, context } = request;
 
-    const mailContextType = MailContextTypeMapper[context];
-    if (
-      mailContextType &&
-      (wallet.mailConfigObject.includes(mailContextType) || wallet.mailConfigObject.includes(MailContextType.ALL))
-    )
-      return undefined;
+    if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
     const lang = userData.language.symbol;
 
@@ -221,6 +212,14 @@ export class MailFactory {
   }
 
   //*** MAIL BUILDING METHODS ***//
+
+  private isDisabledMailWallet(context: MailContext, wallet: Wallet): boolean {
+    const mailContextType = MailContextTypeMapper[context];
+    return (
+      mailContextType &&
+      (wallet.disabledMailTypes.includes(mailContextType) || wallet.disabledMailTypes.includes(MailContextType.ALL))
+    );
+  }
 
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
     return Object.entries(Util.removeNullFields(table)).map(([key, value]) => ({
