@@ -8,7 +8,7 @@ import { InternalMail, MailRequestInternalInput } from '../entities/mail/interna
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
-import { MailType } from '../enums';
+import { MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
 export enum MailTranslationKey {
@@ -62,7 +62,7 @@ const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle}` };
 export class MailFactory {
   constructor(private readonly i18n: I18nService) {}
 
-  createMail(request: MailRequest): Mail {
+  createMail(request: MailRequest): Mail | undefined {
     switch (request.type) {
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
@@ -162,8 +162,15 @@ export class MailFactory {
   }
 
   private createUserV2Mail(request: MailRequest): UserMailV2 {
-    const { correlationId, options } = request;
+    const { correlationId, options, context } = request;
     const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
+
+    const mailContextType = MailContextTypeMapper[context];
+    if (
+      mailContextType &&
+      (wallet.mailConfigObject.includes(mailContextType) || wallet.mailConfigObject.includes(MailContextType.ALL))
+    )
+      return undefined;
 
     const lang = userData.language.symbol.toLowerCase();
 
@@ -181,8 +188,16 @@ export class MailFactory {
   }
 
   private createPersonalMail(request: MailRequest): PersonalMail {
-    const { userData, title, prefix, banner, from, displayName, bcc } = request.input as MailRequestPersonalInput;
-    const { correlationId, options } = request;
+    const { userData, title, prefix, banner, from, displayName, bcc, wallet } =
+      request.input as MailRequestPersonalInput;
+    const { correlationId, options, context } = request;
+
+    const mailContextType = MailContextTypeMapper[context];
+    if (
+      mailContextType &&
+      (wallet.mailConfigObject.includes(mailContextType) || wallet.mailConfigObject.includes(MailContextType.ALL))
+    )
+      return undefined;
 
     const lang = userData.language.symbol;
 

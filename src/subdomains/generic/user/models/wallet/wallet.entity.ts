@@ -2,6 +2,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { MailContextType } from 'src/subdomains/supporting/notification/enums';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { WebhookType } from '../../services/webhook/dto/webhook.dto';
 import { KycType } from '../user-data/user-data.entity';
@@ -60,8 +61,17 @@ export class Wallet extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   webhookConfig?: string; // JSON string
 
+  @Column({ length: 'MAX', nullable: true })
+  mailConfig?: string; // semicolon separated disabled MailContextTypes
+
+  //*** ENTITY METHODS ***//
+
   get webhookConfigObject(): WebhookConfig | undefined {
     return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;
+  }
+
+  get mailConfigObject(): MailContextType[] | undefined {
+    return this.mailConfig ? (this.mailConfig?.split(';') as MailContextType[]) : undefined;
   }
 
   get amlRuleList(): AmlRule[] {
