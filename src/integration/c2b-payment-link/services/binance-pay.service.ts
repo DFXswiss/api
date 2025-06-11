@@ -74,13 +74,17 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     // Method 1: check local payment link config
     try {
       const config = paymentLink.linkConfigObj;
-      return Boolean(config.binancePayMerchantId || config.binancePaySubMerchantId);
+      if (config.binancePayMerchantId || config.binancePaySubMerchantId) {
+        return true;
+      }
     } catch (e) {}
 
     // Method 2: check configObj if available
     try {
       const config = paymentLink.configObj;
-      return Boolean(config.binancePayMerchantId || config.binancePaySubMerchantId);
+      if (config.binancePayMerchantId || config.binancePaySubMerchantId) {
+        return true;
+      }
     } catch (e) {}
 
     // No keys are available
