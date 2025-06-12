@@ -167,7 +167,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         sell: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true, userData: true }, userData: true },
       },
     });
 
