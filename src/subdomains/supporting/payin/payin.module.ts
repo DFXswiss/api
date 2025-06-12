@@ -34,6 +34,7 @@ import { RegisterStrategyRegistry } from './strategies/register/impl/base/regist
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
+import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
@@ -122,6 +123,7 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     SolanaStrategyR,
     SolanaCoinStrategyS,
     SolanaTokenStrategyS,
+    GnosisStrategyR,
     GnosisCoinStrategyS,
     GnosisTokenStrategyS,
   ],
