@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
 import { map } from 'rxjs';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
@@ -25,21 +26,33 @@ export class GnosisStrategy extends EvmStrategy implements OnModuleInit {
 
     this.alchemyWebhookService
       .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
-      .pipe(map((dto) => this.changeAsset(dto)))
+      .pipe(map((dto) => this.changeAssetFromWebhook(dto)))
       .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
 
     this.alchemyService
       .getAssetTransfersObservable(this.blockchain)
+      .pipe(map((at) => this.changeAssetFromTransfer(at)))
       .subscribe((at) => this.processAssetTransfersMessageQueue(at));
   }
 
   // Only needed, because of receiving "ETH" Asset instead of "xDAI" Asset
-  private changeAsset(dto: AlchemyWebhookDto): AlchemyWebhookDto {
+  private changeAssetFromWebhook(dto: AlchemyWebhookDto): AlchemyWebhookDto {
     for (const activity of dto.event.activity) {
       if (activity.asset === 'ETH') activity.asset = 'xDAI';
     }
 
     return dto;
+  }
+
+  // Only needed, because of receiving "ETH" Asset instead of "xDAI" Asset
+  private changeAssetFromTransfer(
+    assetTransfers: AssetTransfersWithMetadataResult[],
+  ): AssetTransfersWithMetadataResult[] {
+    for (const assetTransfer of assetTransfers) {
+      if (assetTransfer.asset === 'ETH') assetTransfer.asset = 'xDAI';
+    }
+
+    return assetTransfers;
   }
 
   get blockchain(): Blockchain {
