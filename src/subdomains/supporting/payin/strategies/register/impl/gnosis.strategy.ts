@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { map } from 'rxjs';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
+import { AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
@@ -23,11 +25,21 @@ export class GnosisStrategy extends EvmStrategy implements OnModuleInit {
 
     this.alchemyWebhookService
       .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
+      .pipe(map((dto) => this.changeAsset(dto)))
       .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
 
     this.alchemyService
       .getAssetTransfersObservable(this.blockchain)
       .subscribe((at) => this.processAssetTransfersMessageQueue(at));
+  }
+
+  // Only needed, because of receiving "ETH" Asset instead of "xDAI" Asset
+  private changeAsset(dto: AlchemyWebhookDto): AlchemyWebhookDto {
+    for (const activity of dto.event.activity) {
+      if (activity.asset === 'ETH') activity.asset = 'xDAI';
+    }
+
+    return dto;
   }
 
   get blockchain(): Blockchain {
