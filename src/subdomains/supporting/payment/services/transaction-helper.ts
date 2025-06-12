@@ -412,6 +412,7 @@ export class TransactionHelper implements OnModuleInit {
       specialCodes: [],
       allowCachedBlockchainFee: false,
       userData,
+      wallet: userData.wallet,
     });
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
