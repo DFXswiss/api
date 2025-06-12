@@ -38,7 +38,7 @@ export class GnosisStrategy extends EvmStrategy implements OnModuleInit {
   // Only needed, because of receiving "ETH" Asset instead of "xDAI" Asset
   private changeAssetFromWebhook(dto: AlchemyWebhookDto): AlchemyWebhookDto {
     for (const activity of dto.event.activity) {
-      if (activity.asset === 'ETH') activity.asset = 'xDAI';
+      if (!activity.rawContract?.address && activity.asset === 'ETH') activity.asset = 'xDAI';
     }
 
     return dto;
@@ -49,7 +49,7 @@ export class GnosisStrategy extends EvmStrategy implements OnModuleInit {
     assetTransfers: AssetTransfersWithMetadataResult[],
   ): AssetTransfersWithMetadataResult[] {
     for (const assetTransfer of assetTransfers) {
-      if (assetTransfer.asset === 'ETH') assetTransfer.asset = 'xDAI';
+      if (!assetTransfer.rawContract?.address && assetTransfer.asset === 'ETH') assetTransfer.asset = 'xDAI';
     }
 
     return assetTransfers;
