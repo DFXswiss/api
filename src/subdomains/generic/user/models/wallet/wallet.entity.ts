@@ -71,7 +71,7 @@ export class Wallet extends IEntity {
   }
 
   get disabledMailTypes(): MailContextType[] | undefined {
-    return this.mailConfig ? (this.mailConfig?.split(';') as MailContextType[]) : undefined;
+    return this.mailConfig ? (this.mailConfig?.split(';') as MailContextType[]) : [];
   }
 
   get amlRuleList(): AmlRule[] {
