@@ -217,7 +217,7 @@ export class MailFactory {
     const mailContextType = MailContextTypeMapper[context];
     return (
       mailContextType &&
-      (wallet.disabledMailTypes.includes(mailContextType) || wallet.disabledMailTypes.includes(MailContextType.ALL))
+      (wallet?.disabledMailTypes.includes(mailContextType) || wallet?.disabledMailTypes.includes(MailContextType.ALL))
     );
   }
 
