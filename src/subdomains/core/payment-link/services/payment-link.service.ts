@@ -489,12 +489,15 @@ export class PaymentLinkService {
   }
 
   async cancelPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = userId
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
