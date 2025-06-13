@@ -167,7 +167,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         sell: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true, userData: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
 
@@ -193,6 +193,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
           undefined,
           IbanBankName.MAERKI,
           entity.user,
+          entity.userData,
         );
 
         await this.buyFiatRepo.update(
