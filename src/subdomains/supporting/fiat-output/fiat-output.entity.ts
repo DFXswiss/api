@@ -11,6 +11,16 @@ export enum TransactionCharge {
   SHA = 'SHA',
 }
 
+export enum FiatOutputType {
+  BUY_FIAT = 'BuyFiat',
+  BUY_CRYPTO_FAIL = 'BuyCryptoFail',
+  LIQ_MANAGEMENT = 'LiqManagement',
+  BANK_TX_RETURN = 'BankTxReturn',
+  BANK_TX_REPEAT = 'BankTxRepeat',
+  MANUAL = 'Manual',
+  TALIUM_BUY_CRYPTO = 'TaliumBuyCrypto',
+}
+
 @Entity()
 export class FiatOutput extends IEntity {
   @OneToMany(() => BuyFiat, (buyFiat) => buyFiat.fiatOutput, { nullable: true })
@@ -27,7 +37,7 @@ export class FiatOutput extends IEntity {
   bankTx?: BankTx;
 
   @Column({ length: 256 })
-  type: string;
+  type: FiatOutputType;
 
   @Column({ type: 'integer', nullable: true })
   originEntityId?: number;
