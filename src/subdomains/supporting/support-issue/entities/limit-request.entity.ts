@@ -32,6 +32,9 @@ export class LimitRequest extends IEntity {
   @Column({ type: 'integer' })
   limit: number;
 
+  @Column({ type: 'integer', nullable: true })
+  acceptedLimit: number;
+
   @Column({ length: 256 })
   investmentDate: InvestmentDate;
 

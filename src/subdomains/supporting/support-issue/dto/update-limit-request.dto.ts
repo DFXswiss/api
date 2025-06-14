@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
 import { LimitRequestDecision } from '../entities/limit-request.entity';
 
 export class UpdateLimitRequestDto {
@@ -15,4 +15,8 @@ export class UpdateLimitRequestDto {
   @IsOptional()
   @IsEnum(LimitRequestDecision)
   decision: LimitRequestDecision;
+
+  @IsOptional()
+  @IsInt()
+  acceptedLimit: number;
 }
