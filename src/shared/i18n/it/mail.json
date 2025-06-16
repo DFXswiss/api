@@ -234,6 +234,11 @@
             "salutation": "Completa la tua verifica",
             "message": "Abbiamo notato che non hai completato la tua verifica."
         },
+        "payment_data" : {
+            "title": "Accordo di assegnazione",
+            "salutation": "Accordo di assegnazione",
+            "message": "DFX offre ai suoi clienti la possibilità di cedere a DFX i crediti in sospeso derivanti dalla vendita di beni e servizi per consentire il pagamento con le criptovalute. Il cliente ha la possibilità di inoltrare un reclamo insoluto tramite la nostra API (api.dfx.swiss) o tramite il front-end su app.dfx.swiss.<br>L'importo dovuto viene versato al cliente dopo la deduzione di una commissione di elaborazione dello 0,2%. A seconda della configurazione specifica del cliente, il pagamento può essere effettuato in criptovalute o in valuta fiat tramite transazione bancaria.<br>Le condizioni generali di DFX si applicano a tutte le transazioni. L'incarico termina automaticamente con la chiusura del conto DFX o può essere interrotto immediatamente da DFX o dal cliente in caso di violazione del contratto o di insolvenza.<br><br>Concordato su {date}"
+        },
         "retry": "Riprovare con il seguente URL:<br>[url:{urlText}]",
         "next_step": "Per procedere alla verifica, cliccare sulla voce di menu in alto a destra del sito web di DFX-Services<br> e poi su \"KYC\"<br> e cliccare sul pulsante \"Continua\" o utilizzare il seguente link:<br>[url:{urlText}]",
         "step_names": {

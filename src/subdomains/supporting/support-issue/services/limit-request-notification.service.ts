@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -57,10 +58,7 @@ export class LimitRequestNotificationService {
                 {
                   key: `${MailTranslationKey.LIMIT_REQUEST}.message`,
                   params: {
-                    limitAmount:
-                      entity.userData.language.symbol === 'DE'
-                        ? entity.userData.depositLimit.toLocaleString('de-DE')
-                        : entity.userData.depositLimit.toLocaleString('en-US'),
+                    limitAmount: Util.localeDataString(entity.userData.depositLimit, entity.userData.language.symbol),
                   },
                 },
                 { key: MailKey.SPACE, params: { value: '4' } },
