@@ -88,6 +88,8 @@ export class PaymentLinkController {
   @ApiBearerAuth()
   @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
