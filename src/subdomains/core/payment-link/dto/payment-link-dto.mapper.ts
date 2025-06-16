@@ -75,6 +75,7 @@ export class PaymentLinkDtoMapper {
         isConfirmed: payment.isConfirmed,
         url: LightningHelper.createLnurlp(payment.uniqueId),
         lnurl: LightningHelper.createEncodedLnurlp(payment.uniqueId),
+        updatedAt: payment.updated,
       }
     );
   }

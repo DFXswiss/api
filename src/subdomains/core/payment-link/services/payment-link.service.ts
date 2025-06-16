@@ -83,7 +83,18 @@ export class PaymentLinkService {
     return allPaymentLinks;
   }
 
-  async getHistoryByStatus(userId: number, status?: string, from?: Date, to?: Date): Promise<PaymentLink[]> {
+  async getHistoryByStatus(
+    userId?: number,
+    status?: string,
+    from?: Date,
+    to?: Date,
+    key?: string,
+    externalLinkId?: string,
+  ): Promise<PaymentLink[]> {
+    const ownerUserId = Boolean(userId)
+      ? userId
+      : (await this.getPaymentLinkByAccessKey(key, externalLinkId)).route.user.id;
+
     const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
       PaymentLinkPaymentStatus.COMPLETED,
     ];
@@ -94,7 +105,7 @@ export class PaymentLinkService {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    return this.paymentLinkRepo.getHistoryByStatus(userId, paymentStatus, fromDate, toDate);
+    return this.paymentLinkRepo.getHistoryByStatus(ownerUserId, paymentStatus, fromDate, toDate, externalLinkId);
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -469,7 +480,7 @@ export class PaymentLinkService {
     if (!route) throw new NotFoundException('Route not found');
 
     const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId).catch(() => null);
-    
+
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
     const userAccessKeys = route.userData.paymentLinksConfigObj.accessKeys ?? [];
     const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
@@ -495,7 +506,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = userId
+    const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
       : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
@@ -533,7 +544,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = userId
+    const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
       : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
@@ -552,7 +563,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = userId
+    const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
       : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 

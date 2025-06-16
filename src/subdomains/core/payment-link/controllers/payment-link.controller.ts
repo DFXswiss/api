@@ -86,14 +86,16 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkHistoryDto[]> {
     return this.paymentLinkService
-      .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
+      .getHistoryByStatus(+jwt?.user, dto.status, dto.from, dto.to, key, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 

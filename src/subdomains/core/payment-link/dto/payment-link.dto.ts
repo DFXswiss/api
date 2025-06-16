@@ -104,6 +104,8 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty()
   lnurl: string;
+
+  updatedAt: Date;
 }
 
 export class PaymentLinkBaseDto {
