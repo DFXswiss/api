@@ -86,14 +86,18 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkHistoryDto[]> {
     return this.paymentLinkService
-      .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
+      .getHistoryByStatus(+jwt?.user, dto.status, dto.from, dto.to, key, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 
@@ -256,19 +260,21 @@ export class PaymentLinkController {
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
