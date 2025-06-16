@@ -52,6 +52,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
@@ -535,6 +536,23 @@ export class KycService {
     await this.updateProgress(user, false);
 
     return KycStepMapper.toStepBase(kycStep);
+  }
+
+  async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    if (data.contractAccepted) {
+      await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
+      // TODO: send mail with text
+    }
+
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      data.contractAccepted ? KycStepStatus.COMPLETED : KycStepStatus.FAILED,
+    );
   }
 
   async updateIntrumIdent(dto: IdNowResult): Promise<void> {
