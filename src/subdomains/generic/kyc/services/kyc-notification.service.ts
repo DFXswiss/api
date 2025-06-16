@@ -183,7 +183,7 @@ export class KycNotificationService {
         });
       }
     } catch (e) {
-      this.logger.error(`Failed to send kyc payment data mail or webhook for user data ${userData.id}:`, e);
+      this.logger.error(`Failed to send kyc payment data mail for user data ${userData.id}:`, e);
     }
   }
 }
