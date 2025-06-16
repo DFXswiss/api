@@ -8,6 +8,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
@@ -37,6 +38,7 @@ export class BankDataService {
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BANK_DATA_VERIFICATION, timeout: 1800 })
@@ -153,6 +155,8 @@ export class BankDataService {
   }
 
   async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
+    if (!userData.kycSteps) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
+
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     return this.bankDataRepo.save(bankData);
   }
