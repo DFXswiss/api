@@ -1,4 +1,5 @@
 export enum KycStepName {
+  // standard KYC
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
   NATIONALITY_DATA = 'NationalityData',

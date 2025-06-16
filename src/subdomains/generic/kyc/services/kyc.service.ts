@@ -552,7 +552,7 @@ export class KycService {
       kycStep,
       user,
       data,
-      data.contractAccepted ? KycStepStatus.COMPLETED : KycStepStatus.FAILED,
+      data.contractAccepted ? KycStepStatus.COMPLETED : KycStepStatus.MANUAL_REVIEW,
     );
   }
 
