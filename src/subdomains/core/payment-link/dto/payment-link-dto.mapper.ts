@@ -70,6 +70,7 @@ export class PaymentLinkDtoMapper {
         amount: payment.amount,
         currency: payment.currency.name,
         mode: payment.mode,
+        date: payment.created,
         expiryDate: payment.expiryDate,
         txCount: payment.txCount,
         isConfirmed: payment.isConfirmed,

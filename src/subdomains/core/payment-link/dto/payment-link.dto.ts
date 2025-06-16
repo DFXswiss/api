@@ -91,6 +91,9 @@ export class PaymentLinkPaymentDto {
   mode: PaymentLinkPaymentMode;
 
   @ApiProperty()
+  date: Date;
+
+  @ApiProperty()
   expiryDate: Date;
 
   @ApiProperty()
