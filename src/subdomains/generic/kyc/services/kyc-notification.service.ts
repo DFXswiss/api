@@ -175,12 +175,7 @@ export class KycNotificationService {
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_PAYMENT_DATA}.message`,
-                params: {
-                  date:
-                    userData.language.symbol === 'DE'
-                      ? acceptedDate.toLocaleString('de-DE')
-                      : acceptedDate.toLocaleString('en-US'),
-                },
+                params: { date: Util.localeDataString(acceptedDate, userData.language.symbol) },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],
