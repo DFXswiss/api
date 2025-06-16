@@ -117,7 +117,7 @@ export class KycStep extends IEntity {
       case KycStepName.RESIDENCE_PERMIT:
         return { url: `${apiUrl}/data/residence/${this.id}`, type: UrlType.API };
 
-      case KycStepName.PAYMENTS:
+      case KycStepName.PAYMENT_AGREEMENT:
         return { url: `${apiUrl}/data/payment/${this.id}`, type: UrlType.API };
     }
   }

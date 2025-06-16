@@ -17,5 +17,5 @@ export enum KycStepName {
   DFX_APPROVAL = 'DfxApproval',
 
   // additional features
-  PAYMENTS = 'Payments',
+  PAYMENT_AGREEMENT = 'PaymentAgreement',
 }
