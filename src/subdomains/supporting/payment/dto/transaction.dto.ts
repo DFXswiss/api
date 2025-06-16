@@ -17,7 +17,7 @@ export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
   LIQUIDITY_PENDING = 'LiquidityPending',
-  AML_PENDING = 'AmlPending',
+  CHECK_PENDING = 'CheckPending',
   KYC_REQUIRED = 'KycRequired',
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
