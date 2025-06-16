@@ -544,7 +544,8 @@ export class KycService {
 
     if (data.contractAccepted) {
       await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
-      // TODO: send mail with text
+
+      await this.kycNotificationService.kycPaymentData(user, new Date());
     }
 
     return this.updateKycStepAndLog(
