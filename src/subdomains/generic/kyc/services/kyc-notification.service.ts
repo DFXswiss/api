@@ -182,9 +182,6 @@ export class KycNotificationService {
           },
         });
       }
-
-      // TODO webhook?
-      //await this.webhookService.kycFailed(userData, reason);
     } catch (e) {
       this.logger.error(`Failed to send kyc payment data mail or webhook for user data ${userData.id}:`, e);
     }
