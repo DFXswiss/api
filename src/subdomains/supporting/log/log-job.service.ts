@@ -367,7 +367,7 @@ export class LogJobService {
 
     // assetLog
     return assets.reduce((prev, curr) => {
-      if ((curr.balance == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
+      if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
       const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
