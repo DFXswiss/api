@@ -7,6 +7,7 @@ import { FindOptionsRelations, In, IsNull } from 'typeorm';
 import { CreateKycFileDto, FileSubType, FileType } from '../dto/kyc-file.dto';
 import { IdDocType, SumsubResult } from '../dto/sum-sub.dto';
 import { KycFile } from '../entities/kyc-file.entity';
+import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycFileRepository } from '../repositories/kyc-file.repository';
 import { SumsubService } from './integration/sum-sub.service';
 
@@ -59,11 +60,13 @@ export class KycFileService {
 
         if (entity.name.includes('.mp3') || entity.name.includes('.mp4')) entity.subType = FileSubType.IDENT_RECORDING;
 
-        if (entity.name.includes('.png')) {
+        if (entity.name.includes('.png') && entity.kycStep?.name === KycStepName.IDENT) {
+          const imageId = entity.name.split('-').pop()?.replace('.png', '');
           const { webhook } = entity.kycStep.getResult<SumsubResult>();
           const applicantMetaData = await this.sumSubService.getApplicantMetadata(webhook.applicantId);
-          const imageId = entity.name.split('-').pop()?.replace('.png', '');
-          for (const image of applicantMetaData.items) {
+          const image = applicantMetaData.items.find((i) => i.id === imageId);
+
+          if (image) {
             const identDocTypes = [
               IdDocType.ID_CARD,
               IdDocType.PASSPORT,
@@ -71,11 +74,9 @@ export class KycFileService {
               IdDocType.DRIVERS_TRANSLATION,
               IdDocType.ID_DOC_PHOTO,
             ];
-            if (image.id === imageId) {
-              entity.subType = identDocTypes.includes(image.idDocDef.idDocType)
-                ? FileSubType.IDENT_DOC
-                : FileSubType.IDENT_SELFIE;
-            }
+            entity.subType = identDocTypes.includes(image.idDocDef.idDocType)
+              ? FileSubType.IDENT_DOC
+              : FileSubType.IDENT_SELFIE;
           }
         }
       }
