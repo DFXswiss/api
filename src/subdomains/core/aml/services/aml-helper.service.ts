@@ -18,7 +18,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
-import { AmlRule } from '../enums/aml-rule.enum';
+import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 export class AmlHelperService {
@@ -303,6 +303,8 @@ export class AmlHelperService {
 
   static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
     if (!user) return undefined;
+
+    if (amlRules.includes(AmlRule.RULE_11) && SpecialIpCountries.includes(user.ipCountry)) return undefined;
 
     if (
       amlRules.includes(AmlRule.RULE_2) &&
