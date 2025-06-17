@@ -91,7 +91,7 @@ export class LogJobService {
 
       // assets
       const assets = await this.assetService
-        .getAllAssets()
+        .getAssetsWith({ balance: true })
         .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
       // asset log
@@ -248,9 +248,6 @@ export class LogJobService {
     const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
     const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
 
-    // liq balances
-    const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
-
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
 
@@ -370,8 +367,7 @@ export class LogJobService {
 
     // assetLog
     return assets.reduce((prev, curr) => {
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
-      if (liquidityBalance == null && !curr.isActive) return prev;
+      if ((curr.balance == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
       const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
@@ -390,7 +386,7 @@ export class LogJobService {
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
+      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
         ? 0
@@ -603,7 +599,7 @@ export class LogJobService {
           liquidity: liquidity
             ? {
                 total: this.getJsonValue(liquidity, amountType(curr), true),
-                liquidityBalance: this.getJsonValue(liquidityBalance, amountType(curr)),
+                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr)),
                 paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
                 manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr)),
               }
