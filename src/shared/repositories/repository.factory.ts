@@ -11,6 +11,7 @@ import { UserRepository } from 'src/subdomains/generic/user/models/user/user.rep
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
+import { LiquidityOrderRepository } from 'src/subdomains/supporting/dex/repositories/liquidity-order.repository';
 import { CheckoutTxRepository } from 'src/subdomains/supporting/fiat-payin/repositories/checkout-tx.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
@@ -35,6 +36,7 @@ export class RepositoryFactory {
   public readonly tradingOrder: TradingOrderRepository;
   public readonly tradingRule: TradingRuleRepository;
   public readonly paymentQuote: PaymentQuoteRepository;
+  public readonly liquidityOrder: LiquidityOrderRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -53,5 +55,6 @@ export class RepositoryFactory {
     this.tradingOrder = new TradingOrderRepository(manager);
     this.tradingRule = new TradingRuleRepository(manager);
     this.paymentQuote = new PaymentQuoteRepository(manager);
+    this.liquidityOrder = new LiquidityOrderRepository(manager);
   }
 }
