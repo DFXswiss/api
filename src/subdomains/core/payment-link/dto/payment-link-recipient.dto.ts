@@ -24,6 +24,7 @@ export class PaymentLinkRecipientDto {
   @IsString()
   @IsDfxPhone()
   @Transform(DfxPhoneTransform)
+  @Transform(Util.sanitize)
   phone?: string;
 
   @ApiPropertyOptional()
@@ -39,6 +40,7 @@ export class PaymentLinkRecipientDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   registrationNumber?: string;
 
   @ApiPropertyOptional({ enum: StoreType })

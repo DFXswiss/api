@@ -7,6 +7,7 @@ export class KycFinancialResponse {
   @ApiProperty({ description: 'Question key' })
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   key: string;
 
   @ApiProperty({ description: 'Response value (option key(s) or plain text)' })

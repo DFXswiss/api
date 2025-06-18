@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsNotEmpty,
   IsNotEmptyObject,
@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetSwapQuoteDto {
@@ -44,15 +45,18 @@ export class GetSwapQuoteDto {
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   discountCode: string;
 
   @ApiPropertyOptional({ description: 'Special code' })
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   specialCode: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   wallet: string;
 }
