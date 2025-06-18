@@ -9,28 +9,33 @@ export class CreateInvoicePaymentDto {
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.routeId || !(b.route || b.r)))
+  @Transform(Util.sanitize)
   routeId: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.route || !(b.routeId || b.r)))
+  @Transform(Util.sanitize)
   route: string;
 
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.r || !(b.routeId || b.route)))
+  @Transform(Util.sanitize)
   r: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.externalId || !(b.e || b.message || b.m)))
+  @Transform(Util.sanitize)
   externalId: string;
 
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.e || !(b.externalId || b.message || b.m)))
+  @Transform(Util.sanitize)
   e: string;
 
   @ApiPropertyOptional()
@@ -49,39 +54,47 @@ export class CreateInvoicePaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   label?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   l?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   note?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   n?: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(b.amount || !b.a))
+  @Transform(Util.sanitize)
   amount: string;
 
   @IsNotEmpty()
   @IsString()
   @ValidateIf((b: CreateInvoicePaymentDto) => Boolean(!b.amount || b.a))
+  @Transform(Util.sanitize)
   a: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   currency?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   c?: string;
 
   @ApiPropertyOptional()
@@ -107,9 +120,11 @@ export class CreateInvoicePaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   webhookUrl?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   w?: string;
 }

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 import { PaymentLinkPaymentMode } from '../enums';
 
 export class CreatePaymentLinkPaymentDto {
@@ -17,16 +18,19 @@ export class CreatePaymentLinkPaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   externalId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   note: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   currency?: string;
 
   @ApiPropertyOptional()
