@@ -37,7 +37,8 @@ import { BlockchainFeeRepository } from '../repositories/blockchain-fee.reposito
 import { FeeRepository } from '../repositories/fee.repository';
 
 export interface UserFeeRequest extends FeeRequestBase {
-  user: User;
+  userData: UserData;
+  wallet: Wallet;
 }
 
 export interface FeeRequest extends FeeRequestBase {
@@ -47,7 +48,6 @@ export interface FeeRequest extends FeeRequestBase {
 }
 
 export interface OptionalFeeRequest extends FeeRequestBase {
-  user?: User;
   userData?: UserData;
   wallet?: Wallet;
   accountType?: AccountType;
@@ -243,7 +243,7 @@ export class FeeService implements OnModuleInit {
         request.from,
         request.to,
         request.allowCachedBlockchainFee,
-        request.user.userData?.id,
+        request.userData?.id,
       );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
@@ -444,15 +444,8 @@ export class FeeService implements OnModuleInit {
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
-    const accountType =
-      request.user?.userData?.accountType ??
-      request.userData?.accountType ??
-      request.accountType ??
-      AccountType.PERSONAL;
-    const wallet = request.wallet ?? request.user?.wallet;
-    const userDataId = request.user?.userData?.id ?? request.userData?.id;
-
-    const discountFeeIds = request.user?.userData?.individualFeeList ?? request.userData?.individualFeeList ?? [];
+    const accountType = request.userData?.accountType ?? request.accountType ?? AccountType.PERSONAL;
+    const discountFeeIds = request.userData?.individualFeeList ?? [];
 
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
@@ -469,15 +462,17 @@ export class FeeService implements OnModuleInit {
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
           request.specialCodes.includes(f.specialCode) ||
-          (f.wallet && f.wallet.id === wallet?.id),
+          (f.wallet && f.wallet.id === request.wallet?.id),
       ),
     );
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired(userDataId))
-      .forEach((fee) => this.userDataService.removeFee(request.user?.userData ?? request.userData, fee.id));
+      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired(request.userData?.id))
+      .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
 
-    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet, userDataId }));
+    return userFees.filter((fee) =>
+      fee.verifyForTx({ ...request, accountType, wallet: request.wallet, userDataId: request.userData?.id }),
+    );
   }
 }
