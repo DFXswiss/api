@@ -127,6 +127,7 @@ export class UserDataNotificationService {
       .createQueryBuilder('userData')
       .select('userData')
       .leftJoinAndSelect('userData.language', 'language')
+      .leftJoinAndSelect('userData.wallet', 'wallet')
       .where('userData.blackSquadMailSendDate IS NULL')
       .andWhere('userData.buyVolume + userData.sellVolume + userData.cryptoVolume >= :limit', {
         limit: Config.support.blackSquad.limit,
@@ -145,6 +146,7 @@ export class UserDataNotificationService {
             context: MailContext.BLACK_SQUAD,
             input: {
               userData: entity,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.BLACK_SQUAD}.title`,
               prefix: [
                 {

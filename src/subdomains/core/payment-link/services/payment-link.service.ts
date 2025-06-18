@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { I18nService } from 'nestjs-i18n';
@@ -82,7 +83,18 @@ export class PaymentLinkService {
     return allPaymentLinks;
   }
 
-  async getHistoryByStatus(userId: number, status?: string, from?: Date, to?: Date): Promise<PaymentLink[]> {
+  async getHistoryByStatus(
+    userId?: number,
+    status?: string,
+    from?: Date,
+    to?: Date,
+    key?: string,
+    externalLinkId?: string,
+  ): Promise<PaymentLink[]> {
+    const ownerUserId = Boolean(userId)
+      ? userId
+      : (await this.getPaymentLinkByAccessKey(key, externalLinkId)).route.user.id;
+
     const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
       PaymentLinkPaymentStatus.COMPLETED,
     ];
@@ -93,7 +105,7 @@ export class PaymentLinkService {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    return this.paymentLinkRepo.getHistoryByStatus(userId, paymentStatus, fromDate, toDate);
+    return this.paymentLinkRepo.getHistoryByStatus(ownerUserId, paymentStatus, fromDate, toDate, externalLinkId);
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -458,24 +470,83 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
+  async createPaymentForRouteWithAccessKey(
+    dto: CreatePaymentLinkPaymentDto,
+    key: string,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId).catch(() => null);
+
+    const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
+    const userAccessKeys = route.userData.paymentLinksConfigObj.accessKeys ?? [];
+    const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
+    if (!hasAccessKey) throw new UnauthorizedException('Invalid access key');
+
+    if (existingPaymentLink) {
+      if (dto.amount !== 0)
+        existingPaymentLink.payments = [await this.paymentLinkPaymentService.createPayment(existingPaymentLink, dto)];
+
+      return existingPaymentLink;
+    }
+
+    return this.create(route.user.id, {
+      externalId: externalLinkId,
+      payment: dto.amount !== 0 ? dto : undefined,
+    });
+  }
+
   async cancelPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
-  async waitForPayment(
-    userId: number,
-    linkId?: number,
+  async getPaymentLinkByAccessKey(
+    key: string,
     externalLinkId?: string,
     externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    if (externalLinkId) {
+      const paymentLinks = await this.paymentLinkRepo.getAllPaymentLinksByExternalLinkId(externalLinkId);
+      const paymentLink = paymentLinks.find((p) => p.configObj.accessKeys?.includes(key));
+      if (!paymentLink) throw new NotFoundException('No payment link found');
+
+      return this.getOrThrow(paymentLink.route.user.id, paymentLink.id, paymentLink.externalId);
+    }
+
+    if (externalPaymentId) {
+      const payments = await this.paymentLinkPaymentService.getAllPaymentsByExternalLinkId(externalPaymentId);
+      const payment = payments.find((p) => p.link.configObj.accessKeys?.includes(key));
+      if (!payment) throw new NotFoundException('No payment found');
+
+      return this.getOrThrow(payment.link.route.user.id, payment.link.id, payment.link.externalId, payment.externalId);
+    }
+
+    throw new BadRequestException('Either externalLinkId or externalPaymentId must be provided');
+  }
+
+  async waitForPayment(
+    userId?: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+    key?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
@@ -486,12 +557,16 @@ export class PaymentLinkService {
   }
 
   async confirmPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+
     const payment = paymentLink.payments[0];
     if (!payment) throw new NotFoundException('Payment not found');
 
@@ -504,7 +579,7 @@ export class PaymentLinkService {
     routeIdOrLabel: string,
     externalIds?: string[],
     ids?: number[],
-    lang?: string,
+    lang = 'en',
   ): Promise<Buffer> {
     const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
     const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
@@ -514,9 +589,7 @@ export class PaymentLinkService {
     const links = [...linksByExternalId, ...linksById];
 
     // Translated sticker title
-    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', {
-      lang: lang?.toLowerCase() || 'en',
-    });
+    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', { lang: lang.toLowerCase() });
 
     // Blue OCP Image
     const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');

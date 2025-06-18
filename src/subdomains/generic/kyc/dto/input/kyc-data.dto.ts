@@ -262,3 +262,16 @@ export class KycManualIdentData {
   @Type(() => KycFileData)
   document: KycFileData;
 }
+
+export class PaymentDataDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  purpose: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsBoolean()
+  contractAccepted: boolean;
+}

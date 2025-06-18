@@ -48,6 +48,7 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
 
@@ -85,14 +86,18 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkHistoryDto[]> {
     return this.paymentLinkService
-      .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
+      .getHistoryByStatus(+jwt?.user, dto.status, dto.from, dto.to, key, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 
@@ -185,17 +190,29 @@ export class PaymentLinkController {
   }
 
   @Post('payment')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
+  @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
+    @Query('key') key: string,
+    @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
+    if (key) {
+      if (!route || !externalLinkId)
+        throw new BadRequestException('when using access key, route and externalLinkId must be provided');
+
+      return this.paymentLinkService
+        .createPaymentForRouteWithAccessKey(dto, key, route, externalLinkId)
+        .then(PaymentLinkDtoMapper.toLinkDto);
+    }
+
     return this.paymentLinkService
       .createPayment(+jwt.user, dto, +linkId, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkDto);
@@ -203,55 +220,61 @@ export class PaymentLinkController {
 
   @Get('payment/wait')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async waitForPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .waitForPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .waitForPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Put('payment/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async confirmPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .confirmPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .confirmPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 

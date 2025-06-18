@@ -18,7 +18,9 @@ export class OrganizationService {
   }
 
   async updateOrganizationInternal(entity: Organization, dto: OrganizationDto): Promise<Organization> {
-    if (dto.country.id) {
+    if (Object.values(dto).every((value) => value === undefined)) return entity;
+
+    if (dto.country?.id) {
       entity.country = await this.countryService.getCountry(dto.country.id);
       if (!entity.country) throw new BadRequestException('Country not found');
     }

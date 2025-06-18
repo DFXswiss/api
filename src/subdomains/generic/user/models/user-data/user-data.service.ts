@@ -84,11 +84,13 @@ export class UserDataService {
     private readonly kycNotificationService: KycNotificationService,
     private readonly kycLogService: KycLogService,
     private readonly userDataNotificationService: UserDataNotificationService,
-    @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
+    @Inject(forwardRef(() => AccountMergeService))
+    private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
+    @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,

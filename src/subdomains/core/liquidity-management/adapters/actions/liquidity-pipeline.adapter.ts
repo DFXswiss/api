@@ -54,7 +54,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { assetId, orderIndex } = this.parseBuyParams(order.action.paramMap);
+    const { assetId, orderIndex, demandOnly } = this.parseBuyParams(order.action.paramMap);
 
     // get amount from previous order
     let relevantOrder = order;
@@ -72,7 +72,12 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
     const minAmount = +minRequested - +balance;
     const maxAmount = +maxRequested - +balance;
 
-    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, minAmount, maxAmount, true);
+    const pipeline = await this.liquidityManagementService.buyLiquidity(
+      assetId,
+      minAmount,
+      demandOnly ? minAmount : maxAmount,
+      true,
+    );
     return pipeline.id.toString();
   }
 
@@ -112,13 +117,18 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseBuyParams(params: Record<string, unknown>): { assetId: number; orderIndex: number } {
+  private parseBuyParams(params: Record<string, unknown>): {
+    assetId: number;
+    orderIndex: number;
+    demandOnly: boolean;
+  } {
     const assetId = params.assetId as number | undefined;
     const orderIndex = (params.orderIndex as number | undefined) ?? 1;
+    const demandOnly = Boolean(params.demandOnly);
 
     if (!assetId || (orderIndex && orderIndex < 1))
       throw new Error(`Params provided to LiquidityPipelineAdapter.buy(...) command are invalid.`);
 
-    return { assetId, orderIndex };
+    return { assetId, orderIndex, demandOnly };
   }
 }

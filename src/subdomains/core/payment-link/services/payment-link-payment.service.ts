@@ -128,6 +128,13 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async getAllPaymentsByExternalLinkId(externalPaymentId: string): Promise<PaymentLinkPayment[]> {
+    return this.paymentLinkPaymentRepo.find({
+      where: { externalId: externalPaymentId },
+      relations: { link: { route: { user: { userData: true } } } },
+    });
+  }
+
   async getMostRecentPayment(uniqueId: string): Promise<PaymentLinkPayment | null> {
     return this.paymentLinkPaymentRepo.findOne({
       where: [

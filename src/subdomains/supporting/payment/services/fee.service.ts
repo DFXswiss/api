@@ -284,7 +284,7 @@ export class FeeService implements OnModuleInit {
     const price = await this.pricingService.getPrice(active, this.chf, allowCached);
 
     const blockchainFeeChf = await this.getBlockchainFeeInChf(active, allowCached);
-    return price.invert().convert(blockchainFeeChf);
+    return price.invert().convert(blockchainFeeChf, 8);
   }
 
   // --- HELPER METHODS --- //
@@ -431,7 +431,7 @@ export class FeeService implements OnModuleInit {
     const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
     const price = await this.pricingService.getPrice(feeAsset, this.chf, allowExpiredPrice);
 
-    return price.convert(amount);
+    return price.convert(amount, 8);
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
