@@ -30,7 +30,7 @@ export class AssetService {
   }
 
   async getAssetsWith(relations?: FindOptionsRelations<Asset>) {
-    return this.assetRepo.findBy(relations);
+    return this.assetRepo.find({ relations });
   }
 
   async getAllBlockchainAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {

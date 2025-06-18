@@ -24,7 +24,6 @@ import {
   LiquidityManagementBridges,
   LiquidityManagementExchanges,
 } from 'src/subdomains/core/liquidity-management/enums';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
@@ -64,7 +63,6 @@ export class LogJobService {
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
-    private readonly liqManagementBalanceService: LiquidityManagementBalanceService,
     private readonly logService: LogService,
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
