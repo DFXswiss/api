@@ -358,15 +358,19 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+  setOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+    this.outputAmount = this.calculateOutputAmount(batchReferenceAmount, batchOutputAmount);
+    this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
+
+    return this;
+  }
+
+  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): number {
     if (batchReferenceAmount === 0) {
       throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
     }
 
-    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
-    this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
-
-    return this;
+    return Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
   }
 
   payingOut(): UpdateResult<BuyCrypto> {
@@ -611,6 +615,10 @@ export class BuyCrypto extends IEntity {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
+  get refundAmount(): number {
+    return this.bankTx ? this.bankTx.refundAmount : this.inputAmount;
+  }
+
   get inputPriceStep(): PriceStep[] {
     return this.inputAsset !== this.inputReferenceAsset
       ? [
@@ -650,7 +658,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.bankTx ? this.bankTx.chargeAmount : 0;
+    return this.bankTx ? this.bankTx.chargeAmountChf : 0;
   }
 
   get wallet(): Wallet {
@@ -736,6 +744,8 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
+  AmlReason.KYC_DATA_NEEDED,
+  AmlReason.BANK_TX_NEEDED,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

@@ -1,12 +1,12 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { IEntity } from '../entity';
-import { Fiat } from '../fiat/fiat.entity';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -109,6 +109,9 @@ export class Asset extends IEntity {
   @OneToOne(() => Bank, (bank) => bank.asset)
   bank?: Bank;
   
+  @OneToOne(() => LiquidityBalance, (b) => b.asset)
+  balance?: LiquidityBalance;
+
   @OneToMany(() => AssetPrice, (assetPrice) => assetPrice.asset)
   prices: AssetPrice[];
 
@@ -121,22 +124,6 @@ export class Asset extends IEntity {
 
   isBuyableOn(blockchains: Blockchain[]): boolean {
     return blockchains.includes(this.blockchain) || this.type === AssetType.CUSTOM;
-  }
-
-  getFiatPrice(fiat: Fiat): number {
-    switch (fiat.name) {
-      case 'CHF':
-        return this.approxPriceChf;
-
-      case 'EUR':
-        return this.approxPriceEur;
-
-      case 'USD':
-        return this.approxPriceUsd;
-
-      default:
-        return undefined;
-    }
   }
 
   get isActive(): boolean {

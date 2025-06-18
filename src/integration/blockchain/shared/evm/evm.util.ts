@@ -7,6 +7,21 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from '../enums/blockchain.enum';
 import { WalletAccount } from './domain/wallet-account';
 
+enum FeeType {
+  Legacy = 0,
+  EIP1559 = 2,
+}
+
+interface FeeInfo {
+  type: FeeType;
+  gasLimit: ethers.BigNumber;
+  // for legacy tx
+  gasPrice?: ethers.BigNumber;
+  // for EIP-1559
+  maxFeePerGas?: ethers.BigNumber;
+  maxPriorityFeePerGas?: ethers.BigNumber;
+}
+
 export class EvmUtil {
   private static blockchainConfig = GetConfig().blockchain;
 
@@ -16,6 +31,7 @@ export class EvmUtil {
     [Blockchain.OPTIMISM, this.blockchainConfig.optimism.optimismChainId],
     [Blockchain.POLYGON, this.blockchainConfig.polygon.polygonChainId],
     [Blockchain.BASE, this.blockchainConfig.base.baseChainId],
+    [Blockchain.GNOSIS, this.blockchainConfig.gnosis.gnosisChainId],
     [Blockchain.BINANCE_SMART_CHAIN, this.blockchainConfig.bsc.bscChainId],
   ]);
 
@@ -61,5 +77,31 @@ export class EvmUtil {
           amount,
           asset.decimals,
         ).toString()}`;
+  }
+
+  static decodeTransactionFees(txHex: string): FeeInfo {
+    const tx = ethers.utils.parseTransaction(txHex);
+
+    const feeInfo: FeeInfo = {
+      type: tx.type ?? FeeType.Legacy,
+      gasLimit: tx.gasLimit,
+    };
+
+    if (tx.type === FeeType.EIP1559) {
+      feeInfo.maxFeePerGas = tx.maxFeePerGas;
+      feeInfo.maxPriorityFeePerGas = tx.maxPriorityFeePerGas;
+    } else {
+      feeInfo.gasPrice = tx.gasPrice;
+    }
+
+    return feeInfo;
+  }
+
+  static getGasPriceLimitFromHex(txHex: string, gasPrice: EthersNumber): number {
+    const feeInfo = EvmUtil.decodeTransactionFees(txHex);
+
+    return feeInfo.type === FeeType.EIP1559
+      ? Math.min(+feeInfo.maxFeePerGas, +gasPrice.add(feeInfo.maxPriorityFeePerGas))
+      : +feeInfo.gasPrice;
   }
 }

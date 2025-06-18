@@ -15,15 +15,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CronExpression } from '@nestjs/schedule';
-import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiExcludeEndpoint,
-  ApiOkResponse,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -34,13 +26,13 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
@@ -52,17 +44,18 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
 import {
   TransactionDetailDto,
   TransactionDto,
   TransactionTarget,
-  TransactionType,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
@@ -70,8 +63,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { BankInfoDto } from '../../buy-crypto/routes/buy/dto/buy-payment-info.dto';
-import { InvoiceDto } from '../../buy-crypto/routes/buy/dto/invoice.dto';
+import { PdfDto } from '../../buy-crypto/routes/buy/dto/pdf.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
@@ -107,6 +99,7 @@ export class TransactionController {
     private readonly transactionUtilService: TransactionUtilService,
     private readonly userDataService: UserDataService,
     private readonly bankTxReturnService: BankTxReturnService,
+    private readonly transactionRequestService: TransactionRequestService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
@@ -141,16 +134,16 @@ export class TransactionController {
     @Query('order-uid') orderUid?: string,
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ uid, orderUid, ckoId });
+    const tx = await this.getTransaction({ uid, orderUid, ckoId });
 
-    const dto = await this.txToTransactionDto(transaction);
+    const dto = await this.getTransactionDto(tx);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
   }
 
   @Put('csv')
-  @ApiCreatedResponse()
+  @ApiOkResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createCsv(@Query() query: HistoryQueryUser): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory({ ...query, format: ExportFormat.CSV }, ExportType.COMPACT);
@@ -196,7 +189,7 @@ export class TransactionController {
   // --- AUTHORIZED ENDPOINTS --- //
   @Get('detail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto, isArray: true })
   async getTransactionDetails(
     @GetJwt() jwt: JwtPayload,
@@ -207,7 +200,7 @@ export class TransactionController {
 
   @Get('detail/single')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto })
   @ApiQuery({ name: 'id', description: 'Transaction ID', required: false })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
@@ -222,11 +215,11 @@ export class TransactionController {
     @Query('order-uid') orderUid?: string,
     @Query('external-id') externalId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.getTransaction({ id, uid, orderId, orderUid, externalId }, jwt.account);
+    const tx = await this.getTransaction({ id, uid, orderId, orderUid, externalId });
 
-    if (transaction && transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
+    if (tx && tx.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
 
-    const dto = await this.txToTransactionDto(transaction, true);
+    const dto = await this.getTransactionDto(tx, true);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
@@ -234,8 +227,8 @@ export class TransactionController {
 
   @Put('detail/csv')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  @ApiCreatedResponse()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
     const transactions = await this.getAllTransactionsDetailed(jwt.account, query);
@@ -247,7 +240,7 @@ export class TransactionController {
 
   @Get('unassigned')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
@@ -261,7 +254,7 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
     const buys = await this.buyService.getUserDataBuys(jwt.account);
@@ -276,7 +269,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
@@ -299,7 +292,11 @@ export class TransactionController {
 
   @Get(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { bankTxReturn: true },
@@ -365,7 +362,11 @@ export class TransactionController {
 
   @Put(':id/refund')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -433,81 +434,49 @@ export class TransactionController {
 
   @Put(':id/invoice')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard, UserActiveGuard)
-  @ApiOkResponse({ type: InvoiceDto })
-  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
-    const transaction = await this.transactionService.getTransactionById(+id, {
-      userData: true,
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
-      buyFiat: { sell: true, cryptoInput: true },
-      refReward: { user: { userData: true } },
-    });
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
+  @ApiOkResponse({ type: PdfDto })
+  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.INVOICE,
+    );
 
-    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
-      throw new BadRequestException('Transaction not found');
-    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
-    if (transaction.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction');
-
-    const { transactionType, currency, bankInfo } = await this.getInvoiceDetails(transaction);
-    if (!Config.invoice.currencies.includes(currency))
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
 
-    return {
-      invoicePdf: await this.swissQrService.createInvoiceFromTx(transactionType, transaction, currency, bankInfo),
-    };
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
   }
 
-  private async getInvoiceDetails(
-    transaction: Transaction,
-  ): Promise<{ transactionType: TransactionType; currency: string; bankInfo?: BankInfoDto }> {
-    if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
-      const currency = (await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset)).name;
-      return {
-        transactionType: TransactionType.BUY,
-        currency,
-        bankInfo: await this.buyService.getBankInfo({
-          amount: transaction.buyCrypto.outputAmount,
-          currency: currency,
-          paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-          userData: transaction.userData,
-        }),
-      };
+  @Put(':id/receipt')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
+  @ApiOkResponse({ type: PdfDto })
+  async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.RECEIPT,
+    );
+
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
+      throw new Error('PDF receipt is only available for CHF and EUR transactions');
     }
 
-    if (transaction.buyFiat) {
-      return { transactionType: TransactionType.SELL, currency: transaction.buyFiat.outputAsset.name };
-    }
-
-    if (transaction.buyCrypto && transaction.buyCrypto.isCryptoCryptoTransaction) {
-      return {
-        transactionType: TransactionType.SWAP,
-        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
-      };
-    }
-
-    if (transaction.refReward) {
-      return {
-        transactionType: TransactionType.REFERRAL,
-        currency: (await this.getInvoiceCurrency(transaction.userData)).name,
-      };
-    }
-
-    throw new BadRequestException('Transaction type not supported for invoice generation');
-  }
-
-  private async getInvoiceCurrency(userData: UserData): Promise<Fiat> {
-    const preferredCurrency = userData.currency.name;
-    const allowedCurrency = Config.invoice.currencies.includes(preferredCurrency)
-      ? preferredCurrency
-      : Config.invoice.defaultCurrency;
-    const currency = await this.fiatService.getFiatByName(allowedCurrency);
-    if (!currency) throw new BadRequestException('Preferred currency not found');
-
-    return currency;
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
   }
 
   // --- HELPER METHODS --- //
+
+  private async getTransactionDto(
+    tx: Transaction | TransactionRequest | undefined,
+    detailed = false,
+  ): Promise<UnassignedTransactionDto | TransactionDto | undefined> {
+    if (tx instanceof Transaction) return this.txToTransactionDto(tx, detailed);
+    if (tx instanceof TransactionRequest) return this.waitingTxRequestToTransactionDto(tx, detailed);
+  }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
     if (transaction.refundTargetEntity instanceof BuyFiat) return transaction.refundTargetEntity.chargebackAddress;
@@ -548,10 +517,6 @@ export class TransactionController {
     return tx;
   }
 
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
-  }
-
   private cacheCsv(csvFile: StreamableFile): string {
     const fileKey = Util.randomId().toString();
     this.files[fileKey] = csvFile;
@@ -562,7 +527,7 @@ export class TransactionController {
   private setCsvResult(res: Response, exportType: ExportType) {
     res.set({
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="DFX_${exportType}_history_${this.formatDate()}.csv"`,
+      'Content-Disposition': `attachment; filename="DFX_${exportType}_history_${Util.filenameDate()}.csv"`,
     });
   }
 
@@ -570,13 +535,19 @@ export class TransactionController {
     userDataId: number,
     query: TransactionFilter,
   ): Promise<TransactionDetailDto[] | UnassignedTransactionDto[]> {
-    const txList = await this.transactionService.getTransactionsForAccount(userDataId, query.from, query.to);
+    const txList = await this.transactionService
+      .getTransactionsForAccount(userDataId, query.from, query.to)
+      .then((l) => l.filter((tx) => tx.targetEntity));
+    const waitingTxRequestList = await this.transactionRequestService.getWaitingTransactionRequest(
+      userDataId,
+      query.from,
+      query.to,
+    );
 
     // map to DTO
-    return Util.asyncMap(txList, async (tx) => {
-      if (!tx.targetEntity) return undefined;
-      return this.txToTransactionDto(tx, true);
-    }).then((list) => list.filter((dto) => dto));
+    return Util.asyncMap([...txList, ...waitingTxRequestList], (tx) => this.getTransactionDto(tx, true)).then((l) =>
+      l.filter((tx) => tx),
+    );
   }
 
   private async getTransaction(
@@ -596,7 +567,7 @@ export class TransactionController {
       ckoId?: string;
     },
     accountId?: number,
-  ): Promise<Transaction | undefined> {
+  ): Promise<Transaction | TransactionRequest | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
       buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true, chargebackOutput: true },
       buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
@@ -609,16 +580,32 @@ export class TransactionController {
       request: true,
     };
 
-    let transaction: Transaction;
-    if (id) transaction = await this.transactionService.getTransactionById(+id, relations);
-    if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
-    if (orderId) transaction = await this.transactionService.getTransactionByRequestId(+orderId, relations);
-    if (orderUid) transaction = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    let tx: Transaction | TransactionRequest;
+    if (id) tx = await this.transactionService.getTransactionById(+id, relations);
+    if (uid)
+      tx =
+        (await this.transactionService.getTransactionByUid(uid, relations)) ??
+        (await this.transactionRequestService.getTransactionRequestByUid(uid, { user: { userData: true } }));
+    if (orderUid) tx = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if (orderId)
+      tx =
+        (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??
+        (await this.transactionRequestService.getTransactionRequest(+orderId, { user: { userData: true } }));
     if (externalId && accountId)
-      transaction = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
-    if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
+      tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
+    if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
-    return transaction;
+    return tx;
+  }
+
+  private async waitingTxRequestToTransactionDto(
+    txRequest?: TransactionRequest,
+    detailed = false,
+  ): Promise<TransactionDto | TransactionDetailDto | undefined> {
+    const txRequestExtended = await this.transactionRequestService.extendTransactionRequest(txRequest);
+    return detailed
+      ? TransactionDtoMapper.mapTxRequestTransactionDetail(txRequestExtended)
+      : TransactionDtoMapper.mapTxRequestTransaction(txRequestExtended);
   }
 
   private async txToTransactionDto(

@@ -64,7 +64,8 @@ export class WebhookNotificationService {
         tryCount: 3,
       });
     } catch (error) {
-      const errMessage = `Exception during webhook for user data ${webhook.userData.id} and wallet ${webhook.wallet.name} (webhook ${webhook.id}):`;
+      const id = webhook.id ?? webhook.identifier;
+      const errMessage = `Exception during webhook for user data ${webhook.userData.id} and wallet ${webhook.wallet.name} (webhook ${id}):`;
 
       this.logger.error(errMessage, error);
 
@@ -72,7 +73,7 @@ export class WebhookNotificationService {
         type: MailType.ERROR_MONITORING,
         context: MailContext.WEBHOOK,
         input: {
-          subject: `Webhook ${webhook.id} failed`,
+          subject: `Webhook ${id} failed`,
           errors: [errMessage, error],
         },
       });

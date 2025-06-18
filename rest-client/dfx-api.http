@@ -166,7 +166,7 @@ Authorization: Bearer {{authToken}}
 
 {
   "assetId": 308,
-  "amount": 100,
+  "minAmount": 100,
   "targetOptimal": false
 }
 
@@ -180,7 +180,7 @@ Authorization: Bearer {{authToken}}
 
 {
   "assetId": 290,
-  "amount": 0.05,
+  "minAmount": 0.05,
   "targetOptimal": false
 }
 
@@ -243,6 +243,14 @@ Authorization: Bearer {{authToken}}
 {
   "userDataId": 207838
 }
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/kyc/admin/ident/file/sync?step=72208
+content-type: application/json
+Authorization: Bearer {{authToken}}
 
 ###
 
@@ -371,3 +379,23 @@ Authorization: Bearer {{authToken}}
 
 GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&allowExpired=false
 Authorization: Bearer {{authToken}}
+
+
+###
+
+// CUSTODY
+
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/custody/admin/user/324748/balance?assetId=337
+Authorization: Bearer {{authToken}}
+
+### 
+
+// PAYMENT
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/paymentLink/integration/binance/activate/xxx
+Authorization: Bearer {{authToken}}
+

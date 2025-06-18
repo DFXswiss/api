@@ -24,12 +24,16 @@ export enum LimitRequestDecision {
   REJECTED = 'Rejected',
   EXPIRED = 'Expired',
   CLOSED = 'Closed',
+  APPROVED_1_OF_2 = 'Approved1of2',
 }
 
 @Entity()
 export class LimitRequest extends IEntity {
   @Column({ type: 'integer' })
   limit: number;
+
+  @Column({ type: 'integer', nullable: true })
+  acceptedLimit: number;
 
   @Column({ length: 256 })
   investmentDate: InvestmentDate;
@@ -78,7 +82,17 @@ export class LimitRequest extends IEntity {
 }
 
 export const LimitRequestAcceptedStates = [LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED];
+export const LimitRequestFinalStates = [
+  ...LimitRequestAcceptedStates,
+  LimitRequestDecision.CLOSED,
+  LimitRequestDecision.EXPIRED,
+  LimitRequestDecision.REJECTED,
+];
 
 export function LimitRequestAccepted(decision?: LimitRequestDecision): boolean {
   return LimitRequestAcceptedStates.includes(decision);
+}
+
+export function LimitRequestFinal(decision?: LimitRequestDecision): boolean {
+  return LimitRequestFinalStates.includes(decision);
 }

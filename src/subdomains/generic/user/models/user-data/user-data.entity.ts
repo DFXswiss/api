@@ -66,8 +66,10 @@ export enum KycType {
 }
 
 export enum LegalEntity {
-  PUBLIC_LIMITED_COMPANY = 'PublicLimitedCompany',
-  LIMITED_LIABILITY_COMPANY = 'LimitedLiabilityCompany',
+  AG = 'AG',
+  GMBH = 'GmbH',
+  UG = 'UG',
+  GBR = 'GbR',
   ASSOCIATION = 'Association',
   FOUNDATION = 'Foundation',
   LIFE_INSURANCE = 'LifeInsurance',
@@ -101,6 +103,10 @@ export enum UserDataStatus {
   DEACTIVATED = 'Deactivated',
 }
 
+export enum Moderator {
+  WENDEL = 'Wendel',
+}
+
 @Entity()
 @Index(
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
@@ -115,6 +121,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
+
+  @Column({ length: 256, nullable: true })
+  moderator: Moderator;
 
   @Column({ type: 'datetime2', nullable: true })
   deactivationDate?: Date;

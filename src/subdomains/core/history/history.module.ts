@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
@@ -23,7 +23,7 @@ import { HistoryService } from './services/history.service';
     ReferralModule,
     SellCryptoModule,
     UserModule,
-    AinModule,
+    BitcoinModule,
     StakingModule,
     TransactionModule,
     BankTxModule,

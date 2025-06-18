@@ -62,19 +62,21 @@ export class OrganizationService {
   }
 
   async updateOrganizationInternal(entity: Organization, dto: OrganizationDto): Promise<Organization> {
-    if (dto.organizationCountryId) {
-      entity.country = await this.countryService.getCountry(dto.organizationCountryId);
+    if (Object.values(dto).every((value) => value === undefined)) return entity;
+
+    if (dto.country?.id) {
+      entity.country = await this.countryService.getCountry(dto.country.id);
       if (!entity.country) throw new BadRequestException('Country not found');
     }
 
     Object.assign(entity, {
       ...dto,
-      name: dto.name ?? dto.organizationName,
-      street: dto.street ?? dto.organizationStreet,
-      houseNumber: dto.houseNumber ?? dto.organizationHouseNumber,
-      location: dto.location ?? dto.organizationLocation,
-      zip: dto.zip ?? dto.organizationZip,
-      country: dto.country ?? dto.organizationCountry,
+      name: dto.name,
+      street: dto.street,
+      houseNumber: dto.houseNumber,
+      location: dto.location,
+      zip: dto.zip,
+      country: dto.country,
     });
 
     return this.organizationRepo.save(entity);

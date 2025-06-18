@@ -481,7 +481,11 @@ export class BuyFiat extends IEntity {
   get chargebackBankFee(): number {
     return 0;
   }
-  
+
+  get refundAmount(): number {
+    return this.inputAmount;
+  }
+
   get wallet(): Wallet {
     return this.user.wallet;
   }
@@ -546,6 +550,8 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
+  AmlReason.KYC_DATA_NEEDED,
+  AmlReason.BANK_TX_NEEDED,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

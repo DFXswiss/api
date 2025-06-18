@@ -6,6 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -23,7 +24,6 @@ import {
   LiquidityManagementBridges,
   LiquidityManagementExchanges,
 } from 'src/subdomains/core/liquidity-management/enums';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
@@ -63,7 +63,6 @@ export class LogJobService {
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
-    private readonly liqManagementBalanceService: LiquidityManagementBalanceService,
     private readonly logService: LogService,
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
@@ -90,7 +89,7 @@ export class LogJobService {
 
       // assets
       const assets = await this.assetService
-        .getAllAssets()
+        .getAssetsWith({ balance: true })
         .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
       // asset log
@@ -126,8 +125,16 @@ export class LogJobService {
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
           },
-          changes: changeLog,
         }),
+        valid: null,
+        category: null,
+      });
+
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'FinancialChangesLog',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({ changes: changeLog }),
         valid: null,
         category: null,
       });
@@ -200,25 +207,36 @@ export class LogJobService {
       }),
     );
 
-    // deposit address balance
+    // payment deposit address balance (Monero/Lightning have no separated balance)
     const paymentAssets = assets.filter(
-      (a) => a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.BITCOIN].includes(a.blockchain),
+      (a) =>
+        a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO, Blockchain.BINANCE_PAY].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
-    const depositBalances = await Promise.all(
+    const paymentDepositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
 
-        const balances =
-          e === Blockchain.MONERO
-            ? [{ contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
-            : await this.getCustomBalances(client, a, [
-                EvmUtil.createWallet({
-                  seed: Config.payment.evmSeed,
-                  index: 0,
-                }).address,
-              ]).then((b) => b.flat());
+        const targetAddress = this.getPaymentDepositAddress(e);
+        const coin = a.find((asset) => asset.type === AssetType.COIN);
+        const balances: BlockchainTokenBalance[] = [
+          {
+            owner: targetAddress,
+            contractAddress: `${coin.id}`,
+            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+          },
+        ];
+
+        if (![Blockchain.MONERO, Blockchain.BITCOIN].includes(e))
+          balances.push(
+            ...(await this.getCustomBalances(
+              client,
+              a.filter((asset) => asset.type !== AssetType.COIN),
+              [targetAddress],
+            ).then((b) => b.flat())),
+          );
+
         return { blockchain: e, balances };
       }),
     );
@@ -227,9 +245,6 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
     const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
-
-    // liq balances
-    const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -350,35 +365,36 @@ export class LogJobService {
 
     // assetLog
     return assets.reduce((prev, curr) => {
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
-      if (liquidityBalance == null && !curr.isActive) return prev;
+      if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
-      const customBalance = customBalances
+      const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
+        ?.balances.filter((b) => b.contractAddress === curr.chainId);
 
-      const depositBalance = depositBalances
+      const totalCustomBalance = customAddressBalances && Util.sumObjValue(customAddressBalances, 'balance');
+
+      const paymentDepositBalance = paymentDepositBalances
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances?.reduce(
           (sum, result) =>
-            sum +
-            (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+            sum + (result.contractAddress === curr.chainId || `${curr.id}` === curr.chainId ? result.balance : 0),
           0,
         );
 
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity =
-        (liquidityBalance ?? 0) + (customBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
-      const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
+        ? 0
+        : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
       );
       const bridgeOrder = pendingBridgeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.amount : 0),
+        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
       );
 
@@ -532,7 +548,8 @@ export class LogJobService {
         pendingOlkyMaerkiAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
-      const totalPlus = liquidity + totalPlusPending;
+
+      const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
@@ -577,7 +594,24 @@ export class LogJobService {
         priceChf: curr.approxPriceChf,
         plusBalance: {
           total: this.getJsonValue(totalPlus, amountType(curr), true),
-          liquidity: this.getJsonValue(liquidity, amountType(curr)),
+          liquidity: liquidity
+            ? {
+                total: this.getJsonValue(liquidity, amountType(curr), true),
+                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr)),
+                paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
+                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr)),
+              }
+            : undefined,
+          custom: totalCustomBalance
+            ? {
+                total: this.getJsonValue(totalCustomBalance, amountType(curr), true),
+                ...Util.aggregate(
+                  customAddressBalances.map((b) => ({ ...b, balance: this.getJsonValue(b.balance, amountType(curr)) })),
+                  'owner',
+                  'balance',
+                ),
+              }
+            : undefined,
           pending: totalPlusPending
             ? {
                 total: this.getJsonValue(totalPlusPending, amountType(curr), true),
@@ -891,5 +925,27 @@ export class LogJobService {
 
   private financialTypeAmountType(financialType: string): AmountType {
     return ['EUR', 'USD', 'CHF'].includes(financialType) ? AmountType.FIAT : AmountType.ASSET;
+  }
+
+  private getPaymentDepositAddress(blockchain: Blockchain): string {
+    switch (blockchain) {
+      case Blockchain.MONERO:
+        return Config.payment.moneroAddress;
+
+      case Blockchain.BITCOIN:
+        return Config.payment.bitcoinAddress;
+
+      case Blockchain.SOLANA:
+        return SolanaUtil.createWallet({
+          seed: Config.payment.solanaSeed,
+          index: 0,
+        }).address;
+
+      default:
+        return EvmUtil.createWallet({
+          seed: Config.payment.evmSeed,
+          index: 0,
+        }).address;
+    }
   }
 }

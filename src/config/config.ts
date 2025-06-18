@@ -46,6 +46,7 @@ export class Configuration {
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
+  txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
 
   defaults = {
@@ -68,6 +69,10 @@ export class Configuration {
         language: specific?.language ?? this.defaults.language,
       };
     },
+  };
+
+  moderators = {
+    Wendel: '019-957',
   };
 
   loginCountries = {
@@ -127,8 +132,9 @@ export class Configuration {
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
+  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{32,44}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -140,8 +146,9 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '[a-f0-9]{84}';
@@ -221,158 +228,236 @@ export class Configuration {
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
-
-    downloadTargets: [
-      {
-        id: 1,
-        name: 'Deckblatt',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.includes('GwGFileDeckblatt'),
-      },
-      {
-        id: 2,
-        name: 'Identifikationsdokument',
-        prefixes: (userData: UserData) => [
-          `user/${userData.id}/Identification`,
-          `spider/${userData.id}/online-identification`,
-          `spider/${userData.id}/video_identification`,
-        ],
-        fileTypes: [ContentType.PDF],
-      },
-      {
-        id: 3,
-        name: 'Banktransaktion oder Videoident Tonspur',
-        fileName: (file: KycFileBlob) =>
-          file.name.includes('bankTransactionVerify') ? 'Banktransaktion' : 'VideoIdentTonspur',
-        prefixes: (userData: UserData) => {
-          switch (userData.identificationType) {
-            case KycIdentificationType.VIDEO_ID:
-              return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
-            case KycIdentificationType.ONLINE_ID:
-              return [`user/${userData.id}/UserNotes`];
-            default:
-              return [];
-          }
-        },
-        filter: (file: KycFileBlob, userData: UserData) =>
-          (userData.identificationType === KycIdentificationType.VIDEO_ID &&
-            (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
-          (userData.identificationType === KycIdentificationType.ONLINE_ID &&
-            file.name.includes('bankTransactionVerify') &&
-            file.contentType.startsWith(ContentType.PDF)),
-        handleFileNotFound: (zip: JSZip, userData: UserData) =>
-          userData.identificationType === KycIdentificationType.MANUAL
-            ? zip.file('03_nicht_benötigt_aufgrund_manueller_identifikation.txt', '')
-            : false,
-      },
-      {
-        id: 4,
-        name: 'Identifizierungsformular',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.includes('Identifizierungsformular'),
-      },
-      {
-        id: 5,
-        name: 'Kundenprofil',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.includes('Kundenprofil'),
-      },
-      {
-        id: 6,
-        name: 'Risikoprofil',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.includes('Risikoprofil'),
-      },
-      {
-        id: 7,
-        name: 'Formular A oder K',
-        fileName: (file: KycFileBlob) => (file.name.includes('FormularA') ? 'FormularA' : 'FormularK'),
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob, userData: UserData) =>
-          (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
-            file.name.includes('FormularA')) ||
-          (['operativ tätige Gesellschaft', 'Verein'].includes(userData.amlAccountType) &&
-            file.name.includes('FormularK')),
-      },
-      {
-        id: 8,
-        name: 'Onboardingdokument',
-        fileName: () => 'Onboarding',
-        prefixes: (userData: UserData) => [
-          `spider/${userData.id}/user-added-document`,
-          `user/${userData.id}/UserNotes`,
-        ],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('onboarding'),
-      },
-      {
-        id: 9,
-        name: 'Blockchain Check',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
-      },
-      {
-        id: 10,
-        name: 'Überprüfung der Wohnsitzadresse',
-        fileName: () => 'Postversand',
-        ignore: (userData: UserData) => userData.accountType === AccountType.ORGANIZATION,
-        prefixes: (userData: UserData) => [
-          `spider/${userData.id}/user-added-document`,
-          `user/${userData.id}/UserNotes`,
-        ],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob, userData: UserData) =>
-          (file.category === FileCategory.USER && file.name.includes('postversand')) ||
-          (file.category === FileCategory.SPIDER && file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
-      },
-      {
-        id: 11,
-        name: 'Handelsregisterauszug',
-        ignore: (userData: UserData) => userData.accountType !== AccountType.ORGANIZATION,
-        prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
-        filter: (file: KycFileBlob, userData: UserData) =>
-          userData.kycSteps.some(
-            (s) => s.name === KycStepName.COMMERCIAL_REGISTER && s.isCompleted && s.result === file.url,
-          ),
-      },
-      {
-        id: 12,
-        name: 'Vollmacht',
-        ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
-        prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
-        filter: (file: KycFileBlob, userData: UserData) =>
-          userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
-      },
-      {
-        id: 13,
-        name: 'Transaktionsliste Auditperiode 2025',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
-      },
-      {
-        id: 14,
-        name: 'Name Check',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
-      },
-      {
-        id: 15,
-        name: 'Travel Rule',
-        prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
-        fileTypes: [ContentType.PDF],
-        filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
-        sort: (a: KycFileBlob, b: KycFileBlob) => (a.name.split('-')[0] < b.name.split('-')[0] ? a : b),
-      },
-    ],
   };
+
+  fileDownloadConfig: {
+    id: number;
+    name: string;
+    ignore?: (userData: UserData) => boolean;
+    files: {
+      name?: (file: KycFileBlob) => string;
+      prefixes: (userData: UserData) => string[];
+      fileTypes?: ContentType[];
+      filter?: (file: KycFileBlob, userData: UserData) => boolean;
+      sort?: (a: KycFileBlob, b: KycFileBlob) => KycFileBlob;
+      handleFileNotFound?: (zip: JSZip, userData: UserData) => any | false;
+    }[];
+  }[] = [
+    {
+      id: 1,
+      name: 'Deckblatt',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('GwGFileDeckblatt'),
+        },
+      ],
+    },
+    {
+      id: 2,
+      name: 'Identifikationsdokument',
+      files: [
+        {
+          prefixes: (userData: UserData) => [
+            `user/${userData.id}/Identification`,
+            `spider/${userData.id}/online-identification`,
+            `spider/${userData.id}/video_identification`,
+          ],
+          fileTypes: [ContentType.PDF],
+        },
+      ],
+    },
+    {
+      id: 3,
+      name: 'Banktransaktion oder Videoident Tonspur',
+      files: [
+        {
+          name: (file: KycFileBlob) =>
+            file.name.includes('bankTransactionVerify') ? 'Banktransaktion' : 'VideoIdentTonspur',
+          prefixes: (userData: UserData) => {
+            switch (userData.identificationType) {
+              case KycIdentificationType.VIDEO_ID:
+                return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
+              case KycIdentificationType.ONLINE_ID:
+                return [`user/${userData.id}/UserNotes`];
+              default:
+                return [];
+            }
+          },
+          filter: (file: KycFileBlob, userData: UserData) =>
+            (userData.identificationType === KycIdentificationType.VIDEO_ID &&
+              (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
+            (userData.identificationType === KycIdentificationType.ONLINE_ID &&
+              file.name.includes('bankTransactionVerify') &&
+              file.contentType.startsWith(ContentType.PDF)),
+          handleFileNotFound: (zip: JSZip, userData: UserData) =>
+            userData.identificationType === KycIdentificationType.MANUAL
+              ? zip.file('03_nicht_benötigt_aufgrund_manueller_identifikation.txt', '')
+              : false,
+        },
+      ],
+    },
+    {
+      id: 4,
+      name: 'Identifizierungsformular',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('Identifizierungsformular'),
+        },
+      ],
+    },
+    {
+      id: 5,
+      name: 'Kundenprofil',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('Kundenprofil'),
+        },
+      ],
+    },
+    {
+      id: 6,
+      name: 'Risikoprofil',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('Risikoprofil'),
+        },
+      ],
+    },
+    {
+      id: 7,
+      name: 'Formular A oder K',
+      files: [
+        {
+          name: (file: KycFileBlob) => (file.name.includes('FormularA') ? 'FormularA' : 'FormularK'),
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
+              file.name.includes('FormularA')) ||
+            (['operativ tätige Gesellschaft', 'Verein'].includes(userData.amlAccountType) &&
+              file.name.includes('FormularK')),
+        },
+      ],
+    },
+    {
+      id: 8,
+      name: 'Onboardingdokument',
+      files: [
+        {
+          name: () => 'Onboarding',
+          prefixes: (userData: UserData) => [
+            `spider/${userData.id}/user-added-document`,
+            `user/${userData.id}/UserNotes`,
+          ],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('onboarding'),
+        },
+      ],
+    },
+    {
+      id: 9,
+      name: 'Blockchain Check',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
+        },
+      ],
+    },
+    {
+      id: 10,
+      name: 'Überprüfung der Wohnsitzadresse',
+      ignore: (userData: UserData) => userData.accountType === AccountType.ORGANIZATION,
+      files: [
+        {
+          name: () => 'Postversand',
+          prefixes: (userData: UserData) => [
+            `spider/${userData.id}/user-added-document`,
+            `user/${userData.id}/UserNotes`,
+          ],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            (file.category === FileCategory.USER && file.name.includes('postversand')) ||
+            (file.category === FileCategory.SPIDER &&
+              file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
+        },
+      ],
+    },
+    {
+      id: 11,
+      name: 'Handelsregisterauszug',
+      ignore: (userData: UserData) => userData.accountType !== AccountType.ORGANIZATION,
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            userData.kycSteps.some(
+              (s) => s.name === KycStepName.COMMERCIAL_REGISTER && s.isCompleted && s.result === file.url,
+            ),
+        },
+      ],
+    },
+    {
+      id: 12,
+      name: 'Vollmacht',
+      ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
+        },
+      ],
+    },
+    {
+      id: 13,
+      name: 'Transaktionsliste Auditperiode 2025',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
+        },
+      ],
+    },
+    {
+      id: 14,
+      name: 'Name Check',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
+        },
+        {
+          name: () => 'Dilisense Screening Report',
+          prefixes: (userData: UserData) => [`user/${userData.id}/NameCheck`],
+          fileTypes: [ContentType.PDF],
+        },
+      ],
+    },
+    {
+      id: 15,
+      name: 'Travel Rule',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
+          sort: (a: KycFileBlob, b: KycFileBlob) => (a.name.split('-')[0] < b.name.split('-')[0] ? a : b),
+        },
+      ],
+    },
+  ];
 
   support = {
     limitRequest: {
@@ -454,20 +539,27 @@ export class Configuration {
   payment = {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
+    solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
 
     defaultForexFee: 0.01,
     addressForexFee: 0.02,
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
+    manualMethods: ['KuCoinPay', 'BitcoinOnChainTaprootAsset'],
+
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
+    binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
@@ -582,6 +674,15 @@ export class Configuration {
       swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
+    gnosis: {
+      gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
+      gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
+      gnosisGatewayUrl: process.env.GNOSIS_GATEWAY_URL,
+      gnosisApiKey: process.env.ALCHEMY_API_KEY,
+      gnosisChainId: +process.env.GNOSIS_CHAIN_ID,
+      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
+    },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
@@ -617,6 +718,20 @@ export class Configuration {
       },
       walletAddress: process.env.MONERO_WALLET_ADDRESS,
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
+    },
+    solana: {
+      solanaWalletSeed: process.env.SOLANA_WALLET_SEED,
+      solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
+      solanaApiKey: process.env.TATUM_API_KEY,
+      transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 1),
+      minimalCoinAccountRent: 0.00089088,
+      createTokenAccountFee: 0.00203928,
+      minimalPreparationFee: 0.00000001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.solana.solanaWalletSeed,
+        index: accountIndex,
+      }),
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
@@ -745,6 +860,11 @@ export class Configuration {
   alchemy = {
     apiKey: process.env.ALCHEMY_API_KEY,
     authToken: process.env.ALCHEMY_AUTH_TOKEN,
+  };
+
+  tatum = {
+    apiKey: process.env.TATUM_API_KEY,
+    hmacKey: process.env.TATUM_HMAC_KEY,
   };
 
   request = {

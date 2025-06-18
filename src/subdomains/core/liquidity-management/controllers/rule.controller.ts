@@ -18,7 +18,7 @@ export class LiquidityManagementRuleController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createRule(@Body() dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.createRule(dto);
   }
@@ -26,7 +26,7 @@ export class LiquidityManagementRuleController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateRule(@Param('id') id: number, @Body() dto: LiquidityManagementRuleUpdateDto): Promise<void> {
     return this.service.updateRule(id, dto);
   }
@@ -34,7 +34,7 @@ export class LiquidityManagementRuleController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getRule(@Param('id') id: number): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.getRule(id);
   }
@@ -42,7 +42,7 @@ export class LiquidityManagementRuleController {
   @Patch(':id/deactivate')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async deactivateRule(@Param('id') id: number): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.deactivateRule(id);
   }
@@ -50,7 +50,7 @@ export class LiquidityManagementRuleController {
   @Patch(':id/reactivate')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async reactivateRule(@Param('id') id: number): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.reactivateRule(id);
   }
@@ -58,7 +58,7 @@ export class LiquidityManagementRuleController {
   @Patch(':id/settings')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async setReactivationTime(
     @Param('id') id: number,
     @Body() dto: LiquidityManagementRuleSettingsDto,

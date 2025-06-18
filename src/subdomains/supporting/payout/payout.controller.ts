@@ -16,7 +16,7 @@ export class PayoutController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async doPayout(@Body() dto: PayoutRequest): Promise<void> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.payoutService.doPayout(dto);
@@ -26,7 +26,7 @@ export class PayoutController {
   @Get('completion')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async checkOrderCompletion(
     @Query('context') context: PayoutOrderContext,
     @Query('correlationId') correlationId: string,
@@ -39,7 +39,7 @@ export class PayoutController {
   @Post('speedup')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async speedupTransaction(@Query('id') id: string): Promise<void> {
     return this.payoutService.speedupTransaction(+id);
   }

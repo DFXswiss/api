@@ -19,6 +19,39 @@ export enum FileType {
   AUTHORITY = 'Authority',
 }
 
+export enum FileSubType {
+  GWG_FILE_COVER = 'GwGFileCover',
+  BLOCKCHAIN_ADDRESS_ANALYSIS = 'BlockchainAddressAnalysis',
+  ADDRESS_SIGNATURE = 'AddressSignature',
+  BANK_TRANSACTION_VERIFICATION = 'BankTransactionVerification',
+  IDENTIFICATION_FORM = 'IdentificationForm',
+  DFX_NAME_CHECK = 'DfxNameCheck',
+  PERSONAL_NAME_CHECK = 'PersonalNameCheck',
+  BUSINESS_NAME_CHECK = 'BusinessNameCheck',
+  RISK_PROFILE = 'RiskProfile',
+  TX_AUDIT = 'TxAudit',
+  ONBOARDING_REPORT = 'OnboardingReport',
+  PRE_ONBOARDING_REPORT = 'PreOnboardingReport',
+  OPERATIONAL_ACTIVITY_REPORT = 'OperationalActivityReport',
+  BENEFICIAL_OWNER_REPORT = 'BeneficialOwnerReport',
+  FORM_A = 'FormA',
+  FORM_K = 'FormK',
+  CUSTOMER_PROFILE = 'CustomerProfile',
+  POST_DISPATCH = 'PostDispatch',
+  LIMIT_REQUEST_USER_UPLOAD = 'LimitRequestUserUpload',
+  LIMIT_REQUEST_REPORT = 'LimitRequestReport',
+  LIMIT_REQUEST_1_OF_2_REPORT = 'LimitRequest1of2Report',
+  LIMIT_REQUEST_2_OF_2_REPORT = 'LimitRequest2of2Report',
+  COMMERCIAL_REGISTER_REPORT = 'CommercialRegisterReport',
+  OWNER_DIRECTORY_REPORT = 'OwnerDirectoryReport',
+  AUTHORITY_REPORT = 'AuthorityReport',
+  GENERAL_NOTE = 'GeneralNote',
+  IDENT_REPORT = 'IdentReport',
+  IDENT_SELFIE = 'IdentSelfie',
+  IDENT_DOC = 'IdentDoc',
+  IDENT_RECORDING = 'IdentRecording',
+}
+
 export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
@@ -36,6 +69,7 @@ export class CreateKycFileDto {
   protected: boolean;
   userData: UserData;
   kycStep?: KycStep;
+  subType?: FileSubType;
 }
 
 export class KycFileDataDto {

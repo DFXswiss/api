@@ -9,16 +9,7 @@ import { ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 
 import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute } from '../../../../supporting/address-pool/route/deposit-route.entity';
 
-export const SwapInputBlockchains: Blockchain[] = [
-  Blockchain.BITCOIN,
-  Blockchain.LIGHTNING,
-  Blockchain.ETHEREUM,
-  Blockchain.ARBITRUM,
-  Blockchain.OPTIMISM,
-  Blockchain.POLYGON,
-  Blockchain.BINANCE_SMART_CHAIN,
-  Blockchain.BASE,
-];
+export const NoSwapBlockchains: Blockchain[] = [Blockchain.MONERO];
 
 @ChildEntity('Crypto')
 export class Swap extends DepositRoute {
@@ -48,5 +39,9 @@ export class Swap extends DepositRoute {
 
   get userData(): UserData {
     return this.user.userData;
+  }
+
+  get targetAccount(): string {
+    return this.user.address;
   }
 }

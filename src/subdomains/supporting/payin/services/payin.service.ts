@@ -5,13 +5,14 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
@@ -72,7 +73,7 @@ export class PayInService {
       if (!exists) {
         payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
 
-        if (payIn.isPayment) await this.fetchPayment(payIn);
+        if (payIn.isPayment && payIn.status !== PayInStatus.FAILED) await this.fetchPayment(payIn);
 
         await this.payInRepository.save(payIn);
 
@@ -115,6 +116,7 @@ export class PayInService {
     return this.payInRepository.findBy({
       status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.FORWARDED, PayInStatus.RETURNED, PayInStatus.TO_RETURN]),
       isConfirmed: true,
+      txType: Not(PayInType.PAYMENT),
     });
   }
 
@@ -186,6 +188,34 @@ export class PayInService {
     await this.checkInputConfirmations();
     await this.checkOutputConfirmations();
     await this.checkReturnConfirmations();
+  }
+
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
+  async updateFailedPayments() {
+    const checkDate = Util.minutesBefore(15);
+
+    const recentlyFailedPayments = await this.payInRepository.find({
+      where: {
+        created: MoreThan(checkDate),
+        txType: PayInType.PAYMENT,
+        status: PayInStatus.FAILED,
+      },
+    });
+
+    for (const failedPayment of recentlyFailedPayments) {
+      try {
+        const quote = await this.paymentLinkPaymentService.getPaymentQuoteByFailedCryptoInput(failedPayment);
+
+        if (quote) {
+          failedPayment.paymentQuote = quote;
+          failedPayment.paymentLinkPayment = failedPayment.paymentQuote.payment;
+          failedPayment.status = PayInStatus.CREATED;
+          await this.payInRepository.save(failedPayment);
+        }
+      } catch {
+        // do nothing
+      }
+    }
   }
 
   //*** HELPER METHODS ***//

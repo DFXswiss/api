@@ -5,11 +5,13 @@ import { PaymentQuoteRepository } from 'src/subdomains/core/payment-link/reposit
 import { RefRewardRepository } from 'src/subdomains/core/referral/reward/ref-reward.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { TradingOrderRepository } from 'src/subdomains/core/trading/repositories/trading-order.respository';
+import { TradingRuleRepository } from 'src/subdomains/core/trading/repositories/trading-rule.respository';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
+import { LiquidityOrderRepository } from 'src/subdomains/supporting/dex/repositories/liquidity-order.repository';
 import { CheckoutTxRepository } from 'src/subdomains/supporting/fiat-payin/repositories/checkout-tx.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
@@ -32,7 +34,9 @@ export class RepositoryFactory {
   public readonly refReward: RefRewardRepository;
   public readonly exchangeTx: ExchangeTxRepository;
   public readonly tradingOrder: TradingOrderRepository;
+  public readonly tradingRule: TradingRuleRepository;
   public readonly paymentQuote: PaymentQuoteRepository;
+  public readonly liquidityOrder: LiquidityOrderRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -49,6 +53,8 @@ export class RepositoryFactory {
     this.refReward = new RefRewardRepository(manager);
     this.exchangeTx = new ExchangeTxRepository(manager);
     this.tradingOrder = new TradingOrderRepository(manager);
+    this.tradingRule = new TradingRuleRepository(manager);
     this.paymentQuote = new PaymentQuoteRepository(manager);
+    this.liquidityOrder = new LiquidityOrderRepository(manager);
   }
 }

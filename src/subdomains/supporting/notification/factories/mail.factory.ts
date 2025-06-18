@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
-import { MailType } from '../enums';
+import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
+import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
 export enum MailTranslationKey {
@@ -24,10 +26,12 @@ export enum MailTranslationKey {
   FIAT_CHARGEBACK = 'mail.payment.chargeback.fiat',
   REFERRAL = 'mail.referral',
   KYC = 'mail.kyc',
+  KYC_STEP_NAMES = 'mail.kyc.step_names',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
   KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
   KYC_REMINDER = 'mail.kyc.reminder',
+  KYC_PAYMENT_DATA = 'mail.kyc.payment_data',
   LOGIN = 'mail.login',
   ACCOUNT_MERGE_REQUEST = 'mail.account_merge.request',
   ACCOUNT_MERGE_ADDED_ADDRESS = 'mail.account_merge.added_address',
@@ -54,13 +58,13 @@ interface SpecialTag {
 }
 
 const UserMailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
-const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px` };
+const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle}` };
 
 @Injectable()
 export class MailFactory {
   constructor(private readonly i18n: I18nService) {}
 
-  createMail(request: MailRequest): Mail {
+  createMail(request: MailRequest): Mail | undefined {
     switch (request.type) {
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
@@ -74,8 +78,12 @@ export class MailFactory {
         return this.createErrorMonitoringMail(request);
       }
 
-      case MailType.USER: {
+      case MailType.USER_DEPRECATED: {
         return this.createUserMail(request);
+      }
+
+      case MailType.USER_V2: {
+        return this.createUserV2Mail(request);
       }
 
       case MailType.PERSONAL: {
@@ -155,9 +163,33 @@ export class MailFactory {
     );
   }
 
+  private createUserV2Mail(request: MailRequest): UserMailV2 {
+    const { correlationId, options, context } = request;
+    const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
+
+    if (this.isDisabledMailWallet(context, wallet)) return undefined;
+
+    const lang = userData.language.symbol.toLowerCase();
+
+    return new UserMailV2(
+      {
+        to: userData.mail,
+        subject: this.translate(title, lang),
+        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
+        texts: texts && this.getMailAffix(texts, lang),
+        correlationId,
+        options,
+      },
+      wallet,
+    );
+  }
+
   private createPersonalMail(request: MailRequest): PersonalMail {
-    const { userData, title, prefix, banner, from, displayName, bcc } = request.input as MailRequestPersonalInput;
-    const { correlationId, options } = request;
+    const { userData, title, prefix, banner, from, displayName, bcc, wallet } =
+      request.input as MailRequestPersonalInput;
+    const { correlationId, options, context } = request;
+
+    if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
     const lang = userData.language.symbol;
 
@@ -182,17 +214,26 @@ export class MailFactory {
 
   //*** MAIL BUILDING METHODS ***//
 
+  private isDisabledMailWallet(context: MailContext, wallet: Wallet): boolean {
+    const mailContextType = MailContextTypeMapper[context];
+    return (
+      mailContextType &&
+      (wallet?.disabledMailTypes.includes(mailContextType) || wallet?.disabledMailTypes.includes(MailContextType.ALL))
+    );
+  }
+
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
-    Util.removeNullFields(table);
-    return Object.entries(table).map(([key, value]) => ({
+    return Object.entries(Util.removeNullFields(table)).map(([key, value]) => ({
       text: this.translate(key, lang),
       value: value,
     }));
   }
 
   private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
-    Util.removeNullFields(affix);
-    return affix.map((element) => this.mapMailAffix(element, lang).flat()).flat();
+    return affix
+      .filter((i) => i)
+      .map((i) => this.mapMailAffix(i, lang).flat())
+      .flat();
   }
 
   private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
@@ -203,21 +244,18 @@ export class MailFactory {
       case MailKey.DFX_TEAM_CLOSING:
         return [
           DefaultEmptyLine,
-          DefaultEmptyLine,
           {
             text: this.translate(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
             style: UserMailDefaultStyle,
           },
-          DefaultEmptyLine,
-          DefaultEmptyLine,
-          DefaultEmptyLine,
-          DefaultEmptyLine,
           { text: this.translate(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
+          DefaultEmptyLine,
+          DefaultEmptyLine,
         ];
 
       default:
-        if (element.params) Util.removeNullFields(element.params);
-        const translatedParams = this.translateParams(element.params, lang);
+        const params = Util.removeNullFields(element.params);
+        const translatedParams = this.translateParams(params, lang);
         const text = this.translate(element.key, lang, translatedParams);
         const specialTag = this.parseSpecialTag(text);
 
@@ -227,14 +265,24 @@ export class MailFactory {
               specialTag?.tag === 'url'
                 ? {
                     link: element.params?.url ?? specialTag.value,
+                    button: element.params?.button,
                     text: specialTag.value,
                     textSuffix: specialTag.textSuffix,
                   }
                 : undefined,
             mail:
-              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
+              specialTag?.tag === 'mail'
+                ? {
+                    address: specialTag.value,
+                    textSuffix: specialTag.textSuffix,
+                    button: element.params?.button,
+                  }
+                : undefined,
             style: element.params?.style ?? UserMailDefaultStyle,
             text: specialTag?.text ?? text,
+            marginBottom: element.params?.marginBottom ?? '10px',
+            marginTop: element.params?.marginTop ?? '10px',
+            underline: element.params?.underline,
           },
         ];
     }

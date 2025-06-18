@@ -60,6 +60,8 @@ export class TfaService {
 
   async setup(kycHash: string, level: TfaLevel): Promise<Setup2faDto> {
     const user = await this.getUser(kycHash);
+    if (user.isBlockedOrDeactivated) throw new ForbiddenException('Account is blocked/deactivated');
+
     if (user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
       // mail 2FA
       const type = TfaType.MAIL;
@@ -155,7 +157,7 @@ export class TfaService {
 
       if (userData.mail)
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context,
           input: {
             userData: userData,
@@ -164,7 +166,7 @@ export class TfaService {
             salutation: {
               key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,
             },
-            suffix: [
+            texts: [
               {
                 key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
                 params: { code },

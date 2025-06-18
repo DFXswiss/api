@@ -76,6 +76,7 @@ export class TradingOrder extends IEntity {
     order.assetOut = tradingInfo.assetOut;
     order.amountIn = tradingInfo.amountIn;
     order.amountExpected = tradingInfo.amountExpected;
+    order.errorMessage = tradingInfo.message;
 
     return order;
   }

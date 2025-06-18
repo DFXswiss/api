@@ -82,7 +82,13 @@ export class AmlService {
     let bankData = await this.getBankData(entity);
 
     if (bankData) {
-      if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+      if (!entity.userData.hasValidNameCheckDate) {
+        try {
+          await this.checkNameCheck(entity, bankData);
+        } catch (e) {
+          this.logger.error(`Error during aml nameCheck for ${entity.id}`, e);
+        }
+      }
 
       // merge & bank transaction verification
       if (bankData.approved) {
@@ -170,7 +176,8 @@ export class AmlService {
   }
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
-    if (entity instanceof BuyFiat) return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban);
+    if (entity instanceof BuyFiat)
+      return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban, undefined, { userData: true });
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService
         .getValidBankDatasForUser(entity.userData.id)
@@ -180,6 +187,8 @@ export class AmlService {
 
     return this.bankDataService.getVerifiedBankDataWithIban(
       entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
+      undefined,
+      { userData: true },
     );
   }
 }

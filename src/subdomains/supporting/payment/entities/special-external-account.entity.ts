@@ -3,6 +3,7 @@ import { Column, Entity } from 'typeorm';
 
 export enum SpecialExternalAccountType {
   MULTI_ACCOUNT_IBAN = 'MultiAccountIban',
+  MULTI_ACCOUNT_BANK_NAME = 'MultiAccountBankName',
   BANNED_IBAN = 'BannedIban',
   BANNED_IBAN_BUY = 'BannedIbanBuy',
   BANNED_IBAN_SELL = 'BannedIbanSell',

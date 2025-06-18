@@ -29,6 +29,10 @@ export class AssetService {
     return this.assetRepo.findCached('all', { relations });
   }
 
+  async getAssetsWith(relations?: FindOptionsRelations<Asset>) {
+    return this.assetRepo.find({ relations });
+  }
+
   async getAllBlockchainAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
     search.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
@@ -59,6 +63,10 @@ export class AssetService {
 
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`${query.name}-${query.blockchain}-${query.type}`, query);
+  }
+
+  async getCustodyAssetByName(name: string): Promise<Asset> {
+    return this.assetRepo.findOneCachedBy(`${name}`, { name });
   }
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
@@ -152,6 +160,14 @@ export class AssetService {
     });
   }
 
+  async getGnosisCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'xDAI',
+      blockchain: Blockchain.GNOSIS,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBtcCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'BTC',
@@ -172,6 +188,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'XMR',
       blockchain: Blockchain.MONERO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getSolanaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'SOL',
+      blockchain: Blockchain.SOLANA,
       type: AssetType.COIN,
     });
   }

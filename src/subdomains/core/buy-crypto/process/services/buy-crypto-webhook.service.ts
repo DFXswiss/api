@@ -40,6 +40,11 @@ export class BuyCryptoWebhookService {
   async extendBuyCrypto(buyCrypto: BuyCrypto): Promise<BuyCryptoExtended> {
     const inputAssetEntity =
       buyCrypto.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(buyCrypto.inputAsset));
-    return Object.assign(buyCrypto, { inputAssetEntity });
+
+    const inputReferenceAssetEntity =
+      buyCrypto.inputAsset === buyCrypto.inputReferenceAsset
+        ? inputAssetEntity
+        : buyCrypto.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(buyCrypto.inputReferenceAsset));
+    return Object.assign(buyCrypto, { inputAssetEntity, inputReferenceAssetEntity });
   }
 }

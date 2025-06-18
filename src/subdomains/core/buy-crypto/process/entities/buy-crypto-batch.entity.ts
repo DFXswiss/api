@@ -122,7 +122,7 @@ export class BuyCryptoBatch extends IEntity {
     const updatedTransactions = this.transactions.map((t) => {
       this.addActualPurchaseFee(purchaseFee, t);
 
-      return t.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount);
+      return t.setOutputAmount(this.outputReferenceAmount, this.outputAmount);
     });
 
     this.fixRoundingMismatch();
@@ -158,7 +158,11 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   get smallestTransactionReferenceAmount(): number {
-    return Util.minObjValue<BuyCrypto>(this.transactions, 'outputReferenceAmount');
+    return this.smallestTransaction.outputReferenceAmount;
+  }
+
+  get smallestTransaction(): BuyCrypto {
+    return Util.minObj(this.transactions, 'outputReferenceAmount');
   }
 
   //*** HELPER METHODS ***//

@@ -157,8 +157,8 @@ export class LiquidityManagementPipelineService {
     pipeline: LiquidityManagementPipeline,
     previousOrder: LiquidityManagementOrder | null,
   ): Promise<void> {
-    const { targetAmount, currentAction } = pipeline;
-    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder?.id);
+    const { minAmount, maxAmount, currentAction } = pipeline;
+    const order = LiquidityManagementOrder.create(minAmount, maxAmount, pipeline, currentAction, previousOrder?.id);
 
     await this.orderRepo.save(order);
   }
@@ -187,7 +187,7 @@ export class LiquidityManagementPipelineService {
 
         hasFinishedOrders = true;
 
-        this.logger.warn(`Error in starting new liquidity order ${order.id}:`, e);
+        this.logger.info(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
 
@@ -260,14 +260,14 @@ export class LiquidityManagementPipelineService {
 
     const [errorMessage, mailRequest] = this.generateFailMessage(pipeline, order);
 
-    this.logger.error(errorMessage);
+    this.logger.info(errorMessage);
 
     if (rule.sendNotifications) await this.notificationService.sendMail(mailRequest);
   }
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
-    const { id, type, targetAmount, rule } = pipeline;
-    const successMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
+    const { id, type, maxAmount, rule } = pipeline;
+    const successMessage = `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
@@ -285,8 +285,8 @@ export class LiquidityManagementPipelineService {
     pipeline: LiquidityManagementPipeline,
     order: LiquidityManagementOrder,
   ): [string, MailRequest] {
-    const { id, type, targetAmount, rule } = pipeline;
-    const errorMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${
+    const { id, type, maxAmount, rule } = pipeline;
+    const errorMessage = `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${
       rule.id
     }) ${pipeline.status.toLowerCase()}. Pipeline ID: ${id}`;
 

@@ -33,7 +33,7 @@ export class UserDataController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.find();
   }
@@ -41,7 +41,7 @@ export class UserDataController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async updateUserData(@Param('id') id: string, @Body() userData: UpdateUserDataDto): Promise<UserData> {
     return this.userDataService.updateUserData(+id, userData);
   }
@@ -49,7 +49,7 @@ export class UserDataController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getUserData(@Param('id') id: string): Promise<UserData> {
     return this.userDataRepo.findOneBy({ id: +id });
   }
@@ -57,7 +57,7 @@ export class UserDataController {
   @Put(':id/bankDatas')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async addBankData(@Param('id') id: string, @Body() bankData: CreateBankDataDto): Promise<UserData> {
     return this.bankDataService.addBankData(+id, bankData);
   }
@@ -65,7 +65,7 @@ export class UserDataController {
   @Put(':id/merge')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async mergeUserData(@Param('id') masterId: string, @Query('id') slaveId: string): Promise<void> {
     return this.userDataService.mergeUserData(+masterId, +slaveId, undefined, true);
   }
@@ -73,7 +73,7 @@ export class UserDataController {
   @Put(':id/volumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateVolumes(@Param('id') id: string): Promise<void> {
     return this.userDataService.updateVolumes(+id);
   }
@@ -81,7 +81,7 @@ export class UserDataController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createEmptyUserData(@Body() dto: CreateUserDataDto): Promise<UserData> {
     return this.userDataService.createUserData({ ...dto, status: UserDataStatus.KYC_ONLY });
   }
@@ -91,7 +91,7 @@ export class UserDataController {
   @Put(':id/fee')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async addFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
     const userData = await this.userDataService.getUserData(+id);
     return this.feeService.addFeeInternal(userData, +feeId);
@@ -100,7 +100,7 @@ export class UserDataController {
   @Delete(':id/fee')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async removeFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
     const userData = await this.userDataService.getUserData(+id);
     return this.userDataService.removeFee(userData, +feeId);
@@ -111,7 +111,7 @@ export class UserDataController {
   @Post(':id/kycFile')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
     const userData = await this.userDataService.getUserData(+id);
 
@@ -123,6 +123,7 @@ export class UserDataController {
       dto.contentType,
       true,
       undefined,
+      dto.documentSubType,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),
@@ -139,21 +140,15 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.COMPLIANCE), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async downloadUserData(@Body() data: DownloadUserDataDto, @Res({ passthrough: true }) res): Promise<StreamableFile> {
     const zipContent = await this.userDataService.downloadUserData(data.userDataIds);
 
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="DFX_export_${this.formatDate()}.zip"`,
+      'Content-Disposition': `attachment; filename="DFX_export_${Util.filenameDate()}.zip"`,
     });
 
     return new StreamableFile(zipContent);
-  }
-
-  // --- HELPER METHODS --- //
-
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
   }
 }

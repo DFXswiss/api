@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { BitcoinUTXO } from 'src/integration/blockchain/ain/node/dto/btc-transaction.dto';
+import { Config } from 'src/config/config';
+import { BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
+import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { RegisterStrategy } from './base/register.strategy';
@@ -55,11 +58,15 @@ export class BitcoinStrategy extends RegisterStrategy {
       senderAddresses: u.prevoutAddresses.toString(),
       receiverAddress: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
       txId: u.txid,
-      txType: null,
+      txType: this.getTxType(u.address),
       txSequence: u.vout,
       blockHeight: null,
       amount: u.amount.toNumber(),
       asset,
     }));
+  }
+
+  private getTxType(address: string): PayInType | undefined {
+    return Util.equalsIgnoreCase(Config.payment.bitcoinAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
   }
 }

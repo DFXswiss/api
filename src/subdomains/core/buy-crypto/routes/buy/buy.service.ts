@@ -44,6 +44,7 @@ export class BuyService {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly swissQrService: SwissQRService,
     private readonly bankService: BankService,
+    @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,

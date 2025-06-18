@@ -55,6 +55,8 @@ export enum Process {
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   FIAT_OUTPUT = 'FiatOutput',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
+  TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
+  TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
   CUSTODY = 'Custody',
@@ -66,7 +68,7 @@ export enum Process {
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
-  NAME_CHECK_PDF_SYNC = 'NameCheckPdfSync',
+  SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
 }
 
 const safetyProcesses: Process[] = [
@@ -106,9 +108,13 @@ export class ProcessService implements OnModuleInit {
     DisabledProcesses = this.listToMap(allDisabledProcesses);
   }
 
-  public async setSafetyModeActive(active: boolean) {
+  public async setSafetyModeActive(active: boolean): Promise<void> {
     this.safetyModeInactive = !active;
     await this.resyncDisabledProcesses();
+  }
+
+  public isSafetyModeActive(): boolean {
+    return !this.safetyModeInactive;
   }
 
   private listToMap(processes: Process[]): ProcessMap {

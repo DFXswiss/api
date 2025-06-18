@@ -88,7 +88,8 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: l2Asset },
       },
-      amount,
+      minAmount,
+      maxAmount,
     } = order;
 
     const { type, name } = l2Asset;
@@ -105,10 +106,17 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       type === AssetType.COIN
         ? await this.l1Client.getNativeCoinBalance()
         : await this.l1Client.getTokenBalance(l1Asset);
-    if (l1Liquidity < amount)
+    if (l1Liquidity < minAmount)
       throw new OrderNotProcessableException(
-        `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, requested: ${amount})`,
+        `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
+
+    const amount = Math.min(maxAmount, l1Liquidity);
+
+    order.inputAmount = amount;
+    order.inputAsset = l1Asset.name;
+    order.outputAmount = amount;
+    order.outputAsset = l2Asset.name;
 
     switch (type) {
       case AssetType.COIN: {
@@ -135,10 +143,22 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: l2Asset },
       },
-      amount,
+      maxAmount: amount,
     } = order;
 
     const { type, name } = l2Asset;
+
+    const l1Asset = await this.assetService.getAssetByQuery({ name, type, blockchain: Blockchain.ETHEREUM });
+    if (!l1Asset) {
+      throw new Error(
+        `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
+      );
+    }
+
+    order.inputAmount = amount;
+    order.inputAsset = l2Asset.name;
+    order.outputAmount = amount;
+    order.outputAsset = l1Asset.name;
 
     switch (type) {
       case AssetType.COIN: {
@@ -146,14 +166,6 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       }
 
       case AssetType.TOKEN: {
-        const l1Asset = await this.assetService.getAssetByQuery({ name, type, blockchain: Blockchain.ETHEREUM });
-
-        if (!l1Asset) {
-          throw new Error(
-            `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
-          );
-        }
-
         return this.l2Client.withdrawTokenOnDex(l1Asset, l2Asset, amount);
       }
 

@@ -91,17 +91,23 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
     const balance = await this.exchangeService.getAvailableBalance(token);
-    if (order.amount > balance)
+    if (order.minAmount > balance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, requested: ${order.amount})`,
+        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
 
+    const amount = Util.floor(Math.min(order.maxAmount, balance), 6);
+
+    order.inputAmount = amount;
+    order.inputAsset = token;
+    order.outputAsset = token;
+
     try {
-      const response = await this.exchangeService.withdrawFunds(token, order.amount, address, key, network);
+      const response = await this.exchangeService.withdrawFunds(token, amount, address, key, network);
 
       return response.id;
     } catch (e) {
-      if (['Insufficient funds', 'insufficient balance'].some((m) => e.message?.includes(m))) {
+      if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
@@ -115,39 +121,44 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(asset);
-    const amount = Util.round(order.amount * 1.01 - balance, 6); // small cap for price changes
-    if (amount <= 0) {
+    const minAmount = order.minAmount * 1.01 - balance; // small cap for price changes
+    const maxAmount = order.maxAmount * 1.01 - balance;
+    if (maxAmount <= 0) {
       // trade not necessary
       throw new OrderNotNecessaryException(
-        `${asset} balance higher than required amount (${balance} > ${order.amount})`,
+        `${asset} balance higher than required amount (${balance} > ${order.maxAmount})`,
       );
     }
 
+    const price = await this.exchangeService.getCurrentPrice(tradeAsset, asset);
+
+    const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
+    const maxSellAmount = Util.floor(maxAmount * price, 6);
+
+    const availableBalance = await this.exchangeService.getAvailableBalance(tradeAsset);
+    if (minSellAmount > availableBalance)
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
+      );
+
+    const amount = Math.min(maxSellAmount, availableBalance);
+
+    order.inputAmount = amount;
+    order.inputAsset = tradeAsset;
+    order.outputAsset = asset;
+
     try {
-      return await this.exchangeService.buy(tradeAsset, asset, amount);
+      return await this.exchangeService.sell(tradeAsset, asset, amount);
     } catch (e) {
-      try {
-        // try to sell min amount
-        if (e.message?.includes('not enough balance') && minTradeAmount != null) {
-          const availableBalance = await this.exchangeService.getAvailableBalance(tradeAsset);
-          if (availableBalance >= minTradeAmount) {
-            const reserve = Math.min(availableBalance * 0.01, minTradeAmount * 0.9);
-            return await this.exchangeService.sell(tradeAsset, asset, availableBalance - reserve);
-          }
-        }
-
-        throw e;
-      } catch (e) {
-        if (e.message?.includes('not enough balance')) {
-          throw new OrderNotProcessableException(e.message);
-        }
-
-        if (e.message?.includes('Illegal characters found')) {
-          throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${asset}: ${e.message}`);
-        }
-
-        throw e;
+      if (this.isBalanceTooLowError(e)) {
+        throw new OrderNotProcessableException(e.message);
       }
+
+      if (e.message?.includes('Illegal characters found')) {
+        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${asset}: ${e.message}`);
+      }
+
+      throw e;
     }
   }
 
@@ -156,12 +167,22 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const amount = Util.round(order.amount * 0.99, 6); // small cap for price changes
+    const availableBalance = await this.exchangeService.getAvailableBalance(asset);
+    if (order.minAmount > availableBalance)
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+      );
+
+    const amount = Math.min(order.maxAmount, availableBalance);
+
+    order.inputAmount = amount;
+    order.inputAsset = asset;
+    order.outputAsset = tradeAsset;
 
     try {
       return await this.exchangeService.sell(asset, tradeAsset, amount);
     } catch (e) {
-      if (e.message?.includes('not enough balance')) {
+      if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
@@ -174,39 +195,31 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async transfer(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { address, key, network, target, optimum, asset } = this.parseTransferParams(order.action.paramMap);
+    const { address, key, network, optimum } = this.parseTransferParams(order.action.paramMap);
 
-    const targetAsset = order.pipeline.rule.targetAsset.dexName;
-    const token = asset ?? targetAsset;
+    const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const targetExchange = this.exchangeRegistry.get(target);
+    const minAmount = Util.floor(order.minAmount, 6);
+    const maxAmount = Util.floor(order.maxAmount + (optimum ?? 0), 6);
 
-    let requiredAmount = order.amount;
-    if (token !== targetAsset) {
-      const price = await targetExchange.getPrice(token, targetAsset);
-      requiredAmount = price.invert().convert(requiredAmount) * 1.01; // small cap for price changes;
-
-      const balance = await targetExchange.getAvailableBalance(token);
-      requiredAmount -= balance;
-    }
-
-    const minAmount = Util.round(requiredAmount, 6);
-    const maxAmount = Util.round(requiredAmount + (optimum ?? 0), 6);
-
-    const sourceBalance = await this.exchangeService.getAvailableBalance(token);
+    const sourceBalance = await this.exchangeService.getAvailableBalance(asset);
     if (minAmount > sourceBalance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${sourceBalance}, requested: ${minAmount})`,
+        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${sourceBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Math.min(sourceBalance, maxAmount);
+    const amount = Util.floor(Math.min(maxAmount, sourceBalance), 6);
+
+    order.inputAmount = amount;
+    order.inputAsset = asset;
+    order.outputAsset = asset;
 
     try {
-      const response = await this.exchangeService.withdrawFunds(token, amount, address, key, network);
+      const response = await this.exchangeService.withdrawFunds(asset, amount, address, key, network);
 
       return response.id;
     } catch (e) {
-      if (['Insufficient funds', 'insufficient balance'].some((m) => e.message?.includes(m))) {
+      if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
@@ -236,8 +249,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    const blockchain = paramMap.destinationBlockchain as Blockchain;
+    order.outputAmount = withdrawal.amount;
 
+    const blockchain = paramMap.destinationBlockchain as Blockchain;
     return this.dexService.checkTransferCompletion(withdrawal.txid, blockchain);
   }
 
@@ -246,7 +260,15 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    return this.checkTradeCompletion(order, tradeAsset, asset);
+    const isComplete = await this.checkTradeCompletion(order, tradeAsset, asset);
+    if (isComplete) {
+      const trade = await this.exchangeService.getTrade(order.correlationId, tradeAsset, asset);
+
+      order.inputAmount = trade.cost;
+      order.outputAmount = trade.amount;
+    }
+
+    return isComplete;
   }
 
   private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -254,7 +276,15 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    return this.checkTradeCompletion(order, asset, tradeAsset);
+    const isComplete = await this.checkTradeCompletion(order, asset, tradeAsset);
+    if (isComplete) {
+      const trade = await this.exchangeService.getTrade(order.correlationId, asset, tradeAsset);
+
+      order.inputAmount = trade.amount;
+      order.outputAmount = trade.cost;
+    }
+
+    return isComplete;
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
@@ -283,22 +313,22 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       correlationId,
     } = order;
 
-    const { target, asset } = this.parseTransferParams(paramMap);
+    const { target } = this.parseTransferParams(paramMap);
 
-    const token = asset ?? targetAsset.dexName;
-
-    const withdrawal = await this.exchangeService.getWithdraw(correlationId, token);
+    const withdrawal = await this.exchangeService.getWithdraw(correlationId, targetAsset.dexName);
     if (!withdrawal?.txid) {
       this.logger.verbose(
-        `No withdrawal id for id ${correlationId} and asset ${token} at ${this.exchangeService.name} found`,
+        `No withdrawal id for id ${correlationId} and asset ${targetAsset.dexName} at ${this.exchangeService.name} found`,
       );
       return false;
     }
 
+    order.outputAmount = withdrawal.amount;
+
     const targetExchange = this.exchangeRegistry.get(target);
 
     const deposit = await targetExchange
-      .getDeposits(token, order.created)
+      .getDeposits(targetAsset.dexName, order.created)
       .then((deposits) => deposits.find((d) => d.txid === withdrawal.txid));
 
     return deposit && deposit.status === 'ok';
@@ -348,7 +378,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   } {
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
-    const fullTrade = Boolean(params.fullTrade);
+    const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 
@@ -387,18 +417,21 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     network: string;
     target: string;
     optimum?: number;
-    asset?: string;
   } {
     const address = process.env[params.destinationAddress as string];
     const key = this.exchangeService.config.withdrawKeys?.get(params.destinationAddressKey as string);
     const network = this.exchangeService.mapNetwork(params.destinationBlockchain as Blockchain);
     const target = params.targetExchange as string;
     const optimum = params.targetOptimum as number | undefined;
-    const asset = params.asset as string | undefined;
 
     if (!(address && key && network && target))
       throw new Error(`Params provided to CcxtExchangeAdapter.transfer(...) command are invalid.`);
 
-    return { address, key, network, target, asset, optimum };
+    return { address, key, network, target, optimum };
+  }
+
+  // --- HELPER METHODS --- //
+  private isBalanceTooLowError(e: Error): boolean {
+    return ['Insufficient funds', 'insufficient balance', 'not enough balance'].some((m) => e.message?.includes(m));
   }
 }

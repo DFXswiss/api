@@ -50,17 +50,17 @@ export class BuyFiatNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_FIAT_COMPLETED,
             input: {
               userData: entity.userData,
               wallet: entity.wallet,
               title: `${MailTranslationKey.FIAT_OUTPUT}.title`,
               salutation: { key: `${MailTranslationKey.FIAT_OUTPUT}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
@@ -87,16 +87,17 @@ export class BuyFiatNotificationService {
     try {
       if (entity.userData.mail) {
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context: MailContext.BUY_FIAT_PROCESSING,
           input: {
             userData: entity.userData,
+            wallet: entity.wallet,
             title: `${MailTranslationKey.PROCESSING}.title`,
             salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
-            suffix: [
+            texts: [
               {
                 key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                params: { url: entity.transaction.url },
+                params: { url: entity.transaction.url, button: 'true' },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.link`,
@@ -135,7 +136,7 @@ export class BuyFiatNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_FIAT_PENDING,
             input: {
               userData: entity.userData,
@@ -144,7 +145,7 @@ export class BuyFiatNotificationService {
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
-              suffix: [
+              texts: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
@@ -212,17 +213,17 @@ export class BuyFiatNotificationService {
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_FIAT_RETURN,
             input: {
               userData: entity.userData,
               wallet: entity.wallet,
               title: `${MailTranslationKey.CRYPTO_CHARGEBACK}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
@@ -288,19 +289,17 @@ export class BuyFiatNotificationService {
       try {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_FIAT_CHARGEBACK_UNCONFIRMED,
             input: {
               userData: entity.userData,
               wallet: entity.wallet,
               title: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.title`,
-              salutation: {
-                key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation`,
-              },
-              suffix: [
+              salutation: { key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation` },
+              texts: [
                 {
                   key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.transaction_button`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, button: 'true' },
                 },
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: MailKey.DFX_TEAM_CLOSING },

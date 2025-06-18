@@ -60,23 +60,31 @@ export class PaymentQuote extends IEntity {
     return this;
   }
 
-  txReceived(blockchain: Blockchain, tx: string): this {
+  txReceived(blockchain: Blockchain, tx?: string, txId?: string): this {
     this.status = PaymentQuoteStatus.TX_RECEIVED;
     this.txBlockchain = blockchain;
     this.tx = tx;
+    this.txId = txId;
 
     return this;
   }
 
-  txCheckbot(txId: string): this {
+  txFromCheckbot(txId: string): this {
     this.status = PaymentQuoteStatus.TX_CHECKBOT;
     this.txId = txId;
 
     return this;
   }
 
-  txMempool(txId: string): this {
+  txInMempool(txId: string): this {
     this.status = PaymentQuoteStatus.TX_MEMPOOL;
+    this.txId = txId;
+
+    return this;
+  }
+
+  txInBlockchain(txId: string): this {
+    this.status = PaymentQuoteStatus.TX_BLOCKCHAIN;
     this.txId = txId;
 
     return this;

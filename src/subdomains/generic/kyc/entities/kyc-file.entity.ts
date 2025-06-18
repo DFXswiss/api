@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
-import { FileType } from '../dto/kyc-file.dto';
+import { FileSubType, FileType } from '../dto/kyc-file.dto';
 import { KycLog } from './kyc-log.entity';
 import { KycStep } from './kyc-step.entity';
 
@@ -12,6 +12,9 @@ export class KycFile extends IEntity {
 
   @Column({ length: 256 })
   type: FileType;
+
+  @Column({ length: 256, nullable: true })
+  subType: FileSubType;
 
   @Column()
   protected: boolean;

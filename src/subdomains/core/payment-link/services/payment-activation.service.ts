@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -36,6 +37,7 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
     private readonly cryptoService: CryptoService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -153,7 +155,7 @@ export class PaymentActivationService implements OnModuleInit {
     expiryDate: Date,
     standard: PaymentStandard,
   ): Promise<PaymentActivation> {
-    const { paymentRequest, paymentHash } = await this.createBlockchainRequest(payment, transferInfo, expirySec);
+    const { paymentRequest, paymentHash } = await this.createBlockchainRequest(payment, transferInfo, expirySec, quote);
 
     return this.savePaymentActivationRequest(
       payment,
@@ -170,6 +172,7 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
+    quote: PaymentQuote,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
     switch (transferInfo.method) {
       case Blockchain.LIGHTNING:
@@ -182,11 +185,17 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
         return this.createPaymentRequest(this.evmDepositAddress, transferInfo);
 
       case Blockchain.MONERO:
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
+
+      case Blockchain.BINANCE_PAY:
+        const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
+        await this.paymentQuoteService.saveTransaction(quote, transferInfo.method, order.providerOrderId);
+        return order;
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);

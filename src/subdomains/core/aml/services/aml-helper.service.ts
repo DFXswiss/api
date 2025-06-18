@@ -9,6 +9,7 @@ import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/m
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
@@ -17,7 +18,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
-import { AmlRule } from '../enums/aml-rule.enum';
+import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 export class AmlHelperService {
@@ -34,7 +35,7 @@ export class AmlHelperService {
     banks?: Bank[],
     ibanCountry?: Country,
   ): AmlError[] {
-    const errors = [];
+    const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
@@ -46,9 +47,10 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable) {
+    if (!entity.userData.verifiedName && !bankData.name && !entity.userData.completeName)
+      errors.push(AmlError.NAME_MISSING);
+    if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable)
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
-    }
     if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
@@ -72,8 +74,11 @@ export class AmlHelperService {
     }
 
     // AmlRule asset/fiat check
-    errors.push(this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
-    errors.push(this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(...this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(...this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
+    if (ibanCountry) errors.push(...this.amlRuleCheck(ibanCountry.amlRule, entity, amountInChf, last7dCheckoutVolume));
+    if (entity.userData.nationality)
+      errors.push(...this.amlRuleCheck(entity.userData.nationality.amlRule, entity, amountInChf, last7dCheckoutVolume));
 
     if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
@@ -106,7 +111,7 @@ export class AmlHelperService {
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
       for (const amlRule of entity.user.wallet.amlRuleList) {
-        errors.push(this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume));
+        errors.push(...this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume));
       }
 
       if (entity.bankTx) {
@@ -208,10 +213,10 @@ export class AmlHelperService {
     entity: BuyCrypto | BuyFiat,
     amountInChf: number,
     last7dCheckoutVolume: number,
-  ): AmlError | undefined {
+  ): AmlError[] {
     switch (amlRule) {
       case AmlRule.DEFAULT:
-        return undefined;
+        return [];
 
       case AmlRule.RULE_1:
         if (
@@ -220,17 +225,17 @@ export class AmlHelperService {
           entity.user.status === UserStatus.NA &&
           entity.checkoutTx.ip !== entity.user.ip
         )
-          return AmlError.IP_MISMATCH;
+          return [AmlError.IP_MISMATCH];
         break;
 
       case AmlRule.RULE_2:
         if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
-          return AmlError.KYC_LEVEL_30_NOT_REACHED;
+          return [AmlError.KYC_LEVEL_30_NOT_REACHED];
         break;
 
       case AmlRule.RULE_3:
         if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
-          return AmlError.KYC_LEVEL_50_NOT_REACHED;
+          return [AmlError.KYC_LEVEL_50_NOT_REACHED];
         break;
 
       case AmlRule.RULE_4:
@@ -239,7 +244,7 @@ export class AmlHelperService {
           entity instanceof BuyCrypto &&
           entity.checkoutTx
         )
-          return AmlError.WEEKLY_LIMIT_REACHED;
+          return [AmlError.WEEKLY_LIMIT_REACHED];
         break;
 
       case AmlRule.RULE_6:
@@ -249,7 +254,7 @@ export class AmlHelperService {
           entity.checkoutTx &&
           entity.userData.kycLevel < KycLevel.LEVEL_30
         )
-          return AmlError.KYC_LEVEL_30_NOT_REACHED;
+          return [AmlError.KYC_LEVEL_30_NOT_REACHED];
         break;
 
       case AmlRule.RULE_7:
@@ -259,29 +264,91 @@ export class AmlHelperService {
           entity.checkoutTx &&
           entity.userData.kycLevel < KycLevel.LEVEL_50
         )
-          return AmlError.KYC_LEVEL_50_NOT_REACHED;
+          return [AmlError.KYC_LEVEL_50_NOT_REACHED];
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 1000) return AmlError.ASSET_AMOUNT_TOO_HIGH;
+        if (amountInChf > 1000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        break;
+
+      case AmlRule.RULE_9:
+        if (
+          (entity.user.status !== UserStatus.ACTIVE || entity.userData.kycLevel < KycLevel.LEVEL_30) &&
+          entity instanceof BuyCrypto &&
+          entity.checkoutTx
+        )
+          return [
+            entity.user.status !== UserStatus.ACTIVE ? AmlError.USER_NOT_ACTIVE : undefined,
+            entity.userData.kycLevel < KycLevel.LEVEL_30 ? AmlError.KYC_LEVEL_30_NOT_REACHED : undefined,
+          ].filter((e) => e);
+
+        break;
+
+      case AmlRule.RULE_10:
+        if (
+          (entity.user.status !== UserStatus.ACTIVE || entity.userData.kycLevel < KycLevel.LEVEL_50) &&
+          entity instanceof BuyCrypto &&
+          entity.checkoutTx
+        )
+          return [
+            entity.user.status !== UserStatus.ACTIVE ? AmlError.USER_NOT_ACTIVE : undefined,
+            entity.userData.kycLevel < KycLevel.LEVEL_50 ? AmlError.KYC_LEVEL_50_NOT_REACHED : undefined,
+          ].filter((e) => e);
+
         break;
     }
 
-    return undefined;
+    return [];
   }
 
-  static amlRuleUserCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): boolean {
-    return (
-      user?.status === UserStatus.NA &&
-      ((amlRules.includes(AmlRule.RULE_2) && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (amlRules.includes(AmlRule.RULE_3) && user?.userData.kycLevel < KycLevel.LEVEL_50) ||
-        (amlRules.includes(AmlRule.RULE_6) &&
-          paymentMethodIn === FiatPaymentMethod.CARD &&
-          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (amlRules.includes(AmlRule.RULE_7) &&
-          paymentMethodIn === FiatPaymentMethod.CARD &&
-          user?.userData.kycLevel < KycLevel.LEVEL_50))
-    );
+  static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
+    if (!user) return undefined;
+
+    if (amlRules.includes(AmlRule.RULE_11) && SpecialIpCountries.includes(user.ipCountry)) return undefined;
+
+    if (
+      amlRules.includes(AmlRule.RULE_2) &&
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_30
+    )
+      return QuoteError.KYC_REQUIRED;
+
+    if (
+      amlRules.includes(AmlRule.RULE_3) &&
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_50
+    )
+      return QuoteError.KYC_REQUIRED;
+
+    if (
+      amlRules.includes(AmlRule.RULE_6) &&
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_30
+    )
+      return QuoteError.KYC_REQUIRED;
+
+    if (
+      amlRules.includes(AmlRule.RULE_7) &&
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      user.status === UserStatus.NA &&
+      user.userData.kycLevel < KycLevel.LEVEL_50
+    )
+      return QuoteError.KYC_REQUIRED;
+
+    if (
+      amlRules.includes(AmlRule.RULE_9) &&
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_30)
+    )
+      return user.userData.kycLevel < KycLevel.LEVEL_30 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+
+    if (
+      amlRules.includes(AmlRule.RULE_10) &&
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_50)
+    )
+      return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
   }
 
   static getAmlResult(

@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { TatumModule } from 'src/integration/tatum/tatum.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payment-link-payment.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
@@ -19,11 +20,13 @@ import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInGnosisService } from './services/payin-gnosis.service';
 import { PayInLightningService } from './services/payin-lightning.service';
 import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
+import { PayInSolanaService } from './services/payin-solana.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
@@ -31,10 +34,12 @@ import { RegisterStrategyRegistry } from './strategies/register/impl/base/regist
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
+import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
 import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/polygon.strategy';
+import { SolanaStrategy as SolanaStrategyR } from './strategies/register/impl/solana.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
@@ -45,12 +50,16 @@ import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
+import { GnosisCoinStrategy as GnosisCoinStrategyS } from './strategies/send/impl/gnosis-coin.strategy';
+import { GnosisTokenStrategy as GnosisTokenStrategyS } from './strategies/send/impl/gnosis-token.strategy';
 import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
 import { PolygonCoinStrategy as PolygonCoinStrategyS } from './strategies/send/impl/polygon-coin.strategy';
 import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send/impl/polygon-token.strategy';
+import { SolanaCoinStrategy as SolanaCoinStrategyS } from './strategies/send/impl/solana-coin.strategy';
+import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/impl/solana-token.strategy';
 
 @Module({
   imports: [
@@ -65,6 +74,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     forwardRef(() => PaymentModule),
     NotificationModule,
     AlchemyModule,
+    TatumModule,
     TransactionModule,
     PaymentLinkPaymentModule,
   ],
@@ -82,6 +92,8 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayInOptimismService,
     PayInPolygonService,
     PayInBaseService,
+    PayInSolanaService,
+    PayInGnosisService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     BitcoinStrategyR,
@@ -108,6 +120,12 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     BaseStrategyR,
     BaseCoinStrategyS,
     BaseTokenStrategyS,
+    SolanaStrategyR,
+    SolanaCoinStrategyS,
+    SolanaTokenStrategyS,
+    GnosisStrategyR,
+    GnosisCoinStrategyS,
+    GnosisTokenStrategyS,
   ],
   exports: [PayInService],
 })

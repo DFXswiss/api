@@ -116,6 +116,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.RESIDENCE_PERMIT:
         return { url: `${apiUrl}/data/residence/${this.id}`, type: UrlType.API };
+
+      case KycStepName.PAYMENT_AGREEMENT:
+        return { url: `${apiUrl}/data/payment/${this.id}`, type: UrlType.API };
     }
   }
 
@@ -174,10 +177,16 @@ export class KycStep extends IEntity {
     return this.isInReview || this.isCompleted;
   }
 
-  update(status: KycStepStatus, result?: KycStepResult, sequenceNumber?: number): UpdateResult<KycStep> {
+  update(
+    status: KycStepStatus,
+    result?: KycStepResult,
+    comment?: string,
+    sequenceNumber?: number,
+  ): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
+      comment,
       sequenceNumber,
     };
 
@@ -282,10 +291,19 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  manualReview(comment: string): UpdateResult<KycStep> {
+  onHold(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = { status: KycStepStatus.ON_HOLD };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  manualReview(comment?: string, result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: KycStepStatus.MANUAL_REVIEW,
       comment,
+      result: this.setResult(result),
     };
 
     Object.assign(this, update);
@@ -395,6 +413,10 @@ export class KycStep extends IEntity {
 
   get isSumsub(): boolean {
     return this.type === KycStepType.SUMSUB_AUTO || this.type === KycStepType.SUMSUB_VIDEO;
+  }
+
+  get isSumsubVideo(): boolean {
+    return this.type === KycStepType.SUMSUB_VIDEO;
   }
 
   get isManual(): boolean {

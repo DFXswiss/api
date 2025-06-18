@@ -1,6 +1,7 @@
 import { GetConfig } from 'src/config/config';
 
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/c2b-payment-link/dto/binance.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
@@ -33,6 +34,9 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   externalId?: string;
 
+  @Column({ length: 256, nullable: true })
+  label?: string;
+
   @Column({ length: 256 })
   status: PaymentLinkStatus;
 
@@ -64,10 +68,34 @@ export class PaymentLink extends IEntity {
   mail?: string;
 
   @Column({ length: 256, nullable: true })
+  regionManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeOwner?: string;
+
+  @Column({ length: 256, nullable: true })
   website?: string;
 
   @Column({ length: 'MAX', nullable: true })
   config?: string; // PaymentLinkConfig
+
+  @Column({ nullable: true })
+  registrationNumber?: string; // Registration number/Company tax ID
+
+  @Column({ nullable: true })
+  storeType?: StoreType;
+
+  @Column({ nullable: true })
+  merchantMcc?: MerchantMCC;
+
+  @Column({ nullable: true })
+  goodsType?: GoodsType;
+
+  @Column({ nullable: true })
+  goodsCategory?: GoodsCategory;
 
   // --- ENTITY METHODS --- //
   get metaId(): string {

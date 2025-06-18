@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export class EvmTokenTransactionDto {
@@ -17,10 +17,6 @@ export class EvmTokenTransactionDto {
   @IsNotEmpty()
   @IsNumber()
   amount: number;
-
-  @IsOptional()
-  @IsNumber()
-  feeLimit?: number;
 
   @IsNotEmpty()
   @IsEnum(Blockchain)

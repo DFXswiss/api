@@ -124,6 +124,11 @@ export class UpdateUserDataDto {
   organizationCountryId?: number;
 
   @IsOptional()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  organizationCountry?: Country;
+
+  @IsOptional()
   @IsInt()
   depositLimit?: number;
 

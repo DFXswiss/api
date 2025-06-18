@@ -60,10 +60,12 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   abstract getStableToken(): Promise<Asset>;
+  abstract getEquityToken(): Promise<Asset>;
 
   private async mint(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const equityPrice = await this.frankencoinBasedService.getEquityPrice();
-    const stableBuyingAmount = order.amount * equityPrice;
+    const minBuyAmount = order.minAmount * equityPrice;
+    const maxBuyAmount = order.maxAmount * equityPrice;
 
     const stableToken = await this.getStableToken();
     const stableLiquidityBalances = await this.liquidityManagementBalanceService.getAllLiqBalancesForAssets([
@@ -71,17 +73,19 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     ]);
     const stableTotalLiquidityBalance = Util.sum(stableLiquidityBalances.map((b) => b.amount));
 
-    if (stableBuyingAmount > stableTotalLiquidityBalance)
+    if (minBuyAmount > stableTotalLiquidityBalance)
       throw new OrderNotProcessableException(
-        `Not enough ${stableToken.name} liquidity balance: ${stableBuyingAmount} > ${stableTotalLiquidityBalance}`,
+        `Not enough ${stableToken.name} liquidity (balance: ${stableTotalLiquidityBalance}, min. requested: ${minBuyAmount}, max. requested: ${maxBuyAmount})`,
       );
 
-    try {
-      order.inputAmount = stableBuyingAmount;
-      order.inputAsset = stableToken.name;
-      order.outputAsset = order.target?.name;
+    const amount = Math.min(maxBuyAmount, stableTotalLiquidityBalance);
 
-      const stableBuyingWeiAmount = EvmUtil.toWeiAmount(stableBuyingAmount, stableToken.decimals);
+    order.inputAmount = amount;
+    order.inputAsset = stableToken.name;
+    order.outputAsset = order.target?.name;
+
+    try {
+      const stableBuyingWeiAmount = EvmUtil.toWeiAmount(amount, stableToken.decimals);
 
       const equityContract = this.frankencoinBasedService.getEquityContract();
       const expectedShares = await equityContract.calculateShares(stableBuyingWeiAmount);
@@ -99,14 +103,22 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     const equityContract = this.frankencoinBasedService.getEquityContract();
     const depsWrapperContract = this.frankencoinBasedService.getWrapperContract();
 
+    const amount = order.maxAmount;
+
     const decimals = await depsWrapperContract.decimals();
-    const wrapWeiAmount = EvmUtil.toWeiAmount(order.amount, decimals);
+    const wrapWeiAmount = EvmUtil.toWeiAmount(amount, decimals);
 
     const gasPrice = await this.frankencoinBasedService.getEvmClient().getRecommendedGasPrice();
     const allowance = await equityContract.allowance(walletAddress, depsWrapperContract.address);
 
     if (wrapWeiAmount.gt(allowance))
       await equityContract.approve(depsWrapperContract.address, ethers.constants.MaxInt256);
+
+    const equityToken = await this.getEquityToken();
+
+    order.inputAmount = amount;
+    order.inputAsset = equityToken.name;
+    order.outputAsset = order.target?.name;
 
     const result = await depsWrapperContract.depositFor(walletAddress, wrapWeiAmount, {
       gasPrice: gasPrice,

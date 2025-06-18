@@ -42,7 +42,7 @@ export class LiquidityManagementBalanceService {
   }
 
   findRelevantBalance(rule: LiquidityManagementRule, balances: LiquidityBalance[]): LiquidityBalance | undefined {
-    return balances.find((b) => b.target.id === rule.target.id);
+    return balances.find((b) => b.asset.id === rule.target.id);
   }
 
   async getBalances(): Promise<LiquidityBalance[]> {
@@ -59,10 +59,7 @@ export class LiquidityManagementBalanceService {
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
       try {
-        const existingBalance = await this.balanceRepo.findOneBy([
-          { asset: { id: balance.asset?.id } },
-          { fiat: { id: balance.fiat?.id } },
-        ]);
+        const existingBalance = await this.balanceRepo.findOneBy({ asset: { id: balance.asset?.id } });
 
         if (existingBalance) {
           existingBalance.updateBalance(balance.amount ?? 0);
@@ -73,7 +70,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        this.logger.error(`Could not save balance of ${balance.targetName}:`, e);
+        this.logger.error(`Could not save balance of ${balance.asset.name}:`, e);
       }
     }
   }

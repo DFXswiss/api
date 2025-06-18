@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an deine Wallet-Adresse zurückerstattet",
-                "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]"
+                "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]",
+                "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Rückzahlung:<br>[url:Klick hier]"
             },
             "introduction": "Grund, warum wir zurückerstattet haben:<br>{reason}",
             "reasons": {
@@ -87,7 +88,9 @@
                 "user_deactivated": "Deine verknüpfte Blockchain-Adresse wurde von dir unwiderruflich gelöscht. Du kannst DFX weiterhin mit anderen Blockchain-Adressen benutzen",
                 "video_ident_needed": "Für die Transaktion musst du dein KYC mit Video-Ident abschließen",
                 "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln",
-                "test_only": "Test"
+                "test_only": "Test",
+                "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
+                "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -172,21 +175,32 @@
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line5": "Wenn du dich nicht verifizieren möchtest kannst du auch eine Rückzahlung anfordern:<br>[url:Klick hier]"
+            },
+            "kyc_data_needed": {
+                "title": "KYC Daten erforderlich",
+                "salutation": "Angaben zu deiner Person sind erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Leider brauchen wir für deine Transaktion noch deine KYC Daten.",
+                "line2": "Klicke daher den nachfolgenden Link und führe mindestens die ersten Schritte aus, bis du deinen Namen und deine Adresse eingegeben hast:<br>[url:{urlText}]",
+                "line3": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line4": "Du musst dich nicht zwingend komplett verifizieren, es reicht aus, dass du deinen Namen und deine Adresse einträgst.",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "bank_tx_needed": {
+                "title": "Bank Transaktion erforderlich",
+                "salutation": "Es ist eine Bank Transaktion erforderlich, um deine ausstehende Transaktion auszuführen",
+                "line1": "Leider brauchen wir um deine Transaktion ausführen zu können noch eine Banktransaktion von dir.",
+                "line2": "Du kannst über die DFX-Services Webseite etwas kaufen als Banktransaktion.",
+                "line3": "Nachdem diese Transaktion bei uns angekommen ist und ausgezahlt wurde, wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt werden.",
+                "line4": "Es ist also nur eine Transaktion von deinem Bankkonto erforderlich.",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
-        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
-        "blockchain": "Blockchain",
-        "bank_account": "Bank Konto",
-        "remittance_info": "Verwendungszweck",
-        "transaction_id": "Transaktions-ID",
-        "wallet_address": "Wallet-Adresse",
-        "reimbursed": "Erstattet"
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"
     },
     "referral": {
         "title": "Auszahlung Referral Rewards",
         "salutation": "Deine RefCode Rewards wurden ausgezahlt",
-        "output_amount": "Betrag",
-        "payment_link": "Dies ist die Transaktions-ID: [url:Link]",
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deinem Referral Reward:<br>[url:Klick hier]",
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     },
     "kyc": {
@@ -196,9 +210,9 @@
             "message": "Deine Verifikation ist abgeschlossen."
         },
         "failed": {
-            "title": "Identifikation fehlgeschlagen",
-            "salutation": "Deine Identifikation ist fehlgeschlagen",
-            "message": "Deine Identifizierung ist aus folgendem Grund fehlgeschlagen:<br>{reason}",
+            "title": "Problem bei Verifizierung",
+            "salutation": "Es gab ein Problem bei deiner Verifizierung",
+            "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Dein Account wurde gemerged",
                 "user_data_blocked": "Unbekannter Fehler",
@@ -220,8 +234,29 @@
             "salutation": "Vervollständige deine Verifizierung",
             "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
         },
+        "payment_data" : {
+            "title": "Forderungsabtretungsvertrag (Zession)",
+            "salutation": "Forderungsabtretungsvertrag (Zession)",
+            "message": "DFX bietet seinen Kunden die Möglichkeit, offene Forderungen aus dem Verkauf von Waren und Dienstleistungen an DFX abzutreten, um eine Bezahlung mittels Kryptowährungen zu ermöglichen. Der Kunde hat die Möglichkeit, eine offene Forderung über unsere API (api.dfx.swiss) oder über das Frontend auf app.dfx.swiss zu übermitteln.<br>Der geschuldete Betrag wird nach Abzug einer Bearbeitungsgebühr von 0.2% an den Kunden ausbezahlt. Die Auszahlung kann, entsprechend der kundenspezifischen Konfiguration, entweder in Kryptowährungen oder als Fiat-Währung per Banktransaktion erfolgen.<br>Für alle Transaktionen gelten die AGB der DFX. Die Zession endet automatisch mit der Schliessung des DFX-Kontos oder kann bei Vertragsverstössen oder Zahlungsunfähigkeit sofort durch DFX oder den Kunden beendet werden.<br><br>Zugestimmt am {date}"
+        },
         "retry": "Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]",
-        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]"
+        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
+        "step_names": {
+            "ident": "Identifikation",
+            "personal_data": "Persönliche Daten",
+            "nationality_data": "Nationalität",
+            "legal_entity": "Juristische Person",
+            "owner_directory": "Inhaberverzeichnis",
+            "commercial_register": "Handelsregister",
+            "signatory_power": "Unterschriftsberechtigung",
+            "authority": "Vollmacht",
+            "beneficial_owner": "Wirtschaftlich Berechtigter",
+            "operational_activity": "Operative Tätigkeit",
+            "financial_data": "Zusätzliche Daten",
+            "additional_documents": "Zusätzliche Dokumente",
+            "residence_permit": "Aufenthaltsbewilligung",
+            "dfx_approval": "DFX-Genehmigung"
+        }
     },
     "account_merge": {
         "request": {

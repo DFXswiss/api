@@ -7,7 +7,9 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { merge } from 'lodash';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -31,9 +33,10 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { IsNull, Like, Not } from 'typeorm';
+import { FindOneOptions, In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
@@ -63,6 +66,7 @@ export class SellService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
+    @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
@@ -76,8 +80,9 @@ export class SellService {
     return sell;
   }
 
-  async getById(id: number): Promise<Sell> {
-    return this.sellRepo.findOne({ where: { id }, relations: { user: true } });
+  async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
+    const defaultOptions = { where: { id }, relations: { user: { userData: true } } };
+    return this.sellRepo.findOne(merge(defaultOptions, options));
   }
 
   async getLatest(userId: number): Promise<Sell | null> {
@@ -88,11 +93,52 @@ export class SellService {
     });
   }
 
-  async getByLabel(userId: number, label: string): Promise<Sell> {
-    return this.sellRepo.findOne({
+  async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
+    const defaultOptions = {
       where: { route: { label }, user: { id: userId } },
       relations: { user: { userData: true } },
+    };
+    return this.sellRepo.findOne(merge(defaultOptions, options));
+  }
+
+  validateLightningRoute(route: Sell): void {
+    if (!route) throw new NotFoundException('Sell route not found');
+    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
+  }
+
+  async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<Sell>): Promise<Sell> {
+    const isRouteId = !isNaN(+idOrLabel);
+    const sellRoute = isRouteId
+      ? await this.getById(+idOrLabel, options)
+      : await this.getByLabel(undefined, idOrLabel, options);
+
+    try {
+      this.validateLightningRoute(sellRoute);
+    } catch (e) {
+      this.logger.verbose(`Failed to validate sell route ${idOrLabel}:`, e);
+      throw new NotFoundException(`Payment route not found`);
+    }
+    return sellRoute;
+  }
+
+  async getPaymentLinksFromRoute(
+    routeIdOrLabel: string,
+    externalIds?: string[],
+    ids?: number[],
+  ): Promise<PaymentLink[]> {
+    const route = await this.getPaymentRoute(routeIdOrLabel, {
+      relations: { paymentLinks: true },
+      where: {
+        paymentLinks: [
+          ...(externalIds?.length ? [{ externalId: In(externalIds) }] : []),
+          ...(ids?.length ? [{ id: In(ids) }] : []),
+        ],
+      },
+      order: { paymentLinks: { created: 'ASC' } },
     });
+
+    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {

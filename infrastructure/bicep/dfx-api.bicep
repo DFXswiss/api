@@ -65,6 +65,8 @@ param paymentQuoteTimeout string
 param paymentTimeoutDelay string
 @secure()
 param paymentEvmSeed string
+@secure()
+param paymentSolanaSeed string
 param paymentMoneroAddress string
 param paymentBitcoinAddress string
 param paymentCheckbotSignTx string
@@ -112,6 +114,14 @@ param baseSwapContractAddress string
 param baseQuoteContractAddress string
 param baseChainId string
 
+param gnosisWalletAddress string
+@secure()
+param gnosisWalletPrivateKey string
+param gnosisGatewayUrl string
+param gnosisSwapContractAddress string
+param gnosisQuoteContractAddress string
+param gnosisChainId string
+
 param bscWalletAddress string
 @secure()
 param bscWalletPrivateKey string
@@ -134,6 +144,11 @@ param lightningLndAdminMacaroon string
 param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
+
+@secure()
+param solanaWalletSeed string
+param solanaGatewayUrl string
+param solanaTransactionPriorityRate string
 
 param zchfGraphUrl string
 param zchfContractAddress string
@@ -265,6 +280,10 @@ param delisenseKey string
 param alchemyApiKey string
 @secure()
 param alchemyAuthToken string
+@secure()
+param tatumApiKey string
+@secure()
+param tatumHmacKey string
 
 param customBalanceAssets string
 param customBalanceAddresses string
@@ -694,6 +713,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentEvmSeed
         }
         {
+          name: 'PAYMENT_SOLANA_SEED'
+          value: paymentSolanaSeed
+        }
+        {
           name: 'PAYMENT_MONERO_ADDRESS'
           value: paymentMoneroAddress
         }
@@ -834,6 +857,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: baseChainId
         }
         {
+          name: 'GNOSIS_WALLET_ADDRESS'
+          value: gnosisWalletAddress
+        }
+        {
+          name: 'GNOSIS_WALLET_PRIVATE_KEY'
+          value: gnosisWalletPrivateKey
+        }
+        {
+          name: 'GNOSIS_GATEWAY_URL'
+          value: gnosisGatewayUrl
+        }
+        {
+          name: 'GNOSIS_SWAP_CONTRACT_ADDRESS'
+          value: gnosisSwapContractAddress
+        }
+        {
+          name: 'GNOSIS_QUOTE_CONTRACT_ADDRESS'
+          value: gnosisQuoteContractAddress
+        }
+        {
+          name: 'GNOSIS_CHAIN_ID'
+          value: gnosisChainId
+        }
+        {
           name: 'BSC_WALLET_ADDRESS'
           value: bscWalletAddress
         }
@@ -908,6 +955,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'MONERO_RPC_CERTIFICATE'
           value: moneroRpcCertificate
+        }
+        {
+          name: 'SOLANA_WALLET_SEED'
+          value: solanaWalletSeed
+        }
+        {
+          name: 'SOLANA_GATEWAY_URL'
+          value: solanaGatewayUrl
+        }
+        {
+          name: 'SOLANA_TRANSACTION_PRIORITY_RATE'
+          value: solanaTransactionPriorityRate
         }
         {
           name: 'ZCHF_GRAPH_URL'
@@ -1192,6 +1251,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ALCHEMY_AUTH_TOKEN'
           value: alchemyAuthToken
+        }
+        {
+          name: 'TATUM_API_KEY'
+          value: tatumApiKey
+        }
+        {
+          name: 'TATUM_HMAC_KEY'
+          value: tatumHmacKey
         }
         {
           name: 'CUSTOM_BALANCE_ASSETS'

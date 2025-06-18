@@ -23,7 +23,7 @@ export class AdminController {
   @Post('mail')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
       if (dto.template === 'default') dto.template = 'user';
@@ -34,7 +34,7 @@ export class AdminController {
   @Post('sendLetter')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
     return this.letterService.sendLetter(sendLetterDto);
   }
@@ -42,7 +42,7 @@ export class AdminController {
   @Post('payout')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN), UserActiveGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async payout(@Body() request: PayoutRequestDto): Promise<void> {
     return this.adminService.payout(request);
   }

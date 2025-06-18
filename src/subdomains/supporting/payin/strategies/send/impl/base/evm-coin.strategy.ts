@@ -3,7 +3,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { EvmStrategy } from './evm.strategy';
-import { SendGroup } from './send.strategy';
+import { SendGroup, SendType } from './send.strategy';
 
 export abstract class EvmCoinStrategy extends EvmStrategy {
   constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
@@ -33,18 +33,13 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     }
   }
 
-  protected dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string> {
+  protected dispatchSend(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<string> {
     const { account, destinationAddress } = payInGroup;
 
-    return this.payInEvmService.sendNativeCoin(
-      account,
-      destinationAddress,
-      /**
-       * @note
-       * subtracting a fraction more from sent amount to compensate possible rounding issues.
-       * */
-      Util.round(this.getTotalGroupAmount(payInGroup) - estimatedNativeFee * 1.00001, 12),
-      estimatedNativeFee,
-    );
+    const groupAmount = this.getTotalGroupAmount(payInGroup, type);
+    // subtract fee for forwarding
+    const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 1.00001, 12) : groupAmount;
+
+    return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount);
   }
 }

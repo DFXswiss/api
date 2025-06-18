@@ -1,12 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/c2b-payment-link/dto/binance.dto';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { PaymentLinkStatus } from '../enums';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
-export class UpdatePaymentLinkBaseDto {
+export class UpdatePaymentLinkDto {
   @ApiPropertyOptional({ enum: PaymentLinkStatus })
   @IsOptional()
   @IsEnum(PaymentLinkStatus)
@@ -15,10 +16,13 @@ export class UpdatePaymentLinkBaseDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  webhookUrl?: string;
-}
+  label?: string;
 
-export class UpdatePaymentLinkDto extends UpdatePaymentLinkBaseDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  webhookUrl?: string;
+
   @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })
   @IsOptional()
   @Type(() => UpdatePaymentLinkConfigDto)
@@ -29,47 +33,83 @@ export class UpdatePaymentLinkDto extends UpdatePaymentLinkBaseDto {
 export class UpdatePaymentLinkInternalDto {
   @IsOptional()
   @IsString()
-  externalId: string;
+  externalId?: string;
 
   @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
-  street: string;
+  street?: string;
 
   @IsOptional()
   @IsString()
-  houseNumber: string;
+  houseNumber?: string;
 
   @IsOptional()
   @IsString()
-  zip: string;
+  zip?: string;
 
   @IsOptional()
   @IsString()
-  city: string;
+  city?: string;
 
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  country: Country;
+  country?: Country;
 
   @IsOptional()
   @IsString()
-  phone: string;
+  phone?: string;
 
   @IsOptional()
   @IsString()
-  mail: string;
+  mail?: string;
 
   @IsOptional()
   @IsString()
-  website: string;
+  regionManager?: string;
 
   @IsOptional()
   @IsString()
-  config: string;
+  storeManager?: string;
+
+  @IsOptional()
+  @IsString()
+  storeOwner?: string;
+
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @IsOptional()
+  @IsString()
+  config?: string;
+
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsOptional()
+  @IsString()
+  registrationNumber?: string;
+
+  @IsOptional()
+  @IsEnum(StoreType)
+  storeType?: StoreType;
+
+  @IsOptional()
+  @IsEnum(MerchantMCC)
+  merchantMcc?: MerchantMCC;
+
+  @IsOptional()
+  @IsEnum(GoodsType)
+  goodsType?: GoodsType;
+
+  @IsOptional()
+  @IsEnum(GoodsCategory)
+  goodsCategory?: GoodsCategory;
 }

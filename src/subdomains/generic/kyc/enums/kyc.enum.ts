@@ -17,7 +17,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.NATIONALITY_DATA,
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
     userData.accountType === AccountType.ORGANIZATION &&
-    !(userData.legalEntity === LegalEntity.LIMITED_LIABILITY_COMPANY && userData.organizationCountry?.symbol === 'CH')
+    !(userData.legalEntity === LegalEntity.GMBH && userData.organizationCountry?.symbol === 'CH')
       ? KycStepName.OWNER_DIRECTORY
       : null,
     [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
@@ -101,6 +101,7 @@ export enum KycStepStatus {
   OUTDATED = 'Outdated',
   DATA_REQUESTED = 'DataRequested',
   PAUSED = 'Paused',
+  ON_HOLD = 'OnHold',
 }
 
 export enum UrlType {

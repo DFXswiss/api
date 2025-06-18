@@ -17,15 +17,24 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
     });
   }
 
+  async getAllPaymentLinksByExternalLinkId(externalLinkId: string): Promise<PaymentLink[]> {
+    return this.find({
+      where: { externalId: Equal(externalLinkId) },
+      relations: { route: { user: { userData: true } } },
+    });
+  }
+
   async getHistoryByStatus(
     userId: number,
     paymentStatus: PaymentLinkPaymentStatus[],
     from: Date,
     to: Date,
+    externalLinkId?: string,
   ): Promise<PaymentLink[]> {
     return this.find({
       where: {
         route: { user: { id: userId }, active: true },
+        externalId: externalLinkId ? Equal(externalLinkId) : undefined,
         payments: { status: In(paymentStatus), created: Between(from, to) },
       },
       relations: { route: { user: { userData: true } }, payments: true },

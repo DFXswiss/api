@@ -17,7 +17,7 @@ export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
   LIQUIDITY_PENDING = 'LiquidityPending',
-  AML_PENDING = 'AmlPending',
+  CHECK_PENDING = 'CheckPending',
   KYC_REQUIRED = 'KycRequired',
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
@@ -28,6 +28,7 @@ export enum TransactionState {
   RETURN_PENDING = 'ReturnPending',
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
+  WAITING_FOR_PAYMENT = 'WaitingForPayment',
 }
 
 export enum TransactionReason {
@@ -54,6 +55,8 @@ export enum TransactionReason {
   USER_DELETED = 'UserDeleted',
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
+  KYC_DATA_NEEDED = 'KycDataNeeded',
+  BANK_TX_NEEDED = 'BankTxNeeded',
 }
 
 export const KycRequiredReason = [
@@ -97,11 +100,13 @@ export const TransactionReasonMapper: {
   [AmlReason.VIDEO_IDENT_NEEDED]: TransactionReason.VIDEO_IDENT_NEEDED,
   [AmlReason.MISSING_LIQUIDITY]: TransactionReason.MISSING_LIQUIDITY,
   [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
+  [AmlReason.KYC_DATA_NEEDED]: TransactionReason.KYC_DATA_NEEDED,
+  [AmlReason.BANK_TX_NEEDED]: TransactionReason.BANK_TX_NEEDED,
 };
 
 export class UnassignedTransactionDto {
-  @ApiProperty()
-  id: number;
+  @ApiPropertyOptional()
+  id?: number;
 
   @ApiProperty({ description: 'UID of the transaction' })
   uid: string;
@@ -139,8 +144,14 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
   chargebackTarget?: string;
 
-  @ApiPropertyOptional({ description: 'Chargeback amount in input asset' })
+  @ApiPropertyOptional({ description: 'Chargeback amount in chargeback asset' })
   chargebackAmount?: number;
+
+  @ApiPropertyOptional()
+  chargebackAsset?: string;
+
+  @ApiPropertyOptional({ description: 'Fiat ID for sell transaction refunds, asset ID otherwise' })
+  chargebackAssetId?: number;
 
   @ApiPropertyOptional()
   chargebackTxId?: string;

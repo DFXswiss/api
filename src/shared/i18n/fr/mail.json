@@ -56,7 +56,8 @@
             "crypto": {
                 "title": "Remboursement des fonds",
                 "salutation": "Vos fonds ont été remboursés sur votre adresse de wallet",
-                "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]"
+                "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]",
+                "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre remboursement:<br>[url:cliquez ici]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
@@ -87,7 +88,9 @@
                 "user_deactivated": "Votre adresse blockchain liée a été irrévocablement supprimée par vous. Vous pouvez toujours utiliser DFX avec d'autres adresses blockchain",
                 "video_ident_needed": "Vous devez compléter votre KYC avec un identifiant vidéo pour la transaction",
                 "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
-                "test_only": "Test"
+                "test_only": "Test",
+                "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction",
+                "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -172,21 +175,32 @@
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "kyc_data_needed": {
+                "title": "Données KYC requises",
+                "salutation": "Des informations personnelles sont nécessaires pour finaliser la transaction en cours",
+                "line1": "Malheureusement, nous avons besoin de vos données KYC pour votre transaction.",
+                "line2": "Cliquez sur le lien suivant et complétez au moins les premières étapes jusqu'à ce que vous ayez saisi votre nom et votre adresse:<br>[url:{urlText}]",
+                "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
+                "line4": "Il n'est pas nécessaire de procéder à une vérification complète, il suffit d'indiquer son nom et son adresse.",
+                "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "bank_tx_needed": {
+                "title": "Transaction bancaire requise",
+                "salutation": "Une transaction bancaire est nécessaire pour compléter votre transaction en cours",
+                "line1": "Malheureusement, nous avons besoin d'une transaction bancaire de votre part pour pouvoir exécuter votre transaction.",
+                "line2": "Vous pouvez acheter quelque chose via le site web de DFX Services en tant que transaction bancaire.",
+                "line3": "Une fois cette transaction reçue et payée, la transaction en cours sera également payée automatiquement.",
+                "line4": "Cela signifie qu'une seule transaction à partir de votre compte bancaire est nécessaire.",
+                "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
             }
         },
-        "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
-        "blockchain": "Blockchain",
-        "bank_account": "Compte bancaire",
-        "remittance_info": "Motif du paiement",
-        "transaction_id": "ID de la transaction",
-        "wallet_address": "Adresse du portefeuille",
-        "reimbursed": "Remboursés"
+        "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]"
     },
     "referral": {
         "title": "Paiement de la prime de parrainage",
         "salutation": "Votre prime de parrainage a été versée",
-        "output_amount": "Montant",
-        "payment_link": "Voici l'ID de transaction de votre prime de parrainage: [url:Link]",
+        "transaction_button": "Cliquez sur le bouton ci-dessous pour plus de détails sur votre récompense de parrainage:<br>[url:cliquez ici]",
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
     "kyc": {
@@ -196,9 +210,9 @@
             "message": "Votre vérification est terminée."
         },
         "failed": {
-            "title": "Votre identification a échoué",
-            "salutation": "Votre identification a échoué",
-            "message": "Votre identification a échoué pour la raison suivante:<br>{reason}",
+            "title": "Problème de vérification",
+            "salutation": "Il y a eu un problème avec votre vérification",
+            "message": "L'étape '{stepName}' n'a pas pu être achevée pour la raison suivante:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Votre compte est fusionné",
                 "user_data_blocked": "Erreur inconnue",
@@ -220,8 +234,29 @@
             "salutation": "Terminez votre vérification",
             "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
         },
+        "payment_data" : {
+            "title": "Accord de cession",
+            "salutation": "Accord de cession",
+            "message": "DFX offre à ses clients la possibilité de lui céder des créances impayées résultant de la vente de biens et de services afin de permettre le paiement au moyen de crypto-monnaiesAccord de cession. Le client a la possibilité de soumettre une réclamation en suspens via notre API (api.dfx.swiss) ou via le front-end sur app.dfx.swiss.<br>Le montant dû est versé au client après déduction d'une commission de traitement de 0,2 %. Selon la configuration propre au client, le paiement peut être effectué soit en crypto-monnaies, soit en monnaie fiduciaire par le biais d'une transaction bancaire.<br>Les conditions générales de DFX s'appliquent à toutes les transactions. La cession prend fin automatiquement à la clôture du compte DFX ou peut être résiliée immédiatement par DFX ou le client en cas de rupture de contrat ou d'insolvabilité.<br><br>D'accord sur {date}"
+        },
         "retry": "Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]",
-        "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]"
+        "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
+        "step_names": {
+            "ident": "Identification",
+            "personal_data": "Données personnelles",
+            "nationality_data": "Nationalité",
+            "legal_entity": "Personne juridique",
+            "owner_directory": "Annuaire des propriétaires",
+            "commercial_register": "Registre du commerce",
+            "signatory_power": "Pouvoir de signature",
+            "authority": "Procuration",
+            "beneficial_owner": "Bénéficiaire effectif",
+            "operational_activity": "Activité opérationnelle",
+            "financial_data": "Données complémentaires",
+            "additional_documents": "Documents supplémentaires",
+            "residence_permit": "Permis de séjour",
+            "dfx_approval": "Approbation DFX"
+        }
     },
     "account_merge": {
         "request": {

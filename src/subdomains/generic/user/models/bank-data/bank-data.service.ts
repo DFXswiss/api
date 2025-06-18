@@ -7,6 +7,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
@@ -16,7 +18,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -36,6 +38,7 @@ export class BankDataService {
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BANK_DATA_VERIFICATION, timeout: 1800 })
@@ -45,7 +48,7 @@ export class BankDataService {
 
   async checkUnverifiedBankDatas(): Promise<void> {
     const search: FindOptionsWhere<BankData> = {
-      type: Not(In([BankDataType.IDENT, BankDataType.USER, BankDataType.NAME_CHECK])),
+      type: Not(BankDataType.USER),
       comment: IsNull(),
     };
     const entities = await this.bankDataRepo.find({
@@ -53,7 +56,7 @@ export class BankDataService {
         { ...search, approved: false },
         { ...search, approved: IsNull() },
       ],
-      relations: { userData: true },
+      relations: { userData: { kycSteps: true } },
     });
 
     for (const entity of entities) {
@@ -69,10 +72,19 @@ export class BankDataService {
       )
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
-      if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type))
-        await this.nameCheckService.closeAndRefreshRiskStatus(entity);
+      if (entity.type === BankDataType.USER) return;
 
-      if ([BankDataType.IDENT, BankDataType.USER, BankDataType.NAME_CHECK].includes(entity.type)) return;
+      if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
+        if (
+          entity.userData.accountType === AccountType.PERSONAL ||
+          entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
+        ) {
+          await this.nameCheckService.closeAndRefreshRiskStatus(entity);
+          await this.bankDataRepo.update(entity.id, { comment: 'Pass' });
+        }
+
+        return;
+      }
 
       const existing = await this.bankDataRepo.findOne({
         where: { id: Not(entity.id), iban: entity.iban, approved: true },
@@ -143,6 +155,8 @@ export class BankDataService {
   }
 
   async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
+    if (!userData.kycSteps) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
+
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     return this.bankDataRepo.save(bankData);
   }
@@ -169,12 +183,13 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
-    if (bankData.type !== BankDataType.USER) {
-      dto.label = null;
-      dto.preferredCurrency = null;
-    }
+    if (dto.label || dto.preferredCurrency)
+      await this.bankDataRepo.update(
+        { userData: { id: bankData.userData.id }, iban: bankData.iban },
+        { label: dto.label, preferredCurrency: dto.preferredCurrency },
+      );
 
-    return this.bankDataRepo.save({ ...bankData, ...dto });
+    return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }
 
   async getBankData(id: number): Promise<BankData> {
@@ -243,7 +258,7 @@ export class BankDataService {
       await this.bankDataRepo
         .createQueryBuilder()
         .update('bank_data')
-        .set({ active: false })
+        .set({ active: false, default: false })
         .where('bank_data.userDataId = :userDataId', { userDataId })
         .andWhere('bank_data.id != :id', { id: entity.id })
         .andWhere('bank_data.iban = :iban', { iban: entity.iban })
@@ -313,9 +328,10 @@ export class BankDataService {
       type: BankDataType.USER,
       label: dto.label,
       preferredCurrency: dto.preferredCurrency,
+      default: dto.default,
     });
 
-    return this.bankDataRepo.save(bankData);
+    return this.bankDataRepo.saveWithUniqueDefault(bankData);
   }
 
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {

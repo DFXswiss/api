@@ -54,7 +54,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { assetId, orderIndex } = this.parseBuyParams(order.action.paramMap);
+    const { assetId, orderIndex, demandOnly } = this.parseBuyParams(order.action.paramMap);
 
     // get amount from previous order
     let relevantOrder = order;
@@ -63,14 +63,21 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
       if (!relevantOrder) throw new Error(`Previous order ${index + 1} not found`);
     }
 
-    const [_, balance, requested] = /\(balance: (.*), requested: (.*)\)/.exec(relevantOrder?.errorMessage ?? '') ?? [];
+    const [_, balance, minRequested, maxRequested] =
+      /\(balance: (.*), min. requested: (.*), max. requested: (.*)\)/.exec(relevantOrder?.errorMessage ?? '') ?? [];
 
-    if (!balance || !requested)
+    if (!balance || !minRequested || !maxRequested)
       throw new Error(`Error (${relevantOrder?.errorMessage}) of previous order ${relevantOrder.id} is invalid`);
 
-    const amount = +requested - +balance;
+    const minAmount = +minRequested - +balance;
+    const maxAmount = +maxRequested - +balance;
 
-    const pipeline = await this.liquidityManagementService.buyLiquidity(assetId, amount, true);
+    const pipeline = await this.liquidityManagementService.buyLiquidity(
+      assetId,
+      minAmount,
+      demandOnly ? minAmount : maxAmount,
+      true,
+    );
     return pipeline.id.toString();
   }
 
@@ -94,7 +101,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
         });
 
         throw new OrderNotProcessableException(
-          `Triggered pipeline ${pipeline.id} failed with error: ${failedOrder.errorMessage}`,
+          `Triggered pipeline ${pipeline.id} (rule ${pipeline.rule.id}) failed with error: ${failedOrder.errorMessage}`,
         );
     }
   }
@@ -110,13 +117,18 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseBuyParams(params: Record<string, unknown>): { assetId: number; orderIndex: number } {
+  private parseBuyParams(params: Record<string, unknown>): {
+    assetId: number;
+    orderIndex: number;
+    demandOnly: boolean;
+  } {
     const assetId = params.assetId as number | undefined;
     const orderIndex = (params.orderIndex as number | undefined) ?? 1;
+    const demandOnly = Boolean(params.demandOnly);
 
     if (!assetId || (orderIndex && orderIndex < 1))
       throw new Error(`Params provided to LiquidityPipelineAdapter.buy(...) command are invalid.`);
 
-    return { assetId, orderIndex };
+    return { assetId, orderIndex, demandOnly };
   }
 }

@@ -12,7 +12,6 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -70,7 +69,6 @@ export class AuthService {
     private readonly custodyProviderService: CustodyProviderService,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
-    private readonly lightningService: LightningService,
     private readonly refService: RefService,
     private readonly feeService: FeeService,
     private readonly userDataService: UserDataService,
@@ -151,6 +149,7 @@ export class AuthService {
         userData,
       },
       dto.specialCode ?? dto.discountCode,
+      dto.moderator,
     );
     return { accessToken: this.generateUserToken(user, userIp) };
   }
@@ -191,6 +190,8 @@ export class AuthService {
     } catch (e) {
       this.logger.warn(`Error while adding specialCode in user signIn ${user.id}:`, e);
     }
+
+    if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
 
     await this.siftService.login(user, userIp);
 
@@ -237,14 +238,14 @@ export class AuthService {
 
     // send notification
     await this.notificationService.sendMail({
-      type: MailType.USER,
+      type: MailType.USER_V2,
       context: MailContext.LOGIN,
       input: {
         userData,
         wallet: userData.wallet,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
-        suffix: [
+        texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
             key: `${MailTranslationKey.LOGIN}.message`,
@@ -256,7 +257,7 @@ export class AuthService {
           },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl },
+            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
@@ -361,13 +362,9 @@ export class AuthService {
 
     const blockchains = CryptoService.getBlockchainsBasedOn(address);
 
-    if (blockchains.includes(Blockchain.LIGHTNING)) {
-      if (isCustodial || /^[a-z0-9]{140,146}$/.test(signature)) {
-        // custodial Lightning wallet, only comparison check
-        return !dbSignature || signature === dbSignature;
-      }
-
-      key = await this.lightningService.getPublicKeyOfAddress(address);
+    if (blockchains.includes(Blockchain.LIGHTNING) && (isCustodial || /^[a-z0-9]{140,146}$/.test(signature))) {
+      // custodial Lightning wallet, only comparison check
+      return !dbSignature || signature === dbSignature;
     }
 
     let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);

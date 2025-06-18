@@ -26,6 +26,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
+import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -44,6 +45,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { BankDataService } from '../bank-data/bank-data.service';
+import { OrganizationDto } from '../organization/dto/organization.dto';
 import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
@@ -82,11 +84,13 @@ export class UserDataService {
     private readonly kycNotificationService: KycNotificationService,
     private readonly kycLogService: KycLogService,
     private readonly userDataNotificationService: UserDataNotificationService,
-    @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
+    @Inject(forwardRef(() => AccountMergeService))
+    private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
+    @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
@@ -208,9 +212,6 @@ export class UserDataService {
 
     // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
-      const pendingDfxApproval = userData.getStepsWith(KycStepName.DFX_APPROVAL).find((s) => !s.isCompleted);
-      if (pendingDfxApproval) await this.kycAdminService.updateKycStepInternal(pendingDfxApproval.complete());
-
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
       }
@@ -224,30 +225,31 @@ export class UserDataService {
 
     Object.assign(userData, dto);
 
-    await this.userDataRepo.save(userData);
+    if ([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType)) {
+      const organizationData: OrganizationDto = {
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        country: dto.organizationCountry,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      };
 
-    if (
-      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType) &&
-      !userData.organization
-    ) {
-      userData.organization = await this.organizationService.createOrganization({
-        ...dto,
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-      });
-    } else if (userData.organization) {
-      await this.organizationService.updateOrganizationInternal(userData.organization, {
-        ...dto,
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-      });
+      if (!userData.organization) {
+        userData.organization = await this.organizationService.createOrganization(organizationData);
+      } else if (userData.organization) {
+        await this.organizationService.updateOrganizationInternal(userData.organization, organizationData);
+      }
     }
+
+    await this.userDataRepo.save(userData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -257,7 +259,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[]): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.kyc.downloadTargets.reverse();
+    const downloadTargets = Config.fileDownloadConfig.reverse();
     let errorLog = '';
 
     for (const userDataId of userDataIds.reverse()) {
@@ -282,10 +284,12 @@ export class UserDataService {
 
       const applicableTargets = downloadTargets.filter((t) => !t.ignore?.(userData));
 
-      const allPrefixes = Array.from(new Set(applicableTargets.map((t) => t.prefixes(userData)).flat()));
+      const allPrefixes = Array.from(
+        new Set(applicableTargets.map((t) => t.files.map((f) => f.prefixes(userData))).flat(2)),
+      );
       const allFiles = await this.documentService.listFilesByPrefixes(allPrefixes);
 
-      for (const { id, name, fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of applicableTargets) {
+      for (const { id, name, files: fileConfig } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
         const subFolder = parentFolder.folder(folderName);
 
@@ -294,30 +298,32 @@ export class UserDataService {
           continue;
         }
 
-        const files = allFiles
-          .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
-          .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
-          .filter((f) => !filter || filter(f, userData));
+        for (const { name: fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+          const files = allFiles
+            .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
+            .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
+            .filter((f) => !filter || filter(f, userData));
 
-        if (!files.length) {
-          if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
-          errorLog += `Error: No file found for folder '${folderName}' for UserData ${userDataId}\n`;
-          continue;
-        }
+          if (!files.length) {
+            if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
+            errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
+            continue;
+          }
 
-        const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
+          const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
-        try {
-          const fileData = await this.documentService.downloadFile(
-            selectedFile.category,
-            userDataId,
-            selectedFile.type,
-            selectedFile.name,
-          );
-          const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
-          subFolder.file(filePath, fileData.data);
-        } catch (error) {
-          errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+          try {
+            const fileData = await this.documentService.downloadFile(
+              selectedFile.category,
+              userDataId,
+              selectedFile.type,
+              selectedFile.name,
+            );
+            const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+            subFolder.file(filePath, fileData.data);
+          } catch (error) {
+            errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+          }
         }
       }
     }
@@ -339,6 +345,26 @@ export class UserDataService {
     Object.assign(userData, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+
+    if (
+      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType ?? userData.accountType) &&
+      userData.organization
+    )
+      await this.organizationService.updateOrganizationInternal(userData.organization, {
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        country: dto.organizationCountry,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
 
     return userData;
   }
@@ -395,7 +421,7 @@ export class UserDataService {
         location: update.organizationLocation,
         houseNumber: update.organizationHouseNumber,
         zip: update.organizationZip,
-        country: update.organizationCountry,
+        country: organizationCountry,
       };
 
       update.organization = !userData.organization
@@ -433,10 +459,9 @@ export class UserDataService {
   }
 
   async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
-    const paymentLinksConfig = JSON.stringify({
-      ...JSON.parse(user.paymentLinksConfig || '{}'),
-      ...dto,
-    });
+    const mergedConfig = { ...JSON.parse(user.paymentLinksConfig || '{}'), ...dto };
+    const customConfig = Util.removeDefaultFields(mergedConfig, DefaultPaymentLinkConfig);
+    const paymentLinksConfig = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
 
     await this.userDataRepo.update(user.id, { paymentLinksConfig });
     user.paymentLinksConfig = paymentLinksConfig;
@@ -696,7 +721,7 @@ export class UserDataService {
     if (dto.verifiedName) {
       const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccounts();
       if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
-        throw new BadRequestException('VerifiedName includes a multiAccountIban');
+        throw new BadRequestException('VerifiedName includes a multiAccount');
     }
 
     if (dto.kycFileId) {
@@ -871,9 +896,11 @@ export class UserDataService {
             KycStepStatus.PARTIALLY_APPROVED,
             KycStepStatus.DATA_REQUESTED,
             KycStepStatus.PAUSED,
+            KycStepStatus.ON_HOLD,
           ].includes(kycStep.status)
             ? KycStepStatus.CANCELED
             : undefined,
+          undefined,
           undefined,
           kycStep.sequenceNumber + sequenceNumberOffset,
         ),
@@ -936,7 +963,7 @@ export class UserDataService {
     await this.updateVolumes(slaveId);
 
     // activate users
-    if (master.hasActiveUser) {
+    if (master.hasActiveUser || slave.status === UserDataStatus.ACTIVE) {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {

@@ -45,4 +45,8 @@ export class Sell extends DepositRoute {
   get userData(): UserData {
     return this.user.userData;
   }
+
+  get targetAccount(): string {
+    return this.iban;
+  }
 }

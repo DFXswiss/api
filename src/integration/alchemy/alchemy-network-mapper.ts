@@ -27,6 +27,9 @@ export class AlchemyNetworkMapper {
 
     [56, Network.BNB_MAINNET],
     [97, Network.BNB_TESTNET],
+
+    [100, Network.GNOSIS_MAINNET],
+    [10200, Network.GNOSIS_CHIADO],
   ]);
 
   static toAlchemyNetworkByChainId(chainId: number): Network | undefined {
@@ -45,6 +48,7 @@ export class AlchemyNetworkMapper {
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,
       Blockchain.BASE,
+      Blockchain.GNOSIS,
     ];
 
     if (Config.environment === Environment.PRD) {

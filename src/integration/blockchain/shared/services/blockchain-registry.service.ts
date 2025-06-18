@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BaseService } from '../../base/base.service';
+import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
+import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
+import { GnosisService } from '../../gnosis/gnosis.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
 import { PolygonService } from '../../polygon/polygon.service';
+import { SolanaService } from '../../solana/services/solana.service';
+import { SolanaClient } from '../../solana/solana-client';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
@@ -21,10 +26,13 @@ export class BlockchainRegistryService {
     private readonly optimismService: OptimismService,
     private readonly polygonService: PolygonService,
     private readonly baseService: BaseService,
+    private readonly gnosisService: GnosisService,
     private readonly moneroService: MoneroService,
+    private readonly bitcoinService: BitcoinService,
+    private readonly solanaService: SolanaService,
   ) {}
 
-  getClient(blockchain: Blockchain): EvmClient | MoneroClient {
+  getClient(blockchain: Blockchain): EvmClient | MoneroClient | BitcoinClient | SolanaClient {
     return this.getService(blockchain).getDefaultClient();
   }
 
@@ -34,7 +42,14 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient();
   }
 
-  getService(blockchain: Blockchain): EvmService | MoneroService {
+  getBitcoinClient(blockchain: Blockchain, type: BitcoinNodeType): BitcoinClient {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof BitcoinService))
+      throw new Error(`No bitcoin client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient(type);
+  }
+
+  getService(blockchain: Blockchain): EvmService | MoneroService | BitcoinService | SolanaService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
@@ -48,8 +63,14 @@ export class BlockchainRegistryService {
         return this.polygonService;
       case Blockchain.BASE:
         return this.baseService;
+      case Blockchain.GNOSIS:
+        return this.gnosisService;
       case Blockchain.MONERO:
         return this.moneroService;
+      case Blockchain.BITCOIN:
+        return this.bitcoinService;
+      case Blockchain.SOLANA:
+        return this.solanaService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);
@@ -66,6 +87,8 @@ export class BlockchainRegistryService {
         return this.polygonService.getDefaultClient();
       case Blockchain.BASE:
         return this.baseService.getDefaultClient();
+      case Blockchain.GNOSIS:
+        return this.gnosisService.getDefaultClient();
 
       default:
         throw new Error(`No l2 client found for blockchain ${blockchain}`);

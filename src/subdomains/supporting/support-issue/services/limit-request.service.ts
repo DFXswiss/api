@@ -7,7 +7,7 @@ import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-
 import { WebhookService } from '../../../generic/user/services/webhook/webhook.service';
 import { LimitRequestDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
-import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
+import { LimitRequest, LimitRequestAccepted, LimitRequestFinal } from '../entities/limit-request.entity';
 import { SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
@@ -60,17 +60,16 @@ export class LimitRequestService {
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
     const entity = await this.limitRequestRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('LimitRequest not found');
+    if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
     const update = this.limitRequestRepo.create(dto);
 
-    if (dto.decision !== entity.decision) {
+    if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
       await this.supportIssueRepo.update(entity.supportIssue.id, {
         state: SupportIssueState.COMPLETED,
       });
       if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
     }
-
-    Util.removeNullFields(entity);
 
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
@@ -78,7 +77,7 @@ export class LimitRequestService {
       ...update,
     });
 
-    return this.limitRequestRepo.save({ ...update, ...entity });
+    return this.limitRequestRepo.save({ ...entity, ...Util.removeNullFields(update) });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

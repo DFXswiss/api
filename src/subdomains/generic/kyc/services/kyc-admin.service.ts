@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
-import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
+import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
@@ -22,6 +23,8 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
+    @Inject(forwardRef(() => UserDataService))
+    private readonly userDataService: UserDataService,
   ) {}
 
   async getKycSteps(userDataId: number, relations: FindOptionsRelations<KycStep> = {}): Promise<KycStep[]> {
@@ -31,11 +34,21 @@ export class KycAdminService {
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },
-      relations: { userData: { bankDatas: true, wallet: true } },
+      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true } },
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
-    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result));
+    await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
+
+    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
+    if (kycStep.isFailed && kycStep.comment)
+      await this.kycNotificationService.kycStepFailed(
+        kycStep.userData,
+        this.kycService.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
+        kycStep.name === KycStepName.IDENT
+          ? this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol)
+          : kycStep.comment,
+      );
 
     switch (kycStep.name) {
       case KycStepName.COMMERCIAL_REGISTER:
@@ -44,12 +57,14 @@ export class KycAdminService {
 
       case KycStepName.IDENT:
         if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
-        if (kycStep.isFailed)
-          await this.kycNotificationService.identFailed(
-            kycStep.userData,
-            this.kycService.getMailFailedReason(kycStep.comment, kycStep.userData.language.symbol),
-          );
+        break;
 
+      case KycStepName.DFX_APPROVAL:
+        if (kycStep.isCompleted && kycStep.userData.kycLevel < KycLevel.LEVEL_50)
+          await this.userDataService.updateUserDataInternal(kycStep.userData, {
+            kycLevel: KycLevel.LEVEL_50,
+            kycStatus: KycStatus.COMPLETED,
+          });
         break;
     }
   }

@@ -95,6 +95,12 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return Price.create(from, to, direction === OrderSide.BUY ? orderPrice : 1 / orderPrice);
   }
 
+  async getCurrentPrice(from: string, to: string): Promise<number> {
+    const { pair, direction } = await this.getTradePair(from, to);
+    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    return direction === OrderSide.BUY ? price : 1 / price;
+  }
+
   async getTrades(from?: string, to?: string, since?: Date): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
     return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
@@ -117,10 +123,14 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.trade(from, to, amount);
   }
 
-  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+  async getTrade(id: string, from: string, to: string): Promise<Order> {
     const pair = await this.getPair(from, to);
 
-    const order = await this.callApi((e) => e.fetchOrder(id, pair));
+    return this.callApi((e) => e.fetchOrder(id, pair));
+  }
+
+  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+    const order = await this.getTrade(id, from, to);
 
     switch (order.status) {
       case OrderStatus.OPEN:
@@ -182,16 +192,16 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {
-    const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50));
+    const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50, { limit: 50 }));
     return withdrawals.find((w) => w.id === id);
   }
 
   async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 50));
+    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 200, { limit: 200 }));
   }
 
   async getWithdrawals(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 50));
+    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 200, { limit: 200 }));
   }
 
   // --- Helper Methods --- //
@@ -250,19 +260,13 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return Util.sort(trades, 'timestamp', 'DESC')[0].price;
   }
 
-  private async getCurrentPrice(from: string, to: string): Promise<number> {
-    const { pair, direction } = await this.getTradePair(from, to);
-    const price = await this.fetchCurrentOrderPrice(pair, direction);
-    return direction === OrderSide.BUY ? price : 1 / price;
-  }
-
   private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
     const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
 
     const { price: pricePrecision } = await this.getPrecision(pair);
 
-    const price =
-      direction == OrderSide.BUY ? orderBook.asks[0][0] - pricePrecision : orderBook.bids[0][0] + pricePrecision;
+    const priceOffset = 0; // positive for better price
+    const price = direction === OrderSide.BUY ? orderBook.asks[0][0] - priceOffset : orderBook.bids[0][0] + priceOffset;
 
     return Util.roundToValue(price, pricePrecision);
   }
@@ -270,20 +274,12 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   // orders
 
   private async trade(from: string, to: string, amount: number): Promise<string> {
-    // check balance
-    const balance = await this.getAvailableBalance(from);
-    if (amount > balance) {
-      throw new BadRequestException(
-        `${this.name}: not enough balance for ${from} (balance: ${balance}, requested: ${amount})`,
-      );
-    }
-
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
     const { amount: amountPrecision } = await this.getPrecision(pair);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
 
-    const orderAmount = Util.roundToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+    const orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
 
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 

@@ -55,9 +55,17 @@ type PairId = {
 // asset log
 type AssetLogPlusBalance = {
   total: number;
-  liquidity?: number;
+  liquidity?: AssetLogLiquidity;
+  custom?: AssetLogPlusCustom;
   pending?: AssetLogPlusPending;
   monitoring?: AssetLogMonitoring;
+};
+
+type AssetLogLiquidity = {
+  total: number;
+  liquidityBalance?: number;
+  paymentDepositBalance?: number;
+  manualLiqPosition?: number;
 };
 
 type AssetLogMinusBalance = {
@@ -72,6 +80,11 @@ type AssetLogMonitoring = {
   toKrakenBankTxIds: string;
   fromKrakenExchangeTxIds: string;
   toKrakenExchangeTxIds: string;
+};
+
+type AssetLogPlusCustom = {
+  total: number;
+  [customAddress: string]: number;
 };
 
 type AssetLogPlusPending = {
