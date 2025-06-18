@@ -654,7 +654,9 @@ export class UserData extends IEntity {
   }
 
   get isDataComplete(): boolean {
-    return this.requiredKycFields.every((f) => this[f]);
+    return this.requiredKycFields.every((f) =>
+      f.includes('organization') ? this.organization[f.split('organization')[1].toLowerCase()] : this[f],
+    );
   }
 
   get hasBankTxVerification(): boolean {
