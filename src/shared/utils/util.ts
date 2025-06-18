@@ -588,7 +588,10 @@ export class Util {
 
   static sanitize({ value }: TransformFnParams): string | undefined {
     return value
-      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
+      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' }).replace(
+          /&amp;/g,
+          '&',
+        )
       : value;
   }
 

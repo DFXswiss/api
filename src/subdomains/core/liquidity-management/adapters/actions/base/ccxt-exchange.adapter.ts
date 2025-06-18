@@ -378,7 +378,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   } {
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
-    const fullTrade = Boolean(params.fullTrade);
+    const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 

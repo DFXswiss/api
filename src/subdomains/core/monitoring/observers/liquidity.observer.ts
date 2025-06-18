@@ -13,6 +13,7 @@ import { TradingOrderStatus, TradingRuleStatus } from '../../trading/enums';
 interface LiquidityData {
   stuckTradingOrderCount: number;
   stuckTradingRuleCount: number;
+  stuckLiquidityOrderCount: number;
   safetyModeActive: boolean;
 }
 
@@ -47,6 +48,10 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
       }),
       stuckTradingRuleCount: await this.repos.tradingRule.countBy({
         status: In([TradingRuleStatus.PAUSED, TradingRuleStatus.PROCESSING]),
+        updated: LessThan(Util.minutesBefore(30)),
+      }),
+      stuckLiquidityOrderCount: await this.repos.liquidityOrder.countBy({
+        isComplete: false,
         updated: LessThan(Util.minutesBefore(30)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),

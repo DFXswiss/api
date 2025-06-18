@@ -183,10 +183,11 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
-    if (bankData.type !== BankDataType.USER) {
-      dto.label = null;
-      dto.preferredCurrency = null;
-    }
+    if (dto.label || dto.preferredCurrency)
+      await this.bankDataRepo.update(
+        { userData: { id: bankData.userData.id }, iban: bankData.iban },
+        { label: dto.label, preferredCurrency: dto.preferredCurrency },
+      );
 
     return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }
