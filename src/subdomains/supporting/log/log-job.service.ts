@@ -513,32 +513,32 @@ export class LogJobService {
       const errors = [];
 
       if (fromKraken !== fromKrakenUnfiltered) {
-        // errors.push(`fromKraken !== fromKrakenUnfiltered`);
-        // this.logger
-        //   .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount:
-        // ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
+        errors.push(`fromKraken !== fromKrakenUnfiltered`);
+        this.logger
+          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount:
+        ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
       if (toKraken !== toKrakenUnfiltered) {
-        // errors.push(`toKraken !== toKrakenUnfiltered`);
-        // this.logger
-        //   .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
-        // ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
+        errors.push(`toKraken !== toKrakenUnfiltered`);
+        this.logger
+          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
+        ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
       if (fromKraken < 0) {
-        // errors.push(`fromKraken < 0`);
-        // this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
-        // ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
-        // pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
+        errors.push(`fromKraken < 0`);
+        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
+        pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
-        // errors.push(`toKraken < 0`);
-        // this.logger.verbose(
-        //   `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
-        //   ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
-        //   pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
+        errors.push(`toKraken < 0`);
+        this.logger.verbose(
+          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
+          pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
         // );
         toKraken = 0;
       }
