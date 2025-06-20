@@ -649,13 +649,19 @@ export class UserData extends IEntity {
     return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
       !this.accountType || this.accountType === AccountType.PERSONAL
         ? []
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
+        : [
+            'organization.name',
+            'organization.street',
+            'organization.location',
+            'organization.zip',
+            'organization.country',
+          ],
     );
   }
 
   get isDataComplete(): boolean {
     return this.requiredKycFields.every((f) =>
-      f.includes('organization') ? this.organization[f.split('organization')[1].toLowerCase()] : this[f],
+      f.includes('organization') ? this.organization[f.split('.')[1]] : this[f],
     );
   }
 
