@@ -14,6 +14,7 @@ export interface TransferInfo {
   quoteUniqueId: string;
   tx: string;
   hex: string;
+  referId?: string;
 }
 
 export interface TransferAmount {
