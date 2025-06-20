@@ -465,11 +465,11 @@ export class PaymentLinkService {
     routeLabel: string,
     externalLinkId: string,
   ): Promise<PaymentLink> {
-    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
+
+    const route = existingPaymentLink?.route?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
 
-    const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId).catch(() => null);
-    
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
     const userAccessKeys = route.userData.paymentLinksConfigObj.accessKeys ?? [];
     const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
