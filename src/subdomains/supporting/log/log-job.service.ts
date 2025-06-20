@@ -539,7 +539,7 @@ export class LogJobService {
           `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
           ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
-        // );
+        );
         toKraken = 0;
       }
 
