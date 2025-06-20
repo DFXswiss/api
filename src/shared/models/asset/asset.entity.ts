@@ -133,4 +133,8 @@ export class Asset extends IEntity {
       this.paymentEnabled
     );
   }
+
+  get liquidityCapacity(): number {
+    return (this.liquidityManagementRule?.limit ?? Infinity) - (this.balance?.amount ?? 0);
+  }
 }

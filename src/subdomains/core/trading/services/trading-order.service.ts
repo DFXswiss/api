@@ -99,9 +99,7 @@ export class TradingOrderService implements OnModuleInit {
 
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
     // fetch output liquidity limit
-    const outSwapLimit =
-      (order.assetOut.liquidityManagementRule?.limit ?? Infinity) - (order.assetOut.balance?.amount ?? 0);
-    const swapLimit = Util.round(outSwapLimit * (order.amountIn / order.amountExpected), 8);
+    const swapLimit = Util.round(order.assetOut.liquidityCapacity * (order.amountIn / order.amountExpected), 8);
 
     // fetch input liquidity
     const liquidityRequest: ReserveLiquidityRequest = {
