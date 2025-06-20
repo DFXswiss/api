@@ -49,6 +49,7 @@ export enum AmlError {
   SUSPICIOUS_MAIL = 'SuspiciousMail',
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
+  MAX_LIQ_AMOUNT_EXCEEDED = 'MaxLiqAmountExceeded',
 }
 
 export enum AmlErrorType {
@@ -210,5 +211,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.VIDEO_IDENT_NEEDED,
+  },
+  [AmlError.MAX_LIQ_AMOUNT_EXCEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
   },
 };

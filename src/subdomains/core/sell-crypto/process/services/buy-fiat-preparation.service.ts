@@ -65,7 +65,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
       ],
       relations: {
-        cryptoInput: true,
+        cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         sell: true,
         transaction: { user: { wallet: true }, userData: true },
         bankData: true,
