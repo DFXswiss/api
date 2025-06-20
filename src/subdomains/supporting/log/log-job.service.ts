@@ -384,7 +384,10 @@ export class LogJobService {
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
+      const liquidity =
+        (curr.balance?.amount < 0 && curr.id === 268 ? 0 : curr.balance?.amount ?? 0) +
+        (paymentDepositBalance ?? 0) +
+        (manualLiqPosition ?? 0);
 
       const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
         ? 0
