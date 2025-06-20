@@ -181,7 +181,7 @@ export class AmlHelperService {
       } else {
         // swap
         if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
-          errors.push(AmlError.MAX_LIQ_AMOUNT_EXCEEDED);
+          errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
         if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -190,7 +190,7 @@ export class AmlHelperService {
     } else {
       // buyFiat
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
-        errors.push(AmlError.MAX_LIQ_AMOUNT_EXCEEDED);
+        errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
