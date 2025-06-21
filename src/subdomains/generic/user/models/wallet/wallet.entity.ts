@@ -70,7 +70,7 @@ export class Wallet extends IEntity {
     return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;
   }
 
-  get disabledMailTypes(): MailContextType[] | undefined {
+  get disabledMailTypes(): MailContextType[] {
     return this.mailConfig ? (this.mailConfig?.split(';') as MailContextType[]) : [];
   }
 
