@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetSwapPaymentInfoDto {
@@ -45,6 +46,7 @@ export class GetSwapPaymentInfoDto {
   @ApiPropertyOptional({ description: 'Custom transaction id' })
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   externalTransactionId?: string;
 
   //eslint-disable-next-line @typescript-eslint/no-inferrable-types

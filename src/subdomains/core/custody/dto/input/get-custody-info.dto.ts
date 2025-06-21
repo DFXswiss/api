@@ -19,16 +19,19 @@ export class GetCustodyInfoDto {
   @IsString()
   @IsDfxIban(IbanType.SELL)
   @Transform(Util.trimAll)
+  @Transform(Util.sanitize)
   iban?: string;
 
   @ApiProperty({ description: 'Source asset name, Asset or Fiat' })
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   sourceAsset: string;
 
   @ApiProperty({ description: 'Target asset name, Asset or Fiat' })
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   targetAsset: string;
 
   @ApiPropertyOptional({ description: 'Amount in source asset' })

@@ -21,6 +21,7 @@ export class CreateSellDto {
   @IsString()
   @IsDfxIban(IbanType.SELL)
   @Transform(Util.trimAll)
+  @Transform(Util.sanitize)
   iban: string;
 
   // TODO: remove

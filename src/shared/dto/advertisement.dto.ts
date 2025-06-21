@@ -1,9 +1,11 @@
+import { Transform, Type } from 'class-transformer';
 import { IsDate, IsOptional, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Util } from '../utils/util';
 
 export class AdvertisementDto {
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   id: string;
 
   @IsOptional()
@@ -13,6 +15,7 @@ export class AdvertisementDto {
 
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   lang: string;
 }
 

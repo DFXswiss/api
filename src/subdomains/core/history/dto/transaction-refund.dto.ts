@@ -8,5 +8,6 @@ export class TransactionRefundDto {
   @IsNotEmpty()
   @IsString()
   @Transform(Util.trimAll)
+  @Transform(Util.sanitize)
   refundTarget: string;
 }

@@ -26,6 +26,7 @@ export class GetBuyPaymentInfoDto {
   @IsString()
   @IsDfxIban(IbanType.BUY)
   @Transform(Util.trimAll)
+  @Transform(Util.sanitize)
   iban?: string;
 
   @ApiProperty({ type: EntityDto, description: 'Source currency' })
@@ -61,6 +62,7 @@ export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional({ description: 'Custom transaction id' })
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   externalTransactionId?: string;
 
   //eslint-disable-next-line @typescript-eslint/no-inferrable-types

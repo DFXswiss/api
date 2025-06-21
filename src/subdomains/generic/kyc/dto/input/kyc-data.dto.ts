@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { plainToInstance, Transform, Type } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -85,6 +85,7 @@ export class KycPersonalData {
   @IsString()
   @IsDfxPhone()
   @Transform(DfxPhoneTransform)
+  @Transform(Util.sanitize)
   phone: string;
 
   @ApiProperty({ type: KycAddress })
@@ -179,6 +180,7 @@ export class KycOperationalData {
   @ApiPropertyOptional({ description: 'Organization Website URL' })
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   websiteUrl: string;
 }
 

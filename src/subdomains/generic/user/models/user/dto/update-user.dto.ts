@@ -5,6 +5,7 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
+import { Util } from 'src/shared/utils/util';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
@@ -12,6 +13,7 @@ export class UpdateUserDto {
   @IsString()
   @IsDfxPhone()
   @Transform(DfxPhoneTransform)
+  @Transform(Util.sanitize)
   phone?: string;
 
   @ApiPropertyOptional({ type: EntityDto })
