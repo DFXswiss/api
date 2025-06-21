@@ -623,14 +623,14 @@ export class LogJobService {
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
               }
             : undefined,
-          monitoring: errors.length
-            ? {
-                fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
-                fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
-                toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
-                toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
-              }
-            : undefined,
+          // monitoring: errors.length
+          //   ? {
+          //       fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
+          //       fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
+          //       toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+          //       toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
+          //     }
+          //   : undefined,
         },
         minusBalance: {
           total: this.getJsonValue(totalMinus, amountType(curr), true),
@@ -651,7 +651,7 @@ export class LogJobService {
               }
             : undefined,
         },
-        error: errors.length ? errors.join(';') : undefined,
+        // error: errors.length ? errors.join(';') : undefined,
       };
 
       return prev;
