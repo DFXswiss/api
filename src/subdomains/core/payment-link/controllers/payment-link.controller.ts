@@ -205,11 +205,10 @@ export class PaymentLinkController {
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
     if (key) {
-      if (!route || !externalLinkId)
-        throw new BadRequestException('when using access key, route and externalLinkId must be provided');
+      if (!externalLinkId) throw new BadRequestException('External Link ID is required');
 
       return this.paymentLinkService
-        .createPaymentForRouteWithAccessKey(dto, key, route, externalLinkId)
+        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
         .then(PaymentLinkDtoMapper.toLinkDto);
     }
 

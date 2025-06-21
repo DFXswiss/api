@@ -473,16 +473,18 @@ export class PaymentLinkService {
   async createPaymentForRouteWithAccessKey(
     dto: CreatePaymentLinkPaymentDto,
     key: string,
-    routeLabel: string,
     externalLinkId: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
-    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
+    if (!existingPaymentLink && !routeLabel)
+      throw new BadRequestException('Route label is required');
+
+    const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
 
-    const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId).catch(() => null);
-
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
-    const userAccessKeys = route.userData.paymentLinksConfigObj.accessKeys ?? [];
+    const userAccessKeys = route.user.userData.paymentLinksConfigObj.accessKeys ?? [];
     const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
     if (!hasAccessKey) throw new UnauthorizedException('Invalid access key');
 
