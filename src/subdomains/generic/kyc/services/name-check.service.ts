@@ -72,7 +72,7 @@ export class NameCheckService implements OnModuleInit {
     const { data: businessSanctionData, file: businessSanctionFile } = await this.getRiskDataAndUploadPdf(
       bankData.userData,
       true,
-      bankData.userData.organizationName,
+      bankData.userData.organization.name,
     );
 
     const riskStatus = [
