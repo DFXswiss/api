@@ -215,6 +215,7 @@ export class MailFactory {
   //*** MAIL BUILDING METHODS ***//
 
   private isDisabledMailWallet(context: MailContext, wallet: Wallet): boolean {
+    if (wallet && !wallet.disabledMailTypes) wallet = Object.assign(new Wallet(), wallet);
     const mailContextType = MailContextTypeMapper[context];
     return (
       mailContextType &&
