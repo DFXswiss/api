@@ -93,6 +93,7 @@ export const MailContextTypeMapper: {
   [MailContext.KYC_FAILED]: MailContextType.KYC,
   [MailContext.KYC_REMINDER]: MailContextType.KYC,
   [MailContext.KYC_PAYMENT_DATA]: MailContextType.KYC,
+  [MailContext.KYC_MISSING_DATA]: MailContextType.KYC,
   [MailContext.REF_REWARD]: MailContextType.REF_REWARD,
   [MailContext.MONITORING]: null,
   [MailContext.WEBHOOK]: null,
