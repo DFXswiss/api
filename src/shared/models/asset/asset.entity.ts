@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
@@ -104,6 +105,9 @@ export class Asset extends IEntity {
   @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
   liquidityManagementRule: LiquidityManagementRule;
 
+  @OneToOne(() => LiquidityBalance, (b) => b.asset)
+  balance?: LiquidityBalance;
+
   @OneToMany(() => AssetPrice, (assetPrice) => assetPrice.asset)
   prices: AssetPrice[];
 
@@ -128,5 +132,9 @@ export class Asset extends IEntity {
       this.instantSellable ||
       this.paymentEnabled
     );
+  }
+
+  get liquidityCapacity(): number {
+    return (this.liquidityManagementRule?.limit ?? Infinity) - (this.balance?.amount ?? 0);
   }
 }

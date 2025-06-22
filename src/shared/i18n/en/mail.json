@@ -239,6 +239,11 @@
             "salutation": "Complete your verification",
             "message": "We have noticed that you have not completed your verification."
         },
+        "payment_data" : {
+            "title": "Assignment agreement",
+            "salutation": "Assignment agreement",
+            "message": "DFX offers its customers the option of assigning outstanding receivables from the sale of goods and services to DFX to enable payment using cryptocurrencies. The customer has the option of submitting an outstanding claim via our API (api.dfx.swiss) or via the front end on app.dfx.swiss.<br>The amount owed is paid out to the customer after deduction of a processing fee of 0.2%. Depending on the customer-specific configuration, the payout can be made either in cryptocurrencies or as fiat currency via bank transaction.<br>The DFX General Terms and Conditions apply to all transactions. The assignment ends automatically when the DFX account is closed or can be terminated immediately by DFX or the customer in the event of breaches of contract or insolvency.<br><br>Agreed on {date}"
+        },
         "retry": "Please try it again with the following URL:<br>[url:{urlText}]",
         "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]",
         "step_names": {

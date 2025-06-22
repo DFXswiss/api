@@ -65,7 +65,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
       ],
       relations: {
-        cryptoInput: true,
+        cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         sell: true,
         transaction: { user: { wallet: true }, userData: true },
         bankData: true,
@@ -167,7 +167,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
       relations: {
         sell: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true, userData: true }, userData: true },
       },
     });
 
@@ -363,11 +363,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
       },
     });
 
-    const buyFiatsToPayout = buyFiatsWithoutOutput.filter(
-      (bf) =>
-        !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
-        bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
-    );
+    const buyFiatsToPayout = buyFiatsWithoutOutput
+      .filter((bf) => !bf.userData.paymentLinksConfigObj.requiresConfirmation || bf.paymentLinkPayment?.isConfirmed)
+      .filter(
+        (bf) =>
+          !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
+          bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
+      );
 
     // immediate payouts
     const immediateOutputs = buyFiatsToPayout.filter(

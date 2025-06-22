@@ -21,11 +21,13 @@ export class BinanceService extends ExchangeService {
     Optimism: 'OPTIMISM',
     Polygon: 'MATIC',
     Base: 'BASE',
+    Gnosis: undefined,
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
-    Solana: undefined,
+    BinancePay: undefined,
+    Solana: 'SOL',
   };
 
   constructor() {

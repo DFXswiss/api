@@ -15,15 +15,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CronExpression } from '@nestjs/schedule';
-import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiExcludeEndpoint,
-  ApiOkResponse,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -151,7 +143,7 @@ export class TransactionController {
   }
 
   @Put('csv')
-  @ApiCreatedResponse()
+  @ApiOkResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createCsv(@Query() query: HistoryQueryUser): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory({ ...query, format: ExportFormat.CSV }, ExportType.COMPACT);
@@ -236,7 +228,7 @@ export class TransactionController {
   @Put('detail/csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
-  @ApiCreatedResponse()
+  @ApiOkResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
     const transactions = await this.getAllTransactionsDetailed(jwt.account, query);
@@ -248,11 +240,7 @@ export class TransactionController {
 
   @Get('unassigned')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.ACCOUNT),
-    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
@@ -483,12 +471,11 @@ export class TransactionController {
   // --- HELPER METHODS --- //
 
   private async getTransactionDto(
-    tx: Transaction | TransactionRequest,
+    tx: Transaction | TransactionRequest | undefined,
     detailed = false,
   ): Promise<UnassignedTransactionDto | TransactionDto | undefined> {
-    return tx instanceof Transaction
-      ? this.txToTransactionDto(tx, detailed)
-      : this.waitingTxRequestToTransactionDto(tx, detailed);
+    if (tx instanceof Transaction) return this.txToTransactionDto(tx, detailed);
+    if (tx instanceof TransactionRequest) return this.waitingTxRequestToTransactionDto(tx, detailed);
   }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {

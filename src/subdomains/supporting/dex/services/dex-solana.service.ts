@@ -19,8 +19,12 @@ export class DexSolanaService {
     this.solanaClient = solanaService.getDefaultClient();
   }
 
-  async sendTransfer(address: string, amount: number): Promise<string> {
+  async sendNativeCoin(address: string, amount: number): Promise<string> {
     return this.solanaClient.sendNativeCoinFromDex(address, amount);
+  }
+
+  async sendToken(address: string, token: Asset, amount: number): Promise<string> {
+    return this.solanaClient.sendTokenFromDex(address, token, amount);
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

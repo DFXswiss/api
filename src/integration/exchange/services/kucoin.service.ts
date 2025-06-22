@@ -21,10 +21,12 @@ export class KucoinService extends ExchangeService {
     Optimism: undefined,
     Polygon: undefined,
     Base: undefined,
+    Gnosis: undefined,
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
+    BinancePay: undefined,
     Solana: undefined,
   };
 

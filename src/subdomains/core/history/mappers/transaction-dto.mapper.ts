@@ -388,7 +388,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
       case CheckStatus.GSHEET:
         if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
-        return { state: TransactionState.AML_PENDING, reason };
+        return { state: TransactionState.CHECK_PENDING, reason };
 
       case CheckStatus.FAIL:
         if (
@@ -434,7 +434,7 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
       case CheckStatus.GSHEET:
         if (LimitExceededReason.includes(reason)) return { state: TransactionState.LIMIT_EXCEEDED, reason };
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
-        return { state: TransactionState.AML_PENDING, reason };
+        return { state: TransactionState.CHECK_PENDING, reason };
 
       case CheckStatus.FAIL:
         if (entity.chargebackDate && entity.chargebackTxId) return { state: TransactionState.RETURNED, reason };

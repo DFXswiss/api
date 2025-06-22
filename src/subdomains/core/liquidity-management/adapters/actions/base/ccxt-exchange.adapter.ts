@@ -8,6 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
+import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotNecessaryException } from '../../../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
@@ -96,7 +97,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
 
-    const amount = Math.min(order.maxAmount, balance);
+    const amount = Util.floor(Math.min(order.maxAmount, balance), 6);
 
     order.inputAmount = amount;
     order.inputAsset = token;
@@ -132,8 +133,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const price = await this.exchangeService.getCurrentPrice(tradeAsset, asset);
 
-    const minSellAmount = Math.min(Util.round(minAmount * price, 6), minTradeAmount ?? Infinity);
-    const maxSellAmount = Util.round(maxAmount * price, 6);
+    const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
+    const maxSellAmount = Util.floor(maxAmount * price, 6);
 
     const availableBalance = await this.exchangeService.getAvailableBalance(tradeAsset);
     if (minSellAmount > availableBalance)
@@ -141,8 +142,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
       );
 
-    const reserve = minTradeAmount ? Math.min(availableBalance * 0.01, minTradeAmount * 0.9) : 0;
-    const amount = Math.min(maxSellAmount, availableBalance - reserve);
+    const amount = Math.min(maxSellAmount, availableBalance);
 
     order.inputAmount = amount;
     order.inputAsset = tradeAsset;
@@ -200,8 +200,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const minAmount = Util.round(order.minAmount, 6);
-    const maxAmount = Util.round(order.maxAmount + (optimum ?? 0), 6);
+    const minAmount = Util.floor(order.minAmount, 6);
+    const maxAmount = Util.floor(order.maxAmount + (optimum ?? 0), 6);
 
     const sourceBalance = await this.exchangeService.getAvailableBalance(asset);
     if (minAmount > sourceBalance)
@@ -209,7 +209,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${sourceBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Math.min(maxAmount, sourceBalance);
+    const amount = Util.floor(Math.min(maxAmount, sourceBalance), 6);
 
     order.inputAmount = amount;
     order.inputAsset = asset;
@@ -301,7 +301,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         throw new OrderNotProcessableException(e.message);
       }
 
-      throw e;
+      throw new OrderFailedException(e.message);
     }
   }
 
@@ -379,7 +379,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   } {
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
-    const fullTrade = Boolean(params.fullTrade);
+    const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 

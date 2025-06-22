@@ -195,4 +195,31 @@ export class KycNotificationService {
       this.logger.error(`Failed to send KYC success mail or KYC changed webhook ${userData.id}:`, e);
     }
   }
+
+  async kycPaymentData(userData: UserData, acceptedDate: Date): Promise<void> {
+    try {
+      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+        await this.notificationService.sendMail({
+          type: MailType.USER_V2,
+          context: MailContext.KYC_PAYMENT_DATA,
+          input: {
+            userData,
+            wallet: userData.wallet,
+            title: `${MailTranslationKey.KYC_PAYMENT_DATA}.title`,
+            salutation: { key: `${MailTranslationKey.KYC_PAYMENT_DATA}.salutation` },
+            texts: [
+              { key: MailKey.SPACE, params: { value: '1' } },
+              {
+                key: `${MailTranslationKey.KYC_PAYMENT_DATA}.message`,
+                params: { date: Util.localeDataString(acceptedDate, userData.language.symbol) },
+              },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send kyc payment data mail for user data ${userData.id}:`, e);
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SolanaTransactionDto } from 'src/integration/blockchain/solana/dto/solana.dto';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexSolanaService } from '../../../services/dex-solana.service';
@@ -18,9 +18,11 @@ export class SolanaStrategy extends SupplementaryStrategy {
   }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
-    const { destinationAddress, amount } = request;
+    const { destinationAddress, asset, amount } = request;
 
-    return this.dexSolanaService.sendTransfer(destinationAddress, amount);
+    return asset.type === AssetType.COIN
+      ? this.dexSolanaService.sendNativeCoin(destinationAddress, amount)
+      : this.dexSolanaService.sendToken(destinationAddress, asset, amount);
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

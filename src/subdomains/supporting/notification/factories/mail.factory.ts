@@ -2,13 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
-import { MailType } from '../enums';
+import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
 export enum MailTranslationKey {
@@ -31,6 +32,7 @@ export enum MailTranslationKey {
   KYC_MISSING_DATA = 'mail.kyc.missing_data',
   KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
   KYC_REMINDER = 'mail.kyc.reminder',
+  KYC_PAYMENT_DATA = 'mail.kyc.payment_data',
   LOGIN = 'mail.login',
   ACCOUNT_MERGE_REQUEST = 'mail.account_merge.request',
   ACCOUNT_MERGE_ADDED_ADDRESS = 'mail.account_merge.added_address',
@@ -63,7 +65,7 @@ const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle}` };
 export class MailFactory {
   constructor(private readonly i18n: I18nService) {}
 
-  createMail(request: MailRequest): Mail {
+  createMail(request: MailRequest): Mail | undefined {
     switch (request.type) {
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
@@ -163,8 +165,10 @@ export class MailFactory {
   }
 
   private createUserV2Mail(request: MailRequest): UserMailV2 {
-    const { correlationId, options } = request;
+    const { correlationId, options, context } = request;
     const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
+
+    if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
     const lang = userData.language.symbol.toLowerCase();
 
@@ -182,8 +186,11 @@ export class MailFactory {
   }
 
   private createPersonalMail(request: MailRequest): PersonalMail {
-    const { userData, title, prefix, banner, from, displayName, bcc } = request.input as MailRequestPersonalInput;
-    const { correlationId, options } = request;
+    const { userData, title, prefix, banner, from, displayName, bcc, wallet } =
+      request.input as MailRequestPersonalInput;
+    const { correlationId, options, context } = request;
+
+    if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
     const lang = userData.language.symbol;
 
@@ -207,6 +214,15 @@ export class MailFactory {
   }
 
   //*** MAIL BUILDING METHODS ***//
+
+  private isDisabledMailWallet(context: MailContext, wallet: Wallet): boolean {
+    if (wallet && !wallet.disabledMailTypes) wallet = Object.assign(new Wallet(), wallet);
+    const mailContextType = MailContextTypeMapper[context];
+    return (
+      mailContextType &&
+      (wallet?.disabledMailTypes.includes(mailContextType) || wallet?.disabledMailTypes.includes(MailContextType.ALL))
+    );
+  }
 
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
     return Object.entries(Util.removeNullFields(table)).map(([key, value]) => ({

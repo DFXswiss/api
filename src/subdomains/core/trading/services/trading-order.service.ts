@@ -66,7 +66,12 @@ export class TradingOrderService implements OnModuleInit {
   // --- HELPER METHODS --- //
 
   private async startNewOrders(): Promise<void> {
-    const orders = await this.orderRepo.findBy({ status: TradingOrderStatus.CREATED });
+    const orders = await this.orderRepo.find({
+      where: { status: TradingOrderStatus.CREATED },
+      relations: {
+        assetOut: { liquidityManagementRule: true, balance: true },
+      },
+    });
 
     for (const order of orders) {
       await this.executeOrder(order);
@@ -93,6 +98,10 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
+    // fetch output liquidity limit
+    const swapLimit = Util.round(order.assetOut.liquidityCapacity * (order.amountIn / order.amountExpected), 8);
+
+    // fetch input liquidity
     const liquidityRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
       correlationId: `${order.id}`,
@@ -101,14 +110,20 @@ export class TradingOrderService implements OnModuleInit {
       targetAsset: order.assetIn,
     };
 
-    // adapt the amount if not enough liquidity (down to half)
     let {
       reference: { availableAmount },
     } = await this.dexService.checkLiquidity(liquidityRequest);
     availableAmount *= 0.99; // 1% cap for rounding
 
+    // check required swap amount
     const minAmount = order.amountIn / 2;
-    if (availableAmount < minAmount) {
+
+    if (swapLimit < minAmount) {
+      // swap not allowed
+      throw new Error(
+        `Swap would exceed liquidity limit of ${order.assetIn.uniqueName}: max. ${swapLimit}, min. required ${minAmount} (${order.assetIn.uniqueName})`,
+      );
+    } else if (availableAmount < minAmount) {
       // order liquidity
       try {
         const deficitAmount = Util.round(order.amountIn - availableAmount, 8);
@@ -123,9 +138,9 @@ export class TradingOrderService implements OnModuleInit {
 
       throw new WaitingForLiquidityException(`Waiting for liquidity of ${order.assetIn.uniqueName}`);
     } else {
-      const adaptedAmount = Math.min(order.amountIn, availableAmount);
+      const adaptedAmount = Math.min(order.amountIn, swapLimit, availableAmount);
 
-      order.amountExpected = Util.round((order.amountExpected * adaptedAmount) / order.amountIn, 8);
+      order.amountExpected = Util.round(order.amountExpected * (adaptedAmount / order.amountIn), 8);
       liquidityRequest.referenceAmount = order.amountIn = adaptedAmount;
     }
 
@@ -170,35 +185,39 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async handleOrderCompletion(order: TradingOrder): Promise<void> {
-    await this.closeReservation(order);
+    try {
+      await this.closeReservation(order);
 
-    const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
+      const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
 
-    const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
-    const txFee = await client.getTxActualFee(order.txId);
-    const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
+      const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
+      const txFee = await client.getTxActualFee(order.txId);
+      const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
 
-    const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
-    const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
-    const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
-    const outChfPrice = await this.pricingService.getPrice(order.assetOut, this.chf, true);
+      const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
+      const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
+      const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
+      const outChfPrice = await this.pricingService.getPrice(order.assetOut, this.chf, true);
 
-    order.complete(
-      outputAmount,
-      txFee,
-      coinChfPrice.convert(txFee),
-      swapFee,
-      inChfPrice.convert(swapFee),
-      outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
-        inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
-    );
-    await this.orderRepo.save(order);
+      order.complete(
+        outputAmount,
+        txFee,
+        coinChfPrice.convert(txFee),
+        swapFee,
+        inChfPrice.convert(swapFee),
+        outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
+          inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
+      );
+      await this.orderRepo.save(order);
 
-    const rule = order.tradingRule.reactivate();
-    await this.ruleRepo.save(rule);
+      const rule = order.tradingRule.reactivate();
+      await this.ruleRepo.save(rule);
 
-    const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
-    this.logger.verbose(message);
+      const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
+      this.logger.verbose(message);
+    } catch (e) {
+      this.logger.warn(`Failed to complete trading order ${order.id} (rule ${order.tradingRule.id}):`, e);
+    }
   }
 
   private async handleOrderFail(process: string, order: TradingOrder, e: Error): Promise<void> {

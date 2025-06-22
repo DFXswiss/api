@@ -75,6 +75,9 @@ export class PaymentLinkPaymentDto {
   @ApiPropertyOptional()
   externalId: string;
 
+  @ApiPropertyOptional()
+  note: string;
+
   @ApiProperty({ enum: PaymentLinkPaymentStatus })
   status: PaymentLinkPaymentStatus;
 
@@ -86,6 +89,9 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty({ enum: PaymentLinkPaymentMode })
   mode: PaymentLinkPaymentMode;
+
+  @ApiProperty()
+  date: Date;
 
   @ApiProperty()
   expiryDate: Date;

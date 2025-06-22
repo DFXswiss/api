@@ -141,10 +141,10 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
           this.logger.verbose(
             `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
           );
-          const id = await this.updateOrderPrice(order, price).catch((e: ExchangeError) => {
-            this.logger.error(`Failed to update price of order ${order.id}:`, e);
+          const id = await this.updateOrderPrice(order, price).catch(async (e: ExchangeError) => {
+            await this.callApi((e) => e.cancelOrder(order.id, order.symbol));
 
-            if (e.message.includes('Not enough leaves qty')) throw e;
+            throw e;
           });
 
           if (id) {
@@ -279,7 +279,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const { amount: amountPrecision } = await this.getPrecision(pair);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
 
-    const orderAmount = Util.roundToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+    const orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
 
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 

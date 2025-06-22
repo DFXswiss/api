@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   InternalServerErrorException,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -56,5 +58,26 @@ export class AlchemyController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async syncTransactions(@Body() dto: AlchemySyncTransactionsDto) {
     return this.alchemyService.syncTransactions(dto);
+  }
+
+  @Get('addresses/:webhookId')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async addresses(@Param('webhookId') webhookId: string): Promise<string[]> {
+    const limit = 100;
+    let addressActivityResponse = await this.alchemyWebhookService.getWebhookAddresses(webhookId, { limit });
+    let pageKey = addressActivityResponse.pageKey;
+
+    const allAddresses = addressActivityResponse.addresses;
+
+    while (pageKey) {
+      addressActivityResponse = await this.alchemyWebhookService.getWebhookAddresses(webhookId, { pageKey, limit });
+      pageKey = addressActivityResponse.pageKey;
+
+      allAddresses.push(...addressActivityResponse.addresses);
+    }
+
+    return allAddresses;
   }
 }

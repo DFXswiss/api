@@ -5,6 +5,7 @@ import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -39,9 +40,11 @@ export class PaymentQuoteService {
     Blockchain.ARBITRUM,
     Blockchain.OPTIMISM,
     Blockchain.BASE,
+    Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
     Blockchain.MONERO,
     Blockchain.BITCOIN,
+    Blockchain.SOLANA,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
@@ -54,6 +57,7 @@ export class PaymentQuoteService {
     private readonly evmGasPriceService: EvmGasPriceService,
     private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
   // --- JOBS --- //
@@ -255,17 +259,26 @@ export class PaymentQuoteService {
       }
     }
 
+    if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
+      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, payment.link)) {
+        transferAmount.available = false;
+        transferAmount.assets = [];
+      }
+    }
+
     return transferAmount;
   }
 
   private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
     switch (blockchain) {
+      case Blockchain.BINANCE_PAY:
       case Blockchain.LIGHTNING:
         return 0;
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
         return this.evmGasPriceService.getGasPrice(blockchain);
       case Blockchain.MONERO:
@@ -364,6 +377,7 @@ export class PaymentQuoteService {
         case Blockchain.ARBITRUM:
         case Blockchain.OPTIMISM:
         case Blockchain.BASE:
+        case Blockchain.GNOSIS:
         case Blockchain.POLYGON:
           await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;

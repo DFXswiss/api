@@ -21,10 +21,12 @@ export class KrakenService extends ExchangeService {
     Optimism: 'optimism',
     Polygon: 'polygon',
     Base: undefined,
+    Gnosis: undefined,
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
+    BinancePay: undefined,
     Solana: undefined,
   };
 

@@ -546,10 +546,13 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['BinancePay', 'KuCoinPay', 'BitcoinOnChainTaprootAsset'],
+    manualMethods: ['KuCoinPay', 'BitcoinOnChainTaprootAsset'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
+    binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
@@ -664,6 +667,15 @@ export class Configuration {
       swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
+    gnosis: {
+      gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
+      gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
+      gnosisGatewayUrl: process.env.GNOSIS_GATEWAY_URL,
+      gnosisApiKey: process.env.ALCHEMY_API_KEY,
+      gnosisChainId: +process.env.GNOSIS_CHAIN_ID,
+      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
+    },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
@@ -705,6 +717,7 @@ export class Configuration {
       solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
       solanaApiKey: process.env.TATUM_API_KEY,
       transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 1),
+      minimalCoinAccountRent: 0.00089088,
       createTokenAccountFee: 0.00203928,
       minimalPreparationFee: 0.00000001,
 

@@ -35,9 +35,12 @@ export class SolanaTokenStrategy extends SolanaStrategy {
   }
 
   protected async prepareSend(payIn: CryptoInput, nativeFee: number): Promise<void> {
-    const prepareTxId = await this.topUpCoin(payIn, nativeFee);
+    const coinBalance = await this.payInSolanaService.getNativeCoinBalanceForAddress(payIn.address.address);
+    const rentFee = Math.max(Config.blockchain.solana.minimalCoinAccountRent - coinBalance, 0);
 
-    const feeAmount = nativeFee;
+    const feeAmount = nativeFee + rentFee;
+    const prepareTxId = await this.topUpCoin(payIn, feeAmount);
+
     const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
     const feeAmountChf = feeAmount
       ? await this.pricingService

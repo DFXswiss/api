@@ -1,5 +1,6 @@
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkConfig } from '../entities/payment-link.config';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkBaseDto, PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPaymentDto } from './payment-link.dto';
 
@@ -34,6 +35,16 @@ export class PaymentLinkDtoMapper {
     return payments.map(PaymentLinkDtoMapper.createPaymentLinkPaymentDto);
   }
 
+  private static getConfigsWithoutSecrets(config: PaymentLinkConfig): PaymentLinkConfig | null {
+    if (!config) return null;
+
+    delete config.accessKeys;
+    delete config.binancePayMerchantId;
+    delete config.binancePaySubMerchantId;
+
+    return config;
+  }
+
   private static createPaymentLinkBaseDto(paymentLink: PaymentLink): PaymentLinkBaseDto {
     return {
       id: paymentLink.id,
@@ -43,7 +54,7 @@ export class PaymentLinkDtoMapper {
       webhookUrl: paymentLink.webhookUrl ?? undefined,
       recipient: paymentLink.recipient,
       status: paymentLink.status,
-      config: paymentLink.configObj,
+      config: PaymentLinkDtoMapper.getConfigsWithoutSecrets(paymentLink.configObj),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),
       lnurl: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
     };
@@ -54,10 +65,12 @@ export class PaymentLinkDtoMapper {
       payment && {
         id: payment.id,
         externalId: payment.externalId,
+        note: payment.note,
         status: payment.status,
         amount: payment.amount,
         currency: payment.currency.name,
         mode: payment.mode,
+        date: payment.created,
         expiryDate: payment.expiryDate,
         txCount: payment.txCount,
         isConfirmed: payment.isConfirmed,

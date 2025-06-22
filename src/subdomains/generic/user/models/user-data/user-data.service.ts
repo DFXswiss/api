@@ -84,11 +84,13 @@ export class UserDataService {
     private readonly kycNotificationService: KycNotificationService,
     private readonly kycLogService: KycLogService,
     private readonly userDataNotificationService: UserDataNotificationService,
-    @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
+    @Inject(forwardRef(() => AccountMergeService))
+    private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly webhookService: WebhookService,
     private readonly documentService: KycDocumentService,
+    @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
@@ -343,6 +345,26 @@ export class UserDataService {
     Object.assign(userData, dto);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+
+    if (
+      [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType ?? userData.accountType) &&
+      userData.organization
+    )
+      await this.organizationService.updateOrganizationInternal(userData.organization, {
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        country: dto.organizationCountry,
+        allBeneficialOwnersName: dto.allBeneficialOwnersName,
+        allBeneficialOwnersDomicile: dto.allBeneficialOwnersDomicile,
+        accountOpenerAuthorization: dto.accountOpenerAuthorization,
+        complexOrgStructure: dto.complexOrgStructure,
+        accountOpener: dto.accountOpener,
+        legalEntity: dto.legalEntity,
+        signatoryPower: dto.signatoryPower,
+      });
 
     return userData;
   }

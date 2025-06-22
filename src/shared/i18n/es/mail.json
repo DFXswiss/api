@@ -239,6 +239,11 @@
             "salutation": "Completa tu verificación",
             "message": "Nos hemos dado cuenta de que no has completado la verificación."
         },
+        "payment_data" : {
+            "title": "Acuerdo de cesión",
+            "salutation": "Acuerdo de cesión",
+            "message": "DFX ofrece a sus clientes la opción de ceder a DFX los créditos pendientes de la venta de bienes y servicios para permitir el pago mediante criptomonedas. El cliente tiene la opción de presentar una reclamación pendiente a través de nuestra API (api.dfx.swiss) o a través del front-end en app.dfx.swiss.<br>El importe adeudado se abona al cliente una vez deducida una comisión de tramitación del 0,2%. Dependiendo de la configuración específica del cliente, el pago puede realizarse en criptomonedas o en moneda fiduciaria mediante una transacción bancaria.<br>Las Condiciones Generales de DFX se aplican a todas las transacciones. La cesión finaliza automáticamente cuando se cierra la cuenta DFX o puede ser rescindida inmediatamente por DFX o el cliente en caso de incumplimiento de contrato o insolvencia.<br><br>De acuerdo {date}"
+        },
         "retry": "Por favor, inténtelo de nuevo con la siguiente URL:<br>[url:{urlText}]",
         "next_step": "Para proceder a su verificación, haga clic en el elemento de menú situado en la parte superior derecha del sitio web de DFX-Services<br> y, a continuación, en \"KYC\"<br> y haga clic en el botón \"Continuar\"<br> o utilice el siguiente enlace:<br>[url:{urlText}]",
         "step_names": {

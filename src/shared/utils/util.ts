@@ -304,6 +304,10 @@ export class Util {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }
 
+  static localeDataString(data: number | Date, language: string): string {
+    return language === 'DE' ? data.toLocaleString('de-DE') : data.toLocaleString('en-US');
+  }
+
   static isoDate(date: Date): string {
     return date.toISOString().split('T')[0];
   }
@@ -584,7 +588,10 @@ export class Util {
 
   static sanitize({ value }: TransformFnParams): string | undefined {
     return value
-      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
+      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' }).replace(
+          /&amp;/g,
+          '&',
+        )
       : value;
   }
 

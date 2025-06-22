@@ -51,6 +51,7 @@ import {
   KycOperationalData,
   KycPersonalData,
   KycSignatoryPowerData,
+  PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
@@ -329,6 +330,17 @@ export class KycController {
     @Body() data: KycFinancialInData,
   ): Promise<KycStepBase> {
     return this.kycService.updateFinancialData(code, ip, +id, data);
+  }
+
+  @Put('data/payment/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updatePaymentsData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: PaymentDataDto,
+  ): Promise<KycStepBase> {
+    return this.kycService.updatePaymentData(code, +id, data);
   }
 
   @Post('ident/sumsub')

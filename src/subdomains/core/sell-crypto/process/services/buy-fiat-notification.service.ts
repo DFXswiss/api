@@ -91,6 +91,7 @@ export class BuyFiatNotificationService {
           context: MailContext.BUY_FIAT_PROCESSING,
           input: {
             userData: entity.userData,
+            wallet: entity.wallet,
             title: `${MailTranslationKey.PROCESSING}.title`,
             salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
             texts: [

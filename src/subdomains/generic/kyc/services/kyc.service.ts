@@ -52,6 +52,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycFinancialDataError, KycIdentError } from '../dto/kyc-error.enum';
@@ -178,6 +179,7 @@ export class KycService {
           await this.kycStepRepo.update(...entity.manualReview(comment));
         } else {
           await this.kycStepRepo.update(...entity.complete());
+          await this.checkDfxApproval(entity);
         }
 
         await this.createStepLog(entity.userData, entity);
@@ -577,6 +579,24 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    if (data.contractAccepted) {
+      await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
+
+      await this.kycNotificationService.kycPaymentData(user, new Date());
+    }
+
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      data.contractAccepted ? KycStepStatus.COMPLETED : KycStepStatus.MANUAL_REVIEW,
+    );
+  }
+
   async updateIntrumIdent(dto: IdNowResult): Promise<void> {
     const { id: sessionId, transactionnumber: transactionId, reason } = dto.identificationprocess;
     if (!sessionId || !transactionId) throw new BadRequestException(`Session data is missing`);
@@ -950,7 +970,9 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed ? undefined : { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return lastTry && !lastTry.isFailed
+          ? { nextStep: undefined }
+          : { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
         return { nextStep: undefined };
