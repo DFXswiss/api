@@ -126,7 +126,7 @@ export class KycService {
         status: KycStepStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     for (const identStep of expiredIdentSteps) {
@@ -196,7 +196,7 @@ export class KycService {
         status: KycStepStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
       },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     for (const entity of entities) {
@@ -268,7 +268,7 @@ export class KycService {
         name: KycStepName.FINANCIAL_DATA,
         status: KycStepStatus.INTERNAL_REVIEW,
       },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     for (const entity of entities) {
@@ -277,9 +277,11 @@ export class KycService {
         const comment = errors.join(';');
 
         if (errors.includes(KycFinancialDataError.MISSING_QUESTION)) {
-          // send mail
           await this.kycStepRepo.update(entity.id, { status: KycStepStatus.IN_PROGRESS });
-          continue;
+          await this.kycNotificationService.kycStepMissingData(
+            entity.userData,
+            this.getMailStepName(entity.name, entity.userData.language.symbol),
+          );
         }
 
         if (errors.length === 0 && !entity.isManual) {

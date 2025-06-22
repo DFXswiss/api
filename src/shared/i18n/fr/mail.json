@@ -229,6 +229,11 @@
                 "organization_name_not_matching_verified_name": "Le nom de votre organisation ne correspond pas au nom de votre compte"
             }
         },
+        "missing_data": {
+            "title": "Données manquantes lors de la vérification",
+            "salutation": "Il manque des données dans votre vérification",
+            "message": "Il manque encore des données à l'étape '{stepName}' que vous devez ajouter pour compléter votre vérification."
+        },
         "reminder": {
             "title": "Terminez votre vérification",
             "salutation": "Terminez votre vérification",

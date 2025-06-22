@@ -229,6 +229,11 @@
                 "organization_name_not_matching_verified_name": "Your organization name does not match your account name"
             }
         },
+        "missing_data": {
+            "title": "Missing data during verification",
+            "salutation": "There is missing data in your verification",
+            "message": "The step '{stepName}' is still missing data that you need to add to complete your verification."
+        },
         "reminder": {
             "title": "Complete verification",
             "salutation": "Complete your verification",

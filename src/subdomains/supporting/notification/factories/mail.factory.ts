@@ -28,6 +28,7 @@ export enum MailTranslationKey {
   KYC_STEP_NAMES = 'mail.kyc.step_names',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
+  KYC_MISSING_DATA = 'mail.kyc.missing_data',
   KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
   KYC_REMINDER = 'mail.kyc.reminder',
   LOGIN = 'mail.login',

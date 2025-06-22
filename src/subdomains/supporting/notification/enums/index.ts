@@ -36,6 +36,7 @@ export enum MailContext {
   LIMIT_REQUEST = 'LimitRequest',
   KYC_CHANGED = 'KycChanged',
   KYC_FAILED = 'KycFailed',
+  KYC_MISSING_DATA = 'KycMissingData',
   KYC_REMINDER = 'KycReminder',
   CUSTOM = 'Custom',
   REF_REWARD = 'RefReward',
