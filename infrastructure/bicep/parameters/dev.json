@@ -122,6 +122,9 @@
     "paymentSolanaSeed": {
       "value": "xxx"
     },
+    "paymentTronSeed": {
+      "value": "xxx"
+    },
     "paymentMoneroAddress": {
       "value": "xxx"
     },
@@ -292,6 +295,18 @@
     },
     "solanaTransactionPriorityRate": {
       "value": "100"
+    },
+    "tronWalletSeed": {
+      "value": "xxx"
+    },
+    "tronGatewayUrl": {
+      "value": "https://tron-mainnet.gateway.tatum.io"
+    },
+    "tronApiUrl": {
+      "value": "https://api.tatum.io/v3/tron"
+    },
+    "tronRpcUrl": {
+      "value": "https://api.tatum.io/v3/blockchain/node/tron-mainnet/jsonrpc"
     },
     "zchfGraphUrl": {
       "value": "https://maindevponder.frankencoin.com"

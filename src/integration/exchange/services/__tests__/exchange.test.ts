@@ -32,5 +32,6 @@ export class TestExchangeService extends ExchangeService {
     BinancePay: undefined,
     Solana: undefined,
     Gnosis: undefined,
+    Tron: undefined,
   };
 }

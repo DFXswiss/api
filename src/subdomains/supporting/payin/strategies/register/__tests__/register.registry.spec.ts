@@ -1,6 +1,10 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
+import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhook.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
@@ -22,6 +26,8 @@ import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
 import { PolygonStrategy } from '../impl/polygon.strategy';
+import { SolanaStrategy } from '../impl/solana.strategy';
+import { TronStrategy } from '../impl/tron.strategy';
 
 describe('RegisterStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
@@ -34,6 +40,8 @@ describe('RegisterStrategyRegistry', () => {
   let polygonStrategy: PolygonStrategy;
   let baseStrategy: BaseStrategy;
   let gnosisStrategy: GnosisStrategy;
+  let solanaStrategy: SolanaStrategy;
+  let tronStrategy: TronStrategy;
 
   let registry: RegisterStrategyRegistryWrapper;
 
@@ -58,6 +66,10 @@ describe('RegisterStrategyRegistry', () => {
 
     gnosisStrategy = new GnosisStrategy(mock<PayInGnosisService>());
 
+    solanaStrategy = new SolanaStrategy(mock<TatumWebhookService>(), mock<SolanaService>(), mock<RepositoryFactory>());
+
+    tronStrategy = new TronStrategy(mock<TatumWebhookService>(), mock<TronService>(), mock<RepositoryFactory>());
+
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,
       lightningStrategy,
@@ -69,6 +81,8 @@ describe('RegisterStrategyRegistry', () => {
       polygonStrategy,
       baseStrategy,
       gnosisStrategy,
+      solanaStrategy,
+      tronStrategy,
     );
   });
 
@@ -136,6 +150,18 @@ describe('RegisterStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(GnosisStrategy);
       });
 
+      it('gets SOLANA strategy for SOLANA', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.SOLANA }));
+
+        expect(strategy).toBeInstanceOf(SolanaStrategy);
+      });
+
+      it('gets TRON strategy for TRON', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.TRON }));
+
+        expect(strategy).toBeInstanceOf(TronStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getRegisterStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -159,6 +185,8 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     polygonStrategy: PolygonStrategy,
     baseStrategy: BaseStrategy,
     gnosisStrategy: GnosisStrategy,
+    solanaStrategy: SolanaStrategy,
+    tronStrategy: TronStrategy,
   ) {
     super();
 
@@ -172,5 +200,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.add(Blockchain.POLYGON, polygonStrategy);
     this.add(Blockchain.BASE, baseStrategy);
     this.add(Blockchain.GNOSIS, gnosisStrategy);
+    this.add(Blockchain.SOLANA, solanaStrategy);
+    this.add(Blockchain.TRON, tronStrategy);
   }
 }

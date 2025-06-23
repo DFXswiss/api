@@ -28,6 +28,7 @@ export class BinanceService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     Solana: 'SOL',
+    Tron: 'TRX',
   };
 
   constructor() {

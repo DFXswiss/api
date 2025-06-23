@@ -17,6 +17,7 @@ export enum Blockchain {
   BINANCE_PAY = 'BinancePay',
   SOLANA = 'Solana',
   GNOSIS = 'Gnosis',
+  TRON = 'Tron',
 }
 
 export const PaymentLinkBlockchain = {
@@ -30,6 +31,7 @@ export const PaymentLinkBlockchain = {
   BITCOIN: Blockchain.BITCOIN,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
   SOLANA: Blockchain.SOLANA,
+  TRON: Blockchain.TRON,
 } as const;
 
 export type PaymentLinkBlockchain = (typeof PaymentLinkBlockchain)[keyof typeof PaymentLinkBlockchain];

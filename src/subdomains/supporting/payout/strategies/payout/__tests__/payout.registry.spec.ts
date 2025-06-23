@@ -11,9 +11,12 @@ import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { PayoutBscService } from '../../../services/payout-bsc.service';
 import { PayoutEthereumService } from '../../../services/payout-ethereum.service';
 import { PayoutGnosisService } from '../../../services/payout-gnosis.service';
+import { PayoutLightningService } from '../../../services/payout-lightning.service';
 import { PayoutMoneroService } from '../../../services/payout-monero.service';
 import { PayoutOptimismService } from '../../../services/payout-optimism.service';
 import { PayoutPolygonService } from '../../../services/payout-polygon.service';
+import { PayoutSolanaService } from '../../../services/payout-solana.service';
+import { PayoutTronService } from '../../../services/payout-tron.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -26,21 +29,27 @@ import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { GnosisCoinStrategy } from '../impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy } from '../impl/gnosis-token.strategy';
+import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
 import { PolygonCoinStrategy } from '../impl/polygon-coin.strategy';
 import { PolygonTokenStrategy } from '../impl/polygon-token.strategy';
+import { SolanaCoinStrategy } from '../impl/solana-coin.strategy';
+import { SolanaTokenStrategy } from '../impl/solana-token.strategy';
+import { TronCoinStrategy } from '../impl/tron-coin.strategy';
+import { TronTokenStrategy } from '../impl/tron-token.strategy';
 
 describe('PayoutStrategyRegistry', () => {
+  let bitcoin: BitcoinStrategy;
+  let lightning: LightningStrategy;
+  let monero: MoneroStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
-  let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
-  let monero: MoneroStrategy;
   let optimismCoin: OptimismCoinStrategy;
   let optimismToken: OptimismTokenStrategy;
   let polygonCoin: PolygonCoinStrategy;
@@ -49,10 +58,31 @@ describe('PayoutStrategyRegistry', () => {
   let baseToken: BaseTokenStrategy;
   let gnosisCoin: GnosisCoinStrategy;
   let gnosisToken: GnosisTokenStrategy;
+  let solanaCoin: SolanaCoinStrategy;
+  let solanaToken: SolanaTokenStrategy;
+  let tronCoin: TronCoinStrategy;
+  let tronToken: TronTokenStrategy;
 
   let registry: PayoutStrategyRegistryWrapper;
 
   beforeEach(() => {
+    bitcoin = new BitcoinStrategy(
+      mock<NotificationService>(),
+      mock<PayoutBitcoinService>(),
+      mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
+    );
+    lightning = new LightningStrategy(
+      mock<AssetService>(),
+      mock<PayoutLightningService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    monero = new MoneroStrategy(
+      mock<NotificationService>(),
+      mock<PayoutMoneroService>(),
+      mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
+    );
     arbitrumCoin = new ArbitrumCoinStrategy(
       mock<PayoutArbitrumService>(),
       mock<AssetService>(),
@@ -62,12 +92,6 @@ describe('PayoutStrategyRegistry', () => {
       mock<PayoutArbitrumService>(),
       mock<AssetService>(),
       mock<PayoutOrderRepository>(),
-    );
-    bitcoin = new BitcoinStrategy(
-      mock<NotificationService>(),
-      mock<PayoutBitcoinService>(),
-      mock<PayoutOrderRepository>(),
-      mock<AssetService>(),
     );
     bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
     bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
@@ -81,12 +105,6 @@ describe('PayoutStrategyRegistry', () => {
       mock<PayoutEthereumService>(),
       mock<AssetService>(),
       mock<PayoutOrderRepository>(),
-    );
-    monero = new MoneroStrategy(
-      mock<NotificationService>(),
-      mock<PayoutMoneroService>(),
-      mock<PayoutOrderRepository>(),
-      mock<AssetService>(),
     );
     optimismCoin = new OptimismCoinStrategy(
       mock<PayoutOptimismService>(),
@@ -120,16 +138,29 @@ describe('PayoutStrategyRegistry', () => {
       mock<AssetService>(),
       mock<PayoutOrderRepository>(),
     );
+    solanaCoin = new SolanaCoinStrategy(
+      mock<PayoutSolanaService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    solanaToken = new SolanaTokenStrategy(
+      mock<PayoutSolanaService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    tronCoin = new TronCoinStrategy(mock<PayoutTronService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    tronToken = new TronTokenStrategy(mock<PayoutTronService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PayoutStrategyRegistryWrapper(
+      bitcoin,
+      lightning,
+      monero,
       arbitrumCoin,
       arbitrumToken,
-      bitcoin,
       bscCoin,
       bscToken,
       ethereumCoin,
       ethereumToken,
-      monero,
       optimismCoin,
       optimismToken,
       polygonCoin,
@@ -138,11 +169,39 @@ describe('PayoutStrategyRegistry', () => {
       baseToken,
       gnosisCoin,
       gnosisToken,
+      solanaCoin,
+      solanaToken,
+      tronCoin,
+      tronToken,
     );
   });
 
   describe('#getPayoutStrategy(...)', () => {
     describe('getting strategy by Asset', () => {
+      it('gets BITCOIN strategy for BITCOIN', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.BITCOIN, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets LIGHTNING strategy for LIGHTNING', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.LIGHTNING, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(LightningStrategy);
+      });
+
+      it('gets MONERO strategy for MONERO', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.MONERO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(MoneroStrategy);
+      });
+
       it('gets ARBITRUM_COIN strategy', () => {
         const strategy = registry.getPayoutStrategy(
           createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.COIN }),
@@ -157,14 +216,6 @@ describe('PayoutStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
-      });
-
-      it('gets BITCOIN strategy for BITCOIN', () => {
-        const strategy = registry.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.BITCOIN, type: AssetType.COIN }),
-        );
-
-        expect(strategy).toBeInstanceOf(BitcoinStrategy);
       });
 
       it('gets BSC_COIN strategy', () => {
@@ -197,14 +248,6 @@ describe('PayoutStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
-      });
-
-      it('gets MONERO strategy for MONERO', () => {
-        const strategy = registry.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.MONERO, type: AssetType.COIN }),
-        );
-
-        expect(strategy).toBeInstanceOf(MoneroStrategy);
       });
 
       it('gets OPTIMISM_COIN strategy', () => {
@@ -271,6 +314,38 @@ describe('PayoutStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(GnosisTokenStrategy);
       });
 
+      it('gets SOLANA_COIN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.SOLANA, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(SolanaCoinStrategy);
+      });
+
+      it('gets SOLANA_TOKEN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.SOLANA, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(SolanaTokenStrategy);
+      });
+
+      it('gets TRON_COIN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.TRON, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(TronCoinStrategy);
+      });
+
+      it('gets TRON_TOKEN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.TRON, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(TronTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPayoutStrategy(
@@ -286,14 +361,15 @@ describe('PayoutStrategyRegistry', () => {
 
 class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
   constructor(
+    bitcoin: BitcoinStrategy,
+    lightning: LightningStrategy,
+    monero: MoneroStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
-    bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
-    monero: MoneroStrategy,
     optimismCoin: OptimismCoinStrategy,
     optimismToken: OptimismTokenStrategy,
     polygonCoin: PolygonCoinStrategy,
@@ -302,17 +378,23 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     baseToken: BaseTokenStrategy,
     gnosisCoin: GnosisCoinStrategy,
     gnosisToken: GnosisTokenStrategy,
+    solanaCoin: SolanaCoinStrategy,
+    solanaToken: SolanaTokenStrategy,
+    tronCoin: TronCoinStrategy,
+    tronToken: TronTokenStrategy,
   ) {
     super();
 
+    this.add({ blockchain: Blockchain.BITCOIN, assetType: AssetType.COIN }, bitcoin);
+    this.add({ blockchain: Blockchain.LIGHTNING, assetType: AssetType.COIN }, lightning);
+    this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
+
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);
-    this.add({ blockchain: Blockchain.BITCOIN, assetType: AssetType.COIN }, bitcoin);
     this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
     this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.TOKEN }, bscToken);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
-    this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
     this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.COIN }, optimismCoin);
     this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
     this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
@@ -321,5 +403,9 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
     this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.COIN }, gnosisCoin);
     this.add({ blockchain: Blockchain.GNOSIS, assetType: AssetType.TOKEN }, gnosisToken);
+    this.add({ blockchain: Blockchain.SOLANA, assetType: AssetType.COIN }, solanaCoin);
+    this.add({ blockchain: Blockchain.SOLANA, assetType: AssetType.TOKEN }, solanaToken);
+    this.add({ blockchain: Blockchain.TRON, assetType: AssetType.COIN }, tronCoin);
+    this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
   }
 }
