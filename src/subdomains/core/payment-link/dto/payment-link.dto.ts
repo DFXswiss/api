@@ -12,8 +12,9 @@ export interface TransferInfo {
   amount: number;
   method: TransferMethod;
   quoteUniqueId: string;
-  tx: string;
-  hex: string;
+  tx?: string;
+  hex?: string;
+  referId?: string;
 }
 
 export interface TransferAmount {
