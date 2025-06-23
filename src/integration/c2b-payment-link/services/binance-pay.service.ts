@@ -39,6 +39,12 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   private certificatedExpiry: number;
   private cert: CertificateResponse['data'];
 
+  private readonly SUPPORTED_BIZ_TYPES = [
+    BinanceBizType.PAY,
+    BinanceBizType.PAY_REFUND,
+    BinanceBizType.MERCHANT_QR_CODE,
+  ];
+
   constructor(private readonly http: HttpService) {
     this.apiKey = Config.payment.binancePayPublic;
     this.secretKey = Config.payment.binancePaySecret;
@@ -150,6 +156,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       env: {
         terminalType: BinancePayTerminalType.OTHERS,
       },
+      qrCodeReferId: transferInfo.referId,
       merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
       currency: transferInfo.asset,
@@ -241,11 +248,13 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
         return C2BPaymentStatus.REFUNDED;
       case BinancePayStatus.PAY_CLOSED:
         return C2BPaymentStatus.FAILED;
+      case BinancePayStatus.MERCHANT_QR_CODE_SCANED:
+        return C2BPaymentStatus.WAITING;
     }
   }
 
   private isSupportedBizType(bizType: string): boolean {
-    return bizType === BinanceBizType.PAY || bizType === BinanceBizType.PAY_REFUND;
+    return this.SUPPORTED_BIZ_TYPES.includes(bizType as BinanceBizType);
   }
 
   async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
@@ -255,7 +264,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     return {
       providerOrderId: bizIdStr,
       status: this.getStatus(bizStatus),
-      metadata: dto,
+      metadata: JSON.parse(dto.data),
     };
   }
 }
