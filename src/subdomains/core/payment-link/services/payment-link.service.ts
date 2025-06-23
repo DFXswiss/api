@@ -738,8 +738,6 @@ export class PaymentLinkService {
           method: Blockchain.BINANCE_PAY,
           quoteUniqueId: quote.uniqueId,
           referId,
-          tx: '',
-          hex: '',
         };
 
         await this.paymentLinkPaymentService.createActivationRequest(payment.uniqueId, transferInfo);
