@@ -24,7 +24,6 @@ export class GetSellPaymentInfoDto {
   @IsString()
   @IsDfxIban(IbanType.SELL)
   @Transform(Util.trimAll)
-  @Transform(Util.sanitize)
   iban: string;
 
   @ApiProperty({ type: EntityDto, description: 'Source asset' })

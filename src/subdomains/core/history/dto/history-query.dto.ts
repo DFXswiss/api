@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { Util } from 'src/shared/utils/util';
 import { ExportType } from '../services/history.service';
 import { HistoryFilter } from './history-filter.dto';
 
@@ -33,7 +32,6 @@ export class HistoryQueryUser extends HistoryQuery {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   userAddress: string;
 }
 

@@ -10,6 +10,7 @@ import {
   IsNotEmptyObject,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -85,7 +86,6 @@ export class KycPersonalData {
   @IsString()
   @IsDfxPhone()
   @Transform(DfxPhoneTransform)
-  @Transform(Util.sanitize)
   phone: string;
 
   @ApiProperty({ type: KycAddress })
@@ -179,8 +179,7 @@ export class KycOperationalData {
 
   @ApiPropertyOptional({ description: 'Organization Website URL' })
   @IsOptional()
-  @IsString()
-  @Transform(Util.sanitize)
+  @IsUrl()
   websiteUrl: string;
 }
 

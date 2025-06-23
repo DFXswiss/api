@@ -24,7 +24,6 @@ export class PaymentLinkRecipientDto {
   @IsString()
   @IsDfxPhone()
   @Transform(DfxPhoneTransform)
-  @Transform(Util.sanitize)
   phone?: string;
 
   @ApiPropertyOptional()

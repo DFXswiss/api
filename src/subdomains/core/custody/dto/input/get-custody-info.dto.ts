@@ -25,13 +25,11 @@ export class GetCustodyInfoDto {
   @ApiProperty({ description: 'Source asset name, Asset or Fiat' })
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   sourceAsset: string;
 
   @ApiProperty({ description: 'Target asset name, Asset or Fiat' })
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   targetAsset: string;
 
   @ApiPropertyOptional({ description: 'Amount in source asset' })

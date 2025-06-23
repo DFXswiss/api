@@ -1,38 +1,33 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
-import { OptionalSignUpDto } from './auth-credentials.dto';
 import { Transform } from 'class-transformer';
+import { IsNotEmpty, IsString } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { OptionalSignUpDto } from './auth-credentials.dto';
 
 export class AuthLnurlSignupDto extends OptionalSignUpDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   tag: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   action: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   k1: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   sig: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.sanitize)
   key: string;
 
   @ApiProperty()

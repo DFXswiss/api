@@ -30,7 +30,6 @@ export class CreatePaymentLinkPaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   currency?: string;
 
   @ApiPropertyOptional()

@@ -1,12 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsEnum, IsObject, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/c2b-payment-link/dto/binance.dto';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { Util } from 'src/shared/utils/util';
 import { PaymentLinkStatus } from '../enums';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
-import { Util } from 'src/shared/utils/util';
 
 export class UpdatePaymentLinkDto {
   @ApiPropertyOptional({ enum: PaymentLinkStatus })
@@ -22,8 +22,7 @@ export class UpdatePaymentLinkDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  @Transform(Util.sanitize)
+  @IsUrl()
   webhookUrl?: string;
 
   @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })

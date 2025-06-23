@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsNotEmpty,
@@ -14,7 +14,6 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
@@ -53,18 +52,15 @@ export class GetBuyQuoteDto {
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   discountCode: string;
 
   @ApiPropertyOptional({ description: 'Special code' })
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   specialCode: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   wallet: string;
 }

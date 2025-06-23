@@ -16,13 +16,11 @@ export class TransactionIssueDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   uid?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   orderUid?: string;
 
   @ApiPropertyOptional()
