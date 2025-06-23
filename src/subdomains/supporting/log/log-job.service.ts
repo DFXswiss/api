@@ -384,10 +384,7 @@ export class LogJobService {
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity =
-        (curr.balance?.amount < 0 && curr.id === 268 ? 0 : curr.balance?.amount ?? 0) +
-        (paymentDepositBalance ?? 0) +
-        (manualLiqPosition ?? 0);
+      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
         ? 0
@@ -458,7 +455,7 @@ export class LogJobService {
       // filtered lists
       const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
+        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
       const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
@@ -596,13 +593,13 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus, amountType(curr), true),
+          total: this.getJsonValue(totalPlus, amountType(curr), true, true),
           liquidity: liquidity
             ? {
-                total: this.getJsonValue(liquidity, amountType(curr), true),
-                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr)),
+                total: this.getJsonValue(liquidity, amountType(curr), true, true),
+                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
                 paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
-                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr)),
+                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr), false, true),
               }
             : undefined,
           custom: totalCustomBalance
@@ -626,14 +623,14 @@ export class LogJobService {
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
               }
             : undefined,
-          monitoring: errors.length
-            ? {
-                fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
-                fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
-                toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
-                toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
-              }
-            : undefined,
+          // monitoring: errors.length
+          //   ? {
+          //       fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
+          //       fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
+          //       toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+          //       toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
+          //     }
+          //   : undefined,
         },
         minusBalance: {
           total: this.getJsonValue(totalMinus, amountType(curr), true),
@@ -654,7 +651,7 @@ export class LogJobService {
               }
             : undefined,
         },
-        error: errors.length ? errors.join(';') : undefined,
+        // error: errors.length ? errors.join(';') : undefined,
       };
 
       return prev;
@@ -922,8 +919,15 @@ export class LogJobService {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined, amountType: AmountType, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, amountType, 8);
+  private getJsonValue(
+    value: number | undefined,
+    amountType: AmountType,
+    returnZero = false,
+    returnNegativeValue = false,
+  ): number | undefined {
+    return (!returnZero && !value) || (value < 0 && !returnNegativeValue)
+      ? undefined
+      : Util.roundReadable(value, amountType, 8);
   }
 
   private financialTypeAmountType(financialType: string): AmountType {
