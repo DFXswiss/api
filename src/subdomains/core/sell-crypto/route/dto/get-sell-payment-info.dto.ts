@@ -55,6 +55,7 @@ export class GetSellPaymentInfoDto {
   @ApiPropertyOptional({ description: 'Custom transaction id' })
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   externalTransactionId?: string;
 
   //eslint-disable-next-line @typescript-eslint/no-inferrable-types
