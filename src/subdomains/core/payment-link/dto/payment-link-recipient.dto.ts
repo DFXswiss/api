@@ -1,7 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsEnum, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
-import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/c2b-payment-link/dto/binance.dto';
+import {
+  GoodsCategory,
+  GoodsType,
+  MerchantMCC,
+  StoreType,
+} from 'src/integration/c2b-payment-link/binance/dto/binance.dto';
 import { Util } from 'src/shared/utils/util';
 import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
 import { PaymentLinkRecipientAddressDto } from './payment-link-recipient-address.dto';

@@ -5,7 +5,7 @@ import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/services/c2b-payment-link.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -163,8 +163,9 @@ export class PaymentQuoteService {
   }
 
   async saveBlockchainConfirmed(quote: PaymentQuote, txBlockchain: Blockchain, txId: string): Promise<PaymentQuote> {
-    const status =
-      txBlockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
+    const status = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(txBlockchain)
+      ? PaymentQuoteStatus.TX_COMPLETED
+      : PaymentQuoteStatus.TX_BLOCKCHAIN;
 
     const update = { status, txBlockchain, txId };
 

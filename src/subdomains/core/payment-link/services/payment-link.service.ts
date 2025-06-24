@@ -13,9 +13,7 @@ import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
-import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
-import { C2BPaymentStatus } from 'src/integration/c2b-payment-link/share/PaymentStatus';
+import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/services/c2b-payment-link.service';
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -28,7 +26,7 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
-import { PaymentLinkPayRequestDto, PaymentLinkPaymentErrorResponseDto, TransferInfo } from '../dto/payment-link.dto';
+import { PaymentLinkPayRequestDto, PaymentLinkPaymentErrorResponseDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -479,8 +477,7 @@ export class PaymentLinkService {
     routeLabel?: string,
   ): Promise<PaymentLink> {
     const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
-    if (!existingPaymentLink && !routeLabel)
-      throw new BadRequestException('Route label is required');
+    if (!existingPaymentLink && !routeLabel) throw new BadRequestException('Route label is required');
 
     const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
@@ -711,39 +708,5 @@ export class PaymentLinkService {
         reject(e);
       }
     });
-  }
-
-  async handleBinanceWebhook(dto: BinancePayWebhookDto): Promise<void> {
-    const result = await this.c2bPaymentLinkService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
-    if (!result) return;
-
-    switch (result.status) {
-      case C2BPaymentStatus.COMPLETED:
-        await this.paymentLinkPaymentService.confirmC2BPayment(C2BPaymentProvider.BINANCE_PAY, result.providerOrderId);
-        break;
-
-      case C2BPaymentStatus.WAITING:
-        const { qrContent, referId } = result.metadata;
-        
-        const lnurl = new URL(qrContent).searchParams.get('lightning');
-        const uniqueId = LightningHelper.decodeLnurl(lnurl).split('/').at(-1);
-        const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);
-        if (!payment) throw new NotFoundException('Payment not found');
-
-        const quote = await this.paymentQuoteService.createQuote(payment.link.defaultStandard, payment);
-        const transferAmount = JSON.parse(quote.transferAmounts).find((t) => t.method === Blockchain.BINANCE_PAY);
-        if (!transferAmount?.assets.length) throw new NotFoundException('Transfer amount not found');
-
-        const transferInfo: TransferInfo = {
-          asset: transferAmount.assets[0].asset,
-          amount: transferAmount.assets[0].amount,
-          method: Blockchain.BINANCE_PAY,
-          quoteUniqueId: quote.uniqueId,
-          referId,
-        };
-
-        await this.paymentLinkPaymentService.createActivationRequest(payment.uniqueId, transferInfo);
-        break;
-    }
   }
 }

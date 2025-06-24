@@ -8,6 +8,8 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../../share/IPaymentLinkProvider';
+import { C2BPaymentStatus } from '../../share/PaymentStatus';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
@@ -26,8 +28,6 @@ import {
   StoreType,
   SubMerchantOrderData,
 } from '../dto/binance.dto';
-import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
-import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
 export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {

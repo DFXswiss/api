@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { C2BPaymentLinkModule } from 'src/integration/c2b-payment-link/c2b-payment-link.module';
 import { TatumModule } from 'src/integration/tatum/tatum.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payment-link-payment.module';
@@ -31,6 +32,7 @@ import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
+import { BinanceStrategy as BinanceStrategyR } from './strategies/register/impl/binance.strategy';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
@@ -77,6 +79,7 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     TatumModule,
     TransactionModule,
     PaymentLinkPaymentModule,
+    C2BPaymentLinkModule,
   ],
   controllers: [],
   providers: [
@@ -126,6 +129,7 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     GnosisStrategyR,
     GnosisCoinStrategyS,
     GnosisTokenStrategyS,
+    BinanceStrategyR,
   ],
   exports: [PayInService],
 })
