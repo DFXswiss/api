@@ -3,14 +3,23 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class ArbitrumCoinStrategy extends EvmCoinStrategy {
-  constructor(arbitrumService: PayInArbitrumService, payInRepo: PayInRepository) {
+  protected readonly logger: DfxLoggerService;
+
+  constructor(
+    private readonly dfxLogger: DfxLoggerService,
+    arbitrumService: PayInArbitrumService,
+    payInRepo: PayInRepository,
+  ) {
     super(arbitrumService, payInRepo);
+
+    this.logger = this.dfxLogger.create(ArbitrumCoinStrategy);
   }
 
   get blockchain(): Blockchain {

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { cloneDeep, isEqual } from 'lodash';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MetricObserver } from './metric.observer';
@@ -12,15 +12,16 @@ type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
 export class MonitoringService implements OnModuleInit {
-  private readonly logger = new DfxLogger(MonitoringService);
-
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
   constructor(
     private systemStateSnapshotRepo: SystemStateSnapshotRepository,
     readonly notificationService: NotificationService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(MonitoringService);
+  }
 
   onModuleInit() {
     void this.initState();

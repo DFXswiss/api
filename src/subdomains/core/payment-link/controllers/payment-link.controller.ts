@@ -31,7 +31,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -55,13 +55,15 @@ import { PaymentLinkService } from '../services/payment-link.service';
 @ApiTags('Payment Link')
 @Controller('paymentLink')
 export class PaymentLinkController {
-  private readonly logger = new DfxLogger(PaymentLinkController);
   constructor(
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(PaymentLinkController);
+  }
 
   @Get()
   @ApiBearerAuth()

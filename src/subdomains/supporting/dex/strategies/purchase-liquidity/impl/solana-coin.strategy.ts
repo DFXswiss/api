@@ -1,12 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { NoPurchaseStrategy } from './base/no-purchase.strategy';
 
 @Injectable()
 export class SolanaCoinStrategy extends NoPurchaseStrategy {
-  protected readonly logger = new DfxLogger(SolanaCoinStrategy);
+  protected readonly logger: DfxLoggerService;
+
+  constructor(private readonly dfxLogger: DfxLoggerService) {
+    super();
+
+    this.logger = this.dfxLogger.create(SolanaCoinStrategy);
+  }
 
   get blockchain(): Blockchain {
     return Blockchain.SOLANA;

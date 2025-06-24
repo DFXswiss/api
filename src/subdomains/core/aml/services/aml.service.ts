@@ -2,7 +2,7 @@ import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
@@ -25,9 +25,8 @@ import { CheckStatus } from '../enums/check-status.enum';
 
 @Injectable()
 export class AmlService {
-  private readonly logger = new DfxLogger(AmlService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly bankDataService: BankDataService,
     private readonly bankService: BankService,
@@ -38,7 +37,9 @@ export class AmlService {
     private readonly payInService: PayInService,
     private readonly userService: UserService,
     private readonly transactionService: TransactionService,
-  ) {}
+  ) {
+    this.logger.create(AmlService);
+  }
 
   async postProcessing(
     entity: BuyFiat | BuyCrypto,

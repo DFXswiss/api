@@ -1,16 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { PricingService } from './pricing.service';
 
 @Injectable()
 export class FiatPricesService {
-  private readonly logger = new DfxLogger(FiatPricesService);
-
-  constructor(private readonly fiatService: FiatService, private readonly pricingService: PricingService) {}
+  constructor(
+    private readonly fiatService: FiatService,
+    private readonly pricingService: PricingService,
+    private readonly logger: DfxLoggerService,
+  ) {
+    logger.create(FiatPricesService);
+  }
 
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })

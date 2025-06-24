@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -24,7 +24,7 @@ interface BankData {
 
 @Injectable()
 export class BankObserver extends MetricObserver<BankData[]> {
-  protected readonly logger = new DfxLogger(BankObserver);
+  protected readonly logger: DfxLoggerService;
 
   constructor(
     monitoringService: MonitoringService,
@@ -32,8 +32,11 @@ export class BankObserver extends MetricObserver<BankData[]> {
     private readonly bankService: BankService,
     private readonly repos: RepositoryFactory,
     private readonly revolutService: RevolutService,
+    private readonly dfxLogger: DfxLoggerService,
   ) {
     super(monitoringService, 'bank', 'balance');
+
+    this.logger = this.dfxLogger.create(BankObserver);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })

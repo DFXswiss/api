@@ -17,7 +17,7 @@ import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-paym
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -37,7 +37,6 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
-  private readonly logger = new DfxLogger(PaymentLinkService);
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
@@ -49,7 +48,10 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
     private readonly i18n: I18nService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(PaymentLinkService);
+  }
 
   async getOrThrow(
     userId: number,

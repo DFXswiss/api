@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -15,10 +15,12 @@ import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends RegisterStrategy {
-  protected readonly logger = new DfxLogger(BitcoinStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(private readonly bitcoinService: PayInBitcoinService) {
+  constructor(private readonly dfxLogger: DfxLoggerService, private readonly bitcoinService: PayInBitcoinService) {
     super();
+
+    this.logger = this.dfxLogger.create(BitcoinStrategy);
   }
 
   get blockchain(): Blockchain {

@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -15,7 +15,7 @@ import { PayoutOrderRepository } from '../../../../repositories/payout-order.rep
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class BitcoinBasedStrategy extends PayoutStrategy {
-  protected abstract readonly logger: DfxLogger;
+  protected abstract readonly logger: DfxLoggerService;
 
   constructor(
     protected readonly notificationService: NotificationService,

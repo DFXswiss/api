@@ -2,17 +2,19 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class PolygonStrategy extends EvmStrategy implements OnModuleInit {
-  protected readonly logger = new DfxLogger(PolygonStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(polygonService: PayInPolygonService) {
+  constructor(private readonly dfxLogger: DfxLoggerService, polygonService: PayInPolygonService) {
     super(polygonService);
+
+    this.logger = this.dfxLogger.create(PolygonStrategy);
   }
 
   onModuleInit() {

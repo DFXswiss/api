@@ -4,7 +4,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -27,8 +27,6 @@ import { LiquidityManagementRuleRepository } from '../repositories/liquidity-man
 
 @Injectable()
 export class LiquidityManagementRuleService {
-  private readonly logger = new DfxLogger(LiquidityManagementRuleService);
-
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly actionRepo: LiquidityManagementActionRepository,
@@ -36,7 +34,10 @@ export class LiquidityManagementRuleService {
     private readonly fiatService: FiatService,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(LiquidityManagementRuleService);
+  }
 
   //*** PUBLIC API ***//
 

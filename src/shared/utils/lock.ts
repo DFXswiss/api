@@ -1,4 +1,4 @@
-import { DfxLogger } from '../services/dfx-logger';
+import { DfxLoggerService } from '../services/dfx-logger.service';
 
 export interface Context {
   target: string;
@@ -21,7 +21,7 @@ export class LockClass {
     try {
       await task();
     } catch (e) {
-      context && new DfxLogger(context.target).error(`Error during ${context.method}:`, e);
+      context && new DfxLoggerService().create(context.target).error(`Error during ${context.method}:`, e);
     } finally {
       this.release();
     }

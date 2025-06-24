@@ -13,7 +13,7 @@ import {
 } from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/services/integration/pricing-provider';
@@ -39,7 +39,7 @@ enum PrecisionMode {
 }
 
 export abstract class ExchangeService extends PricingProvider implements OnModuleInit {
-  protected abstract readonly logger: DfxLogger;
+  protected abstract readonly logger: DfxLoggerService;
 
   protected abstract readonly networks: { [b in Blockchain]: string };
   protected readonly exchange: Exchange;

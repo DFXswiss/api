@@ -2,17 +2,19 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
-  protected readonly logger = new DfxLogger(ArbitrumStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(arbitrumService: PayInArbitrumService) {
+  constructor(private readonly dfxLogger: DfxLoggerService, arbitrumService: PayInArbitrumService) {
     super(arbitrumService);
+
+    this.logger = this.dfxLogger.create(ArbitrumStrategy);
   }
 
   onModuleInit() {

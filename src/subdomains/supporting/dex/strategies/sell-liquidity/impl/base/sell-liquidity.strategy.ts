@@ -1,13 +1,13 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { SellLiquidityRequest } from '../../../../interfaces';
 import { SellLiquidityStrategyRegistry } from './sell-liquidity.strategy-registry';
 
 export abstract class SellLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
-  protected abstract readonly logger: DfxLogger;
+  protected abstract readonly logger: DfxLoggerService;
 
   private _feeAsset: Asset;
 

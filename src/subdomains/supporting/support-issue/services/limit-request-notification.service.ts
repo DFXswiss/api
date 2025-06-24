@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -14,12 +14,13 @@ import { LimitRequestRepository } from '../repositories/limit-request.repository
 
 @Injectable()
 export class LimitRequestNotificationService {
-  private readonly logger = new DfxLogger(LimitRequestNotificationService);
-
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly notificationService: NotificationService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    logger.create(LimitRequestNotificationService);
+  }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LIMIT_REQUEST_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {

@@ -3,14 +3,23 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmTokenStrategy } from './base/evm.token.strategy';
 
 @Injectable()
 export class EthereumTokenStrategy extends EvmTokenStrategy {
-  constructor(ethereumService: PayInEthereumService, payInRepo: PayInRepository) {
+  protected readonly logger: DfxLoggerService;
+
+  constructor(
+    private readonly dfxLogger: DfxLoggerService,
+    ethereumService: PayInEthereumService,
+    payInRepo: PayInRepository,
+  ) {
     super(ethereumService, payInRepo);
+
+    this.logger = this.dfxLogger.create(EthereumTokenStrategy);
   }
 
   get blockchain(): Blockchain {

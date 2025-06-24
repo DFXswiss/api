@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -28,14 +28,17 @@ type NodesState = NodePoolState[];
 // --------- //
 @Injectable()
 export class NodeHealthObserver extends MetricObserver<NodesState> {
-  protected readonly logger = new DfxLogger(NodeHealthObserver);
+  protected readonly logger: DfxLoggerService;
 
   constructor(
     readonly monitoringService: MonitoringService,
     private readonly bitcoinService: BitcoinService,
     private readonly notificationService: NotificationService,
+    private readonly dfxLogger: DfxLoggerService,
   ) {
     super(monitoringService, 'node', 'health');
+
+    this.logger = this.dfxLogger.create(NodeHealthObserver);
   }
 
   init(data: NodesState) {

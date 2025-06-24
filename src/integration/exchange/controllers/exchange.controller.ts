@@ -17,7 +17,7 @@ import { Balances, ExchangeError, Order, Trade, Transaction, WithdrawalResponse 
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -33,11 +33,11 @@ import { ExchangeService, OrderSide } from '../services/exchange.service';
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
-  private readonly logger = new DfxLogger(ExchangeController);
-
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(private readonly exchangeRegistry: ExchangeRegistryService) {}
+  constructor(private readonly exchangeRegistry: ExchangeRegistryService, private readonly logger: DfxLoggerService) {
+    this.logger.create(ExchangeController);
+  }
 
   @Get(':exchange/balances')
   @ApiBearerAuth()

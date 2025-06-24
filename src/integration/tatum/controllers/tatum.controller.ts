@@ -10,16 +10,16 @@ import {
 } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { TatumWebhookPayloadMapper } from '../dto/tatum-webhook-payload.mapper';
 import { TatumWebhookService } from '../services/tatum-webhook.service';
 
 @ApiTags('Tatum')
 @Controller('tatum')
 export class TatumController {
-  private readonly logger = new DfxLogger(TatumController);
-
-  constructor(private readonly tatumWebhookService: TatumWebhookService) {}
+  constructor(private readonly logger: DfxLoggerService, private readonly tatumWebhookService: TatumWebhookService) {
+    this.logger.create(TatumController);
+  }
 
   @Post('addressWebhook')
   @ApiExcludeEndpoint()

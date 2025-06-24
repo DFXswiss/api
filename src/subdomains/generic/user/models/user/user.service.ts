@@ -16,7 +16,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -46,9 +46,8 @@ import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
-  private readonly logger = new DfxLogger(UserService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
@@ -58,7 +57,9 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
-  ) {}
+  ) {
+    this.logger.create(UserService);
+  }
 
   async getAllUser(): Promise<User[]> {
     return this.userRepo.find();

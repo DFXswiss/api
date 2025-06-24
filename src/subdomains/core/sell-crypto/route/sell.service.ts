@@ -14,7 +14,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
@@ -47,8 +47,6 @@ import { Sell } from './sell.entity';
 
 @Injectable()
 export class SellService {
-  private readonly logger = new DfxLogger(SellService);
-
   constructor(
     private readonly sellRepo: SellRepository,
     private readonly depositService: DepositService,
@@ -68,7 +66,10 @@ export class SellService {
     private readonly cryptoService: CryptoService,
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(SellService);
+  }
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {

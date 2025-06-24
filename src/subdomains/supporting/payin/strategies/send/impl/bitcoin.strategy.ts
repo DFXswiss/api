@@ -3,17 +3,23 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends BitcoinBasedStrategy {
-  protected readonly logger = new DfxLogger(BitcoinStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(protected readonly bitcoinService: PayInBitcoinService, protected payInRepo: PayInRepository) {
+  constructor(
+    private readonly dfxLogger: DfxLoggerService,
+    protected readonly bitcoinService: PayInBitcoinService,
+    protected payInRepo: PayInRepository,
+  ) {
     super(bitcoinService, payInRepo);
+
+    this.logger = this.dfxLogger.create(BitcoinStrategy);
   }
 
   get blockchain(): Blockchain {

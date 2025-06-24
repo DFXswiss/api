@@ -12,7 +12,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
@@ -43,9 +43,8 @@ import { SwapRepository } from './swap.repository';
 
 @Injectable()
 export class SwapService {
-  private readonly logger = new DfxLogger(SwapService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly swapRepo: SwapRepository,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
@@ -62,7 +61,9 @@ export class SwapService {
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
-  ) {}
+  ) {
+    this.logger.create(SwapService);
+  }
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
     // does not work with find options

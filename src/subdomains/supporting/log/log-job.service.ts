@@ -14,7 +14,7 @@ import { amountType } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
@@ -58,9 +58,8 @@ import { LogService } from './log.service';
 
 @Injectable()
 export class LogJobService {
-  private readonly logger = new DfxLogger(LogJobService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
     private readonly logService: LogService,
@@ -79,7 +78,9 @@ export class LogJobService {
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
-  ) {}
+  ) {
+    this.logger.create(LogJobService);
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {

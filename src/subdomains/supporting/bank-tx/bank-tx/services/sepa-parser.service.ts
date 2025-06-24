@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SepaEntry } from '../dto/sepa-entry.dto';
@@ -13,11 +13,15 @@ import { BankTx } from '../entities/bank-tx.entity';
 
 @Injectable()
 export class SepaParser implements OnModuleInit {
-  private readonly logger = new DfxLogger(SepaParser);
-
   private chf: Fiat;
 
-  constructor(private readonly pricingService: PricingService, private readonly fiatService: FiatService) {}
+  constructor(
+    private readonly logger: DfxLoggerService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
+  ) {
+    this.logger.create(SepaParser);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

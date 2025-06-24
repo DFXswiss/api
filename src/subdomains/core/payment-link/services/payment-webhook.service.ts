@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
@@ -9,12 +9,11 @@ import { PaymentLink } from '../entities/payment-link.entity';
 
 @Injectable()
 export class PaymentWebhookService {
-  private readonly logger = new DfxLogger(PaymentWebhookService);
-
   private readonly webhookSendQueue: QueueHandler;
 
-  constructor(private readonly http: HttpService) {
+  constructor(private readonly http: HttpService, private readonly logger: DfxLoggerService) {
     this.webhookSendQueue = QueueHandler.createParallelQueueHandler(10);
+    this.logger.create(PaymentWebhookService);
   }
 
   async sendWebhook(paymentLink: PaymentLink): Promise<void> {

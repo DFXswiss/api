@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { PurchaseStrategy } from './base/purchase.strategy';
 
 @Injectable()
 export class ArbitrumTokenStrategy extends PurchaseStrategy {
-  protected readonly logger = new DfxLogger(ArbitrumTokenStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(dexArbitrumService: DexArbitrumService) {
+  constructor(private readonly dfxLogger: DfxLoggerService, dexArbitrumService: DexArbitrumService) {
     super(dexArbitrumService);
+
+    this.logger = this.dfxLogger.create(ArbitrumTokenStrategy);
   }
 
   get blockchain(): Blockchain {

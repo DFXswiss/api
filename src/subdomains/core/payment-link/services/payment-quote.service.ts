@@ -10,7 +10,7 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
@@ -30,8 +30,6 @@ import { PaymentQuoteRepository } from '../repositories/payment-quote.repository
 
 @Injectable()
 export class PaymentQuoteService {
-  private readonly logger = new DfxLogger(PaymentQuoteService);
-
   static readonly PREFIX_UNIQUE_ID = 'plq';
 
   private readonly transferAmountBlockchainOrder: Blockchain[] = [
@@ -58,7 +56,10 @@ export class PaymentQuoteService {
     private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(PaymentQuoteService);
+  }
 
   // --- JOBS --- //
   async processExpiredQuotes(): Promise<void> {

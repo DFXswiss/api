@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutOrderRepository } from 'src/subdomains/supporting/payout/repositories/payout-order.repository';
@@ -9,9 +9,8 @@ import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class SolanaStrategy extends PayoutStrategy {
-  private readonly logger = new DfxLogger(SolanaStrategy);
-
   private readonly txFees = new AsyncCache<number>(CacheItemResetPeriod.EVERY_30_SECONDS);
+  protected abstract readonly logger: DfxLoggerService;
 
   constructor(
     protected readonly solanaService: PayoutSolanaService,

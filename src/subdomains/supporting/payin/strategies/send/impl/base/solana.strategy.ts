@@ -1,5 +1,5 @@
 import { Config } from 'src/config/config';
-import { LogLevel } from 'src/shared/services/dfx-logger';
+import { LogLevel } from 'src/shared/services/dfx-logger.service';
 import {
   CryptoInput,
   PayInConfirmationType,

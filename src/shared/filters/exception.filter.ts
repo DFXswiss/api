@@ -1,9 +1,9 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
-import { DfxLogger } from '../services/dfx-logger';
+import { DfxLoggerService } from '../services/dfx-logger.service';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
-  private readonly logger = new DfxLogger(ApiExceptionFilter);
+  private readonly logger = new DfxLoggerService().create(ApiExceptionFilter);
 
   catch(exception: Error, host: ArgumentsHost) {
     const ctx = host.switchToHttp();

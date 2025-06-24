@@ -8,7 +8,7 @@ import {
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { FileType, KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
@@ -35,9 +35,8 @@ import { KycInfo } from './dto/kyc-info.dto';
 
 @Injectable()
 export class KycService {
-  private readonly logger = new DfxLogger(KycService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly userDataService: UserDataService,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
@@ -45,7 +44,9 @@ export class KycService {
     private readonly countryService: CountryService,
     private readonly http: HttpService,
     private readonly documentService: KycDocumentService,
-  ) {}
+  ) {
+    this.logger.create(KycService);
+  }
 
   // --- KYC DATA --- //
 

@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { binance } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
 export class BinanceService extends ExchangeService {
-  protected readonly logger = new DfxLogger(BinanceService);
+  protected readonly logger: DfxLoggerService;
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: 'ARBITRUM',
@@ -30,7 +30,9 @@ export class BinanceService extends ExchangeService {
     Solana: 'SOL',
   };
 
-  constructor() {
+  constructor(private readonly dfxLogger: DfxLoggerService) {
     super(binance, GetConfig().binance);
+
+    this.logger = this.dfxLogger.create(BinanceService);
   }
 }

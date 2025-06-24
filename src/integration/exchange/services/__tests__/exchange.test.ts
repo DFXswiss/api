@@ -1,7 +1,7 @@
 import { Exchange } from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { ExchangeService } from '../exchange.service';
 
 export class TestExchange extends Exchange {
@@ -11,7 +11,7 @@ export class TestExchange extends Exchange {
 }
 
 export class TestExchangeService extends ExchangeService {
-  protected logger = new DfxLogger(TestExchangeService);
+  protected readonly logger: DfxLoggerService;
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,

@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleIni
 import { CronExpression } from '@nestjs/schedule';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -21,12 +21,12 @@ import { UpdateBankTxReturnDto } from './dto/update-bank-tx-return.dto';
 
 @Injectable()
 export class BankTxReturnService implements OnModuleInit {
-  private readonly logger = new DfxLogger(BankTxReturnService);
   private chf: Fiat;
   private eur: Fiat;
   private usd: Fiat;
 
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly bankTxReturnRepo: BankTxReturnRepository,
     private readonly transactionService: TransactionService,
     private readonly transactionUtilService: TransactionUtilService,
@@ -35,7 +35,9 @@ export class BankTxReturnService implements OnModuleInit {
     private readonly fiatService: FiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
-  ) {}
+  ) {
+    this.logger.create(BankTxReturnService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

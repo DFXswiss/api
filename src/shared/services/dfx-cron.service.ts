@@ -8,7 +8,7 @@ import { DFX_CRONJOB_PARAMS, DfxCronExpression, DfxCronParams } from 'src/shared
 import { LockClass } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
-import { DfxLogger } from './dfx-logger';
+import { DfxLoggerService } from './dfx-logger.service';
 
 interface CronJobData {
   instance: object;
@@ -19,12 +19,11 @@ interface CronJobData {
 
 @Injectable()
 export class DfxCronService implements OnModuleInit {
-  private readonly logger = new DfxLogger(DfxCronService);
-
   constructor(
     private readonly discovery: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
-    private readonly schedulerRegisty: SchedulerRegistry,
+    private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly logger: DfxLoggerService,
   ) {}
 
   onModuleInit() {
@@ -57,7 +56,7 @@ export class DfxCronService implements OnModuleInit {
     const cronJob = new CronJob(data.params.expression, () => lock(this.wrapFunction(data), context));
     const cronJobName = `${context.target}::${context.method}`;
 
-    this.schedulerRegisty.addCronJob(cronJobName, cronJob);
+    this.schedulerRegistry.addCronJob(cronJobName, cronJob);
     cronJob.start();
   }
 

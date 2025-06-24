@@ -7,7 +7,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import {
   CryptoInput,
@@ -36,7 +36,7 @@ export enum SendType {
 }
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
-  protected abstract readonly logger: DfxLogger;
+  protected abstract readonly logger: DfxLoggerService;
   protected chf: Fiat;
 
   @Inject() private readonly priceProvider: PricingService;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -16,9 +16,13 @@ import { PayInRepository } from '../repositories/payin.repository';
 
 @Injectable()
 export class PayInNotificationService {
-  private readonly logger = new DfxLogger(PayInNotificationService);
-
-  constructor(private readonly payInRepo: PayInRepository, private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly logger: DfxLoggerService,
+    private readonly payInRepo: PayInRepository,
+    private readonly notificationService: NotificationService,
+  ) {
+    this.logger.create(PayInNotificationService);
+  }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {

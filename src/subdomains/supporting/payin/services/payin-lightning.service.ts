@@ -1,17 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 
 @Injectable()
 export class PayInLightningService {
-  private readonly logger = new DfxLogger(PayInLightningService);
-
   private readonly client: LightningClient;
 
-  constructor(private readonly service: LightningService) {
+  constructor(private readonly logger: DfxLoggerService, private readonly service: LightningService) {
     this.client = service.getDefaultClient();
+    this.logger.create(PayInLightningService);
   }
 
   async checkHealthOrThrow(): Promise<void> {

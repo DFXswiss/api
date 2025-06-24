@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -19,11 +19,11 @@ import { KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class IdentService {
-  private readonly logger = new DfxLogger(IdentService);
-
   private readonly baseUrl = `${Config.kyc.gatewayHost}/api/v1`;
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly logger: DfxLoggerService, private readonly http: HttpService) {
+    this.logger.create(IdentService);
+  }
 
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');

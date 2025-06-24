@@ -16,7 +16,7 @@ import { Request } from 'express';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from '../services/alchemy-webhook.service';
@@ -25,12 +25,13 @@ import { AlchemyService } from '../services/alchemy.service';
 @ApiTags('Alchemy')
 @Controller('alchemy')
 export class AlchemyController {
-  private readonly logger = new DfxLogger(AlchemyController);
-
   constructor(
     private readonly alchemyWebhookService: AlchemyWebhookService,
     private readonly alchemyService: AlchemyService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(AlchemyController);
+  }
 
   @Post('addressWebhook')
   @ApiExcludeEndpoint()

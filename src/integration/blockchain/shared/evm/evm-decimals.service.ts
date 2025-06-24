@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { In, IsNull, Not } from 'typeorm';
@@ -11,12 +11,13 @@ import { BlockchainRegistryService } from '../services/blockchain-registry.servi
 
 @Injectable()
 export class EvmDecimalsService {
-  private readonly logger = new DfxLogger(EvmDecimalsService);
-
   constructor(
     private readonly repoFactory: RepositoryFactory,
     private readonly blockchainRegistry: BlockchainRegistryService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(EvmDecimalsService);
+  }
 
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.ASSET_DECIMALS, timeout: 1800 })

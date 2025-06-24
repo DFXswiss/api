@@ -3,7 +3,7 @@ import { Web3ClientPlugin } from '@maticnetwork/maticjs-ethers';
 import { Contract, ethers } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
@@ -11,7 +11,7 @@ import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(PolygonClient);
+  private logger: DfxLoggerService;
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;
@@ -21,6 +21,9 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
 
   constructor(params: EvmClientParams) {
     super(params);
+
+    this.logger = params.logger;
+    this.logger.create(PolygonClient);
 
     use(Web3ClientPlugin);
     setProofApi('https://proof-generator.polygon.technology/');

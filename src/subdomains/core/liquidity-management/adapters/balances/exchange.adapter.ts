@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { Active } from 'src/shared/models/active';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
@@ -11,14 +11,15 @@ import { LiquidityManagementOrderRepository } from '../../repositories/liquidity
 
 @Injectable()
 export class ExchangeAdapter implements LiquidityBalanceIntegration {
-  private readonly logger = new DfxLogger(ExchangeAdapter);
-
   private readonly ASSET_MAPPINGS = { BTC: ['XBT'] };
 
   constructor(
     private readonly exchangeRegistry: ExchangeRegistryService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(ExchangeAdapter);
+  }
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(

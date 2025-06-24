@@ -6,15 +6,21 @@ import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutPolygonService } from '../../../services/payout-polygon.service';
 import { EvmStrategy } from './base/evm.strategy';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 
 @Injectable()
 export class PolygonTokenStrategy extends EvmStrategy {
+  protected readonly logger: DfxLoggerService;
+
   constructor(
     protected readonly polygonService: PayoutPolygonService,
     protected readonly assetService: AssetService,
+    private readonly dfxLogger: DfxLoggerService,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(polygonService, payoutOrderRepo);
+
+    this.logger = this.dfxLogger.create(PolygonTokenStrategy);
   }
 
   get blockchain(): Blockchain {

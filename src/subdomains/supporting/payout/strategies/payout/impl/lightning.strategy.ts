@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -12,14 +12,17 @@ import { PayoutStrategy } from './base/payout.strategy';
 
 @Injectable()
 export class LightningStrategy extends PayoutStrategy {
-  private readonly logger = new DfxLogger(LightningStrategy);
+  protected readonly logger: DfxLoggerService;
 
   constructor(
     private readonly assetService: AssetService,
     private readonly payoutLightningService: PayoutLightningService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
+    private readonly dfxLogger: DfxLoggerService,
   ) {
     super();
+
+    this.logger = this.dfxLogger.create(LightningStrategy);
   }
 
   get blockchain(): Blockchain {

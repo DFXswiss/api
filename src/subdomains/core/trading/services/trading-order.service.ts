@@ -5,7 +5,7 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -24,8 +24,6 @@ import { TradingRuleRepository } from '../repositories/trading-rule.respository'
 
 @Injectable()
 export class TradingOrderService implements OnModuleInit {
-  private readonly logger = new DfxLogger(TradingOrderService);
-
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
 
@@ -39,7 +37,10 @@ export class TradingOrderService implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly assetService: AssetService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(TradingOrderService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

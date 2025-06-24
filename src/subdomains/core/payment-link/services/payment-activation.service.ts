@@ -10,7 +10,7 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { Equal, LessThan, Not } from 'typeorm';
 import { TransferInfo } from '../dto/payment-link.dto';
@@ -23,8 +23,6 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentActivationService implements OnModuleInit {
-  private readonly logger = new DfxLogger(PaymentActivationService);
-
   private readonly client: LightningClient;
 
   private evmDepositAddress: string;
@@ -38,8 +36,10 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly assetService: AssetService,
     private readonly cryptoService: CryptoService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
+    private readonly logger: DfxLoggerService,
   ) {
     this.client = lightningService.getDefaultClient();
+    this.logger.create(PaymentActivationService);
   }
 
   onModuleInit() {

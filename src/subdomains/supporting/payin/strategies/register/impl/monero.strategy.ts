@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -15,10 +15,12 @@ import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class MoneroStrategy extends RegisterStrategy {
-  protected logger: DfxLogger = new DfxLogger(MoneroStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(private readonly payInMoneroService: PayInMoneroService) {
+  constructor(private readonly dfxLogger: DfxLoggerService, private readonly payInMoneroService: PayInMoneroService) {
     super();
+
+    this.logger = this.dfxLogger.create(MoneroStrategy);
   }
 
   get blockchain(): Blockchain {

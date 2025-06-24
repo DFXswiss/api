@@ -7,7 +7,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -30,7 +30,6 @@ import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
 export class BuyCryptoPreparationService implements OnModuleInit {
-  private readonly logger = new DfxLogger(BuyCryptoPreparationService);
   private chf: Fiat;
   private eur: Fiat;
 
@@ -47,7 +46,10 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    logger.create(BuyCryptoPreparationService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

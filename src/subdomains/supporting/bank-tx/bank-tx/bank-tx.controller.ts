@@ -16,7 +16,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTxBatch } from './entities/bank-tx-batch.entity';
 import { BankTx } from './entities/bank-tx.entity';
@@ -25,9 +25,9 @@ import { BankTxService } from './services/bank-tx.service';
 @ApiTags('bankTx')
 @Controller('bankTx')
 export class BankTxController {
-  private readonly logger = new DfxLogger(BankTxController);
-
-  constructor(private readonly bankTxService: BankTxService) {}
+  constructor(private readonly logger: DfxLoggerService, private readonly bankTxService: BankTxService) {
+    this.logger.create(BankTxController);
+  }
 
   @Post()
   @ApiBearerAuth()

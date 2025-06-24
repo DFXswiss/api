@@ -4,6 +4,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -33,6 +34,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
 
+  protected readonly logger: DfxLoggerService;
+
   private usd: Fiat;
   private eur: Fiat;
   private chf: Fiat;
@@ -42,11 +45,14 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   private frankencoinService: FrankencoinService;
 
   constructor(
+    private readonly dfxLogger: DfxLoggerService,
     private readonly moduleRef: ModuleRef,
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
     super();
+
+    this.logger = this.dfxLogger.create(DEuroService);
   }
 
   async onModuleInit() {

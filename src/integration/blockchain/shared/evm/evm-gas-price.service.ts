@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -14,8 +14,6 @@ interface EvmGasPriceCacheData {
 
 @Injectable()
 export class EvmGasPriceService implements OnModuleInit {
-  private readonly logger = new DfxLogger(EvmGasPriceService);
-
   private static readonly MINUTES_5 = 5 * 60;
 
   private static readonly GAS_PRICE_BLOCKCHAINS: Blockchain[] = [
@@ -29,8 +27,12 @@ export class EvmGasPriceService implements OnModuleInit {
 
   private gasPriceCache: Map<Blockchain, EvmGasPriceCacheData>;
 
-  constructor(private readonly blockchainRegistryService: BlockchainRegistryService) {
+  constructor(
+    private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly logger: DfxLoggerService,
+  ) {
     this.gasPriceCache = new Map();
+    this.logger.create(EvmGasPriceService);
   }
 
   async onModuleInit() {

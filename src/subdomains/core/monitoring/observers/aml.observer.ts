@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -22,10 +22,16 @@ interface AmlDetails {
 
 @Injectable()
 export class AmlObserver extends MetricObserver<AmlData> {
-  protected readonly logger = new DfxLogger(AmlObserver);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+    private readonly dfxLogger: DfxLoggerService,
+  ) {
     super(monitoringService, 'payment', 'aml');
+
+    this.logger = this.dfxLogger.create(AmlObserver);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })

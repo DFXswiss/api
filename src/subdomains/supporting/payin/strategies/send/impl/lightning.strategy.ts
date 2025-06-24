@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService, LogLevel } from 'src/shared/services/dfx-logger.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { CryptoInput, PayInConfirmationType } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
@@ -11,10 +11,16 @@ import { SendStrategy, SendType } from './base/send.strategy';
 
 @Injectable()
 export class LightningStrategy extends SendStrategy {
-  protected readonly logger = new DfxLogger(LightningStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(private readonly lightningService: PayInLightningService, private readonly payInRepo: PayInRepository) {
+  constructor(
+    private readonly dfxLogger: DfxLoggerService,
+    private readonly lightningService: PayInLightningService,
+    private readonly payInRepo: PayInRepository,
+  ) {
     super();
+
+    this.logger = this.dfxLogger.create(LightningStrategy);
   }
 
   get blockchain(): Blockchain {

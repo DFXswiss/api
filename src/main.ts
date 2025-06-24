@@ -11,7 +11,7 @@ import morgan from 'morgan';
 import { AppModule } from './app.module';
 import { Config } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
-import { DfxLogger } from './shared/services/dfx-logger';
+import { DfxLoggerService } from './shared/services/dfx-logger.service';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
   KycChangedWebhookDto,
@@ -74,7 +74,7 @@ async function bootstrap() {
 
   await app.listen(Config.port);
 
-  new DfxLogger('Main').info(`Application ready ...`);
+  new DfxLoggerService().create('Main').info(`Application ready ...`);
 }
 
 void bootstrap();

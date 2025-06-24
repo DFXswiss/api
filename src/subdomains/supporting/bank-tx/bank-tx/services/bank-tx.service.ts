@@ -9,7 +9,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
@@ -66,9 +66,8 @@ export const TransactionBankTxTypeMapper: {
 
 @Injectable()
 export class BankTxService {
-  private readonly logger = new DfxLogger(BankTxService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly bankTxRepo: BankTxRepository,
     private readonly bankTxBatchRepo: BankTxBatchRepository,
     @Inject(forwardRef(() => BuyCryptoService))
@@ -85,7 +84,9 @@ export class BankTxService {
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
-  ) {}
+  ) {
+    this.logger.create(BankTxService);
+  }
 
   // --- TRANSACTION HANDLING --- //
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })

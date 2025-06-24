@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -19,7 +19,6 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
 export class ExchangeTxService implements OnModuleInit {
-  private readonly logger = new DfxLogger(ExchangeTxService);
   private chf: Fiat;
 
   constructor(
@@ -28,7 +27,10 @@ export class ExchangeTxService implements OnModuleInit {
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(ExchangeTxService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

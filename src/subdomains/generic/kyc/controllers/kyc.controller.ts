@@ -37,7 +37,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
@@ -77,9 +77,13 @@ const TfaResponse = { description: '2FA is required' };
 @ApiTags('KYC')
 @Controller({ path: 'kyc', version: [GetConfig().kycVersion] })
 export class KycController {
-  private readonly logger = new DfxLogger(KycController);
-
-  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
+  constructor(
+    private readonly logger: DfxLoggerService,
+    private readonly kycService: KycService,
+    private readonly tfaService: TfaService,
+  ) {
+    this.logger.create(KycController);
+  }
 
   // --- 2FA --- //
   @Get('2fa')

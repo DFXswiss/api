@@ -6,11 +6,16 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInGnosisService } from '../../../services/payin-gnosis.service';
 import { EvmCoinStrategy } from './base/evm-coin.strategy';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 
 @Injectable()
 export class GnosisCoinStrategy extends EvmCoinStrategy {
-  constructor(gnosisService: PayInGnosisService, payInRepo: PayInRepository) {
+  protected readonly logger: DfxLoggerService;
+  
+  constructor(private readonly dfxLogger: DfxLoggerService,gnosisService: PayInGnosisService, payInRepo: PayInRepository) {
     super(gnosisService, payInRepo);
+
+    this.logger = this.dfxLogger.create(GnosisCoinStrategy);
   }
 
   get blockchain(): Blockchain {

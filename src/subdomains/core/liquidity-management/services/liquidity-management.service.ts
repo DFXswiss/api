@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -17,8 +17,6 @@ import { LiquidityManagementBalanceService } from './liquidity-management-balanc
 
 @Injectable()
 export class LiquidityManagementService {
-  private readonly logger = new DfxLogger(LiquidityManagementService);
-
   private readonly ruleActivations = new Map<number, Date>();
 
   constructor(
@@ -26,7 +24,10 @@ export class LiquidityManagementService {
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly balanceService: LiquidityManagementBalanceService,
     private readonly settingService: SettingService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(LiquidityManagementService);
+  }
 
   //*** JOBS ***//
 

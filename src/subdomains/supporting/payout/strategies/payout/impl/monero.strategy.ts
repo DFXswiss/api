@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
@@ -14,17 +14,19 @@ import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 @Injectable()
 export class MoneroStrategy extends BitcoinBasedStrategy {
-  protected readonly logger = new DfxLogger(MoneroStrategy);
-
   private readonly averageTransactionSize = 1600; // Bytes
+  protected readonly logger: DfxLoggerService;
 
   constructor(
     notificationService: NotificationService,
     protected readonly payoutMoneroService: PayoutMoneroService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
+    private readonly dfxLogger: DfxLoggerService,
   ) {
     super(notificationService, payoutOrderRepo, payoutMoneroService);
+
+    this.logger = this.dfxLogger.create(MoneroStrategy);
   }
 
   get blockchain(): Blockchain {

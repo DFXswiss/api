@@ -20,7 +20,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -69,11 +69,10 @@ interface SecretCacheEntry {
 
 @Injectable()
 export class UserDataService {
-  private readonly logger = new DfxLogger(UserDataService);
-
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly repos: RepositoryFactory,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
@@ -97,7 +96,9 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
-  ) {}
+  ) {
+    this.logger.create(UserDataService);
+  }
 
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {

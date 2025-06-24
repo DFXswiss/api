@@ -3,7 +3,7 @@ import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CustodyOrderInputTypes, CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
@@ -23,8 +23,6 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoOutService {
-  private readonly logger = new DfxLogger(BuyCryptoOutService);
-
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
@@ -37,7 +35,10 @@ export class BuyCryptoOutService {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly custodyOrderService: CustodyOrderService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(BuyCryptoOutService);
+  }
 
   async payoutTransactions(): Promise<void> {
     try {

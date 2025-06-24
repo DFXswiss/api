@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
@@ -17,12 +17,13 @@ import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
 export class BuyCryptoNotificationService {
-  private readonly logger = new DfxLogger(BuyCryptoNotificationService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) {
+    this.logger.create(BuyCryptoNotificationService);
+  }
 
   async sendNotificationMails(): Promise<void> {
     try {

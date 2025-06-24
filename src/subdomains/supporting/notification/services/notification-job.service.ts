@@ -1,7 +1,7 @@
 import { MailerOptions } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -24,14 +24,15 @@ export interface MailOptions {
 
 @Injectable()
 export class NotificationJobService {
-  private readonly logger = new DfxLogger(NotificationJobService);
-
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly notificationRepo: NotificationRepository,
     private readonly notificationService: NotificationService,
     private readonly mailFactory: MailFactory,
     private readonly mailService: MailService,
-  ) {}
+  ) {
+    this.logger.create(NotificationJobService);
+  }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MAIL_RETRY, timeout: 7200 })
   async resendUncompletedMails(): Promise<void> {

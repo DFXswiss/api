@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -26,7 +26,6 @@ import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
 export class BuyFiatPreparationService implements OnModuleInit {
-  private readonly logger = new DfxLogger(BuyFiatPreparationService);
   private chf: Fiat;
   private eur: Fiat;
 
@@ -41,7 +40,10 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly countryService: CountryService,
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly fiatOutputService: FiatOutputService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(BuyFiatNotificationService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

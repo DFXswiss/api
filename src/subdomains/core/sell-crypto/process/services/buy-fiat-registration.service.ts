@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { CryptoInput, PayInPurpose, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -16,15 +16,16 @@ interface RouteIdentifier {
 
 @Injectable()
 export class BuyFiatRegistrationService {
-  private readonly logger = new DfxLogger(BuyFiatRegistrationService);
-
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly buyFiatService: BuyFiatService,
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(BuyFiatRegistrationService);
+  }
 
   async syncReturnTxId(): Promise<void> {
     const entities = await this.buyFiatRepo.find({

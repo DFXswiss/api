@@ -3,7 +3,7 @@ import { BinanceService } from 'src/integration/exchange/services/binance.servic
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
@@ -24,8 +24,6 @@ import { PricingFrankencoinService } from './integration/pricing-frankencoin.ser
 
 @Injectable()
 export class PricingService {
-  private readonly logger = new DfxLogger(PricingService);
-
   private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
@@ -45,6 +43,7 @@ export class PricingService {
     readonly deuroService: PricingDeuroService,
     readonly ebel2xService: PricingEbel2xService,
     readonly constantService: PricingConstantService,
+    private readonly logger: DfxLoggerService,
   ) {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
@@ -59,6 +58,7 @@ export class PricingService {
       [PriceSource.EBEL2X]: ebel2xService,
       [PriceSource.CONSTANT]: constantService,
     };
+    logger.create(PricingService);
   }
 
   async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {

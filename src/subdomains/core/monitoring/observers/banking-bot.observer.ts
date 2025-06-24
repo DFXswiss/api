@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Type, plainToClass } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested, validateSync } from 'class-validator';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 
@@ -51,10 +51,12 @@ class BankingBotDataDto {
 
 @Injectable()
 export class BankingBotObserver extends MetricObserver<BankingBotData> {
-  protected readonly logger = new DfxLogger(BankingBotObserver);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(monitoringService: MonitoringService) {
+  constructor(monitoringService: MonitoringService, private readonly dfxLogger: DfxLoggerService) {
     super(monitoringService, 'bankingBot', 'logs');
+
+    this.logger = this.dfxLogger.create(BankingBotObserver);
   }
 
   async onWebhook(_dto: unknown): Promise<void> {

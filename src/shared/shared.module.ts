@@ -36,6 +36,7 @@ import { SettingRepository } from './models/setting/setting.repository';
 import { SettingService } from './models/setting/setting.service';
 import { RepositoryFactory } from './repositories/repository.factory';
 import { DfxCronService } from './services/dfx-cron.service';
+import { DfxLoggerService } from './services/dfx-logger.service';
 import { HttpService } from './services/http.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { ProcessService } from './services/process.service';
@@ -73,6 +74,7 @@ import { ProcessService } from './services/process.service';
     IpLogService,
     ProcessService,
     DfxCronService,
+    DfxLoggerService,
   ],
   exports: [
     RepositoryFactory,
@@ -89,6 +91,7 @@ import { ProcessService } from './services/process.service';
     PaymentInfoService,
     IpLogService,
     ProcessService,
+    DfxLoggerService,
   ],
 })
 export class SharedModule {}

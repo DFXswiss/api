@@ -11,7 +11,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -50,7 +50,6 @@ import { TransactionService } from './transaction.service';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
-  private readonly logger = new DfxLogger(TransactionHelper);
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
   private chf: Fiat;
@@ -58,6 +57,7 @@ export class TransactionHelper implements OnModuleInit {
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
+    private readonly logger: DfxLoggerService,
     private readonly specRepo: TransactionSpecificationRepository,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
@@ -71,7 +71,9 @@ export class TransactionHelper implements OnModuleInit {
     private readonly transactionService: TransactionService,
     private readonly buyService: BuyService,
     private readonly assetService: AssetService,
-  ) {}
+  ) {
+    this.logger.create(TransactionHelper);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

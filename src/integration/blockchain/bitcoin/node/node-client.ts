@@ -4,7 +4,7 @@ import { AddressType, InWalletTransaction, UTXO } from '@defichain/jellyfish-api
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
@@ -20,8 +20,7 @@ export enum NodeCommand {
 }
 
 export abstract class NodeClient extends BlockchainClient {
-  private readonly logger = new DfxLogger(NodeClient);
-
+  protected abstract readonly logger: DfxLoggerService;
   protected chain = Config.network;
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;

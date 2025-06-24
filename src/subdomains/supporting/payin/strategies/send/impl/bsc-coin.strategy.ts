@@ -3,14 +3,19 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class BscCoinStrategy extends EvmCoinStrategy {
-  constructor(bscService: PayInBscService, payInRepo: PayInRepository) {
+  protected readonly logger: DfxLoggerService;
+
+  constructor(private readonly dfxLogger: DfxLoggerService, bscService: PayInBscService, payInRepo: PayInRepository) {
     super(bscService, payInRepo);
+
+    this.logger = this.dfxLogger.create(BscCoinStrategy);
   }
 
   get blockchain(): Blockchain {

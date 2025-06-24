@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
@@ -12,10 +12,16 @@ import { SolanaStrategy } from './base/solana.strategy';
 
 @Injectable()
 export class SolanaCoinStrategy extends SolanaStrategy {
-  protected readonly logger = new DfxLogger(SolanaCoinStrategy);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(payInSolanaService: PayInSolanaService, payInRepo: PayInRepository) {
+  constructor(
+    payInSolanaService: PayInSolanaService,
+    payInRepo: PayInRepository,
+    private readonly dfxLogger: DfxLoggerService,
+  ) {
     super(payInSolanaService, payInRepo);
+
+    this.logger = this.dfxLogger.create(SolanaCoinStrategy);
   }
 
   get blockchain(): Blockchain {

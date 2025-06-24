@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -18,10 +18,16 @@ interface UserWithout {
 
 @Injectable()
 export class UserObserver extends MetricObserver<UserData> {
-  protected readonly logger = new DfxLogger(UserObserver);
+  protected readonly logger: DfxLoggerService;
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    private readonly dfxLogger: DfxLoggerService,
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+  ) {
     super(monitoringService, 'user', 'kyc');
+
+    this.logger = this.dfxLogger.create(UserObserver);
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })

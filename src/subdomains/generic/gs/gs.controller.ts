@@ -4,16 +4,16 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
 @Controller('gs')
 export class GsController {
-  private readonly logger = new DfxLogger(GsController);
-
-  constructor(private readonly gsService: GsService) {}
+  constructor(private readonly gsService: GsService, private readonly logger: DfxLoggerService) {
+    this.logger.create(GsController);
+  }
 
   @Post('db')
   @ApiBearerAuth()

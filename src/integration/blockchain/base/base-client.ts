@@ -2,7 +2,7 @@ import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateT
 import { BigNumber, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
@@ -16,7 +16,7 @@ interface BaseTransactionReceipt extends ethers.providers.TransactionReceipt {
 }
 
 export class BaseClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(BaseClient);
+  private readonly logger: DfxLoggerService;
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;
@@ -25,6 +25,8 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
 
   constructor(params: EvmClientParams) {
     super(params);
+
+    this.logger = params.logger;
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
     const { baseChainId } = GetConfig().blockchain.base;

@@ -6,7 +6,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
@@ -17,13 +17,14 @@ import { PoolOutOfRangeException } from '../exceptions/pool-out-of-range.excepti
 
 @Injectable()
 export class TradingService {
-  private readonly logger = new DfxLogger(TradingService);
-
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
-  ) {}
+    private readonly logger: DfxLoggerService,
+  ) {
+    this.logger.create(TradingService);
+  }
 
   async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
     if (tradingRule.leftAsset.blockchain !== tradingRule.rightAsset.blockchain)

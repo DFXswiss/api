@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGnosisService } from '../../../services/payout-gnosis.service';
@@ -9,12 +10,17 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class GnosisCoinStrategy extends EvmStrategy {
+  protected readonly logger: DfxLoggerService;
+
   constructor(
+    private readonly dfxLogger: DfxLoggerService,
     protected readonly gnosisService: PayoutGnosisService,
     protected readonly assetService: AssetService,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(gnosisService, payoutOrderRepo);
+
+    this.logger = this.dfxLogger.create(GnosisCoinStrategy);
   }
 
   get blockchain(): Blockchain {
