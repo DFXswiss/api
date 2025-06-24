@@ -69,9 +69,11 @@ export class FiatOutputService {
 
     for (const entity of entities) {
       try {
+        const buyFiat = entity.buyFiats[0];
+
         const report = this.ep2ReportService.generateReport(entity);
-        const container = entity.buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer;
-        const routeId = entity.buyFiats[0].sell.id;
+        const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
+        const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
         const fileName = `settlement-${routeId}_${Util.isoDateTime(entity.created)}.ep2`;
 
         await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
