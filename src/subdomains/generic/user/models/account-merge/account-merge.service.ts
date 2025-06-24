@@ -53,7 +53,7 @@ export class AccountMergeService {
     const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
     if (!receiver.mail) return false;
 
-    const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
+    const name = mentioned.organization.name ?? mentioned.firstname ?? receiver.organization.name ?? receiver.firstname;
     const url = this.buildConfirmationUrl(request.code);
 
     await this.notificationService.sendMail({

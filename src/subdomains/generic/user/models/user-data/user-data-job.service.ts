@@ -7,13 +7,17 @@ import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycStepStatus } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { IsNull, Like, MoreThan, Not } from 'typeorm';
+import { OrganizationService } from '../organization/organization.service';
 import { AccountType } from './account-type.enum';
 import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
 export class UserDataJobService {
-  constructor(private readonly userDataRepo: UserDataRepository) {}
+  constructor(
+    private readonly userDataRepo: UserDataRepository,
+    private readonly organizationService: OrganizationService,
+  ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.USER_DATA, timeout: 1800 })
   async fillUserData() {
@@ -41,7 +45,7 @@ export class UserDataJobService {
       where: {
         kycLevel: MoreThan(KycLevel.LEVEL_30),
         accountType: AccountType.ORGANIZATION,
-        accountOpenerAuthorization: IsNull(),
+        organization: { accountOpenerAuthorization: IsNull() },
         kycSteps: { name: KycStepName.SIGNATORY_POWER, status: KycStepStatus.COMPLETED },
       },
       relations: { kycSteps: true },
@@ -50,9 +54,12 @@ export class UserDataJobService {
     for (const entity of entities) {
       const signatoryResult = entity.kycSteps
         .find((k) => k.name === KycStepName.SIGNATORY_POWER && k.status === KycStepStatus.COMPLETED)
-        .getResult<{signatoryPower: SignatoryPower}>();
+        .getResult<{ signatoryPower: SignatoryPower }>();
 
-      await this.userDataRepo.update(...entity.setAccountOpenerAuthorization(signatoryResult.signatoryPower));
+      await this.organizationService.updateOrganizationInternal(
+        entity.organization,
+        entity.organization.setAccountOpenerAuthorization(signatoryResult.signatoryPower),
+      );
     }
   }
 
