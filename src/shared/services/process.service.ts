@@ -78,6 +78,7 @@ const safetyProcesses: Process[] = [
   Process.FIAT_OUTPUT_BATCH_ID_UPDATE,
   Process.CRYPTO_PAYOUT,
   Process.LIQUIDITY_MANAGEMENT,
+  Process.TRADING,
 ];
 
 type ProcessMap = { [p in Process]?: boolean };
