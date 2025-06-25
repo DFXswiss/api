@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { In, Not } from 'typeorm';
@@ -30,10 +30,12 @@ export class LiquidityManagementService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT_VERIFY_RULES, timeout: 1800 })
   async verifyRules() {
     const rules = await this.ruleRepo.findBy({ status: Not(LiquidityManagementRuleStatus.DISABLED) });
     const balances = await this.balanceService.refreshBalances(rules);
+
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     for (const rule of rules) {
       await this.verifyRule(rule, balances);
