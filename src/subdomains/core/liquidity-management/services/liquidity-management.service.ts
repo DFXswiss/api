@@ -30,8 +30,8 @@ export class LiquidityManagementService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT_VERIFY_RULES, timeout: 1800 })
-  async verifyRules() {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT_CHECK_BALANCES, timeout: 1800 })
+  async checkLiquidityBalances() {
     const rules = await this.ruleRepo.findBy({ status: Not(LiquidityManagementRuleStatus.DISABLED) });
     const balances = await this.balanceService.refreshBalances(rules);
 
