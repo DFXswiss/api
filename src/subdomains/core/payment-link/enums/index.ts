@@ -46,6 +46,12 @@ export enum PaymentActivationStatus {
   CLOSED = 'Closed',
 }
 
+export enum PaymentLinkMode {
+  SINGLE = 'Single',
+  MULTIPLE = 'Multiple',
+  DONATION = 'Donation',
+}
+
 export enum PaymentLinkPaymentMode {
   SINGLE = 'Single',
   MULTIPLE = 'Multiple',

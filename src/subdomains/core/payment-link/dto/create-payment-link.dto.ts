@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { PaymentLinkMode } from '../enums';
 import { CreatePaymentLinkPaymentDto } from './create-payment-link-payment.dto';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
@@ -19,6 +20,15 @@ export class CreatePaymentLinkDto {
   @IsOptional()
   @IsString()
   externalId?: string;
+
+  @ApiPropertyOptional({
+    enum: PaymentLinkMode,
+    description:
+      'Possible values: Multiple(Default - can have multiple payments), Single(Only one payment can be created), Donation(Allows multiple payments, payments can be created anonymously)',
+  })
+  @IsOptional()
+  @IsEnum(PaymentLinkMode)
+  mode?: PaymentLinkMode;
 
   @ApiPropertyOptional()
   @IsOptional()
