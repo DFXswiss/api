@@ -18,7 +18,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
-import { C2BPaymentProvider } from 'src/subdomains/core/payment-link/share/providers.enum';
+import { C2BPaymentProvider } from 'src/subdomains/core/payment-link/share/c2b-providers.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';

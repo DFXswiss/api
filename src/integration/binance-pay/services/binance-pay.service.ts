@@ -9,11 +9,11 @@ import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/pa
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import {
-  IPaymentLinkProvider,
-  OrderResult,
-  WebhookResult,
-} from '../../../subdomains/core/payment-link/share/IPaymentLinkProvider';
-import { C2BPaymentStatus } from '../../../subdomains/core/payment-link/share/PaymentStatus';
+  C2BOrderResult,
+  C2BPaymentLinkProvider,
+  C2BWebhookResult,
+} from '../../../subdomains/core/payment-link/share/c2b-payment-link.provider';
+import { C2BPaymentStatus } from '../../../subdomains/core/payment-link/share/c2b-payment-status';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
@@ -34,7 +34,7 @@ import {
 } from '../dto/binance.dto';
 
 @Injectable()
-export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
+export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto> {
   private readonly logger = new DfxLogger(BinancePayService);
 
   private readonly baseUrl = 'https://bpay.binanceapi.com';
@@ -155,7 +155,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     quote: PaymentQuote,
-  ): Promise<OrderResult> {
+  ): Promise<C2BOrderResult> {
     const orderDetails: OrderData = {
       env: {
         terminalType: BinancePayTerminalType.OTHERS,
@@ -261,7 +261,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     return this.SUPPORTED_BIZ_TYPES.includes(bizType as BinanceBizType);
   }
 
-  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<C2BWebhookResult | undefined> {
     const { bizType, bizIdStr, bizStatus } = dto;
     if (!this.isSupportedBizType(bizType) || !this.getStatus(bizStatus)) return;
 

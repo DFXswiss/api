@@ -11,8 +11,8 @@ import { PayInWebHookService } from 'src/subdomains/supporting/payin/services/pa
 import { BinancePayWebhookDto } from '../../../../integration/binance-pay/dto/binance.dto';
 import { C2BPaymentLinkService } from '../services/c2b-payment-link.service';
 import { PaymentLinkService } from '../services/payment-link.service';
-import { C2BPaymentStatus } from '../share/PaymentStatus';
-import { C2BPaymentProvider } from '../share/providers.enum';
+import { C2BPaymentStatus } from '../share/c2b-payment-status';
+import { C2BPaymentProvider } from '../share/c2b-providers.enum';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')

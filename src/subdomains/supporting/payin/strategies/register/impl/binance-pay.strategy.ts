@@ -4,7 +4,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
-import { WebhookResult } from 'src/subdomains/core/payment-link/share/IPaymentLinkProvider';
+import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInWebHookService } from '../../../services/payin-webhhook.service';
@@ -30,7 +30,7 @@ export class BinancePayStrategy extends RegisterStrategy {
     return Blockchain.BINANCE_PAY;
   }
 
-  private processWebhookMessageQueue(payWebhook: WebhookResult): void {
+  private processWebhookMessageQueue(payWebhook: C2BWebhookResult): void {
     this.depositWebhookMessageQueue
       .handle<void>(async () => this.processWebhookTransactions(payWebhook))
       .catch((e) => {
@@ -41,7 +41,7 @@ export class BinancePayStrategy extends RegisterStrategy {
       });
   }
 
-  private async processWebhookTransactions(payWebhook: WebhookResult): Promise<void> {
+  private async processWebhookTransactions(payWebhook: C2BWebhookResult): Promise<void> {
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     const payInEntries = this.mapBinanceTransaction(payWebhook, supportedAssets);
@@ -52,7 +52,7 @@ export class BinancePayStrategy extends RegisterStrategy {
     }
   }
 
-  private mapBinanceTransaction(payWebhook: WebhookResult, supportedAssets: Asset[]): PayInEntry[] {
+  private mapBinanceTransaction(payWebhook: C2BWebhookResult, supportedAssets: Asset[]): PayInEntry[] {
     try {
       const paymentInstructions = payWebhook.metadata['paymentInfo']['paymentInstructions'];
 

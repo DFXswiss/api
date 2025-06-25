@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbits.dto';
-import { WebhookResult } from 'src/subdomains/core/payment-link/share/IPaymentLinkProvider';
+import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 
 @Injectable()
 export class PayInWebHookService {
   private readonly lightningTransactionWebhookSubject: Subject<LnBitsTransactionWebhookDto>;
-  private readonly binanceTransactionWebhookSubject: Subject<WebhookResult>;
+  private readonly binanceTransactionWebhookSubject: Subject<C2BWebhookResult>;
 
   constructor() {
     this.lightningTransactionWebhookSubject = new Subject<LnBitsTransactionWebhookDto>();
-    this.binanceTransactionWebhookSubject = new Subject<WebhookResult>();
+    this.binanceTransactionWebhookSubject = new Subject<C2BWebhookResult>();
   }
 
   getLightningTransactionWebhookObservable(): Observable<LnBitsTransactionWebhookDto> {
@@ -21,11 +21,11 @@ export class PayInWebHookService {
     this.lightningTransactionWebhookSubject.next(transactionWebhook);
   }
 
-  getBinanceTransactionWebhookObservable(): Observable<WebhookResult> {
+  getBinanceTransactionWebhookObservable(): Observable<C2BWebhookResult> {
     return this.binanceTransactionWebhookSubject.asObservable();
   }
 
-  processBinanceTransaction(payWebhook: WebhookResult): void {
+  processBinanceTransaction(payWebhook: C2BWebhookResult): void {
     this.binanceTransactionWebhookSubject.next(payWebhook);
   }
 }

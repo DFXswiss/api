@@ -2,24 +2,24 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
-import { C2BPaymentStatus } from './PaymentStatus';
+import { C2BPaymentStatus } from './c2b-payment-status';
 
-export interface OrderResult {
+export interface C2BOrderResult {
   providerOrderId: string;
   paymentRequest: string;
   metadata?: Record<string, any>;
 }
 
-export interface WebhookResult {
+export interface C2BWebhookResult {
   providerOrderId: string;
   status: C2BPaymentStatus;
   metadata?: Record<string, any>;
 }
 
-export interface IPaymentLinkProvider<WebhookDto> {
-  createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<OrderResult>;
+export interface C2BPaymentLinkProvider<WebhookDto> {
+  createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote): Promise<C2BOrderResult>;
   verifySignature(payload: WebhookDto, headers: any): Promise<boolean>;
-  handleWebhook(payload: WebhookDto): Promise<WebhookResult | undefined>;
+  handleWebhook(payload: WebhookDto): Promise<C2BWebhookResult | undefined>;
   isPaymentLinkEnrolled(paymentLink: PaymentLink): boolean;
   enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>>;
 }

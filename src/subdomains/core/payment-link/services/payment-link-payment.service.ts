@@ -13,7 +13,7 @@ import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
-import { WebhookResult } from 'src/subdomains/core/payment-link/share/IPaymentLinkProvider';
+import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -151,7 +151,7 @@ export class PaymentLinkPaymentService {
     return this.paymentWaitMap.wait(payment.id, 0);
   }
 
-  async handleBinanceWaiting(result: WebhookResult): Promise<void> {
+  async handleBinanceWaiting(result: C2BWebhookResult): Promise<void> {
     const { qrContent, referId } = result.metadata;
 
     const lnurl = new URL(qrContent).searchParams.get('lightning');
