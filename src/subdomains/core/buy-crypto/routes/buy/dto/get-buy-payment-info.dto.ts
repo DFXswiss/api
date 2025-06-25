@@ -26,7 +26,6 @@ export class GetBuyPaymentInfoDto {
   @IsString()
   @IsDfxIban(IbanType.BUY)
   @Transform(Util.trimAll)
-  @Transform(Util.sanitize)
   iban?: string;
 
   @ApiProperty({ type: EntityDto, description: 'Source currency' })

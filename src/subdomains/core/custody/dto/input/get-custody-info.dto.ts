@@ -19,7 +19,6 @@ export class GetCustodyInfoDto {
   @IsString()
   @IsDfxIban(IbanType.SELL)
   @Transform(Util.trimAll)
-  @Transform(Util.sanitize)
   iban?: string;
 
   @ApiProperty({ description: 'Source asset name, Asset or Fiat' })
