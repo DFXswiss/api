@@ -1,12 +1,7 @@
 import { GetConfig } from 'src/config/config';
 
+import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import {
-  GoodsCategory,
-  GoodsType,
-  MerchantMCC,
-  StoreType,
-} from 'src/integration/c2b-payment-link/binance/dto/binance.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';

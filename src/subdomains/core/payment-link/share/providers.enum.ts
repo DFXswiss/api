@@ -1,4 +1,4 @@
-import { Blockchain } from '../../blockchain/shared/enums/blockchain.enum';
+import { Blockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
 
 export enum C2BPaymentProvider {
   BINANCE_PAY = Blockchain.BINANCE_PAY,

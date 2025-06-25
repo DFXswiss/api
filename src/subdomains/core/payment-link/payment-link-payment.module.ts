@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BinancePayModule } from 'src/integration/binance-pay/binance-pay.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
-import { C2BPaymentLinkModule } from 'src/integration/c2b-payment-link/c2b-payment-link.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
@@ -12,6 +12,7 @@ import { PaymentQuote } from './entities/payment-quote.entity';
 import { PaymentActivationRepository } from './repositories/payment-activation.repository';
 import { PaymentLinkPaymentRepository } from './repositories/payment-link-payment.repository';
 import { PaymentQuoteRepository } from './repositories/payment-quote.repository';
+import { C2BPaymentLinkService } from './services/c2b-payment-link.service';
 import { PaymentActivationService } from './services/payment-activation.service';
 import { PaymentLinkPaymentService } from './services/payment-link-payment.service';
 import { PaymentQuoteService } from './services/payment-quote.service';
@@ -25,7 +26,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     LightningModule,
     PricingModule,
     PayoutModule,
-    C2BPaymentLinkModule,
+    BinancePayModule,
   ],
   controllers: [],
   providers: [
@@ -36,7 +37,8 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     PaymentQuoteService,
     PaymentActivationService,
     PaymentWebhookService,
+    C2BPaymentLinkService,
   ],
-  exports: [PaymentLinkPaymentService, PaymentQuoteService, PaymentActivationService],
+  exports: [PaymentLinkPaymentService, PaymentQuoteService, PaymentActivationService, C2BPaymentLinkService],
 })
 export class PaymentLinkPaymentModule {}

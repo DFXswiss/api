@@ -23,7 +23,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -327,14 +326,6 @@ export class PaymentLinkController {
     });
 
     return new StreamableFile(pdfBuffer);
-  }
-
-  // --- INTEGRATION --- //
-  @Post('integration/binance/activate/:id')
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async activateBinancePay(@Param('id') id: string): Promise<void> {
-    await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.BINANCE_PAY);
   }
 
   // --- HELPER METHODS --- //

@@ -3,8 +3,8 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
-import { Blockchain } from '../../blockchain/shared/enums/blockchain.enum';
-import { BinancePayService } from '../binance/services/binance-pay.service';
+import { BinancePayService } from '../../../../integration/binance-pay/services/binance-pay.service';
+import { Blockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
 import { C2BPaymentProvider } from '../share/providers.enum';
 
 @Injectable()
