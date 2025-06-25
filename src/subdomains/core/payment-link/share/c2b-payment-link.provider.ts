@@ -2,7 +2,7 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
-import { C2BPaymentStatus } from './c2b-payment-status';
+import { C2BPaymentStatus } from '../enums';
 
 export interface C2BOrderResult {
   providerOrderId: string;

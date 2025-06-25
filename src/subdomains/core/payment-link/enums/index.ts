@@ -56,3 +56,11 @@ export enum PaymentStandard {
   LIGHTNING_BOLT11 = 'LightningBolt11',
   PAY_TO_ADDRESS = 'PayToAddress',
 }
+
+export enum C2BPaymentStatus {
+  WAITING = 'WAITING',
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  REFUNDED = 'REFUNDED',
+}

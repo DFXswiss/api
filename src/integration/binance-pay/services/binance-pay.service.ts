@@ -8,12 +8,12 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { C2BPaymentStatus } from 'src/subdomains/core/payment-link/enums';
 import {
   C2BOrderResult,
   C2BPaymentLinkProvider,
   C2BWebhookResult,
 } from '../../../subdomains/core/payment-link/share/c2b-payment-link.provider';
-import { C2BPaymentStatus } from '../../../subdomains/core/payment-link/share/c2b-payment-status';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
