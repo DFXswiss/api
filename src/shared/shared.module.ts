@@ -1,5 +1,5 @@
 import { HttpModule } from '@nestjs/axios';
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -10,6 +10,7 @@ import { I18nModule } from 'nestjs-i18n';
 import { GetConfig } from 'src/config/config';
 import { ConfigModule } from 'src/config/config.module';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
+import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { AssetController } from './models/asset/asset.controller';
 import { Asset } from './models/asset/asset.entity';
@@ -43,6 +44,7 @@ import { ProcessService } from './services/process.service';
 
 @Module({
   imports: [
+    forwardRef(() => NotificationModule),
     DiscoveryModule,
     HttpModule,
     ConfigModule,
