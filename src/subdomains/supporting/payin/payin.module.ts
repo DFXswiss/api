@@ -31,7 +31,7 @@ import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
-import { BinancePayStrategy as BinanceStrategyR } from './strategies/register/impl/binance-pay.strategy';
+import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
@@ -127,7 +127,7 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     GnosisStrategyR,
     GnosisCoinStrategyS,
     GnosisTokenStrategyS,
-    BinanceStrategyR,
+    BinancePayStrategyR,
   ],
   exports: [PayInService],
 })
