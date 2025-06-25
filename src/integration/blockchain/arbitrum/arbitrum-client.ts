@@ -13,8 +13,8 @@ import {
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
@@ -22,7 +22,7 @@ import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(ArbitrumClient);
+  private logger: DfxLogger;
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;
@@ -30,6 +30,8 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   constructor(params: EvmClientParams) {
     super(params);
+
+    this.logger = params.loggerFactory.create(ArbitrumClient);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;

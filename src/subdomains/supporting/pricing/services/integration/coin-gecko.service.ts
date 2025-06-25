@@ -1,21 +1,22 @@
 import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CoinGeckoClient } from 'coingecko-api-v3';
 import { GetConfig } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
 
 @Injectable()
 export class CoinGeckoService extends PricingProvider implements OnModuleInit {
-  private readonly logger = new DfxLogger(CoinGeckoService);
-
+  private readonly logger: DfxLogger;
   private readonly client: CoinGeckoClient;
   private currencies: string[];
 
-  constructor() {
+  constructor(readonly loggerFactory: LoggerFactory) {
     super();
 
     this.client = new CoinGeckoClient({ autoRetry: false }, GetConfig().coinGecko.apiKey);
+    this.logger = loggerFactory.create(CoinGeckoService);
   }
 
   onModuleInit() {

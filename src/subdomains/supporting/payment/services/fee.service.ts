@@ -8,13 +8,14 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Active, isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -70,11 +71,12 @@ const FeeValidityMinutes = 30;
 
 @Injectable()
 export class FeeService implements OnModuleInit {
-  private readonly logger = new DfxLogger(FeeService);
+  private readonly logger: DfxLogger;
 
   private chf: Fiat;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
@@ -85,7 +87,9 @@ export class FeeService implements OnModuleInit {
     private readonly payoutService: PayoutService,
     private readonly pricingService: PricingService,
     private readonly bankService: BankService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(FeeService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

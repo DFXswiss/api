@@ -10,8 +10,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { AppModule } from './app.module';
 import { Config } from './config/config';
+import { DfxLogger } from './logger/dfx-logger.service';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
-import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
   KycChangedWebhookDto,

@@ -2,6 +2,8 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Process } from 'src/shared/services/process.service';
@@ -33,6 +35,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
 
+  protected readonly logger: DfxLogger;
+
   private usd: Fiat;
   private eur: Fiat;
   private chf: Fiat;
@@ -42,11 +46,14 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   private frankencoinService: FrankencoinService;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly moduleRef: ModuleRef,
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
     super();
+
+    this.logger = this.loggerFactory.create(DEuroService);
   }
 
   async onModuleInit() {

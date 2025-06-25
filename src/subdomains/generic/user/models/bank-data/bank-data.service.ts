@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -27,9 +28,10 @@ import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
-  private readonly logger = new DfxLogger(BankDataService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly specialAccountService: SpecialExternalAccountService,
@@ -39,7 +41,9 @@ export class BankDataService {
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
     private readonly kycAdminService: KycAdminService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(BankDataService);
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BANK_DATA_VERIFICATION, timeout: 1800 })
   async checkAndSetActive() {

@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { kraken } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
 export class KrakenService extends ExchangeService {
-  protected readonly logger = new DfxLogger(KrakenService);
-
+  protected readonly logger: DfxLogger;
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: 'arbitrum',
     BinanceSmartChain: 'bsc',
@@ -30,7 +30,9 @@ export class KrakenService extends ExchangeService {
     Solana: undefined,
   };
 
-  constructor() {
+  constructor(readonly loggerFactory: LoggerFactory) {
     super(kraken, GetConfig().kraken);
+
+    this.logger = loggerFactory.create(KrakenService);
   }
 }

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -16,15 +17,18 @@ import { SupportLogService } from './support-log.service';
 
 @Injectable()
 export class LimitRequestService {
-  private readonly logger = new DfxLogger(LimitRequestService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly supportLogService: SupportLogService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(LimitRequestService);
+  }
 
   async increaseLimitInternal(dto: LimitRequestDto, userData: UserData): Promise<LimitRequest> {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');

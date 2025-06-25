@@ -1,7 +1,7 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';

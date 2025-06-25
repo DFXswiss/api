@@ -1,8 +1,8 @@
 import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
 import { BigNumber, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
@@ -16,7 +16,7 @@ interface BaseTransactionReceipt extends ethers.providers.TransactionReceipt {
 }
 
 export class BaseClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(BaseClient);
+  private readonly logger: DfxLogger;
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;
@@ -25,6 +25,8 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
 
   constructor(params: EvmClientParams) {
     super(params);
+
+    this.logger = params.loggerFactory.create(BaseClient);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
     const { baseChainId } = GetConfig().blockchain.base;

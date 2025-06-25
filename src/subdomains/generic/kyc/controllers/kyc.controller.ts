@@ -29,6 +29,8 @@ import {
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
@@ -37,7 +39,6 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
@@ -77,9 +78,15 @@ const TfaResponse = { description: '2FA is required' };
 @ApiTags('KYC')
 @Controller({ path: 'kyc', version: [GetConfig().kycVersion] })
 export class KycController {
-  private readonly logger = new DfxLogger(KycController);
+  private readonly logger: DfxLogger;
 
-  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
+  constructor(
+    readonly loggerFactory: LoggerFactory,
+    private readonly kycService: KycService,
+    private readonly tfaService: TfaService,
+  ) {
+    this.logger = loggerFactory.create(KycController);
+  }
 
   // --- 2FA --- //
   @Get('2fa')

@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -18,10 +19,16 @@ interface ExchangeData {
 
 @Injectable()
 export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
-  protected readonly logger = new DfxLogger(ExchangeObserver);
+  protected readonly logger: DfxLogger;
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    readonly loggerFactory: LoggerFactory,
+    private readonly repos: RepositoryFactory,
+  ) {
     super(monitoringService, 'exchange', 'volume');
+
+    this.logger = this.loggerFactory.create(ExchangeObserver);
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })

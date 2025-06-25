@@ -26,12 +26,13 @@ import { Response } from 'express';
 import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
 import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -55,13 +56,17 @@ import { PaymentLinkService } from '../services/payment-link.service';
 @ApiTags('Payment Link')
 @Controller('paymentLink')
 export class PaymentLinkController {
-  private readonly logger = new DfxLogger(PaymentLinkController);
+  private readonly logger: DfxLogger;
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
-  ) {}
+    readonly loggerFactory: LoggerFactory,
+  ) {
+    this.logger = loggerFactory.create(PaymentLinkController);
+  }
 
   @Get()
   @ApiBearerAuth()

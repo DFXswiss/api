@@ -2,17 +2,20 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class OptimismStrategy extends EvmStrategy implements OnModuleInit {
-  protected readonly logger = new DfxLogger(OptimismStrategy);
+  protected readonly logger: DfxLogger;
 
-  constructor(optimismService: PayInOptimismService) {
+  constructor(readonly loggerFactory: LoggerFactory, optimismService: PayInOptimismService) {
     super(optimismService);
+
+    this.logger = this.loggerFactory.create(OptimismStrategy);
   }
 
   onModuleInit() {

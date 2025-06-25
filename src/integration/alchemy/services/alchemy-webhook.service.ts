@@ -10,7 +10,8 @@ import {
 } from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
 import { Config, GetConfig } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
@@ -18,15 +19,15 @@ import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 
 @Injectable()
 export class AlchemyWebhookService implements OnModuleInit {
-  private readonly logger = new DfxLogger(AlchemyWebhookService);
-
+  private readonly logger: DfxLogger;
   private readonly alchemy: Alchemy;
   private readonly webhookCache: Map<string, string>;
 
   private readonly addressWebhookSubject: Subject<AlchemyWebhookDto>;
 
-  constructor() {
+  constructor(readonly loggerFactory: LoggerFactory) {
     const config = GetConfig();
+    this.logger = loggerFactory.create(AlchemyWebhookService);
 
     const settings = {
       apiKey: config.alchemy.apiKey,

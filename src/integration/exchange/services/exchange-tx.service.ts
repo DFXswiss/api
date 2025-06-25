@@ -1,10 +1,11 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -19,16 +20,19 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
 export class ExchangeTxService implements OnModuleInit {
-  private readonly logger = new DfxLogger(ExchangeTxService);
+  private readonly logger: DfxLogger;
   private chf: Fiat;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly exchangeTxRepo: ExchangeTxRepository,
     private readonly registryService: ExchangeRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(ExchangeTxService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

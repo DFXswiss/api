@@ -3,8 +3,9 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -15,10 +16,12 @@ import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class MoneroStrategy extends RegisterStrategy {
-  protected logger: DfxLogger = new DfxLogger(MoneroStrategy);
+  protected readonly logger: DfxLogger;
 
-  constructor(private readonly payInMoneroService: PayInMoneroService) {
+  constructor(readonly loggerFactory: LoggerFactory, private readonly payInMoneroService: PayInMoneroService) {
     super();
+
+    this.logger = this.loggerFactory.create(MoneroStrategy);
   }
 
   get blockchain(): Blockchain {

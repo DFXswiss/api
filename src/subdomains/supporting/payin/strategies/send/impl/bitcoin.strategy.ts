@@ -1,19 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends BitcoinBasedStrategy {
-  protected readonly logger = new DfxLogger(BitcoinStrategy);
+  protected readonly logger: DfxLogger;
 
-  constructor(protected readonly bitcoinService: PayInBitcoinService, protected payInRepo: PayInRepository) {
+  constructor(
+    readonly loggerFactory: LoggerFactory,
+    protected readonly bitcoinService: PayInBitcoinService,
+    protected payInRepo: PayInRepository,
+  ) {
     super(bitcoinService, payInRepo);
+
+    this.logger = this.loggerFactory.create(BitcoinStrategy);
   }
 
   get blockchain(): Blockchain {

@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { ConnectionPool } from 'mssql/lib/tedious/connection-pool';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { DataSource } from 'typeorm';
@@ -11,13 +12,13 @@ import { SqlServerDriver } from 'typeorm/driver/sqlserver/SqlServerDriver';
 
 @Injectable()
 export class MonitorConnectionPoolService {
-  private readonly logger = new DfxLogger(MonitorConnectionPoolService);
-
+  private readonly logger: DfxLogger;
   private readonly dbConnectionPool: ConnectionPool;
 
-  constructor(dataSource: DataSource) {
+  constructor(dataSource: DataSource, readonly loggerFactory: LoggerFactory) {
     const dbDriver = dataSource.driver as SqlServerDriver;
     this.dbConnectionPool = dbDriver.master;
+    this.logger = loggerFactory.create(MonitorConnectionPoolService);
   }
 
   @DfxCron(CronExpression.EVERY_SECOND, { process: Process.MONITOR_CONNECTION_POOL })

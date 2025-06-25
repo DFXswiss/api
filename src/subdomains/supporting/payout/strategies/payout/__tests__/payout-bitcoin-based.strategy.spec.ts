@@ -1,8 +1,8 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import {
   createCustomPayoutOrder,

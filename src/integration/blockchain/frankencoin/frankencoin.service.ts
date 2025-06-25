@@ -3,6 +3,8 @@ import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Process } from 'src/shared/services/process.service';
@@ -34,17 +36,22 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
 
+  protected readonly logger: DfxLogger;
+
   private usd: Fiat;
   private chf: Fiat;
 
   private frankencoinClient: FrankencoinClient;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly moduleRef: ModuleRef,
     private readonly logService: LogService,
     private readonly fiatService: FiatService,
   ) {
     super();
+
+    this.logger = this.loggerFactory.create(FrankencoinService);
   }
 
   async onModuleInit() {

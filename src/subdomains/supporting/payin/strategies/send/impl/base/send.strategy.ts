@@ -2,12 +2,12 @@ import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/commo
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import {
   CryptoInput,

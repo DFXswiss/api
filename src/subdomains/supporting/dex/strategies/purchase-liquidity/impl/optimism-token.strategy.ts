@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { PurchaseStrategy } from './base/purchase.strategy';
 
 @Injectable()
 export class OptimismTokenStrategy extends PurchaseStrategy {
-  protected readonly logger = new DfxLogger(OptimismTokenStrategy);
+  protected readonly logger: DfxLogger;
 
-  constructor(dexOptimismService: DexOptimismService) {
+  constructor(readonly loggerFactory: LoggerFactory, dexOptimismService: DexOptimismService) {
     super(dexOptimismService);
+
+    this.logger = this.loggerFactory.create(OptimismTokenStrategy);
   }
 
   get blockchain(): Blockchain {

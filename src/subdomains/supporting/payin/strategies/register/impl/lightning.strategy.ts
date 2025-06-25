@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LnBitsTransactionWebhookDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInEntry } from '../../../interfaces';
 import { PayInWebHookService } from '../../../services/payin-webhhook.service';
@@ -11,13 +12,14 @@ import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class LightningStrategy extends RegisterStrategy {
-  protected logger: DfxLogger = new DfxLogger(LightningStrategy);
+  protected readonly logger: DfxLogger;
 
   private readonly depositWebhookMessageQueue: QueueHandler;
 
-  constructor(readonly payInWebHookService: PayInWebHookService) {
+  constructor(readonly loggerFactory: LoggerFactory, readonly payInWebHookService: PayInWebHookService) {
     super();
 
+    this.logger = this.loggerFactory.create(LightningStrategy);
     this.depositWebhookMessageQueue = new QueueHandler();
 
     payInWebHookService

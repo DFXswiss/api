@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { getClientIp } from '@supercharge/request-ip';
-import { DfxLogger } from '../services/dfx-logger';
+import { DfxLogger } from '../../logger/dfx-logger.service';
 
 @Injectable()
 export class IpGuard implements CanActivate {

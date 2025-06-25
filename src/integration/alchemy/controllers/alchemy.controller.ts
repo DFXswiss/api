@@ -13,10 +13,11 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from '../services/alchemy-webhook.service';
@@ -25,12 +26,15 @@ import { AlchemyService } from '../services/alchemy.service';
 @ApiTags('Alchemy')
 @Controller('alchemy')
 export class AlchemyController {
-  private readonly logger = new DfxLogger(AlchemyController);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly alchemyWebhookService: AlchemyWebhookService,
     private readonly alchemyService: AlchemyService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(AlchemyController);
+  }
 
   @Post('addressWebhook')
   @ApiExcludeEndpoint()
