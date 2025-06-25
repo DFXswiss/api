@@ -6,6 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -21,25 +22,29 @@ describe('CryptoService', () => {
   let bitcoinService: BitcoinService;
   let railgunService: RailgunService;
   let solanaService: SolanaService;
+  let tronService: TronService;
 
   beforeEach(async () => {
+    blockchainRegistryService = createMock<BlockchainRegistryService>();
+    bitcoinService = createMock<BitcoinService>();
     lightningService = createMock<LightningService>();
     moneroService = createMock<MoneroService>();
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
-    bitcoinService = createMock<BitcoinService>();
-    blockchainRegistryService = createMock<BlockchainRegistryService>();
+    solanaService = createMock<SolanaService>();
+    tronService = createMock<TronService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CryptoService,
         { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
+        { provide: BitcoinService, useValue: bitcoinService },
         { provide: LightningService, useValue: lightningService },
         { provide: MoneroService, useValue: moneroService },
         { provide: ArweaveService, useValue: arweaveService },
-        { provide: BitcoinService, useValue: bitcoinService },
         { provide: RailgunService, useValue: railgunService },
         { provide: SolanaService, useValue: solanaService },
+        { provide: TronService, useValue: tronService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -162,5 +167,15 @@ describe('CryptoService', () => {
         '0zk1qyq24xdx7xuuf2ldgm2a96zd32t9ktru7dm88apaykhqu9cmnx9a3rv7j6fe3z53l7p2rhypluwfqqwa6t7nejqq0nj2quwy0599l8aw8u7fqh98qkhyupxjfqh',
       ),
     ).toEqual([Blockchain.RAILGUN]);
+  });
+
+  it('should return Blockchain.SOLANA for address LUKAzPV8dDbVykTVT14pCGKzFfNcgZgRbAXB8AGdKx3', () => {
+    expect(CryptoService.getBlockchainsBasedOn('LUKAzPV8dDbVykTVT14pCGKzFfNcgZgRbAXB8AGdKx3')).toEqual([
+      Blockchain.SOLANA,
+    ]);
+  });
+
+  it('should return Blockchain.TRON for address TRmumx428iKqDQkBMhtjK8DQgcfYK7NdZP', () => {
+    expect(CryptoService.getBlockchainsBasedOn('TRmumx428iKqDQkBMhtjK8DQgcfYK7NdZP')).toEqual([Blockchain.TRON]);
   });
 });

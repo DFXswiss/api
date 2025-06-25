@@ -39,6 +39,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
   [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.TRON]: 'https://tronscan.org/#',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -60,6 +61,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
   [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.TRON]: 'transaction',
 };
 
 function assetPaths(asset: Asset): string | undefined {
@@ -83,6 +85,9 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
+
+    case Blockchain.TRON:
+      return asset.chainId ? `token20/${asset.chainId}` : undefined;
   }
 }
 
@@ -105,6 +110,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.LIQUID:
     case Blockchain.ARWEAVE:
     case Blockchain.CARDANO:
+    case Blockchain.TRON:
       return 'address';
 
     case Blockchain.SOLANA:

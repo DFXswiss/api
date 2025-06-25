@@ -71,6 +71,10 @@ describe('CryptoService', () => {
     expect(getBlockchain('LUKAzPV8dDbVykTVT14pCGKzFfNcgZgRbAXB8AGdKx3')).toEqual(Blockchain.SOLANA);
     expect(getBlockchain('oQPnhXAbLbMuKHESaGrbXT17CyvWCpLyERSJA9HCYd7')).toEqual(Blockchain.SOLANA);
   });
+
+  it('should match tron addresses', async () => {
+    expect(getBlockchain('TRmumx428iKqDQkBMhtjK8DQgcfYK7NdZP')).toEqual(Blockchain.TRON);
+  });
 });
 
 function getBlockchain(address: string): Blockchain {

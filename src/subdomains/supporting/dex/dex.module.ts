@@ -18,6 +18,7 @@ import { DexMoneroService } from './services/dex-monero.service';
 import { DexOptimismService } from './services/dex-optimism.service';
 import { DexPolygonService } from './services/dex-polygon.service';
 import { DexSolanaService } from './services/dex-solana.service';
+import { DexTronService } from './services/dex-tron.service';
 import { DexService } from './services/dex.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyCL } from './strategies/check-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyCL } from './strategies/check-liquidity/impl/arbitrum-token.strategy';
@@ -39,6 +40,8 @@ import { PolygonCoinStrategy as PolygonCoinStrategyCL } from './strategies/check
 import { PolygonTokenStrategy as PolygonTokenStrategyCL } from './strategies/check-liquidity/impl/polygon-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyCL } from './strategies/check-liquidity/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyCL } from './strategies/check-liquidity/impl/solana-token.strategy';
+import { TronCoinStrategy as TronCoinStrategyCL } from './strategies/check-liquidity/impl/tron-coin.strategy';
+import { TronTokenStrategy as TronTokenStrategyCL } from './strategies/check-liquidity/impl/tron-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyPL } from './strategies/purchase-liquidity/impl/base-coin.strategy';
@@ -58,6 +61,8 @@ import { PolygonCoinStrategy as PolygonCoinStrategyPL } from './strategies/purch
 import { PolygonTokenStrategy as PolygonTokenStrategyPL } from './strategies/purchase-liquidity/impl/polygon-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyPL } from './strategies/purchase-liquidity/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyPL } from './strategies/purchase-liquidity/impl/solana-token.strategy';
+import { TronCoinStrategy as TronCoinStrategyPL } from './strategies/purchase-liquidity/impl/tron-coin.strategy';
+import { TronTokenStrategy as TronTokenStrategyPL } from './strategies/purchase-liquidity/impl/tron-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategySL } from './strategies/sell-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategySL } from './strategies/sell-liquidity/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategySL } from './strategies/sell-liquidity/impl/base-coin.strategy';
@@ -77,6 +82,8 @@ import { PolygonCoinStrategy as PolygonCoinStrategySL } from './strategies/sell-
 import { PolygonTokenStrategy as PolygonTokenStrategySL } from './strategies/sell-liquidity/impl/polygon-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategySL } from './strategies/sell-liquidity/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategySL } from './strategies/sell-liquidity/impl/solana-token.strategy';
+import { TronCoinStrategy as TronCoinStrategySL } from './strategies/sell-liquidity/impl/tron-coin.strategy';
+import { TronTokenStrategy as TronTokenStrategySL } from './strategies/sell-liquidity/impl/tron-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyS } from './strategies/supplementary/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyS } from './strategies/supplementary/impl/base.strategy';
 import { SupplementaryStrategyRegistry } from './strategies/supplementary/impl/base/supplementary.strategy-registry';
@@ -88,6 +95,7 @@ import { MoneroStrategy as MoneroStrategyS } from './strategies/supplementary/im
 import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
 import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/impl/polygon.strategy';
 import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/impl/solana.strategy';
+import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/tron.strategy';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LiquidityOrder]), BlockchainModule, NotificationModule, SharedModule],
@@ -107,6 +115,7 @@ import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/im
     DexLightningService,
     DexMoneroService,
     DexSolanaService,
+    DexTronService,
     CheckLiquidityStrategyRegistry,
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
@@ -130,6 +139,8 @@ import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/im
     SolanaTokenStrategyCL,
     GnosisCoinStrategyCL,
     GnosisTokenStrategyCL,
+    TronCoinStrategyCL,
+    TronTokenStrategyCL,
     EthereumCoinStrategyPL,
     BscCoinStrategyPL,
     BitcoinStrategyPL,
@@ -148,6 +159,8 @@ import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/im
     SolanaTokenStrategyPL,
     GnosisCoinStrategyPL,
     GnosisTokenStrategyPL,
+    TronCoinStrategyPL,
+    TronTokenStrategyPL,
     BitcoinStrategySL,
     MoneroStrategySL,
     ArbitrumCoinStrategySL,
@@ -166,6 +179,8 @@ import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/im
     SolanaTokenStrategySL,
     GnosisCoinStrategySL,
     GnosisTokenStrategySL,
+    TronCoinStrategySL,
+    TronTokenStrategySL,
     ArbitrumStrategyS,
     BitcoinStrategyS,
     MoneroStrategyS,
@@ -176,6 +191,7 @@ import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/im
     BaseStrategyS,
     SolanaStrategyS,
     GnosisStrategyS,
+    TronStrategyS,
   ],
   exports: [DexService],
 })

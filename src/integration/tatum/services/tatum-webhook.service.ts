@@ -1,26 +1,21 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Network as TatumNetwork, TatumSDK, Solana as TatumSolana } from '@tatumio/tatum';
+import { Injectable } from '@nestjs/common';
+import { Network as TatumNetwork, TatumSDK, Solana as TatumSolana, Tron as TatumTron } from '@tatumio/tatum';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { CreateTatumWebhookDto, TatumWebhookDto } from '../dto/tatum.dto';
 import { TatumNetworkMapper } from '../tatum-network-mapper';
 
+type TatumSdk = TatumSolana | TatumTron;
+
 @Injectable()
-export class TatumWebhookService implements OnModuleInit {
+export class TatumWebhookService {
   private readonly addressWebhookSubject: Subject<TatumWebhookDto>;
 
-  private tatum: TatumSolana;
+  private readonly tatumMap = new Map<TatumNetwork, TatumSdk>();
 
   constructor() {
     this.addressWebhookSubject = new Subject<TatumWebhookDto>();
-  }
-
-  async onModuleInit() {
-    this.tatum = await TatumSDK.init<TatumSolana>({
-      network: TatumNetwork.SOLANA,
-      apiKey: Config.blockchain.solana.solanaApiKey,
-    });
   }
 
   isValidWebhookSignature(tatumSignature: string, rawBody: any): boolean {
@@ -32,6 +27,8 @@ export class TatumWebhookService implements OnModuleInit {
     const network = TatumNetworkMapper.toTatumNetworkByBlockchain(dto.blockchain);
     if (!network) return;
 
+    const tatumSdk = await this.getTatumSdk(network);
+
     const url = `${Config.url()}/tatum/addressWebhook`;
 
     // Max. 5 allowed in Testaccount ...
@@ -40,7 +37,7 @@ export class TatumWebhookService implements OnModuleInit {
     const allSubscriptionIds = (
       await Util.doInBatches(
         createWebhookAddresses,
-        async (batch: string[]) => this.doCreateAddressWebhook(url, batch),
+        async (batch: string[]) => this.doCreateAddressWebhook(tatumSdk, url, batch),
         100,
       )
     ).flat();
@@ -48,10 +45,10 @@ export class TatumWebhookService implements OnModuleInit {
     return allSubscriptionIds;
   }
 
-  private async doCreateAddressWebhook(url: string, addresses: string[]): Promise<string[]> {
+  private async doCreateAddressWebhook(tatumSdk: TatumSdk, url: string, addresses: string[]): Promise<string[]> {
     return Promise.all(
       addresses.map((address) =>
-        this.tatum.notification.subscribe.addressEvent({
+        tatumSdk.notification.subscribe.addressEvent({
           address: address,
           url: url,
         }),
@@ -65,5 +62,30 @@ export class TatumWebhookService implements OnModuleInit {
 
   processAddressWebhook(dto: TatumWebhookDto): void {
     this.addressWebhookSubject.next(dto);
+  }
+
+  // --- Tatum Setup --- //
+
+  private async getTatumSdk(tatumNetwork: TatumNetwork): Promise<TatumSdk> {
+    const tatum = this.tatumMap.get(tatumNetwork);
+    return tatum ?? this.setupTatumSdk(tatumNetwork);
+  }
+
+  private async setupTatumSdk(tatumNetwork: TatumNetwork): Promise<TatumSdk> {
+    switch (tatumNetwork) {
+      case TatumNetwork.SOLANA:
+        return TatumSDK.init<TatumSolana>({
+          network: tatumNetwork,
+          apiKey: Config.tatum.apiKey,
+        });
+
+      case TatumNetwork.TRON:
+        return TatumSDK.init<TatumTron>({
+          network: tatumNetwork,
+          apiKey: Config.tatum.apiKey,
+        });
+    }
+
+    throw new Error(`Invalid tatum network ${tatumNetwork}`);
   }
 }
