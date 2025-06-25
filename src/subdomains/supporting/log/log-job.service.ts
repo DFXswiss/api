@@ -456,7 +456,7 @@ export class LogJobService {
       // filtered lists
       const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
+        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
       const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(

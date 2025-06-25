@@ -42,11 +42,10 @@ export class BuyCryptoOutService {
 
   async payoutTransactions(): Promise<void> {
     try {
-      const batches = await this.fetchBatchesForPayout();
+      if (DisabledProcess(Process.CRYPTO_PAYOUT)) return;
 
-      if (batches.length === 0) {
-        return;
-      }
+      const batches = await this.fetchBatchesForPayout();
+      if (batches.length === 0) return;
 
       for (const batch of batches) {
         if (batch.status === BuyCryptoBatchStatus.PAYING_OUT) {

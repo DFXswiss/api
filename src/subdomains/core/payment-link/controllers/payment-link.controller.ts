@@ -207,11 +207,10 @@ export class PaymentLinkController {
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
     if (key) {
-      if (!route || !externalLinkId)
-        throw new BadRequestException('when using access key, route and externalLinkId must be provided');
+      if (!externalLinkId) throw new BadRequestException('External Link ID is required');
 
       return this.paymentLinkService
-        .createPaymentForRouteWithAccessKey(dto, key, route, externalLinkId)
+        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
         .then(PaymentLinkDtoMapper.toLinkDto);
     }
 
@@ -339,7 +338,7 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @UseGuards(BinancePayWebhookGuard)
   async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
-    void this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto).catch((error) => {
+    void this.paymentLinkService.handleBinanceWebhook(dto).catch((error) => {
       this.logger.error('Error handling Binance Pay webhook', error);
     });
     return { returnCode: 'SUCCESS', returnMessage: null };

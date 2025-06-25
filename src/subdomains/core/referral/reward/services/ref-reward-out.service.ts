@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
@@ -38,6 +39,8 @@ export class RefRewardOutService {
 
   async payoutNewTransactions(): Promise<void> {
     try {
+      if (DisabledProcess(Process.CRYPTO_PAYOUT)) return;
+
       const transactionsToPayout = await this.refRewardRepo.find({
         where: { status: RewardStatus.READY_FOR_PAYOUT },
         relations: { user: true },
