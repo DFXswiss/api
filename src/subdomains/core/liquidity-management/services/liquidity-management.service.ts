@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { LoggerFactory } from 'src/logger/logger.factory';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { In, Not } from 'typeorm';
@@ -33,10 +33,12 @@ export class LiquidityManagementService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
-  async verifyRules() {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT_CHECK_BALANCES, timeout: 1800 })
+  async checkLiquidityBalances() {
     const rules = await this.ruleRepo.findBy({ status: Not(LiquidityManagementRuleStatus.DISABLED) });
     const balances = await this.balanceService.refreshBalances(rules);
+
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     for (const rule of rules) {
       await this.verifyRule(rule, balances);

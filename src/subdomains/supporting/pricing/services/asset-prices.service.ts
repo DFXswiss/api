@@ -4,6 +4,7 @@ import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { UpdateResult } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -35,21 +36,25 @@ export class AssetPricesService {
     const eur = await this.fiatService.getFiatByName('EUR');
 
     const assetsToUpdate = await this.assetService.getPricedAssets();
+    const updates: UpdateResult<Asset>[] = [];
 
+    // fetch prices
     for (const asset of assetsToUpdate) {
       try {
         const usdPrice = await this.pricingService.getPrice(asset, usd, false);
         const chfPrice = await this.pricingService.getPrice(asset, chf, false);
         const eurPrice = await this.pricingService.getPrice(asset, eur, false);
 
-        await this.assetService.updatePrice(asset.id, usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1));
-        if (asset.type === AssetType.COIN || asset.type === AssetType.TOKEN) {
-          await this.saveAssetPrices(asset, usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1));
-        }
+        updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
+
+        if (asset.type === AssetType.COIN || asset.type === AssetType.TOKEN) await this.saveAssetPrices(asset);
       } catch (e) {
         this.logger.error(`Failed to update price of asset ${asset.uniqueName}:`, e);
       }
     }
+
+    // update DB
+    await this.assetService.updatePrices(updates);
   }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PRICING, timeout: 3600 })
@@ -74,7 +79,7 @@ export class AssetPricesService {
     });
   }
 
-  async saveAssetPrices(asset: Asset, priceUsd: number, priceChf: number, priceEur: number): Promise<void> {
+  async saveAssetPrices(asset: Asset): Promise<void> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -86,9 +91,9 @@ export class AssetPricesService {
     });
 
     if (todayPrice) {
-      const meanUsdPrice = this.calculateMeanPrice(todayPrice.priceUsd, priceUsd);
-      const meanChfPrice = this.calculateMeanPrice(todayPrice.priceChf, priceChf);
-      const meanEurPrice = this.calculateMeanPrice(todayPrice.priceEur, priceEur);
+      const meanUsdPrice = this.calculateMeanPrice(todayPrice.priceUsd, asset.approxPriceUsd);
+      const meanChfPrice = this.calculateMeanPrice(todayPrice.priceChf, asset.approxPriceChf);
+      const meanEurPrice = this.calculateMeanPrice(todayPrice.priceEur, asset.approxPriceEur);
 
       await this.assetPriceRepo.update(todayPrice.id, {
         priceUsd: meanUsdPrice,
@@ -96,7 +101,12 @@ export class AssetPricesService {
         priceEur: meanEurPrice,
       });
     } else {
-      const assetPrice = this.assetPriceRepo.create({ asset, priceUsd, priceChf, priceEur });
+      const assetPrice = this.assetPriceRepo.create({
+        asset,
+        priceUsd: asset.approxPriceUsd,
+        priceChf: asset.approxPriceChf,
+        priceEur: asset.approxPriceEur,
+      });
       await this.assetPriceRepo.save(assetPrice);
     }
   }
