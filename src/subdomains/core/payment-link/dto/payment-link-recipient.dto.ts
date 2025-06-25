@@ -39,6 +39,7 @@ export class PaymentLinkRecipientDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   registrationNumber?: string;
 
   @ApiPropertyOptional({ enum: StoreType })
